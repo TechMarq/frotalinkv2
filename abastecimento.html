@@ -1,0 +1,2214 @@
+﻿<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FROTALINK | Abastecimento</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap"
+        rel="stylesheet">
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="orb_menu.css">
+    <style>
+        :root {
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --primary: #6366f1;
+            --primary-light: #818cf8;
+            --secondary: #ec4899;
+            --accent: #f59e0b;
+            color-scheme: dark;
+        }
+
+        .ops-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .nav-back {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+
+        .nav-back:hover {
+            color: var(--primary);
+        }
+
+        /* Tabs System */
+        .tabs-header {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 0.5rem;
+            border-radius: 12px;
+            width: fit-content;
+            border: 1px solid var(--border-card);
+        }
+
+        .tab-item {
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .tab-item.active {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        /* Comparativo Mode Buttons Style */
+        .comp-mode-btn.active {
+            background: var(--primary) !important;
+            color: #fff !important;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .comp-mode-btn:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.05) !important;
+            color: #fff !important;
+        }
+
+        /* Dashboard specific cards */
+        .stats-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: 16px;
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: white;
+        }
+
+        /* Content Sections */
+        .tab-content,
+        .dashboard-container,
+        #fuelSection,
+        #setupSection {
+            display: none;
+        }
+
+        .setup-content {
+            display: none;
+        }
+
+        .setup-content.active {
+            display: block;
+        }
+
+        .tab-content.active,
+        .dashboard-container.active,
+        #fuelSection.active,
+        #setupSection.active {
+            display: block;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .data-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Buttons */
+        .btn-plus {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
+        }
+
+        .btn-plus:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 70, 229, 0.4);
+        }
+
+        /* Tables & Lists */
+        .glass-table-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: 16px;
+            overflow-y: auto;
+            max-height: 600px;
+            backdrop-filter: blur(12px);
+            position: relative;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        th {
+            background: #1e293b;
+            text-align: left;
+            padding: 0.8rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.3s;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-bottom: 2px solid var(--border-card);
+        }
+
+        th:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        th .sort-icon {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 0.5rem;
+            opacity: 0.3;
+        }
+
+        th.active-sort {
+            color: var(--primary);
+        }
+
+        th.active-sort .sort-icon {
+            opacity: 1;
+        }
+
+        td {
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid var(--border-card);
+            font-size: 0.8rem;
+            vertical-align: middle;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .badge-fuel {
+            background: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        .type-badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            white-space: nowrap;
+            letter-spacing: 0.02em;
+        }
+
+
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100% !important;
+            height: 100% !important;
+            max-width: none !important;
+            max-height: none !important;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(12px);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            /* Center content perfectly */
+            padding: 1rem;
+        }
+
+        .modal.active {
+            display: flex;
+            animation: modalFadeIn 0.3s ease-out;
+        }
+
+        .modal-content {
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            width: 95%;
+            max-width: 1350px;
+            /* Base for detailed forms */
+            max-height: 90vh;
+            /* Don't exceed screen height */
+            overflow-y: auto;
+            /* Scroll inside if too tall */
+            padding: 2.5rem;
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+            margin: auto;
+            animation: modalSlideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes modalSlideUp {
+            from {
+                transform: translateY(30px) scale(0.95);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .close-btn:hover {
+            color: white;
+        }
+
+        /* Form Controls */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group.full {
+            grid-column: span 2;
+        }
+
+        label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        input,
+        select,
+        textarea {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-card);
+            border-radius: 10px;
+            padding: 0.8rem;
+            color: white;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        option {
+            background-color: var(--bg-card);
+            color: white;
+        }
+
+        .chart-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-card);
+            border-radius: 20px;
+            padding: 1.5rem;
+            min-height: 380px;
+            display: flex;
+            flex-direction: column;
+            overflow: auto;
+        }
+
+        .chart-card canvas {
+            flex: 1;
+            max-height: 350px !important;
+        }
+
+        .chart-card h3 {
+            color: white;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        input:focus,
+        select:focus,
+        textarea {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-card);
+            border-radius: 10px;
+            padding: 0.8rem;
+            color: white;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .btn-submit {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 1rem;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 2rem;
+            transition: all 0.3s;
+        }
+
+        .btn-submit:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+        }
+
+        /* Notification */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            transform: translateY(100px);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .toast.active {
+            transform: translateY(0);
+        }
+
+        .toast.success {
+            background: var(--success);
+        }
+
+        .toast.error {
+            background: var(--danger);
+        }
+
+        .column-toggle-panel {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1rem;
+            width: 200px;
+            z-index: 100;
+            display: none;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            margin-top: 0.5rem;
+        }
+
+        .column-toggle-panel.active {
+            display: block;
+        }
+
+        .column-toggle-panel h3 {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 0.8rem;
+            letter-spacing: 0.05em;
+        }
+
+        .column-toggle-panel label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: color 0.2s;
+        }
+
+        .column-toggle-panel label:hover {
+            color: var(--primary);
+        }
+
+        .column-toggle-panel input {
+            cursor: pointer;
+        }
+
+        .btn-action {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+        }
+
+        .btn-action.edit {
+            background: rgba(99, 102, 241, 0.15);
+            color: #818cf8;
+            border-color: rgba(99, 102, 241, 0.2);
+        }
+
+        .btn-action.edit:hover {
+            background: rgba(99, 102, 241, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn-action.delete {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .btn-action.delete:hover {
+            background: rgba(239, 68, 68, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .actions-cell {
+            vertical-align: middle;
+            text-align: center;
+        }
+
+        /* Dashboard Styles */
+        .dashboard-container {
+            display: none;
+            padding: 1.5rem 0;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .dashboard-container.active {
+            display: block;
+        }
+
+        .dashboard-filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            background: rgba(30, 41, 59, 0.5);
+            padding: 1rem;
+            border-radius: 12px;
+            align-items: center;
+        }
+
+        .kpi-grid {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            overflow-x: auto;
+            padding: 0.5rem 0.2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-main);
+            padding-top: 1rem;
+            padding-bottom: 1.5rem;
+        }
+
+        .kpi-card {
+            flex: 1;
+            min-width: 200px;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            padding: 1.2rem;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .kpi-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+            opacity: 0.1;
+            transform: translate(20%, -20%);
+        }
+
+        .kpi-card .label {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .kpi-card .value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .charts-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            padding: 1.5rem;
+            border-radius: 16px;
+            border: 1px solid var(--border-card);
+        }
+
+        .chart-card h3 {
+            margin-bottom: 1.5rem;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .active-preset {
+            background: var(--primary) !important;
+            color: white !important;
+            border-color: var(--primary) !important;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        }
+
+        .ai-analyst-card {
+            background: linear-gradient(90deg, #6366f1 0%, #a855f7 100%);
+            padding: 2rem;
+            border-radius: 20px;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 2rem;
+            box-shadow: 0 20px 40px -10px rgba(99, 102, 241, 0.4);
+        }
+
+        @media (max-width: 1024px) {
+            .charts-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .highlight-alert {
+            background: rgba(239, 68, 68, 0.2) !important;
+            border: 2px solid var(--danger) !important;
+            border-radius: 6px;
+            animation: pulse-highlight 2s infinite;
+            padding: 4px !important;
+        }
+
+        @keyframes pulse-highlight {
+            0% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+
+        /* --- Estilos Responsivos (Mobile) --- */
+        @media (max-width: 768px) {
+            .ops-container {
+                padding: 0.75rem;
+            }
+
+            /* COMPACTAÃ‡ÃƒO EXTREMA DO LAYOUT MOBILE */
+            .ops-container {
+                padding: 0.5rem;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .header-actions {
+                margin-bottom: 0.75rem;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .header-actions h1 {
+                font-size: 1.1rem;
+                font-weight: 800;
+                color: white;
+            }
+
+            .kpi-grid {
+                display: grid !important;
+                grid-template-columns: repeat(3, 1fr) !important;
+                gap: 0.25rem !important;
+                margin-bottom: 0.75rem !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .kpi-card {
+                background: #1e293b !important;
+                border: 1px solid rgba(255, 255, 255, 0.05) !important;
+                padding: 0.4rem 0.2rem !important;
+                border-radius: 6px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+                text-align: center !important;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                min-height: 50px;
+            }
+
+            .kpi-card .value {
+                font-size: 0.7rem !important;
+                font-weight: 800;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .kpi-card .label {
+                font-size: 0.42rem !important;
+                color: var(--text-muted);
+                font-weight: 700;
+                text-transform: uppercase;
+                margin-bottom: 0.1rem;
+                display: block;
+                white-space: nowrap;
+            }
+
+            .kpi-card .label i {
+                display: none !important;
+            }
+
+            /* CompactaÃ§Ã£o para os cards de SeleÃ§Ã£o (stats-summary) */
+            .stats-summary {
+                display: grid !important;
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 0.35rem !important;
+                margin-bottom: 0.8rem !important;
+                position: relative !important;
+                /* Desativa o sticky no mobile */
+                top: auto !important;
+                padding: 0.4rem 0 !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .card-kpi {
+                padding: 0.5rem !important;
+                gap: 0.4rem !important;
+                border-radius: 8px !important;
+                min-height: auto !important;
+                flex: none !important;
+                /* Desativa o flex:1 do desktop */
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .card-kpi .kpi-icon {
+                width: 28px !important;
+                height: 28px !important;
+                min-width: 28px !important;
+            }
+
+            .card-kpi .kpi-icon i {
+                width: 14px !important;
+                height: 14px !important;
+            }
+
+            .card-kpi>div:last-child {
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            .card-kpi div[style*="font-size: 0.75rem"] {
+                font-size: 0.48rem !important;
+                margin-bottom: 0.05rem;
+                white-space: nowrap;
+            }
+
+            .card-kpi div#selectionFuelCost,
+            .card-kpi div#selectionAverage,
+            .card-kpi div#totalRecordsCount {
+                font-size: 0.85rem !important;
+                line-height: 1 !important;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .card-kpi:last-child {
+                grid-column: span 2;
+            }
+
+            /* TÃ­tulo e Toolbar */
+            .data-header {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.5rem !important;
+                margin-bottom: 0.75rem !important;
+                align-items: flex-start !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .data-header h2 {
+                font-size: 0.95rem !important;
+                font-weight: 800;
+                text-align: left !important;
+                width: 100% !important;
+            }
+
+            .search-box {
+                width: 100% !important;
+                order: 1;
+                box-sizing: border-box !important;
+            }
+
+            .search-box input {
+                width: 100% !important;
+                height: 38px !important;
+                font-size: 0.75rem;
+                padding: 0 1rem 0 2.5rem !important;
+                border-radius: 8px !important;
+                box-sizing: border-box !important;
+            }
+
+            .compact-row-mobile {
+                display: flex !important;
+                gap: 0.4rem;
+                order: 2;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            /* BotÃ£o Nova ManutenÃ§Ã£o/Abastecimento Estilo ManutenÃ§Ã£o */
+            button[onclick="openFuelModal()"] {
+                display: flex !important;
+                width: 100% !important;
+                height: 40px !important;
+                font-size: 0.8rem !important;
+                justify-content: center;
+                align-items: center;
+                background: #555 !important;
+                color: white !important;
+                border: none !important;
+                border-radius: 8px !important;
+                font-weight: 700;
+                order: 4;
+            }
+
+            /* Card Estilo "Lista" Extremamente Compacto */
+            .mobile-cards thead {
+                display: none;
+            }
+
+            .mobile-cards tbody tr {
+                display: block !important;
+                background: #111827 !important;
+                border: 1px solid rgba(255, 255, 255, 0.05) !important;
+                border-radius: 8px !important;
+                padding: 0.75rem !important;
+                margin-bottom: 0.5rem !important;
+            }
+
+            .mobile-cards td {
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                padding: 0.35rem 0 !important;
+                font-size: 0.7rem;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+                text-align: right !important;
+                width: 100% !important;
+            }
+
+            .mobile-cards td::before {
+                content: attr(data-label);
+                font-weight: 700;
+                text-transform: uppercase;
+                font-size: 0.55rem;
+                color: var(--text-muted);
+                text-align: left;
+            }
+
+            .mobile-cards td[data-label="VeÃ­culo"],
+            .mobile-cards td[data-label="VeÃ­culo / Cat."] {
+                color: #fbbf24 !important;
+                font-size: 0.9rem !important;
+                font-weight: 800;
+                margin-bottom: 0.3rem;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+                padding-bottom: 0.4rem !important;
+            }
+
+            .mobile-cards td:last-child {
+                border-bottom: none !important;
+            }
+
+            /* Bolinha Flutuante (FAB) Ajustada */
+            .fab-button {
+                position: fixed;
+                bottom: 1.5rem;
+                right: 1.5rem;
+                width: 50px;
+                height: 50px;
+                background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                box-shadow: 0 4px 15px rgba(234, 88, 12, 0.4);
+                cursor: pointer;
+                transition: all 0.3s;
+                z-index: 1000;
+            }
+
+            .fab-button:hover {
+                transform: scale(1.1);
+            }
+
+            /* Corrigindo propriedades gerais para mais compactaÃ§Ã£o */
+            .tabs-header {
+                padding: 0.1rem;
+                gap: 0.1rem;
+                margin-bottom: 0.8rem;
+            }
+
+            .tab-item {
+                padding: 0.3rem 0.1rem;
+                font-size: 0.55rem;
+            }
+
+            .charts-row {
+                grid-template-columns: 1fr !important;
+                gap: 0.5rem !important;
+            }
+
+            .chart-card {
+                min-height: 200px !important;
+                padding: 0.75rem !important;
+            }
+
+            .modal-content {
+                padding: 1rem !important;
+                width: 100% !important;
+                border-radius: 0 !important;
+            }
+
+            .modal-header h2 {
+                font-size: 0.9rem !important;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr !important;
+                gap: 0.75rem !important;
+            }
+
+            .form-group.full {
+                grid-column: auto !important;
+            }
+        }
+
+        /* Ajuste do FAB para desktop (esconder se necessÃ¡rio) */
+        @media (min-width: 769px) {
+            .fab-button {
+                display: none;
+            }
+        }
+
+        .analyst-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.7rem;
+        }
+
+        .analyst-table th {
+            text-align: left;
+            color: var(--text-muted);
+            padding: 0.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .analyst-table td {
+            padding: 0.6rem 0.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+            vertical-align: middle;
+        }
+
+        .fuel-name-cell {
+            font-weight: 800;
+            color: var(--primary);
+        }
+
+        .price-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .price-chip.best {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+        }
+
+        .price-chip.worst {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+
+        .recommendation-card-new {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 1.5rem;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .recommendation-card-new::before {
+            content: 'PRIORIDADE';
+            position: absolute;
+            top: 1rem;
+            right: -1rem;
+            background: #fbbf24;
+            color: #000;
+            font-size: 0.6rem;
+            font-weight: 900;
+            padding: 0.2rem 2rem;
+            transform: rotate(45deg);
+        }
+
+        .recommendation-card-new.attention::before {
+            content: 'ALERTA';
+            background: #ef4444;
+            color: #fff;
+        }
+
+        .alert-filter-bar {
+            display: flex;
+            gap: 0.5rem;
+            margin: 0 0 1.2rem 0;
+            padding: 0.4rem;
+            background: rgba(30, 41, 59, 0.25);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            align-items: center;
+            width: 100%;
+            flex-wrap: wrap;
+        }
+
+        .alert-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-muted);
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .alert-chip:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-1px);
+            color: white;
+        }
+
+        .alert-chip.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary-light);
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+        }
+
+        .alert-chip.danger.active {
+            background: #ef4444;
+            border-color: #f87171;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+        }
+
+        .alert-chip.warning.active {
+            background: #f59e0b;
+            border-color: #fbbf24;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+        }
+
+        .alert-chip .count {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 900;
+            color: white;
+        }
+
+        .alert-chip i {
+            width: 13px;
+            height: 13px;
+        }
+
+        .alert-chip i {
+            width: 14px;
+            height: 14px;
+        }
+    </style>
+    <script src="config.js"></script>
+</head>
+
+<body>
+    <div class="ops-container">
+        <div class="header-actions">
+            <div>
+                <a href="home.html" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                    <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
+                </a>
+                <h1 style="margin-top: 0.5rem;">Controle de Abastecimento</h1>
+            </div>
+            <div id="connectionStatus" class="date-badge">
+                <div class="status-indicator"></div>
+                <span>Carregando Supabase...</span>
+            </div>
+        </div>
+
+        <div class="tabs-header">
+            <div class="tab-item" onclick="switchMainTab('dashboard')" data-perm="abastecimento_lancamentos:view">
+                <i data-lucide="pie-chart" style="width: 18px;"></i>
+                Dashboard & IA
+            </div>
+            <div class="tab-item" onclick="switchMainTab('comparativo')" data-perm="abastecimento_lancamentos:view">
+                <i data-lucide="bar-chart-2" style="width: 18px;"></i>
+                Custos
+            </div>
+            <div class="tab-item active" onclick="switchMainTab('fuel')" data-perm="abastecimento_lancamentos:view">
+                <i data-lucide="fuel" style="width: 18px;"></i>
+                Abastecimentos
+            </div>
+            <div class="tab-item" onclick="switchMainTab('imports')" data-perm="abastecimento_importacoes:view">
+                <i data-lucide="file-up" style="width: 18px;"></i>
+                ImportaÃ§Ãµes
+            </div>
+            <div class="tab-item" onclick="switchMainTab('setup')" data-perm="abastecimento_postos:view">
+                <i data-lucide="settings" style="width: 18px;"></i>
+                Cadastros
+            </div>
+        </div>
+
+        <!-- Dashboard Section -->
+        <div id="dashboardSection" class="dashboard-container">
+            <div class="dashboard-filters" style="flex-direction: column; align-items: stretch; gap: 1.5rem;">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <i data-lucide="calendar" style="color: var(--primary);"></i>
+                        <input type="date" id="dash_start" class="input-modern" style="width: 150px;"
+                            onchange="updateDashboard(true)">
+                        <span style="color: var(--text-muted);">atÃ©</span>
+                        <input type="date" id="dash_end" class="input-modern" style="width: 150px;"
+                            onchange="updateDashboard(true)">
+                    </div>
+
+                    <div class="date-presets" style="display: flex; gap: 0.5rem;">
+                        <button id="preset_7" class="btn-icon" onclick="setDashRange(7)"
+                            style="background: rgba(255,255,255,0.05); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.75rem; border: 1px solid var(--border-card);">7
+                            Dias</button>
+                        <button id="preset_15" class="btn-icon" onclick="setDashRange(15)"
+                            style="background: rgba(255,255,255,0.05); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.75rem; border: 1px solid var(--border-card);">15
+                            Dias</button>
+                        <button id="preset_30" class="btn-icon" onclick="setDashRange(30)"
+                            style="background: rgba(255,255,255,0.05); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.75rem; border: 1px solid var(--border-card);">30
+                            Dias</button>
+                        <button id="preset_prev" class="btn-icon" onclick="setDashPreviousMonth()"
+                            style="background: rgba(255,255,255,0.05); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.75rem; border: 1px solid var(--border-card);">MÃªs
+                            Anterior</button>
+                        <button id="preset_curr" class="btn-icon" onclick="setDashCurrentMonth()"
+                            style="background: rgba(255,255,255,0.05); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.75rem; border: 1px solid var(--border-card);">MÃªs
+                            Atual</button>
+                    </div>
+
+                    <button class="btn-import" onclick="updateDashboard()" style="padding: 0.5rem 1rem;">
+                        <i data-lucide="refresh-cw" style="width: 16px;"></i> Atualizar
+                    </button>
+                    <button class="btn-icon" onclick="clearDashFilters()" title="Limpar Filtros"
+                        style="padding: 0.5rem 1rem; background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px; font-size: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i data-lucide="filter-x" style="width: 16px;"></i> Limpar Filtros
+                    </button>
+                </div>
+
+                <div
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.7rem; color: var(--text-muted);">Filtrar Placa</label>
+                        <select id="dash_filter_veiculo" class="input-modern" style="width: 100%; border-radius: 8px;"
+                            onchange="updateDashboard()">
+                            <option value="">Todas as Placas</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.7rem; color: var(--text-muted);">ClassificaÃ§Ã£o</label>
+                        <select id="dash_filter_classificacao" class="input-modern"
+                            style="width: 100%; border-radius: 8px;" onchange="updateDashboard()">
+                            <option value="">Todas</option>
+                            <option value="PROPRIO">PRÃ“PRIO</option>
+                            <option value="TERCEIRO">TERCEIRO</option>
+                            <option value="AGREGADO">AGREGADO</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.7rem; color: var(--text-muted);">Filtrar Condutor</label>
+                        <select id="dash_filter_motorista" class="input-modern" style="width: 100%; border-radius: 8px;"
+                            onchange="updateDashboard()">
+                            <option value="">Todos os Condutores</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.7rem; color: var(--text-muted);">CombustÃ­vel</label>
+                        <select id="dash_filter_combustivel" class="input-modern"
+                            style="width: 100%; border-radius: 8px;" onchange="updateDashboard()">
+                            <option value="">Todos os Tipos</option>
+                            <option value="DIESEL S10">DIESEL S10</option>
+                            <option value="GASOLINA COMUM">GASOLINA COMUM</option>
+                            <option value="GASOLINA ADITIVADA">GASOLINA ADITIVADA</option>
+                            <option value="ETANOL">ETANOL</option>
+                            <option value="GAS NATURAL">GÃS NATURAL</option>
+                            <option value="ARLA 32">ARLA 32</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.7rem; color: var(--text-muted);">Posto / Fornecedor</label>
+                        <select id="dash_filter_posto" class="input-modern" style="width: 100%; border-radius: 8px;"
+                            onchange="updateDashboard()">
+                            <option value="">Todos os Postos</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.7rem; color: var(--text-muted);">Categoria do Posto</label>
+                        <select id="dash_filter_categoria" class="input-modern" style="width: 100%; border-radius: 8px;"
+                            onchange="updateDashboard()">
+                            <option value="">Todas as Categorias</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.7rem; color: var(--text-muted);">Modelo / Marca</label>
+                        <select id="dash_filter_modelo" class="input-modern" style="width: 100%; border-radius: 8px;"
+                            onchange="updateDashboard()">
+                            <option value="">Todos os Modelos</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="label"><i data-lucide="dollar-sign" style="width: 14px;"></i> Total Gasto</div>
+                    <div class="value" id="kpi_total_spent">R$ 0,00</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="label"><i data-lucide="droplet" style="width: 14px;"></i> Qtd. Litros (L)</div>
+                    <div class="value" id="kpi_total_litros">0,00 L</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="label"><i data-lucide="wind" style="width: 14px;"></i> Qtd. GÃ¡s (mÂ³)</div>
+                    <div class="value" id="kpi_total_m3">0,00 mÂ³</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="label"><i data-lucide="map" style="width: 14px;"></i> KM Rodado</div>
+                    <div class="value" id="kpi_total_km">0 km</div>
+                </div>
+                <div class="kpi-card" style="border-left: 3px solid var(--primary);">
+                    <div class="label"><i data-lucide="gauge" style="width: 14px;"></i> MÃ©dia Consumo</div>
+                    <div class="value" id="dash_avg_consumption">--- km/l</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="label"><i data-lucide="trending-up" style="width: 14px;"></i> Custo MÃ©dio / KM</div>
+                    <div class="value" id="kpi_avg_cost_km">R$ 0,00</div>
+                </div>
+            </div>
+
+            <div class="charts-row" style="grid-template-columns: 1fr;">
+                <div class="chart-card">
+                    <h3><i data-lucide="bar-chart-3" style="color: var(--primary);"></i> EvoluÃ§Ã£o de Consumo e Custos
+                    </h3>
+                    <canvas id="mainFuelChart" height="300"></canvas>
+                </div>
+            </div>
+
+            <div class="charts-row"
+                style="grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+                <div class="chart-card">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3><i data-lucide="bar-chart-2" style="color: #6366f1;"></i> Comparativo de PreÃ§os</h3>
+                        <span style="font-size: 0.7rem; color: var(--text-muted);">Melhor x Pior</span>
+                    </div>
+                    <div id="postoAnalystContainer">
+                        <!-- Table will be injected here -->
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3><i data-lucide="star" style="color: #fbbf24;"></i> Posto Recomendado</h3>
+                        <span style="font-size: 0.7rem; color: var(--text-muted);">EstratÃ©gia de GestÃ£o</span>
+                    </div>
+                    <div id="postoRecommendationContainer" style="display: flex; flex-direction: column; gap: 1rem;">
+                        <!-- Recommendation will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="charts-row"
+                style="grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); margin-top: 1.5rem;">
+                <div class="chart-card">
+                    <h3><i data-lucide="pie-chart" style="color: var(--primary);"></i> Gastos por CombustÃ­vel</h3>
+                    <canvas id="fuelTypeChart" height="250"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3><i data-lucide="award" style="color: var(--primary);"></i> Top 10 VeÃ­culos (Maior Gasto)</h3>
+                    <canvas id="rankingVehiclesChart" height="250"></canvas>
+                </div>
+            </div>
+
+            <div class="charts-row"
+                style="grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); margin-top: 1.5rem;">
+                <div class="chart-card">
+                    <h3><i data-lucide="users" style="color: var(--primary);"></i> Ranking Condutores (Gasto)</h3>
+                    <canvas id="rankingDriversChart" height="250"></canvas>
+                </div>
+                <div class="chart-card"
+                    style="background: rgba(30, 41, 59, 0.3); border-style: dashed; padding: 1.5rem;">
+                    <h3><i data-lucide="trending-down" style="color: var(--success);"></i> EficiÃªncia por Placa (Melhor
+                        MÃ©dia)</h3>
+                    <div id="efficiencyRankContainer" style="font-size: 0.9rem;">
+                        <!-- JS Content -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="ai-analyst-card">
+                <div style="display: flex; align-items: center; gap: 2rem;">
+                    <div
+                        style="background: rgba(255,255,255,0.2); padding: 1.5rem; border-radius: 50%; box-shadow: 0 0 30px rgba(255,255,255,0.2);">
+                        <i data-lucide="bot" style="width: 40px; height: 40px;"></i>
+                    </div>
+                    <div>
+                        <h2 style="margin-bottom: 0.5rem; font-size: 1.5rem;">Analista FrotaLink IA</h2>
+                        <p style="opacity: 0.9;">A inteligÃªncia artificial estÃ¡ processando seus dados. Em breve, vocÃª
+                            terÃ¡ insights automÃ¡ticos sobre:</p>
+                        <ul style="margin-top: 1rem; columns: 2; font-size: 0.9rem; opacity: 0.8;">
+                            <li>âœ“ Oportunidades de economia</li>
+
+                            <li>âœ“ Comportamento atÃ­pico de veÃ­culos</li>
+                            <li>âœ“ SugestÃ£o de substituiÃ§Ã£o de frota</li>
+                        </ul>
+                    </div>
+                </div>
+                <button class="btn-submit"
+                    style="background: white; color: var(--primary); padding: 1rem 2rem; border-radius: 30px; border: none; font-weight: 800; opacity: 0.6; cursor: not-allowed;">
+                    PROCESSANDO...
+                </button>
+            </div>
+        </div>
+
+        <div class="stats-summary" id="statsRow"
+            style="display: flex; gap: 1.5rem; margin-bottom: 2rem; position: sticky; top: 0; z-index: 100; background: var(--bg-main); padding: 1rem 0;">
+            <div class="card-kpi"
+                style="flex: 1; background: var(--bg-card); padding: 1.5rem; border-radius: 16px; border: 1px solid var(--border-card); display: flex; align-items: center; gap: 1rem;">
+                <div class="kpi-icon"
+                    style="background: rgba(245, 158, 11, 0.1); color: #f59e0b; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="bar-chart-3"></i>
+                </div>
+                <div>
+                    <div
+                        style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">
+                        Gasto (SeleÃ§Ã£o)</div>
+                    <div id="selectionFuelCost" style="font-size: 1.5rem; font-weight: 800; color: white;">R$ 0,00</div>
+                </div>
+            </div>
+
+            <div class="card-kpi"
+                style="flex: 1; background: var(--bg-card); padding: 1.5rem; border-radius: 16px; border: 1px solid var(--border-card); display: flex; align-items: center; gap: 1rem;">
+                <div class="kpi-icon"
+                    style="background: rgba(16, 185, 129, 0.1); color: #10b981; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="filter"></i>
+                </div>
+                <div>
+                    <div
+                        style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">
+                        MÃ©dia (SeleÃ§Ã£o)</div>
+                    <div id="selectionAverage" style="font-size: 1.5rem; font-weight: 800; color: #10b981;">0.0 km/l
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-kpi"
+                style="flex: 1; background: var(--bg-card); padding: 1.5rem; border-radius: 16px; border: 1px solid var(--border-card); display: flex; align-items: center; gap: 1rem;">
+                <div class="kpi-icon"
+                    style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="list"></i>
+                </div>
+                <div>
+                    <div
+                        style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">
+                        Total de Registros</div>
+                    <div id="totalRecordsCount" style="font-size: 1.5rem; font-weight: 800; color: white;">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="comparativoSection" class="dashboard-container">
+            <div class="data-header">
+                <h2>Custos e Comparativos</h2>
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">Analise o custo total ou
+                    compare indicadores entre veÃ­culos, modelos ou condutores.</p>
+            </div>
+
+            <div class="intelligent-filter-bar"
+                style="margin-bottom: 1.5rem; padding: 0.8rem 1rem; background: rgba(30, 41, 59, 0.5); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); display: flex; gap: 0.8rem; flex-wrap: nowrap; align-items: center; overflow-x: auto;">
+                <div
+                    style="display: flex; align-items: center; gap: 0.5rem; color: var(--primary); font-weight: 700; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; flex-shrink: 0;">
+                    <i data-lucide="filter" style="width: 14px;"></i> PerÃ­odo
+                </div>
+                <div
+                    style="height: 20px; width: 1px; background: rgba(255,255,255,0.1); margin: 0 0.2rem; flex-shrink: 0;">
+                </div>
+
+                <div class="form-group" style="margin: 0; min-width: 150px;">
+                    <select id="comp_filter_periodo" class="input-modern"
+                        style="width: 100%; height: 38px; font-size: 0.8rem; background: rgba(15, 23, 42, 0.6); border-radius: 8px; padding: 0 0.6rem;"
+                        onchange="handleCompPeriodChange(this.value)">
+                        <option value="all">Tudo</option>
+                        <option value="7">Ãšltimos 7 dias</option>
+                        <option value="15">Ãšltimos 15 dias</option>
+                        <option value="30" selected>Ãšltimos 30 dias</option>
+                        <option value="current_month">MÃªs Atual</option>
+                        <option value="last_month">MÃªs Anterior</option>
+                        <option value="km_2500">Ãšltimos 2.500 km</option>
+                        <option value="km_5000">Ãšltimos 5.000 km</option>
+                        <option value="km_10000">Ãšltimos 10.000 km</option>
+                        <option value="custom">Personalizado</option>
+                    </select>
+                </div>
+
+                <div id="comp_custom_date_range"
+                    style="display: none; gap: 0.6rem; align-items: center; flex-wrap: nowrap; flex-shrink: 0;">
+                    <div class="form-group" style="margin: 0; min-width: 110px;">
+                        <input type="date" id="comp_filter_start" class="input-modern"
+                            style="width: 100%; height: 38px; font-size: 0.8rem; background: rgba(15, 23, 42, 0.6); border-radius: 8px; padding: 0 0.4rem;"
+                            onchange="updateComparativo()">
+                    </div>
+                    <div class="form-group" style="margin: 0; min-width: 110px;">
+                        <input type="date" id="comp_filter_end" class="input-modern"
+                            style="width: 100%; height: 38px; font-size: 0.8rem; background: rgba(15, 23, 42, 0.6); border-radius: 8px; padding: 0 0.4rem;"
+                            onchange="updateComparativo()">
+                    </div>
+                </div>
+
+                <div
+                    style="height: 20px; width: 1px; background: rgba(255,255,255,0.1); margin: 0 0.2rem; flex-shrink: 0;">
+                </div>
+
+                <div
+                    style="display: flex; align-items: center; gap: 0.5rem; color: var(--primary); font-weight: 700; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; flex-shrink: 0;">
+                    <i data-lucide="layers" style="width: 14px;"></i> Comparar por
+                </div>
+
+                <div class="comp-modes-buttons"
+                    style="display: flex; gap: 0.4rem; background: rgba(15, 23, 42, 0.4); padding: 3px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); flex-shrink: 0;">
+                    <button class="comp-mode-btn active" data-mode="veiculo" onclick="setCompMode('veiculo')"
+                        style="padding: 0.4rem 0.8rem; background: transparent; border: none; border-radius: 6px; font-size: 0.75rem; color: var(--text-muted); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: all 0.2s ease;">
+                        <i data-lucide="car" style="width: 14px;"></i> Placa
+                    </button>
+                    <button class="comp-mode-btn" data-mode="modelo" onclick="setCompMode('modelo')"
+                        style="padding: 0.4rem 0.8rem; background: transparent; border: none; border-radius: 6px; font-size: 0.75rem; color: var(--text-muted); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: all 0.2s ease;">
+                        <i data-lucide="git-branch" style="width: 14px;"></i> Modelo
+                    </button>
+                    <button class="comp-mode-btn" data-mode="motorista" onclick="setCompMode('motorista')"
+                        style="padding: 0.4rem 0.8rem; background: transparent; border: none; border-radius: 6px; font-size: 0.75rem; color: var(--text-muted); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: all 0.2s ease;">
+                        <i data-lucide="user" style="width: 14px;"></i> Condutor
+                    </button>
+                </div>
+
+                <button class="btn-import" onclick="exportComparativoToPDF()"
+                    style="padding: 0 1rem; height: 38px; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8rem; margin-left: auto; transition: all 0.2s;">
+                    <i data-lucide="file-text" style="width: 14px;"></i> Exportar PDF
+                </button>
+
+                <button class="btn-import" onclick="updateComparativo()"
+                    style="padding: 0 1rem; height: 38px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8rem;">
+                    <i data-lucide="refresh-cw" style="width: 14px;"></i> Atualizar
+                </button>
+            </div>
+
+            <div class="subtabs-header"
+                style="display: flex; gap: 0.8rem; margin-bottom: 1.5rem; background: rgba(255, 255, 255, 0.02); padding: 0.4rem; border-radius: 10px; width: fit-content; border: 1px solid rgba(255,255,255,0.05);">
+                <button id="btnSubTabCustoTotal" onclick="switchCustosSubTab('custo_total')"
+                    style="padding: 0.6rem 1.2rem; border-radius: 7px; border: 1px solid rgba(99, 102, 241, 0.2); background: rgba(99, 102, 241, 0.1); color: var(--primary-light); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="dollar-sign" style="width: 14px;"></i> Custo Total
+                </button>
+                <button id="btnSubTabComparativo" onclick="switchCustosSubTab('comparativo')"
+                    style="padding: 0.6rem 1.2rem; border-radius: 7px; border: none; background: transparent; color: var(--text-muted); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="bar-chart-2" style="width: 14px;"></i> Comparativo
+                </button>
+            </div>
+
+            <div id="subtab_custo_total" style="display: block;">
+                <div id="custoTotalFilters"
+                    style="display: flex; gap: 1.2rem; align-items: center; margin-bottom: 1.5rem; background: rgba(15, 23, 42, 0.4); padding: 0.8rem 1rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05);">
+                    <div
+                        style="font-size: 0.75rem; color: var(--primary); text-transform: uppercase; font-weight: 700; display: flex; align-items: center; gap: 0.4rem;">
+                        <i data-lucide="filter" style="width: 14px;"></i> ClassificaÃ§Ã£o:
+                    </div>
+                    <label
+                        style="display: flex; align-items: center; gap: 0.4rem; color: #e2e8f0; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" value="PROPRIO" class="filter-classificacao-ct" checked
+                            onchange="updateComparativo()" style="cursor: pointer;"> PrÃ³prio
+                    </label>
+                    <label
+                        style="display: flex; align-items: center; gap: 0.4rem; color: #e2e8f0; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" value="TERCEIRO" class="filter-classificacao-ct" checked
+                            onchange="updateComparativo()" style="cursor: pointer;"> Terceiro
+                    </label>
+                    <label
+                        style="display: flex; align-items: center; gap: 0.4rem; color: #e2e8f0; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" value="AGREGADO" class="filter-classificacao-ct" checked
+                            onchange="updateComparativo()" style="cursor: pointer;"> Agregado
+                    </label>
+                    <label
+                        style="display: flex; align-items: center; gap: 0.4rem; color: #e2e8f0; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" value="ESPECIAL" class="filter-classificacao-ct" checked
+                            onchange="updateComparativo()" style="cursor: pointer;"> Especial
+                    </label>
+                </div>
+                <div id="custoTotalResults" style="display: block; width: 100%;">
+                    <!-- Custo Total list will be rendered here -->
+                </div>
+            </div>
+
+            <div id="subtab_comparativo" style="display: none;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+                    <!-- Column 1 -->
+                    <div class="chart-card" style="padding: 1.5rem; min-height: auto;">
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;"
+                                id="comp_label_1">Selecione a Placa</label>
+                            <select id="comp_alvo_1" class="input-modern" style="width: 100%; border-radius: 8px;"
+                                onchange="updateComparativo()">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div id="comp_results_1" style="display: flex; flex-direction: column; gap: 1rem;">
+                            <!-- JS Content -->
+                        </div>
+                    </div>
+
+                    <!-- Column 2 -->
+                    <div class="chart-card" style="padding: 1.5rem; min-height: auto;">
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;"
+                                id="comp_label_2">Selecione a Placa</label>
+                            <select id="comp_alvo_2" class="input-modern" style="width: 100%; border-radius: 8px;"
+                                onchange="updateComparativo()">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div id="comp_results_2" style="display: flex; flex-direction: column; gap: 1rem;">
+                            <!-- JS Content -->
+                        </div>
+                    </div>
+
+                    <!-- Column 3 -->
+                    <div class="chart-card" style="padding: 1.5rem; min-height: auto;">
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;"
+                                id="comp_label_3">Selecione a Placa</label>
+                            <select id="comp_alvo_3" class="input-modern" style="width: 100%; border-radius: 8px;"
+                                onchange="updateComparativo()">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div id="comp_results_3" style="display: flex; flex-direction: column; gap: 1rem;">
+                            <!-- JS Content -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="fuelSection" class="active">
+            <!-- Abastecimentos Tab Content -->
+            <div id="tab-abastecimentos" class="tab-content active">
+                <div class="data-header">
+                    <h2>HistÃ³rico de Abastecimentos</h2>
+                    <div
+                        style="display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: center; flex: 1; justify-content: flex-end; margin-left: 1.5rem;">
+
+                        <!-- Barra de Busca -->
+                        <div class="search-box" style="position: relative; flex: 1; min-width: 300px;">
+                            <i data-lucide="search"
+                                style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); width: 14px;"></i>
+                            <input type="text" id="fuelSearch" placeholder="Pesquise por placa, modelo..."
+                                style="padding: 0.6rem 1rem 0.6rem 2.22rem; width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border-card); border-radius: 10px;"
+                                oninput="renderFuelTable()">
+                        </div>
+
+                        <!-- BotÃµes Compactos (Mobile Row 2) -->
+                        <div class="compact-row-mobile" style="display: flex; gap: 0.4rem; align-items: center;">
+                            <div class="notification-wrapper" style="position: relative;">
+                                <button id="fuelNotiBtn" class="noti-btn" onclick="toggleFuelNotiPanel()"
+                                    style="background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); width: 38px; height: 38px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                    <i data-lucide="alert-triangle" style="width: 16px;"></i>
+                                    <span id="fuelNotiBadge" class="noti-badge"
+                                        style="display: none; background: #ef4444; width: 16px; height: 16px; font-size: 0.6rem;">0</span>
+                                </button>
+                                <div id="fuelNotiPanel" class="noti-panel">
+                                    <div class="noti-header">
+                                        <h3>Alertas de Consumo</h3>
+                                        <button class="noti-close" onclick="toggleFuelNotiPanel()">&times;</button>
+                                    </div>
+                                    <div id="fuelNotiList" class="noti-list">
+                                        <div class="noti-empty">Tudo sob controle âœ¨</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button class="btn-icon" onclick="toggleColumnPanel('fuel')"
+                                style="width: 38px; height: 38px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-card);">
+                                <i data-lucide="settings" style="width: 16px;"></i>
+                            </button>
+
+                            <button class="btn-icon" onclick="downloadFuelTemplate()"
+                                style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); height: 38px; font-size: 0.7rem; padding: 0 0.8rem; display: flex; align-items: center; gap: 0.4rem;">
+                                <i data-lucide="download" style="width: 14px;"></i> Modelo
+                            </button>
+
+                            <button class="btn-icon" onclick="triggerFuelImport()"
+                                style="background: rgba(99, 102, 241, 0.1); color: var(--primary); border: 1px solid rgba(99, 102, 241, 0.2); height: 38px; font-size: 0.7rem; padding: 0 0.8rem; display: flex; align-items: center; gap: 0.4rem;">
+                                <i data-lucide="file-up" style="width: 14px;"></i> Importar
+                            </button>
+                            <input type="file" id="fuelExcelInput" style="display: none;" accept=".xlsx, .xls, .csv"
+                                onchange="handleFuelImport(event)">
+                        </div>
+
+                        <button class="btn-plus" onclick="openFuelModal()" data-perm="abastecimento_lancamentos:add"
+                            style="height: 38px; padding: 0 1rem; font-size: 0.75rem;">
+                            <i data-lucide="plus"></i> Novo Abastecimento
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filtros Inteligentes -->
+                <div class="filter-group-mobile"
+                    style="margin-top: 1rem; margin-bottom: 1.2rem; padding: 0.8rem 1rem; background: rgba(30, 41, 59, 0.5); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); display: flex; gap: 0.8rem; flex-wrap: nowrap; align-items: center; overflow-x: auto; scrollbar-width: none;">
+                    <div
+                        style="display: flex; align-items: center; gap: 0.5rem; color: var(--primary); font-weight: 700; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; flex-shrink: 0;">
+                        <i data-lucide="filter" style="width: 14px;"></i> Filtros
+                    </div>
+                    <div
+                        style="height: 20px; width: 1px; background: rgba(255,255,255,0.1); margin: 0 0.2rem; flex-shrink: 0;">
+                    </div>
+
+                    <div class="form-group" style="margin: 0; min-width: 140px; flex: 1;">
+                        <label
+                            style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">Categoria</label>
+                        <select id="fuel_filter_categoria" class="input-modern"
+                            style="width: 100%; height: 34px; font-size: 0.75rem; background: rgba(15, 23, 42, 0.6); border-radius: 6px; padding: 0 0.5rem;"
+                            onchange="handleIntelligentFilter('categoria')">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0; min-width: 160px; flex: 1.5;">
+                        <label style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">Posto /
+                            Local</label>
+                        <select id="fuel_filter_posto" class="input-modern"
+                            style="width: 100%; height: 34px; font-size: 0.75rem; background: rgba(15, 23, 42, 0.6); border-radius: 6px; padding: 0 0.5rem;"
+                            onchange="handleIntelligentFilter('posto')">
+                            <option value="">Todos os Postos</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0; min-width: 130px; flex: 1;">
+                        <label style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">VeÃ­culo</label>
+                        <select id="fuel_filter_veiculo" class="input-modern"
+                            style="width: 100%; height: 34px; font-size: 0.75rem; background: rgba(15, 23, 42, 0.6); border-radius: 6px; padding: 0 0.5rem;"
+                            onchange="handleIntelligentFilter('veiculo')">
+                            <option value="">Todas Placas</option>
+                        </select>
+                    </div>
+                    <div
+                        style="height: 20px; width: 1px; background: rgba(255,255,255,0.1); margin: 0 0.2rem; flex-shrink: 0;">
+                    </div>
+                    <div class="form-group" style="margin: 0; min-width: 130px; flex: 1;">
+                        <label style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">PerÃ­odo</label>
+                        <select id="fuel_filter_periodo" class="input-modern"
+                            style="width: 100%; height: 34px; font-size: 0.75rem; background: rgba(15, 23, 42, 0.6); border-radius: 6px; padding: 0 0.5rem;"
+                            onchange="handlePeriodChange(this.value)">
+                            <option value="all">Tudo</option>
+                            <option value="7">Ãšltimos 7 dias</option>
+                            <option value="15">Ãšltimos 15 dias</option>
+                            <option value="30">Ãšltimos 30 dias</option>
+                            <option value="last_month">MÃªs Anterior</option>
+                            <option value="custom">Personalizado</option>
+                        </select>
+                    </div>
+                    <div id="custom_date_range"
+                        style="display: none; gap: 0.4rem; align-items: center; flex-shrink: 0;">
+                        <div class="form-group" style="margin: 0; min-width: 110px;">
+                            <label
+                                style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">InÃ­cio</label>
+                            <input type="date" id="fuel_filter_start" class="input-modern"
+                                style="width: 100%; height: 34px; font-size: 0.75rem; background: rgba(15, 23, 42, 0.6); border-radius: 6px; padding: 0 0.4rem;"
+                                onchange="handleDateChange()">
+                        </div>
+                        <div class="form-group" style="margin: 0; min-width: 110px;">
+                            <label style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">Fim</label>
+                            <input type="date" id="fuel_filter_end" class="input-modern"
+                                style="width: 100%; height: 34px; font-size: 0.75rem; background: rgba(15, 23, 42, 0.6); border-radius: 6px; padding: 0 0.4rem;"
+                                onchange="handleDateChange()">
+                        </div>
+                    </div>
+                    <button onclick="clearFuelFilters()"
+                        style="height: 34px; padding: 0 0.8rem; background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; font-size: 0.65rem; font-weight: 700; margin-top: 14px; flex-shrink: 0;">
+                        <i data-lucide="filter-x" style="width: 12px;"></i> LIMPAR
+                    </button>
+                </div>
+
+                <div id="alertFilterBar" class="alert-filter-bar" style="margin-bottom: 1.2rem;"></div>
+
+                <div class="glass-table-container">
+                    <table id="fuelTable" class="mobile-cards">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px; text-align: center;">
+                                    <input type="checkbox" id="selectAllFuel" onchange="toggleSelectAll(this.checked)">
+                                </th>
+                                <th onclick="handleSort('fuel', 'data')" data-col="data">Data / Hora <span
+                                        class="sort-icon"><i data-lucide="chevrons-up-down"
+                                            style="width: 14px;"></i></span></th>
+                                <th onclick="handleSort('fuel', 'veiculo')" data-column="veiculo" data-col="veiculo">
+                                    VeÃ­culo / Cat. <span class="sort-icon"><i data-lucide="chevrons-up-down"
+                                            style="width: 14px;"></i></span></th>
+                                <th onclick="handleSort('fuel', 'km')" data-column="km" data-col="km">KM Atual <span
+                                        class="sort-icon"><i data-lucide="chevrons-up-down"
+                                            style="width: 14px;"></i></span></th>
+                                <th onclick="handleSort('fuel', 'rodado')" data-column="rodado" data-col="rodado">KM
+                                    Rodado <span class="sort-icon"><i data-lucide="chevrons-up-down"
+                                            style="width: 14px;"></i></span></th>
+                                <th onclick="handleSort('fuel', 'litros')" data-column="litros" data-col="litros">
+                                    Quantidade <span class="sort-icon"><i data-lucide="chevrons-up-down"
+                                            style="width: 14px;"></i></span></th>
+                                <th onclick="handleSort('fuel', 'combustivel')" data-column="combustivel"
+                                    data-col="combustivel">CombustÃ­vel <span class="sort-icon"><i
+                                            data-lucide="chevrons-up-down" style="width: 14px;"></i></span></th>
+                                <th onclick="handleSort('fuel', 'media')" data-column="media" data-col="media">MÃ©dia
+                                    <span class="sort-icon"><i data-lucide="chevrons-up-down"
+                                            style="width: 14px;"></i></span></th>
+                                <th onclick="handleSort('fuel', 'valor')" data-column="valor" data-col="valor">Total
+                                    <span class="sort-icon"><i data-lucide="chevrons-up-down"
+                                            style="width: 14px;"></i></span></th>
+                                <th onclick="handleSort('fuel', 'posto')" data-column="posto" data-col="col-posto">Posto
+                                    / Local <span class="sort-icon"><i data-lucide="chevrons-up-down"
+                                            style="width: 14px;"></i></span></th>
+                                <th style="text-align: center;">AÃ§Ãµes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fuelList">
+                            <!-- Content via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="paginationControls"
+                    style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding: 0.5rem 1rem; background: rgba(30, 41, 59, 0.5); border-radius: 12px; border: 1px solid var(--border-card);">
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                        Mostrando <span id="pageStart">0</span>-<span id="pageEnd">0</span> de <span
+                            id="pageTotal">0</span> registros
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <button onclick="changePage(-1)" class="btn-icon"
+                            style="padding: 0.4rem 0.8rem; border-radius: 6px; background: rgba(255,255,255,0.05); font-size: 0.8rem;">Anterior</button>
+                        <div id="pageNumbers" style="display: flex; gap: 0.3rem;"></div>
+                        <button onclick="changePage(1)" class="btn-icon"
+                            style="padding: 0.4rem 0.8rem; border-radius: 6px; background: rgba(255,255,255,0.05); font-size: 0.8rem;">PrÃ³xima</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Abastecimento -->
+        <div id="modalFuel" class="modal">
+            <div class="modal-content" style="max-width: 1350px;">
+                <div class="modal-header">
+                    <h2>Registrar Abastecimento Detalhado</h2>
+                    <button class="close-btn" onclick="closeModal('modalFuel')"><i data-lucide="x"></i></button>
+                </div>
+                <form id="fuelForm">
+                    <div class="form-grid">
+                        <!-- Section: VeÃ­culo e Condutor -->
+                        <div class="form-group full" style="margin-bottom: 0.5rem;">
+                            <label style="color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
+                                <i data-lucide="car" style="width: 16px;"></i> IdentificaÃ§Ã£o
+                            </label>
+                            <div style="height: 1px; background: var(--border-card); width: 100%; margin-top: 5px;">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>VeÃ­culo (Placa)</label>
+                            <select id="fuel_veiculo" required onchange="handleFuelVehicleChange()">
+                                <option value="">Selecione o veÃ­culo...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>ClassificaÃ§Ã£o / Categoria</label>
+                            <input type="text" id="fuel_veiculo_categoria" disabled placeholder="Puxar automÃ¡tico">
+                        </div>
+                        <div class="form-group">
+                            <label>Data</label>
+                            <input type="date" id="fuel_data" required>
+                        </div>
+                        <div class="form-group">
+                            <label>HorÃ¡rio</label>
+                            <input type="time" id="fuel_horario" required>
+                        </div>
+                        <div class="form-group full">
+                            <label>Condutor / Motorista</label>
+                            <select id="fuel_motorista" required>
+                                <option value="">Selecione o motorista...</option>
+                            </select>
+                        </div>
+
+                        <!-- Section: Estabelecimento -->
+                        <div class="form-group full" style="margin-top: 1rem; margin-bottom: 0.5rem;">
+                            <label style="color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
+                                <i data-lucide="map-pin" style="width: 16px;"></i> Estabelecimento e LocalizaÃ§Ã£o
+                            </label>
+                            <div style="height: 1px; background: var(--border-card); width: 100%; margin-top: 5px;">
+                            </div>
+                        </div>
+
+                        <div class="form-group full">
+                            <label>Posto / Estabelecimento</label>
+                            <select id="fuel_posto" required onchange="handleFuelPostoChange()">
+                                <option value="">Selecione o posto...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Cidade do Posto</label>
+                            <input type="text" id="fuel_cidade_posto" required placeholder="Ex: SÃ£o Paulo">
+                        </div>
+                        <div class="form-group">
+                            <label>Estado (UF)</label>
+                            <input type="text" id="fuel_estado_posto" required placeholder="Ex: SP" maxlength="2">
+                        </div>
+                        <div class="form-group">
+                            <label>Categoria do Posto</label>
+                            <select id="fuel_posto_categoria" required>
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Tipo de CombustÃ­vel</label>
+                            <select id="fuel_combustivel" required>
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+
+                        <!-- Section: Valores e KM -->
+                        <div class="form-group full" style="margin-top: 1rem; margin-bottom: 0.5rem;">
+                            <label style="color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
+                                <i data-lucide="dollar-sign" style="width: 16px;"></i> Valores e Quilometragem
+                            </label>
+                            <div style="height: 1px; background: var(--border-card); width: 100%; margin-top: 5px;">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Quantidade (L / mÂ³)</label>
+                            <input type="number" id="fuel_litros" step="0.01" required placeholder="0,00"
+                                oninput="calculateFuelPrices()">
+                        </div>
+                        <div class="form-group">
+                            <label>Valor Total (Pago)</label>
+                            <input type="number" id="fuel_total" step="0.01" required placeholder="0,00"
+                                style="background: rgba(99, 102, 241, 0.1); font-weight: 700;"
+                                oninput="calculateFuelPrices()">
+                        </div>
+                        <div class="form-group">
+                            <label>Valor UnitÃ¡rio (Calculado)</label>
+                            <input type="number" id="fuel_unitario" disabled placeholder="0,000">
+                        </div>
+                        <!-- Hidden auxiliary fields to maintain compatibility -->
+                        <input type="hidden" id="fuel_subtotal" value="0">
+                        <input type="hidden" id="fuel_desconto" value="0">
+                        <div class="form-group">
+                            <label>KM Atual</label>
+                            <input type="number" id="fuel_km" step="0.01" required placeholder="Ex: 95000"
+                                oninput="calculateFuelMedia()">
+                        </div>
+                        <div class="form-group full">
+                            <label id="fuel_media_label" style="color: var(--success);">MÃ©dia Calculada (KM/L)</label>
+                            <input type="text" id="fuel_media" disabled placeholder="Aguardando dados de KM..."
+                                style="border-color: var(--success); color: var(--success); font-weight: 800;">
+                        </div>
+
+                        <div class="form-group full">
+                            <label>ObservaÃ§Ãµes</label>
+                            <textarea id="fuel_obs" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                        <button type="button" class="btn-submit"
+                            style="background: rgba(255,255,255,0.05); color: white;"
+                            onclick="closeModal('modalFuel')">CANCELAR</button>
+                        <button type="submit" class="btn-submit">FINALIZAR ABASTECIMENTO</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Imports Section -->
+        <div id="importsSection" class="dashboard-container">
+            <div class="data-header">
+                <h2>HistÃ³rico de ImportaÃ§Ãµes</h2>
+                <div style="display: flex; gap: 0.8rem; align-items: center;">
+                    <div class="search-box" style="width: 300px;">
+                        <i data-lucide="search"
+                            style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); width: 18px;"></i>
+                        <input type="text" id="importSearch" placeholder="Pesquisar por ID ou arquivo..."
+                            oninput="renderImportsTable()" style="padding-left: 2.8rem;">
+                    </div>
+                    <button class="btn-import" onclick="triggerFuelImport()" data-perm="abastecimento_importacoes:add"
+                        style="padding: 0.6rem 1.2rem; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <i data-lucide="plus"></i> Nova ImportaÃ§Ã£o
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass-table-container" style="margin-top: 1.5rem;">
+                <table id="importsTable">
+                    <thead>
+                        <tr>
+                            <th onclick="handleSort('imports', 'display_id')" data-col="display_id">ID ImportaÃ§Ã£o <span
+                                    class="sort-icon"><i data-lucide="chevrons-up-down" style="width: 14px;"></i></span>
+                            </th>
+                            <th onclick="handleSort('imports', 'data_importacao')" data-col="data_importacao">Data /
+                                Hora <span class="sort-icon"><i data-lucide="chevrons-up-down"
+                                        style="width: 14px;"></i></span></th>
+                            <th>Nome do Arquivo</th>
+                            <th style="text-align: center;">Registros</th>
+                            <th style="text-align: center;">Valor Total</th>
+                            <th style="text-align: center;">AÃ§Ãµes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="importsList">
+                        <!-- Content via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Setup Section -->
+        <div id="setupSection" class="dashboard-container">
+            <div class="tabs-header" style="margin-bottom: 2rem;">
+                <div class="tab-item active" onclick="switchSetupTab('posts')">Postos</div>
+                <div class="tab-item" onclick="switchSetupTab('categories')">Categorias</div>
+                <div class="tab-item" onclick="switchSetupTab('fuelTypes')">Tipos de CombustÃ­vel</div>
+            </div>
+
+            <!-- Posts List -->
+            <div id="setup_posts" class="setup-content active">
+                <div class="data-header">
+                    <h2>Gerenciar Postos / Estabelecimentos</h2>
+                    <button class="btn-plus" onclick="openPostModal()" data-perm="abastecimento_postos:add">
+                        <i data-lucide="plus"></i> Novo Posto
+                    </button>
+                </div>
+                <div class="glass-table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nome do Posto</th>
+                                <th>Cidade</th>
+                                <th>Estado</th>
+                                <th style="text-align: right;">AÃ§Ãµes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="setup_posts_list"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Categories List -->
+            <div id="setup_categories" class="setup-content">
+                <div class="data-header">
+                    <h2>Categorias de Postos</h2>
+                    <button class="btn-plus" onclick="openCategoryModal()" data-perm="abastecimento_postos:add">
+                        <i data-lucide="plus"></i> Nova Categoria
+                    </button>
+                </div>
+                <div class="glass-table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>DescriÃ§Ã£o</th>
+                                <th style="text-align: right;">AÃ§Ãµes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="setup_categories_list"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Fuel Types List -->
+            <div id="setup_fuelTypes" class="setup-content">
+                <div class="data-header">
+                    <h2>Tipos de CombustÃ­vel</h2>
+                    <button class="btn-plus" onclick="openFuelTypeModal()" data-perm="abastecimento_postos:add">
+                        <i data-lucide="plus"></i> Novo Tipo
+                    </button>
+                </div>
+                <div class="glass-table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>DescriÃ§Ã£o</th>
+                                <th>Unidade</th>
+                                <th style="text-align: right;">AÃ§Ãµes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="setup_fuelTypes_list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Setup Modals -->
+        <div id="modalPost" class="modal">
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h2 id="postModalTitle">Cadastrar Posto</h2>
+                    <button class="close-btn" onclick="closeModal('modalPost')"><i data-lucide="x"></i></button>
+                </div>
+                <form id="postForm">
+                    <input type="hidden" id="post_id" name="id">
+                    <div class="form-group">
+                        <label>Nome do Estabelecimento</label>
+                        <input type="text" id="post_nome" class="input-modern" required>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                        <div class="form-group">
+                            <label>Cidade</label>
+                            <input type="text" id="post_cidade" class="input-modern">
+                        </div>
+                        <div class="form-group">
+                            <label>Estado (UF)</label>
+                            <input type="text" id="post_estado" class="input-modern" maxlength="2">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-submit" style="margin-top: 2rem;">SALVAR POSTO</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="modalCategory" class="modal">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h2 id="categoryModalTitle">Cadastrar Categoria</h2>
+                    <button class="close-btn" onclick="closeModal('modalCategory')"><i data-lucide="x"></i></button>
+                </div>
+                <form id="categoryForm">
+                    <input type="hidden" id="category_id" name="id">
+                    <div class="form-group">
+                        <label>DescriÃ§Ã£o da Categoria</label>
+                        <input type="text" id="category_desc" class="input-modern" required
+                            placeholder="Ex: EXTERNO, INTERNO">
+                    </div>
+                    <button type="submit" class="btn-submit" style="margin-top: 2rem;">SALVAR CATEGORIA</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="modalFuelType" class="modal">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h2 id="fuelTypeModalTitle">Cadastrar Tipo de CombustÃ­vel</h2>
+                    <button class="close-btn" onclick="closeModal('modalFuelType')"><i data-lucide="x"></i></button>
+                </div>
+                <form id="fuelTypeForm">
+                    <input type="hidden" id="fuelType_id" name="id">
+                    <div class="form-group">
+                        <label>DescriÃ§Ã£o</label>
+                        <input type="text" id="fuelType_desc" class="input-modern" required
+                            placeholder="Ex: Diesel S10">
+                    </div>
+                    <div class="form-group" style="margin-top: 1rem;">
+                        <label>Unidade de Medida</label>
+                        <select id="fuelType_unit" class="input-modern">
+                            <option value="L">Litros (L)</option>
+                            <option value="mÂ³">Metros CÃºbicos (mÂ³)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-submit" style="margin-top: 2rem;">SALVAR TIPO</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="toast" class="toast">
+            <i data-lucide="info"></i>
+            <span id="toastMsg">Mensagem</span>
+        </div>
+
+        <!-- BotÃ£o Flutuante Mobile -->
+        <div class="fab-button" onclick="openFuelModal()">
+            <i data-lucide="plus" style="width: 30px; height: 30px; stroke-width: 3;"></i>
+        </div>
+
+        <script src="abastecimento.js"></script>
+        <script src="orb_menu.js"></script>
+        <script>
+            function switchTab(tabId) {
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+
+                document.getElementById('tab-' + tabId).classList.add('active');
+                event.currentTarget.classList.add('active');
+
+                lucide.createIcons();
+            }
+
+            function closeModal(id) {
+                document.getElementById(id).classList.remove('active');
+            }
+
+            lucide.createIcons();
+        </script>
+
+</body>
+
+</html>
+
+

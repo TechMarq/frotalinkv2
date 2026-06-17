@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FROTALINK | Dashboard Principal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="orb_menu.css">
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-main: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --border-card: rgba(255, 255, 255, 0.1);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --radius: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background: var(--bg-main);
+            color: var(--text-main);
+            min-height: 100vh;
+            background-image:
+                radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
+                radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 1) 0, transparent 50%),
+                radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 1) 0, transparent 50%);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .date-badge {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 4rem;
+        }
+
+        .kpi-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius);
+            padding: 2rem;
+            backdrop-filter: blur(12px);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+        }
+
+        .kpi-icon {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            opacity: 0.15;
+            color: var(--primary);
+        }
+
+        .kpi-label {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .kpi-value {
+            font-size: 2.2rem;
+            font-weight: 800;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .kpi-trend {
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .kpi-trend.up {
+            color: var(--success);
+        }
+
+        .kpi-trend.warn {
+            color: var(--warning);
+        }
+
+        .kpi-trend.danger {
+            color: var(--danger);
+        }
+
+        .class-tooltip {
+            position: absolute;
+            bottom: -100%;
+            left: 0;
+            width: 100%;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(8px);
+            padding: 1rem;
+            border-top: 1px solid var(--border-card);
+            transition: all 0.3s ease;
+            opacity: 0;
+            visibility: hidden;
+            z-index: 10;
+        }
+
+        .kpi-card:hover .class-tooltip {
+            bottom: 0;
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .class-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            margin-bottom: 0.2rem;
+            font-weight: 600;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .module-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
+            margin-bottom: 4rem;
+        }
+
+        .module-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01));
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius);
+            padding: 2rem;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            position: relative;
+        }
+
+        .module-card:hover {
+            border-color: var(--primary);
+            box-shadow: 0 0 40px rgba(79, 70, 229, 0.15);
+            transform: scale(1.02);
+            background: rgba(79, 70, 229, 0.05);
+        }
+
+        .module-icon {
+            width: 56px;
+            height: 56px;
+            background: rgba(79, 70, 229, 0.1);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+        }
+
+        .module-icon i {
+            width: 24px;
+            height: 24px;
+        }
+
+        .status-pill {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            padding: 0.3rem 0.8rem;
+            border-radius: 50px;
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .pill-active {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .pill-inactive {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            border: 1px solid var(--border-card);
+        }
+
+        .module-card.disabled {
+            filter: grayscale(1);
+            opacity: 0.6;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .alerts-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius);
+            padding: 2rem;
+            backdrop-filter: blur(12px);
+        }
+
+        .alert-item {
+            padding: 1.2rem;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border-left: 4px solid var(--primary);
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .alert-item.urgent {
+            border-left-color: var(--danger);
+            background: rgba(239, 68, 68, 0.05);
+        }
+
+        .alert-item.warning {
+            border-left-color: var(--warning);
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert-title {
+            font-weight: 700;
+            font-size: 1rem;
+            display: block;
+            margin-bottom: 0.2rem;
+        }
+
+        .alert-desc {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .alert-badge {
+            padding: 0.3rem 0.8rem;
+            border-radius: 50px;
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+    </style>
+    <script src="config.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="brand">
+                <p
+                    style="color: var(--primary); font-weight: 700; letter-spacing: 0.1rem; font-size: 0.8rem; text-transform: uppercase;">
+                    Portal Administrativo</p>
+                <h1>FrotaLink</h1>
+            </div>
+            <div class="date-badge" id="currentDate"><i data-lucide="calendar"></i><span>-</span></div>
+        </header>
+
+        <section class="kpi-grid">
+            <a href="index.html" class="kpi-card" id="kpi-card-frota-total" style="display: none;">
+                <i data-lucide="truck" class="kpi-icon"></i>
+                <span class="kpi-label">Frota Total</span>
+                <span class="kpi-value" id="kpi-vehicles">0</span>
+                <span class="kpi-trend up" id="kpi-vehicles-sub">Calculando...</span>
+                <div class="class-tooltip" id="classTooltipList"></div>
+            </a>
+            <a href="index.html" class="kpi-card" id="kpi-card-frota-alerts" style="display: none;">
+                <i data-lucide="shield-alert" class="kpi-icon" style="color: var(--warning);"></i>
+                <span class="kpi-label">Alertas Frota</span>
+                <span class="kpi-value" id="kpi-alerts">0</span>
+                <span class="kpi-trend warn">Docs / Seguro / CNH</span>
+            </a>
+            <a href="abastecimento.html" class="kpi-card" id="kpi-card-fuel-alerts" style="display: none;">
+                <i data-lucide="fuel" class="kpi-icon" style="color: var(--success);"></i>
+                <span class="kpi-label">Alertas Abastecimento</span>
+                <span class="kpi-value" id="kpi-fuel-alerts">0</span>
+                <span class="kpi-trend warn">Consumo Suspeito</span>
+            </a>
+            <a href="manutencao.html" class="kpi-card" id="kpi-card-maint-alerts" style="display: none;">
+                <i data-lucide="wrench" class="kpi-icon" style="color: var(--danger);"></i>
+                <span class="kpi-label">Manutenções Vencidas</span>
+                <span class="kpi-value" id="kpi-maint">0</span>
+                <span class="kpi-trend danger">Ações Mecânicas</span>
+            </a>
+        </section>
+
+        <section class="section-title"><i data-lucide="grid" style="color: var(--primary);"></i>Módulos do Sistema
+        </section>
+        <div class="module-grid">
+            <a href="index.html" class="module-card" id="module-card-frota" style="display: none;">
+                <div class="status-pill pill-active">Instalado</div>
+                <div class="module-icon"><i data-lucide="truck"></i></div>
+                <div>
+                    <h3>FrotaLink (Gestão)</h3>
+                    <p>Controle de veículos, alocações de motoristas e seguros.</p>
+                </div>
+            </a>
+            <a href="abastecimento.html" class="module-card" id="module-card-abastecimento" style="display: none;">
+                <div class="status-pill pill-active">Instalado</div>
+                <div class="module-icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;"><i
+                        data-lucide="fuel"></i></div>
+                <div>
+                    <h3>Abastecimento</h3>
+                    <p>Controle de consumo e KM.</p>
+                </div>
+            </a>
+            <a href="manutencao.html" class="module-card" id="module-card-manutencao" style="display: none;">
+                <div class="status-pill pill-active">Instalado</div>
+                <div class="module-icon" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;"><i
+                        data-lucide="wrench"></i></div>
+                <div>
+                    <h3>Manutenção</h3>
+                    <p>OS e histórico mecânico.</p>
+                </div>
+            </a>
+            <a href="compras.html" class="module-card" id="module-card-compras" style="display: none;">
+                <div class="status-pill pill-active">Instalado</div>
+                <div class="module-icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;"><i
+                        data-lucide="shopping-cart"></i></div>
+                <div>
+                    <h3>Compras</h3>
+                    <p>Controle de Notas.</p>
+                </div>
+            </a>
+            <a href="estoque.html" class="module-card" id="module-card-estoque" style="display: none;">
+                <div class="status-pill pill-active">Instalado</div>
+                <div class="module-icon" style="background: rgba(99, 102, 241, 0.1); color: var(--primary);"><i
+                        data-lucide="package"></i></div>
+                <div>
+                    <h3>Estoque</h3>
+                    <p>Controle de peças e insumos.</p>
+                </div>
+            </a>
+            <a href="fechamento.html" class="module-card" id="module-card-fechamento" style="display: none;">
+                <div class="status-pill pill-active">Instalado</div>
+                <div class="module-icon" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6;"><i
+                        data-lucide="file-check"></i></div>
+                <div>
+                    <h3>Fechamento</h3>
+                    <p>Relatórios consolidados para o financeiro.</p>
+                </div>
+            </a>
+            <a href="financeiro.html" class="module-card" id="module-card-financeiro" style="display: none;">
+                <div class="status-pill pill-active">Instalado</div>
+                <div class="module-icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;"><i
+                        data-lucide="dollar-sign"></i></div>
+                <div>
+                    <h3>Financeiro</h3>
+                    <p>Gestão de contas, fluxo de caixa e DRE.</p>
+                </div>
+            </a>
+            <a href="comercial.html" class="module-card" id="module-card-comercial" style="display: none;">
+                <div class="status-pill pill-active">Instalado</div>
+                <div class="module-icon" style="background: rgba(99, 102, 241, 0.1); color: var(--primary);"><i
+                        data-lucide="briefcase"></i></div>
+                <div>
+                    <h3>Comercial</h3>
+                    <p>Gestão estratégica de contratos de clientes.</p>
+                </div>
+            </a>
+            <!-- Admin card: only visible for role=admin -->
+            <a href="admin.html" class="module-card" id="adminModuleCard" style="display:none; border-color: rgba(99,102,241,0.3); background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(192,132,252,0.04));">
+                <div class="status-pill" style="background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.2);">Admin</div>
+                <div class="module-icon" style="background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(192,132,252,0.1)); color: #818cf8;"><i data-lucide="shield-check"></i></div>
+                <div>
+                    <h3 style="background: linear-gradient(to right, #818cf8, #c084fc); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">Painel Administrativo</h3>
+                    <p>Controle de acesso e permissões por usuário.</p>
+                </div>
+            </a>
+        </div>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+    <script>
+let supabaseClient = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons(); updateDate();
+            if (window.supabase) {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                initHome();
+            }
+            
+            // Controle de exibição de cards de acordo com as permissões do usuário
+            function applyHomePermissions() {
+                if (!window.currentUserRole) {
+                    setTimeout(applyHomePermissions, 100);
+                    return;
+                }
+
+                const hasAccess = (moduleKey) => {
+                    if (window.currentUserRole === 'admin') return true;
+                    if (!window.currentUserPermissions) return false;
+                    if (window.currentUserPermissions[moduleKey] && window.currentUserPermissions[moduleKey].view) return true;
+                    return Object.keys(window.currentUserPermissions).some(key => 
+                        (key.startsWith(moduleKey + '_') || key === moduleKey) && window.currentUserPermissions[key].view
+                    );
+                };
+
+                // Filtrar Cards de KPI
+                const kpis = {
+                    'kpi-card-frota-total': 'frota',
+                    'kpi-card-frota-alerts': 'frota',
+                    'kpi-card-fuel-alerts': 'abastecimento',
+                    'kpi-card-maint-alerts': 'manutencao'
+                };
+                Object.entries(kpis).forEach(([id, mod]) => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.style.display = hasAccess(mod) ? 'block' : 'none';
+                    }
+                });
+
+                // Filtrar Módulos
+                const modules = {
+                    'module-card-frota': 'frota',
+                    'module-card-abastecimento': 'abastecimento',
+                    'module-card-manutencao': 'manutencao',
+                    'module-card-compras': 'compras',
+                    'module-card-estoque': 'estoque',
+                    'module-card-fechamento': 'fechamento',
+                    'module-card-financeiro': 'financeiro',
+                    'module-card-comercial': 'comercial'
+                };
+                Object.entries(modules).forEach(([id, mod]) => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.style.display = hasAccess(mod) ? 'flex' : 'none';
+                    }
+                });
+
+                // Card Administrativo
+                const adminCard = document.getElementById('adminModuleCard');
+                if (adminCard) {
+                    adminCard.style.display = window.currentUserRole === 'admin' ? 'flex' : 'none';
+                }
+
+                lucide.createIcons();
+            }
+            applyHomePermissions();
+        });
+
+        const cleanNum = (val) => {
+            if (typeof val === 'number') return val;
+            if (!val) return 0;
+            let s = String(val).replace('R$', '').trim();
+            if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+            else if (s.includes(',')) s = s.replace(',', '.');
+            return parseFloat(s) || 0;
+        };
+
+        function smartParseDate(dateStr, timeStr = '00:00') {
+            if (!dateStr) return 0;
+            try {
+                let normalized = String(dateStr).trim();
+                let y, m, d;
+                if (normalized.includes('-')) {
+                    [y, m, d] = normalized.split('-').map(Number);
+                } else if (normalized.includes('/')) {
+                    [d, m, y] = normalized.split('/').map(Number);
+                } else {
+                    return 0;
+                }
+                const [h, min] = (timeStr || '00:00').split(':').map(Number);
+                return new Date(y, m - 1, d, h, min).getTime();
+            } catch (e) {
+                return 0;
+            }
+        }
+
+        async function initHome() {
+            try {
+                // Helper to bypass 1000 record limit
+                const fetchAll = async (table, selectStr) => {
+                    let all = [];
+                    let from = 0;
+                    const step = 1000;
+                    let done = false;
+                    while (!done) {
+                        const { data, error } = await supabaseClient
+                            .from(table)
+                            .select(selectStr)
+                            .range(from, from + step - 1);
+                        if (error) throw error;
+                        all = all.concat(data || []);
+                        if (!data || data.length < step) done = true;
+                        else from += step;
+                    }
+                    return all;
+                };
+
+                const [vehicles, drivers, maints, fuelData] = await Promise.all([
+                    fetchAll('veiculos', '*'),
+                    fetchAll('motoristas', '*'),
+                    fetchAll('manutencoes', '*, manutencao_itens(*), manutencao_tipos(descricao)'),
+                    fetchAll('abastecimentos', '*, veiculos(placa, ignorar_media, tipo_combustivel)')
+                ]);
+
+                // Sort by date/time to ensure correct chronological sequence
+                fuelData.sort((a, b) => smartParseDate(a.data, a.horario) - smartParseDate(b.data, b.horario));
+
+                // KM Injection
+                const kmMap = {};
+                fuelData.forEach(f => {
+                    const kmVal = parseFloat(f.km_atual) || 0;
+                    kmMap[f.veiculo_id] = kmVal;
+                });
+                vehicles.forEach(v => { v.km_atual = kmMap[v.id] || v.km_atual || 0; });
+
+                // 1. KPI Frota
+                document.getElementById('kpi-vehicles').innerText = vehicles.length;
+                document.getElementById('kpi-vehicles-sub').innerText = vehicles.filter(v => v.status === 'ATIVO').length + ' Operacionais';
+
+                const classCounts = {};
+                vehicles.forEach(v => { const c = (v.classificacao && ['PROPRIO','TERCEIRO','ALUGADO','DIRETORIA','ESPECIAL','OUTRO'].includes(v.classificacao)) ? v.classificacao : 'OUTRO'; classCounts[c] = (classCounts[c] || 0) + 1; });
+                document.getElementById('classTooltipList').innerHTML = Object.entries(classCounts).map(([label, count]) => `<div class="class-item"><span>${label}</span><span>${count}</span></div>`).join('');
+
+                // 2. KPI Manutenções
+                const maintAlerts = [];
+                maints.forEach(m => {
+                    if (m.status === 'CONCLUIDO') return;
+                    const vehicle = vehicles.find(v => v.id === m.veiculo_id);
+                    const currentKm = vehicle?.km_atual || 0;
+                    (m.manutencao_itens || []).forEach(i => {
+                        if (i.proxima_troca_km) {
+                            const limit = parseFloat(i.proxima_troca_km);
+                            if (currentKm >= (limit - 2000)) {
+                                maintAlerts.push({ plate: vehicle?.placa, desc: i.descricao, type: currentKm >= limit ? 'urgent' : 'warning' });
+                            }
+                        }
+                    });
+                });
+                document.getElementById('kpi-maint').innerText = maintAlerts.length;
+
+                // 3. KPI Alertas Frota (Insurance/CNH)
+                let frotaAlertsCount = 0;
+                const today = new Date(); const horizon = new Date(); horizon.setDate(today.getDate() + 30);
+                vehicles.forEach(v => { if (v.vencimento_seguro && new Date(v.vencimento_seguro) <= horizon) frotaAlertsCount++; });
+                drivers.forEach(d => { if (d.vencimento_cnh && new Date(d.vencimento_cnh) <= horizon) frotaAlertsCount++; });
+                document.getElementById('kpi-alerts').innerText = frotaAlertsCount;
+
+                // 4. KPI Abastecimento
+                // Carregar alertas ignorados do Supabase e LocalStorage
+                let dismissedAlerts = JSON.parse(localStorage.getItem('frotalink_dismissedAlerts') || '[]');
+                try {
+                    const { data: cloudIgnored } = await supabaseClient.from('alertas_fuel_ignorados').select('alert_key');
+                    if (cloudIgnored) {
+                        const cloudKeys = cloudIgnored.map(c => c.alert_key);
+                        dismissedAlerts = [...new Set([...dismissedAlerts, ...cloudKeys])];
+                    }
+                } catch (e) { console.warn("Supabase dismissed alerts load failed:", e); }
+
+                let fuelAlertsCount = 0;
+                
+                // Sort by date/time to ensure correct consumption calculation
+                fuelData.sort((a, b) => smartParseDate(a.data, a.horario) - smartParseDate(b.data, b.horario));
+
+                const vehicleGroups = {};
+                fuelData.forEach(r => {
+                    if (!vehicleGroups[r.veiculo_id]) vehicleGroups[r.veiculo_id] = [];
+                    vehicleGroups[r.veiculo_id].push(r);
+                });
+
+                for (const vid in vehicleGroups) {
+                    const group = vehicleGroups[vid];
+                    const vehicle = vehicles.find(v => v.id === vid);
+                    
+                    group.forEach((f, idx) => {
+                        const prev = group[idx - 1];
+                        // Priorizar ignorar_media do veículo, depois da tabela vinculada
+                        const isIgnored = vehicle?.ignorar_media || f.veiculos?.ignorar_media;
+                        
+                        const checkAndAdd = (title) => {
+                            const key = `${f.id}_${title}`;
+                            if (!dismissedAlerts.includes(key)) {
+                                fuelAlertsCount++;
+                            }
+                        };
+
+                        // 1. Combustível Incompatível
+                        const vehicleFuelType = vehicle?.tipo_combustivel || f.veiculos?.tipo_combustivel;
+                        if (vehicleFuelType && f.tipo_combustivel && vehicleFuelType.trim().toUpperCase() !== f.tipo_combustivel.trim().toUpperCase()) {
+                            checkAndAdd('Combustível Incompatível ⛽');
+                        }
+
+                        if (prev) {
+                            const kmDiff = f.km_atual - prev.km_atual;
+                            if (kmDiff > 0 && f.litros > 0 && !isIgnored) {
+                                const avg = kmDiff / f.litros;
+                                if (avg < 8) checkAndAdd('Média Baixa 📉');
+                                else if (avg > 18) checkAndAdd('Média Atípica (Alta) 📈');
+                            }
+                            if (f.km_atual < prev.km_atual && !isIgnored) {
+                                checkAndAdd('Regressão de KM ⚠️');
+                            }
+                        }
+
+                        if (f.valor_total > 1500) checkAndAdd('Abastecimento Elevado 💰');
+                        
+                        // Registro Duplicado logic must match abastecimento.js exactly (data, horario, km_atual)
+                        const duplicates = group.filter(r => 
+                            r.data === f.data && 
+                            r.horario === f.horario && 
+                            r.km_atual === f.km_atual && 
+                            r.id !== f.id
+                        );
+                        if (duplicates.length > 0) checkAndAdd('Registro Duplicado 📑');
+                    });
+                }
+                document.getElementById('kpi-fuel-alerts').innerText = fuelAlertsCount;
+
+                lucide.createIcons();
+            } catch (err) { console.error(err); }
+        }
+
+        function updateDate() { const el = document.querySelector('#currentDate span'); if (el) el.innerText = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); }
+    </script>
+    <script src="orb_menu.js"></script>
+</body>
+
+</html>
+
+

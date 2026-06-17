@@ -1,0 +1,1767 @@
+?<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FrotaLink | Painel Administrativo</title>
+    <meta name="description" content="Painel de controle de acesso e gerenciamento de usuários do sistema FrotaLink.">
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Auth module -->
+    <script src="auth.js"></script>
+
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-main: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --border-card: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --radius: 12px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
+
+        body {
+            background: var(--bg-main);
+            color: var(--text-main);
+            min-height: 100vh;
+            background-image:
+                radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
+                radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 1) 0, transparent 50%),
+                radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 1) 0, transparent 50%);
+        }
+
+        /* Grid background */
+        .bg-grid {
+            position: fixed; inset: 0; z-index: 0; opacity: 0.04; pointer-events: none;
+            background-image: linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        .admin-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        .admin-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .header-brand h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.2rem;
+        }
+
+        .header-brand p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 0.65rem 1.2rem;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover { background: var(--primary-hover); box-shadow: 0 4px 12px rgba(79,70,229,0.3); transform: translateY(-1px); }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.05);
+            color: var(--text-muted);
+            border: 1px solid var(--border-card);
+        }
+
+        .btn-secondary:hover { background: rgba(255,255,255,0.08); color: var(--text-main); }
+
+        /* Tab navigation -- padronizado com global style.css */
+        .admin-tabs {
+            display: inline-flex;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 0.5rem;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            margin-bottom: 2rem;
+            gap: 0.5rem;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 12px;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            white-space: nowrap;
+        }
+
+        .tab-btn.active {
+            background: #6366f1;
+            color: white;
+            box-shadow: 0 4px 15px rgba(99,102,241,0.3);
+        }
+
+        .tab-btn:hover:not(.active) { background: rgba(255,255,255,0.05); color: var(--text-main); }
+
+        .tab-content { display: none; animation: fadeIn 0.3s ease; }
+        .tab-content.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius);
+            backdrop-filter: blur(12px);
+        }
+
+        .card-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border-card);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-title i { width: 18px; height: 18px; color: var(--primary); }
+
+        .card-body { padding: 1.5rem; }
+
+        /* Stats row */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius);
+            padding: 1.25rem;
+            backdrop-filter: blur(12px);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        /* Users table */
+        .users-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .users-table th {
+            padding: 0.75rem 1rem;
+            background: rgba(255,255,255,0.03);
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            text-align: left;
+        }
+
+        .users-table td {
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+
+        .users-table tr:last-child td { border-bottom: none; }
+        .users-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+
+        .badge-admin { background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.2); }
+        .badge-user { background: rgba(148,163,184,0.1); color: #94a3b8; border: 1px solid rgba(255,255,255,0.06); }
+        .badge-active { background: rgba(16,185,129,0.1); color: var(--success); border: 1px solid rgba(16,185,129,0.2); }
+        .badge-inactive { background: rgba(239,68,68,0.1); color: var(--danger); border: 1px solid rgba(239,68,68,0.2); }
+
+        .module-tag {
+            display: inline-block;
+            background: rgba(79,70,229,0.1);
+            color: #a5b4fc;
+            border: 1px solid rgba(79,70,229,0.15);
+            border-radius: 6px;
+            padding: 0.15rem 0.45rem;
+            font-size: 0.68rem;
+            font-weight: 600;
+            margin: 0.1rem;
+            text-transform: capitalize;
+        }
+
+        .action-btn {
+            padding: 0.35rem 0.65rem;
+            border-radius: 6px;
+            border: 1px solid;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 600;
+            font-family: inherit;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .action-btn-edit {
+            background: rgba(79,70,229,0.1);
+            border-color: rgba(79,70,229,0.2);
+            color: #818cf8;
+        }
+
+        .action-btn-edit:hover { background: var(--primary); color: white; border-color: var(--primary); }
+
+        .action-btn-toggle {
+            background: rgba(245,158,11,0.1);
+            border-color: rgba(245,158,11,0.2);
+            color: #f59e0b;
+        }
+
+        .action-btn-toggle:hover { background: var(--warning); color: #0f172a; border-color: var(--warning); }
+
+        .action-btn-delete {
+            background: rgba(239,68,68,0.1);
+            border-color: rgba(239,68,68,0.2);
+            color: #f87171;
+        }
+
+        .action-btn-delete:hover { background: var(--danger); color: white; border-color: var(--danger); }
+
+        /* Add User Form */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1.25rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .form-group label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .form-group input,
+        .form-group select {
+            padding: 0.7rem 0.9rem;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-size: 0.875rem;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.2s;
+            appearance: none;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: var(--primary);
+            background: rgba(79,70,229,0.06);
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
+        }
+
+        .form-group select option { background: #1e293b; }
+
+        /* Module checkboxes */
+        .modules-section {
+            grid-column: 1 / -1;
+        }
+
+        .modules-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            display: block;
+            margin-bottom: 0.75rem;
+        }
+
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 0.5rem;
+        }
+
+        .module-check {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .module-check:has(input:checked) {
+            background: rgba(79,70,229,0.1);
+            border-color: rgba(79,70,229,0.25);
+        }
+
+        .module-check input[type="checkbox"] {
+            width: 14px;
+            height: 14px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        .module-check span {
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-transform: capitalize;
+        }
+
+        /* Alert / feedback */
+        .alert {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 1.25rem;
+            display: none;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .alert.show { display: flex; }
+        .alert-success { background: rgba(16,185,129,0.08); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.2); }
+        .alert-error { background: rgba(239,68,68,0.08); color: #fca5a5; border: 1px solid rgba(239,68,68,0.2); }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9000;
+            padding: 1rem;
+        }
+
+        .modal-overlay.open { display: flex; }
+
+        .modal {
+            background: #1e293b;
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius);
+            padding: 1.75rem;
+            width: 100%;
+            max-width: 580px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1.4rem;
+            line-height: 1;
+            padding: 0.2rem;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover { color: var(--text-main); }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+        .empty-state p { font-size: 0.9rem; }
+
+        /* Loading */
+        .loading-row td {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+
+        .perm-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+        }
+        .perm-table th, .perm-table td {
+            padding: 0.45rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            text-align: center;
+        }
+        .perm-table th:first-child, .perm-table td:first-child {
+            text-align: left;
+            font-weight: 600;
+        }
+        .perm-table input[type="checkbox"] {
+            cursor: pointer;
+        }
+        .perm-check-view {
+            accent-color: #3b82f6; /* Azul */
+        }
+        .perm-check-add {
+            accent-color: #10b981; /* Verde */
+        }
+        .perm-check-edit {
+            accent-color: #f59e0b; /* Amarelo/Laranja */
+        }
+        .perm-check-delete {
+            accent-color: #ef4444; /* Vermelho */
+        }
+
+        .perm-matrix-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+        .module-group-card {
+            background: rgba(255, 255, 255, 0.015);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: var(--radius);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+        .module-group-card:hover {
+            border-color: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.03);
+        }
+        .module-group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            cursor: pointer;
+            user-select: none;
+        }
+        .module-group-header h4 {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+        .group-actions-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+        .btn-batch-action {
+            font-size: 0.7rem;
+            padding: 0.3rem 0.75rem;
+            border-radius: 6px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid;
+            font-family: inherit;
+        }
+        .btn-batch-enable {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.25);
+            color: #10b981;
+        }
+        .btn-batch-enable:hover {
+            background: #10b981;
+            color: white;
+            border-color: #10b981;
+        }
+        .btn-batch-clear {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.25);
+            color: #f87171;
+        }
+        .btn-batch-clear:hover {
+            background: #ef4444;
+            color: white;
+            border-color: #ef4444;
+        }
+        .group-chevron {
+            color: var(--text-muted);
+            transition: transform 0.25s ease;
+        }
+        .password-wrapper {
+            position: relative;
+            display: flex;
+            width: 100%;
+        }
+        .password-wrapper input {
+            width: 100%;
+            padding-right: 2.5rem !important;
+        }
+        .toggle-password-btn {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            transition: color 0.2s;
+        }
+        .toggle-password-btn:hover {
+            color: var(--text-main);
+        }
+    </style>
+    <script src="config.js"></script>
+</head>
+
+<body>
+    <div class="bg-grid"></div>
+
+    <div class="admin-container">
+        <!-- Header -->
+        <div class="admin-header">
+            <div class="header-brand">
+                <a href="home.html" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                    <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
+                </a>
+                <p style="color: var(--primary); font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.2rem;">⚙️ Painel Administrativo</p>
+                <h1>Controle de Acesso</h1>
+                <p>Gerencie quem tem acesso ao sistema e a quais módulos</p>
+            </div>
+            <div class="header-actions">
+                <a href="home.html" class="btn btn-secondary">
+                    <i data-lucide="layout-grid" style="width:15px;"></i> Hub Principal
+                </a>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total de Usuários</div>
+                <div class="stat-value" id="stat-total" style="color: #818cf8;">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Usuários Ativos</div>
+                <div class="stat-value" id="stat-active" style="color: var(--success);">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Administradores</div>
+                <div class="stat-value" id="stat-admins" style="color: #f59e0b;">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Acesso Revogado</div>
+                <div class="stat-value" id="stat-inactive" style="color: var(--danger);">--</div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="admin-tabs">
+            <button class="tab-btn active" onclick="switchTab('tab-users')" id="btn-tab-users">
+                <i data-lucide="users" style="width:15px;"></i> Usuários
+            </button>
+            <button class="tab-btn" onclick="switchTab('tab-add')" id="btn-tab-add">
+                <i data-lucide="user-plus" style="width:15px;"></i> Adicionar Usuário
+            </button>
+            <button class="tab-btn" onclick="switchTab('tab-empresa')" id="btn-tab-empresa">
+                <i data-lucide="building-2" style="width:15px;"></i> Minha Empresa
+            </button>
+        </div>
+
+        <!-- Tab: Usuários -->
+        <div id="tab-users" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i data-lucide="shield-check"></i>
+                        Usuários com Acesso
+                    </span>
+                    <button class="btn btn-primary" onclick="switchTab('tab-add')" style="font-size: 0.8rem; padding: 0.5rem 1rem;">
+                        <i data-lucide="plus" style="width:14px;"></i> Novo Usuário
+                    </button>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="users-table">
+                        <thead>
+                            <tr>
+                                <th>Nome Completo</th>
+                                <th>E-mail</th>
+                                <th>Perfil</th>
+                                <th>Ações Permitidas</th>
+                                <th>Status</th>
+                                <th>Criado em</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr class="loading-row">
+                                <td colspan="7">Carregando usuários...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Adicionar Usuário -->
+        <div id="tab-add" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i data-lucide="user-plus"></i>
+                        Cadastrar Novo Usuário
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-success" id="addAlert-success">
+                        ✅ Usuário cadastrado com sucesso!
+                    </div>
+                    <div class="alert alert-error" id="addAlert-error">
+                        ⚠️ <span id="addAlert-error-msg">Erro ao cadastrar.</span>
+                    </div>
+
+                    <form id="addUserForm" onsubmit="handleAddUser(event)">
+                        <div class="form-grid">
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label for="new-nome">Nome Completo *</label>
+                                <input type="text" id="new-nome" placeholder="Nome do Funcionário" required>
+                            </div>
+
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label for="new-email">E-mail do Usuário *</label>
+                                <input type="email" id="new-email" placeholder="usuario@dominio.com" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="new-role">Perfil de Acesso *</label>
+                                <select id="new-role">
+                                    <option value="user">Usuário</option>
+                                    <option value="admin">Administrador</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="new-active">Status</label>
+                                <select id="new-active">
+                                    <option value="true">Ativo</option>
+                                    <option value="false">Inativo (bloqueado)</option>
+                                </select>
+                            </div>
+
+                            <div class="modules-section">
+                                <span class="modules-label">Matriz de Permissões</span>
+                                <div id="new-perm-matrix-container" class="perm-matrix-container"></div>
+                            </div>
+                        </div>
+
+                        <div class="modal-actions" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-card);">
+                            <button type="button" class="btn btn-secondary" onclick="resetAddForm()">Limpar</button>
+                            <button type="submit" id="addUserBtn" class="btn btn-primary">
+                                <i data-lucide="save" style="width:15px;"></i> Salvar Acesso
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Minha Empresa -->
+        <div id="tab-empresa" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i data-lucide="building-2"></i>
+                        Dados da Empresa
+                    </span>
+                    <button class="btn btn-secondary" onclick="window.location.href='empresa_setup.html'" style="font-size: 0.8rem; padding: 0.5rem 1rem;">
+                        <i data-lucide="external-link" style="width:14px;"></i> Abrir Configurador
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-success" id="empresaAlert-success">✅ Dados atualizados com sucesso!</div>
+                    <div class="alert alert-error" id="empresaAlert-error">⚠️ <span id="empresaAlert-error-msg">Erro ao salvar.</span></div>
+
+                    <div id="empresa-loading" style="text-align:center; padding: 2rem; color: var(--text-muted);">Carregando dados da empresa...</div>
+
+                    <form id="empresaForm" onsubmit="handleSaveEmpresaAdmin(event)" style="display:none;">
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem;">
+
+                            <!-- Coluna 1 -->
+                            <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                                <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6366f1; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(99,102,241,0.2);">📝 Identificação</div>
+
+                                <div class="form-group">
+                                    <label for="emp-razao">Razão Social *</label>
+                                    <input type="text" id="emp-razao" placeholder="Razão Social da Empresa" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="emp-fantasia">Nome Fantasia</label>
+                                    <input type="text" id="emp-fantasia" placeholder="Nome Fantasia">
+                                </div>
+                                <div class="form-group">
+                                    <label for="emp-cnpj">CNPJ</label>
+                                    <input type="text" id="emp-cnpj" placeholder="00.000.000/0000-00">
+                                </div>
+                                <div class="form-group">
+                                    <label for="emp-telefone">Telefone</label>
+                                    <input type="text" id="emp-telefone" placeholder="(00) 00000-0000">
+                                </div>
+                                <div class="form-group">
+                                    <label for="emp-email">E-mail Comercial</label>
+                                    <input type="email" id="emp-email" placeholder="contato@empresa.com">
+                                </div>
+                                <div class="form-group">
+                                    <label for="emp-setor">Ramo de Atividade</label>
+                                    <select id="emp-setor">
+                                        <option>Transportes e Logística</option>
+                                        <option>Distribuição</option>
+                                        <option>Agropecuária</option>
+                                        <option>Construção Civil</option>
+                                        <option>Mineração</option>
+                                        <option>Serviços Gerais</option>
+                                        <option>Outro</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Coluna 2 -->
+                            <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                                <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6366f1; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(99,102,241,0.2);">📍 Endereço & Identidade</div>
+
+                                <div class="form-group">
+                                    <label for="emp-cidade">Cidade</label>
+                                    <input type="text" id="emp-cidade" placeholder="São Paulo">
+                                </div>
+                                <div class="form-group">
+                                    <label for="emp-estado">Estado</label>
+                                    <select id="emp-estado">
+                                        <option value="">Selecione</option>
+                                        <option>AC</option><option>AL</option><option>AM</option><option>BA</option><option>CE</option>
+                                        <option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MG</option>
+                                        <option>MS</option><option>MT</option><option>PA</option><option>PB</option><option>PE</option>
+                                        <option>PI</option><option>PR</option><option>RJ</option><option>RN</option><option>RO</option>
+                                        <option>RR</option><option>RS</option><option>SC</option><option>SE</option><option>SP</option>
+                                        <option>TO</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="emp-endereco">Logradouro</label>
+                                    <input type="text" id="emp-endereco" placeholder="Rua das Flores, 123">
+                                </div>
+                                <div class="form-group">
+                                    <label for="emp-cep">CEP</label>
+                                    <input type="text" id="emp-cep" placeholder="00000-000">
+                                </div>
+                                <div class="form-group">
+                                    <label for="emp-logo">URL do Logo</label>
+                                    <input type="text" id="emp-logo" placeholder="https://...">
+                                </div>
+
+                                <!-- Empresa Info Summary -->
+                                <div id="empresa-summary-card" style="padding: 1rem; background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.15); border-radius: 10px; font-size: 0.82rem; color: #a5b4fc; line-height: 1.6; display: none;">
+                                    <div style="font-weight: 700; color: #f8fafc; margin-bottom: 0.5rem;">📋 Resumo Atual</div>
+                                    <div id="empresa-summary-content"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-actions" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-card);">
+                            <button type="button" class="btn btn-secondary" onclick="loadEmpresaData()">🔄 Recarregar</button>
+                            <button type="submit" id="saveEmpresaBtn" class="btn btn-primary">
+                                <i data-lucide="save" style="width:15px;"></i> Salvar Alterações
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal" style="max-width: 650px;">
+            <div class="modal-header">
+                <span class="modal-title">Editar Acesso</span>
+                <button class="modal-close" onclick="closeEditModal()">×</button>
+            </div>
+
+            <div class="alert alert-success" id="editAlert-success">
+                ✅ Acesso atualizado com sucesso!
+            </div>
+            <div class="alert alert-error" id="editAlert-error">
+                ⚠️ <span id="editAlert-error-msg">Erro ao atualizar.</span>
+            </div>
+
+            <form id="editUserForm" onsubmit="handleEditUser(event)">
+                <input type="hidden" id="edit-email">
+
+                <div class="form-grid" style="gap: 1rem;">
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label for="edit-nome">Nome Completo</label>
+                        <input type="text" id="edit-nome" placeholder="Nome do Funcionário" required>
+                    </div>
+
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label>E-mail</label>
+                        <input type="email" id="edit-email-display" disabled style="opacity: 0.6;">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-password">Nova Senha (deixe em branco para manter)</label>
+                        <div class="password-wrapper">
+                            <input type="password" id="edit-password" placeholder="Definir nova senha" minlength="6">
+                            <button type="button" class="toggle-password-btn" onclick="togglePasswordVisibility('edit-password', this)">
+                                <i data-lucide="eye" style="width: 16px; height: 16px;"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-role">Perfil de Acesso</label>
+                        <select id="edit-role">
+                            <option value="user">Usuário</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-active">Status</label>
+                        <select id="edit-active">
+                            <option value="true">Ativo</option>
+                            <option value="false">Inativo (bloqueado)</option>
+                        </select>
+                    </div>
+
+                    <div class="modules-section">
+                        <span class="modules-label">Matriz de Permissões</span>
+                        <div id="edit-perm-matrix-container" class="perm-matrix-container"></div>
+                    </div>
+                </div>
+
+                <div class="modal-actions" style="justify-content: space-between;">
+                    <button type="button" class="btn btn-secondary" onclick="resetUserPassword()" style="background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.25); color: #fbbf24;">
+                        <i data-lucide="key-round" style="width:14px;"></i> Solicitar Alteração Senha
+                    </button>
+                    <div style="display: flex; gap: 0.75rem;">
+                        <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i data-lucide="save" style="width:15px;"></i> Salvar Alterações
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+// URL da Edge Function de gerenciamento de usuários
+        const MANAGE_USER_FN = `${SUPABASE_URL}/functions/v1/manage-user`;
+
+        /**
+         * Chama a Edge Function manage-user com o token de auth do admin
+         * A função roda com service_role no servidor, sem expor a chave secreta
+         */
+        async function callManageUser(payload) {
+            const session = (await adminClient.auth.getSession()).data.session;
+            if (!session) throw new Error('Sessão de admin expirada. Faça login novamente.');
+
+            const resp = await fetch(MANAGE_USER_FN, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'apikey': SUPABASE_KEY,
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const result = await resp.json();
+            if (!resp.ok || result.error) {
+                throw new Error(result.error || `Erro HTTP ${resp.status}`);
+            }
+            return result;
+        }
+
+        const ALL_MODULES = [
+            // "?"? FROTA "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
+            { key: 'frota_alocacoes',  label: 'Frota -- Dashboard / Alocações' },
+            { key: 'frota_veiculos',   label: 'Frota -- Veículos' },
+            { key: 'frota_motoristas', label: 'Frota -- Motoristas' },
+            { key: 'frota_cadastros',  label: 'Frota -- Cadastros (Inativações)' },
+            // "?"? ABASTECIMENTO "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
+            { key: 'abastecimento_lancamentos',  label: 'Abastecimento -- Lançamentos' },
+            { key: 'abastecimento_importacoes',  label: 'Abastecimento -- Importações' },
+            { key: 'abastecimento_postos',       label: 'Abastecimento -- Cadastros (Postos / Regras)' },
+            // "?"? MANUTENÇÃO "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
+            { key: 'manutencao_os',        label: 'Manutenção -- Ordens de Serviço' },
+            { key: 'manutencao_cadastros', label: 'Manutenção -- Cadastros (Ações / Tipos)' },
+            // "?"? COMPRAS "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
+            { key: 'compras_notas',     label: 'Compras -- Histórico de Compras' },
+            { key: 'compras_cadastros', label: 'Compras -- Cadastros (Fornecedores / Centros de Custo)' },
+            // "?"? ESTOQUE "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
+            { key: 'estoque_inventario', label: 'Estoque -- Lista de Itens / Inventário (Produtos, Edição, Exclusão, Ajuste de Saldo)' },
+            { key: 'estoque_historico',  label: 'Estoque -- Histórico de Movimentação' },
+            { key: 'estoque_vendas',     label: 'Estoque -- Vendas / Saída de Estoque' },
+            { key: 'estoque_cadastros',  label: 'Estoque -- Cadastros Auxiliares (Marcas / Categorias / Modelos / Clientes)' },
+            // "?"? FECHAMENTO "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
+            { key: 'fechamento', label: 'Fechamento' },
+            // "?"? FINANCEIRO "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
+            { key: 'financeiro_dashboard',   label: 'Financeiro -- Dashboard' },
+            { key: 'financeiro_pagar',       label: 'Financeiro -- Contas a Pagar' },
+            { key: 'financeiro_receber',     label: 'Financeiro -- Contas a Receber' },
+            { key: 'financeiro_fluxo',       label: 'Financeiro -- Fluxo de Caixa' },
+            { key: 'financeiro_dre',         label: 'Financeiro -- DRE' },
+            { key: 'financeiro_conciliacao', label: 'Financeiro -- Conciliação' },
+            { key: 'financeiro_config',      label: 'Financeiro -- Cadastros (Fornecedores / Contas / Plano de Contas / Centros de Custo)' },
+            // "?"? COMERCIAL "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
+            { key: 'comercial_contratos', label: 'Comercial -- Contratos' },
+            { key: 'comercial_cadastros', label: 'Comercial -- Cadastros (Tabelas / Demandas / Status)' },
+        ];
+
+        let adminClient = null;
+        let allUsers = [];
+
+        // Wait for auth.js to initialize
+        function waitForAuth(callback, attempts = 0) {
+            // Espera o cliente, o usuário e a checagem do banco de dados finalizarem no auth.js
+            if (window.authClient && window.currentUser && window.currentUserRole !== null) {
+                callback();
+            } else if (attempts < 80) {
+                setTimeout(() => waitForAuth(callback, attempts + 1), 100);
+            } else {
+                // Se estourar o limite de tentativas e realmente não for admin
+                showAccessDenied();
+            }
+        }
+
+        function showAccessDenied() {
+            document.body.innerHTML = `
+                <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Inter;color:#f8fafc;background:#0f172a;">
+                    <div style="text-align:center">
+                        <div style="font-size:4rem">🔒</div>
+                        <h2 style="margin:1rem 0">Acesso Restrito</h2>
+                        <p style="color:#94a3b8">Apenas administradores podem acessar este painel.</p>
+                        <a href="home.html" style="display:inline-block;margin-top:1.5rem;background:#4f46e5;color:white;padding:0.75rem 1.5rem;border-radius:8px;text-decoration:none;font-weight:600;">← Voltar ao Hub</a>
+                    </div>
+                </div>`;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            buildPermMatrix('new-perm-matrix-container', 'new');
+            buildPermMatrix('edit-perm-matrix-container', 'edit');
+
+            waitForAuth(async () => {
+                adminClient = window.authClient;
+
+                // Double-check admin role
+                if (window.currentUserRole !== 'admin') {
+                    showAccessDenied();
+                    return;
+                }
+
+                await loadUsers();
+            });
+        });
+
+        // ============================================================
+        //  CARREGAR USUÁRIOS
+        // ============================================================
+
+        async function loadUsers() {
+            try {
+                const { data, error } = await adminClient
+                    .from('user_access')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                allUsers = data || [];
+                renderUsersTable(allUsers);
+                updateStats(allUsers);
+            } catch (err) {
+                console.error('Erro ao carregar usuários:', err);
+                document.getElementById('usersTableBody').innerHTML = `
+                    <tr><td colspan="7" style="text-align:center;padding:2rem;color:#f87171;">Erro ao carregar dados: ${err.message}</td></tr>`;
+            }
+        }
+
+        function renderUsersTable(users) {
+            const tbody = document.getElementById('usersTableBody');
+
+            if (!users.length) {
+                tbody.innerHTML = `
+                    <tr><td colspan="7">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">👥</div>
+                            <p>Nenhum usuário cadastrado ainda.<br>Use a aba "Adicionar Usuário" para começar.</p>
+                        </div>
+                    </td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = users.map(u => {
+                const perms = u.permissions || {};
+                const roleBadge = u.role === 'admin'
+                    ? '<span class="badge badge-admin">Admin</span>'
+                    : '<span class="badge badge-user">Usuário</span>';
+                const statusBadge = u.active
+                    ? '<span class="badge badge-active">Ativo</span>'
+                    : '<span class="badge badge-inactive">Inativo</span>';
+                
+                // Exibe as permissões granulares simplificadas (nome do módulo e as ações permitidas)
+                let permSummary = [];
+                ALL_MODULES.forEach(m => {
+                    if (perms[m.key] && perms[m.key].view) {
+                        const actions = [];
+                        if (perms[m.key].add) actions.push('Add');
+                        if (perms[m.key].edit) actions.push('Edit');
+                        if (perms[m.key].delete) actions.push('Del');
+                        
+                        permSummary.push(`
+                            <span class="module-tag" style="padding: 0.2rem 0.5rem;">
+                                <strong>${m.key}</strong>${actions.length ? ` (${actions.join(',')})` : ''}
+                            </span>
+                        `);
+                    }
+                });
+
+                const moduleTags = permSummary.length
+                    ? permSummary.join('')
+                    : '<span style="color:var(--text-muted);font-size:0.75rem;">Nenhum</span>';
+                
+                const createdAt = u.created_at
+                    ? new Date(u.created_at).toLocaleDateString('pt-BR')
+                    : '--';
+
+                return `
+                    <tr>
+                        <td style="font-weight:600; color:var(--text-main);">${u.nome_completo || '--'}</td>
+                        <td style="font-weight:500; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-muted);">${u.email}</td>
+                        <td>${roleBadge}</td>
+                        <td style="max-width:320px;">${moduleTags}</td>
+                        <td>${statusBadge}</td>
+                        <td style="color:var(--text-muted); font-size:0.8rem;">${createdAt}</td>
+                        <td>
+                            <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+                                <button class="action-btn action-btn-edit" onclick="openEditModal('${u.email}')">
+                                    ✍️ Editar
+                                </button>
+                                <button class="action-btn action-btn-toggle" onclick="toggleUserAccess('${u.email}', ${u.active})">
+                                    ${u.active ? '🚫 Revogar' : '✅ Ativar'}
+                                </button>
+                                <button class="action-btn action-btn-delete" onclick="deleteUser('${u.email}')">
+                                    🗑️
+                                </button>
+                            </div>
+                        </td>
+                    </tr>`;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function updateStats(users) {
+            document.getElementById('stat-total').textContent = users.length;
+            document.getElementById('stat-active').textContent = users.filter(u => u.active).length;
+            document.getElementById('stat-admins').textContent = users.filter(u => u.role === 'admin').length;
+            document.getElementById('stat-inactive').textContent = users.filter(u => !u.active).length;
+        }
+
+        // ============================================================
+        //  MATRIZ DE PERMISSÕES UI
+        // ============================================================
+
+        const MODULE_COLORS = {
+            frota: { bg: 'rgba(59, 130, 246, 0.04)', border: '#3b82f6' },
+            abastecimento: { bg: 'rgba(20, 184, 166, 0.04)', border: '#20b8a6' },
+            manutencao: { bg: 'rgba(245, 158, 11, 0.04)', border: '#f59e0b' },
+            compras: { bg: 'rgba(168, 85, 247, 0.04)', border: '#a855f7' },
+            estoque: { bg: 'rgba(249, 115, 22, 0.04)', border: '#f97316' },
+            fechamento: { bg: 'rgba(244, 63, 94, 0.04)', border: '#f43f5e' },
+            financeiro: { bg: 'rgba(34, 197, 94, 0.04)', border: '#22c55e' },
+            comercial: { bg: 'rgba(99, 102, 241, 0.04)', border: '#6366f1' }
+        };
+
+        const GROUP_NAMES = {
+            frota: { name: 'Frota', icon: 'truck' },
+            abastecimento: { name: 'Abastecimento', icon: 'fuel' },
+            manutencao: { name: 'Manutenção', icon: 'wrench' },
+            compras: { name: 'Compras', icon: 'shopping-cart' },
+            estoque: { name: 'Estoque', icon: 'package' },
+            fechamento: { name: 'Fechamento', icon: 'file-check' },
+            financeiro: { name: 'Financeiro', icon: 'dollar-sign' },
+            comercial: { name: 'Comercial', icon: 'briefcase' }
+        };
+
+        window.toggleGroupCollapse = function(prefix, groupKey) {
+            const content = document.getElementById(`content-${prefix}-${groupKey}`);
+            const chevron = document.getElementById(`chevron-${prefix}-${groupKey}`);
+            if (content) {
+                const isHidden = content.style.display === 'none';
+                content.style.display = isHidden ? 'block' : 'none';
+                if (chevron) {
+                    chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+                }
+            }
+        };
+
+        window.toggleGroupBatch = function(prefix, groupKey, checked) {
+            ALL_MODULES.forEach(m => {
+                const modKey = m.key.split('_')[0];
+                if (modKey === groupKey) {
+                    const viewCb = document.getElementById(`${prefix}-${m.key}-view`);
+                    if (viewCb) {
+                        viewCb.checked = checked;
+                        toggleRowPerms(prefix, m.key);
+                        ['add', 'edit', 'delete'].forEach(action => {
+                            const cb = document.getElementById(`${prefix}-${m.key}-${action}`);
+                            if (cb) cb.checked = checked;
+                        });
+                    }
+                }
+            });
+        };
+
+        function buildPermMatrix(containerId, prefix) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            // Group modules
+            const grouped = {};
+            ALL_MODULES.forEach(m => {
+                const groupKey = m.key.split('_')[0];
+                if (!grouped[groupKey]) grouped[groupKey] = [];
+                grouped[groupKey].push(m);
+            });
+
+            container.innerHTML = Object.keys(grouped).map(groupKey => {
+                const groupInfo = GROUP_NAMES[groupKey] || { name: groupKey, icon: 'settings' };
+                const colorDef = MODULE_COLORS[groupKey] || { bg: 'transparent', border: 'transparent' };
+                const modulesInGroup = grouped[groupKey];
+
+                const rowsHtml = modulesInGroup.map(m => {
+                    return `
+                        <tr>
+                            <td style="text-align: left; font-weight: 500; font-size: 0.8rem; color: var(--text-main); padding: 0.5rem 0.25rem;">
+                                ${m.label}
+                            </td>
+                            <td style="text-align: center; padding: 0.5rem 0.25rem;">
+                                <input type="checkbox" class="perm-check-view" id="${prefix}-${m.key}-view" onchange="toggleRowPerms('${prefix}', '${m.key}')">
+                            </td>
+                            <td style="text-align: center; padding: 0.5rem 0.25rem;">
+                                <input type="checkbox" class="perm-check-add" id="${prefix}-${m.key}-add" disabled>
+                            </td>
+                            <td style="text-align: center; padding: 0.5rem 0.25rem;">
+                                <input type="checkbox" class="perm-check-edit" id="${prefix}-${m.key}-edit" disabled>
+                            </td>
+                            <td style="text-align: center; padding: 0.5rem 0.25rem;">
+                                <input type="checkbox" class="perm-check-delete" id="${prefix}-${m.key}-delete" disabled>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="module-group-card" id="card-${prefix}-${groupKey}" style="border-left: 4px solid ${colorDef.border};">
+                        <div class="module-group-header" onclick="toggleGroupCollapse('${prefix}', '${groupKey}')">
+                            <h4>
+                                <span style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                                    <i data-lucide="${groupInfo.icon}" style="width: 18px; height: 18px; color: ${colorDef.border};"></i> 
+                                    ${groupInfo.name}
+                                </span>
+                            </h4>
+                            <div class="group-actions-wrap" onclick="event.stopPropagation()">
+                                <button type="button" class="btn-batch-action btn-batch-enable" onclick="toggleGroupBatch('${prefix}', '${groupKey}', true)">Habilitar Módulo</button>
+                                <button type="button" class="btn-batch-action btn-batch-clear" onclick="toggleGroupBatch('${prefix}', '${groupKey}', false)">Bloquear</button>
+                                <i data-lucide="chevron-down" class="group-chevron" id="chevron-${prefix}-${groupKey}"></i>
+                            </div>
+                        </div>
+                        <div class="module-group-content" id="content-${prefix}-${groupKey}" style="display: none; padding: 0.75rem 1.25rem 1.25rem 1.25rem; border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.12);">
+                            <table class="perm-table">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align: left; color: var(--text-muted); font-size: 0.75rem;">Submódulo</th>
+                                        <th style="text-align: center; color: #3b82f6; font-size: 0.75rem; width: 15%;">Ver</th>
+                                        <th style="text-align: center; color: #10b981; font-size: 0.75rem; width: 15%;">Add</th>
+                                        <th style="text-align: center; color: #f59e0b; font-size: 0.75rem; width: 15%;">Edit</th>
+                                        <th style="text-align: center; color: #ef4444; font-size: 0.75rem; width: 15%;">Del</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${rowsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function toggleRowPerms(prefix, key) {
+            const viewChecked = document.getElementById(`${prefix}-${key}-view`).checked;
+            ['add', 'edit', 'delete'].forEach(action => {
+                const cb = document.getElementById(`${prefix}-${key}-${action}`);
+                if (cb) {
+                    cb.disabled = !viewChecked;
+                    if (!viewChecked) cb.checked = false;
+                }
+            });
+        }
+
+        function getPermissionsFromMatrix(prefix) {
+            const perms = {};
+            ALL_MODULES.forEach(m => {
+                const view = document.getElementById(`${prefix}-${m.key}-view`).checked;
+                perms[m.key] = {
+                    view: view,
+                    add: view ? document.getElementById(`${prefix}-${m.key}-add`).checked : false,
+                    edit: view ? document.getElementById(`${prefix}-${m.key}-edit`).checked : false,
+                    delete: view ? document.getElementById(`${prefix}-${m.key}-delete`).checked : false
+                };
+            });
+            return perms;
+        }
+
+        function setPermissionsToMatrix(prefix, perms) {
+            ALL_MODULES.forEach(m => {
+                const p = perms[m.key] || { view: false, add: false, edit: false, delete: false };
+                
+                const viewCb = document.getElementById(`${prefix}-${m.key}-view`);
+                if (viewCb) {
+                    viewCb.checked = !!p.view;
+                    toggleRowPerms(prefix, m.key);
+                }
+                
+                ['add', 'edit', 'delete'].forEach(action => {
+                    const cb = document.getElementById(`${prefix}-${m.key}-${action}`);
+                    if (cb) cb.checked = !!p[action];
+                });
+            });
+        }
+
+        async function handleAddUser(e) {
+            e.preventDefault();
+            clearAlerts('addAlert');
+
+            const nome = document.getElementById('new-nome').value.trim();
+            const email = document.getElementById('new-email').value.trim().toLowerCase();
+            const role = document.getElementById('new-role').value;
+            const active = document.getElementById('new-active').value === 'true';
+            const permissions = getPermissionsFromMatrix('new');
+            
+            // O array modules é derivado das permissões view=true
+            const modules = Object.keys(permissions).filter(k => permissions[k].view);
+
+            if (!email || !nome) return;
+
+            const btn = document.getElementById('addUserBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span style="opacity:0.7;">⚙️ Cadastrando usuário...</span>';
+
+            try {
+                // Insere diretamente na tabela user_access do banco de dados (bypassa a Edge Function)
+                const { error: insertErr } = await adminClient.from('user_access').insert({
+                    email: email,
+                    nome_completo: nome,
+                    role: role,
+                    active: active,
+                    modules: modules,
+                    permissions: permissions,
+                    empresa_id: window.currentEmpresaId,
+                    temp_reset: false
+                });
+
+                if (insertErr) throw insertErr;
+
+                showAlertSimple('addAlert-success');
+                resetAddForm();
+                await loadUsers();
+                setTimeout(() => switchTab('tab-users'), 1200);
+
+            } catch (err) {
+                // Mensagem mais amigável para erros comuns
+                let msg = err.message;
+                if (msg.includes('duplicate key') || msg.includes('already registered') || msg.includes('already been registered')) {
+                    msg = 'Este e-mail já está cadastrado no sistema.';
+                } else if (msg.includes('invalid')) {
+                    msg = 'E-mail inválido. Verifique o endereço informado.';
+                } else {
+                    msg = 'Erro ao cadastrar: ' + err.message;
+                }
+                showAlert('addAlert-error', 'addAlert-error-msg', msg);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="save" style="width:15px;"></i> Salvar Acesso';
+                lucide.createIcons();
+            }
+        }
+
+        function resetAddForm() {
+            document.getElementById('addUserForm').reset();
+            setPermissionsToMatrix('new', {});
+            clearAlerts('addAlert');
+        }
+
+        // ============================================================
+        //  EDITAR USUÁRIO
+        // ============================================================
+
+        function openEditModal(email) {
+            const user = allUsers.find(u => u.email === email);
+            if (!user) return;
+
+            document.getElementById('edit-email').value = user.email;
+            document.getElementById('edit-email-display').value = user.email;
+            document.getElementById('edit-nome').value = user.nome_completo || '';
+            document.getElementById('edit-role').value = user.role;
+            document.getElementById('edit-active').value = String(user.active);
+            document.getElementById('edit-password').value = ''; // Sempre limpo ao abrir
+
+            setPermissionsToMatrix('edit', user.permissions || {});
+            clearAlerts('editAlert');
+
+            document.getElementById('editModal').classList.add('open');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('open');
+        }
+
+        async function resetUserPassword() {
+            const email = document.getElementById('edit-email').value;
+            if (!email) return;
+
+            if (!confirm(`Deseja realmente sinalizar o usuário "${email}" para reset de senha corporativa?\n\nNo próximo login dele, o sistema forçará a definição de uma nova senha.`)) {
+                return;
+            }
+
+            clearAlerts('editAlert');
+            const alertBoxSuccess = document.getElementById('editAlert-success');
+
+            try {
+                // Em vez de enviar e-mail (que falha no Supabase grátis), nós sinalizamos no banco de dados.
+                // O script auth.js lerá esse campo e forçará a alteração.
+                const { error } = await adminClient
+                    .from('user_access')
+                    .update({ 
+                        temp_reset: true,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('email', email);
+
+                if (error) throw error;
+                
+                alertBoxSuccess.textContent = "✅ Usuário sinalizado! A senha será resetada no próximo acesso.";
+                alertBoxSuccess.classList.add('show');
+                await loadUsers();
+                setTimeout(() => {
+                    alertBoxSuccess.classList.remove('show');
+                    closeEditModal();
+                }, 2500);
+
+            } catch (err) {
+                showAlert('editAlert-error', 'editAlert-error-msg', 'Erro ao sinalizar reset: ' + err.message);
+            }
+        }
+
+        async function handleEditUser(e) {
+            e.preventDefault();
+            clearAlerts('editAlert');
+
+            const email = document.getElementById('edit-email').value;
+            const nome = document.getElementById('edit-nome').value.trim();
+            const password = document.getElementById('edit-password').value;
+            const role = document.getElementById('edit-role').value;
+            const active = document.getElementById('edit-active').value === 'true';
+            const permissions = getPermissionsFromMatrix('edit');
+            
+            // O array modules é derivado das permissões view=true
+            const modules = Object.keys(permissions).filter(k => permissions[k].view);
+
+            const editBtn = e.submitter || document.querySelector('#editUserForm [type="submit"]');
+            if (editBtn) { editBtn.disabled = true; editBtn.textContent = 'Salvando...'; }
+
+            try {
+                // 1. Se uma nova senha foi digitada, usar a RPC do banco de dados
+                //    que tem permissão para alterar a senha de OUTRO usuário
+                if (password && password.length >= 6) {
+                    const { error: rpcErr } = await adminClient.rpc('admin_update_user_password', {
+                        user_email: email,
+                        new_password: password
+                    });
+                    if (rpcErr) throw rpcErr;
+                } else if (password && password.length > 0) {
+                    throw new Error('A senha deve ter no mínimo 6 caracteres.');
+                }
+
+                // 2. Atualizar permissões, role, status e nome em user_access
+                const { error } = await adminClient
+                    .from('user_access')
+                    .update({ 
+                        nome_completo: nome,
+                        role, 
+                        active, 
+                        modules, 
+                        permissions,
+                        updated_at: new Date().toISOString() 
+                    })
+                    .eq('email', email);
+
+                if (error) throw error;
+
+                showAlertSimple('editAlert-success');
+                await loadUsers();
+                setTimeout(() => closeEditModal(), 1200);
+
+            } catch (err) {
+                showAlert('editAlert-error', 'editAlert-error-msg', err.message);
+            } finally {
+                if (editBtn) {
+                    editBtn.disabled = false;
+                    editBtn.innerHTML = '<i data-lucide="save" style="width:15px;"></i> Salvar Alterações';
+                    lucide.createIcons();
+                }
+            }
+        }
+
+        // ============================================================
+        //  AÇÕES RÁPIDAS
+        // ============================================================
+
+        async function toggleUserAccess(email, currentActive) {
+            const action = currentActive ? 'revogar acesso de' : 'ativar acesso de';
+            if (!confirm(`Tem certeza que deseja ${action} "${email}"?`)) return;
+
+            try {
+                const { error } = await adminClient
+                    .from('user_access')
+                    .update({ active: !currentActive, updated_at: new Date().toISOString() })
+                    .eq('email', email);
+
+                if (error) throw error;
+                await loadUsers();
+            } catch (err) {
+                alert('Erro ao atualizar: ' + err.message);
+            }
+        }
+
+        async function deleteUser(email) {
+            if (!confirm(`⚠️ ATENÇÃO: Isso removerá permanentemente o acesso de "${email}" do sistema.\n\nO usuário não conseguirá mais fazer login.\n\nDeseja continuar?`)) return;
+
+            try {
+                // 1. Remover da tabela user_access
+                const { error } = await adminClient
+                    .from('user_access')
+                    .delete()
+                    .eq('email', email);
+
+                if (error) throw error;
+
+                // 2. Tentar remover também do Auth (via RPC) -- silencia erros
+                try {
+                    await adminClient.rpc('admin_delete_auth_user', { user_email: email });
+                } catch (_) {
+                    // Ignorar falha na remoção do auth -- o acesso já foi revogado no DB
+                    console.warn('Aviso: não foi possível remover do Auth, mas acesso foi revogado no banco.');
+                }
+
+                await loadUsers();
+            } catch (err) {
+                alert('Erro ao remover: ' + err.message);
+            }
+        }
+
+        // ============================================================
+        //  UI HELPERS
+        // ============================================================
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            document.getElementById('btn-' + tabId).classList.add('active');
+            lucide.createIcons();
+            // Auto-carregar dados da empresa ao abrir a aba
+            if (tabId === 'tab-empresa') loadEmpresaData();
+        }
+
+        // ============================================================
+        //  ABA MINHA EMPRESA
+        // ============================================================
+
+        let empresaIdAdmin = null;
+
+        async function loadEmpresaData() {
+            const loadingEl = document.getElementById('empresa-loading');
+            const formEl    = document.getElementById('empresaForm');
+            if (loadingEl) loadingEl.style.display = 'block';
+            if (formEl)    formEl.style.display    = 'none';
+
+            try {
+                // Buscar empresa_id do usuário logado
+                const { data: access } = await adminClient
+                    .from('user_access')
+                    .select('empresa_id')
+                    .eq('email', window.currentUser.email)
+                    .single();
+
+                if (!access || !access.empresa_id) {
+                    if (loadingEl) loadingEl.textContent = 'Nenhuma empresa vinculada a este usuário.';
+                    return;
+                }
+
+                empresaIdAdmin = access.empresa_id;
+
+                const { data: empresa, error } = await adminClient
+                    .from('empresas')
+                    .select('*')
+                    .eq('id', empresaIdAdmin)
+                    .single();
+
+                if (error || !empresa) throw error || new Error('Empresa não encontrada');
+
+                // Preencher formulário
+                const map = {
+                    'emp-razao':    empresa.razao_social,
+                    'emp-fantasia': empresa.nome_fantasia,
+                    'emp-cnpj':     empresa.cnpj,
+                    'emp-telefone': empresa.telefone,
+                    'emp-email':    empresa.email,
+                    'emp-setor':    empresa.setor,
+                    'emp-cidade':   empresa.cidade,
+                    'emp-estado':   empresa.estado,
+                    'emp-endereco': empresa.endereco,
+                    'emp-cep':      empresa.cep,
+                    'emp-logo':     empresa.logo_url,
+                };
+                Object.entries(map).forEach(([id, val]) => {
+                    const el = document.getElementById(id);
+                    if (el && val) el.value = val;
+                });
+
+                // Resumo
+                const summaryEl = document.getElementById('empresa-summary-card');
+                const contentEl = document.getElementById('empresa-summary-content');
+                if (summaryEl && contentEl) {
+                    summaryEl.style.display = 'block';
+                    contentEl.innerHTML = `
+                        <div><strong>Plano:</strong> ${empresa.plano || 'starter'}</div>
+                        <div><strong>Cadastrada em:</strong> ${new Date(empresa.created_at).toLocaleDateString('pt-BR')}</div>
+                        <div><strong>Setup:</strong> ${empresa.setup_completo ? '✅ Concluído' : '⚠️ Pendente'}</div>
+                        ${empresa.logo_url ? `<div style="margin-top:0.5rem;"><img src="${empresa.logo_url}" style="height:40px;border-radius:6px;" onerror="this.style.display='none'"></div>` : ''}
+                    `;
+                }
+
+                if (loadingEl) loadingEl.style.display = 'none';
+                if (formEl)    formEl.style.display    = 'block';
+                lucide.createIcons();
+
+            } catch (err) {
+                console.error('Erro ao carregar empresa:', err);
+                if (loadingEl) loadingEl.textContent = 'Erro ao carregar dados da empresa: ' + err.message;
+            }
+        }
+
+        async function handleSaveEmpresaAdmin(e) {
+            e.preventDefault();
+            const btn = document.getElementById('saveEmpresaBtn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+            clearAlerts('empresaAlert');
+
+            try {
+                const payload = {
+                    razao_social:  document.getElementById('emp-razao')?.value.trim()    || null,
+                    nome_fantasia: document.getElementById('emp-fantasia')?.value.trim() || null,
+                    cnpj:          document.getElementById('emp-cnpj')?.value.trim()     || null,
+                    telefone:      document.getElementById('emp-telefone')?.value.trim() || null,
+                    email:         document.getElementById('emp-email')?.value.trim()    || null,
+                    setor:         document.getElementById('emp-setor')?.value           || null,
+                    cidade:        document.getElementById('emp-cidade')?.value.trim()   || null,
+                    estado:        document.getElementById('emp-estado')?.value          || null,
+                    endereco:      document.getElementById('emp-endereco')?.value.trim() || null,
+                    cep:           document.getElementById('emp-cep')?.value.trim()      || null,
+                    logo_url:      document.getElementById('emp-logo')?.value.trim()     || null,
+                    setup_completo: true,
+                    updated_at:    new Date().toISOString(),
+                };
+
+                const { error } = await adminClient
+                    .from('empresas')
+                    .update(payload)
+                    .eq('id', empresaIdAdmin);
+
+                if (error) throw error;
+
+                showAlertSimple('empresaAlert-success');
+                setTimeout(() => loadEmpresaData(), 1000);
+
+            } catch (err) {
+                showAlert('empresaAlert-error', 'empresaAlert-error-msg', err.message);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="save" style="width:15px;"></i> Salvar Alterações'; lucide.createIcons(); }
+            }
+        }
+
+        function showAlertSimple(id) {
+            const el = document.getElementById(id);
+            if (el) { el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 3000); }
+        }
+
+        function showAlert(alertId, msgId, msg) {
+            const el = document.getElementById(alertId);
+            const msgEl = document.getElementById(msgId);
+            if (el) el.classList.add('show');
+            if (msgEl) msgEl.textContent = msg;
+        }
+
+        function clearAlerts(prefix) {
+            document.querySelectorAll(`[id^="${prefix}"]`).forEach(el => el.classList.remove('show'));
+        }
+
+        function togglePasswordVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            const isPrivate = input.type === 'password';
+            input.type = isPrivate ? 'text' : 'password';
+            const icon = btn.querySelector('i');
+            if (icon) {
+                icon.setAttribute('data-lucide', isPrivate ? 'eye-off' : 'eye');
+                lucide.createIcons();
+            }
+        }
+
+        // Close modal on overlay click
+        document.getElementById('editModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('editModal')) closeEditModal();
+        });
+    </script>
+</body>
+
+</html>
+
+

@@ -1,0 +1,1239 @@
+﻿<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FrotaLink | Módulo Financeiro</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap"
+        rel="stylesheet">
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="orb_menu.css">
+    <link rel="stylesheet" href="financeiro.css">
+    <script src="config.js"></script>
+</head>
+
+<body>
+    <div class="ops-container">
+        <!-- Header -->
+        <header class="header-actions">
+            <div>
+                <a href="home.html" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                    <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
+                </a>
+                <h1 style="margin-top: 0.5rem; font-size: 2rem;">Gestão Financeira</h1>
+            </div>
+            <div class="user-profile" style="display: flex; align-items: center; gap: 1rem;">
+                <div id="syncStatus" class="status-indicator">
+                    <span class="pulse"></span>
+                    Sincronizado
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Navigation Tabs -->
+        <nav class="tabs-header scrollable-tabs">
+            <button class="tab-item active" onclick="switchMainTab('dashboard')">
+                <i data-lucide="layout-dashboard"></i> Dashboard
+            </button>
+            <button class="tab-item" onclick="switchMainTab('pagar')">
+                <i data-lucide="arrow-up-circle"></i> Contas a Pagar
+            </button>
+            <button class="tab-item" onclick="switchMainTab('receber')">
+                <i data-lucide="arrow-down-circle"></i> Contas a Receber
+            </button>
+            <button class="tab-item" onclick="switchMainTab('fluxo')">
+                <i data-lucide="line-chart"></i> Fluxo de Caixa
+            </button>
+            <button class="tab-item" onclick="switchMainTab('dre')">
+                <i data-lucide="file-spreadsheet"></i> DRE
+            </button>
+            <button class="tab-item" onclick="switchMainTab('conciliacao')">
+                <i data-lucide="check-square"></i> Conciliação
+            </button>
+            <button class="tab-item" onclick="switchMainTab('config')">
+                <i data-lucide="database"></i> CADASTRO
+            </button>
+        </nav>
+
+        <!-- Content Area -->
+        <main id="mainContent">
+            <!-- 1. DASHBOARD -->
+            <section id="tab-dashboard" class="tab-content active">
+                <div class="kpi-grid">
+                    <div class="kpi-card income">
+                        <div class="kpi-icon-wrapper">
+                            <i data-lucide="trending-up"></i>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="label">Receber (Mês)</span>
+                            <div class="value" id="kpi-receber">R$ 0,00</div>
+                            <div class="trend up">+12% vs mês ant.</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card expense">
+                        <div class="kpi-icon-wrapper">
+                            <i data-lucide="trending-down"></i>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="label">Pagar (Mês)</span>
+                            <div class="value" id="kpi-pagar">R$ 0,00</div>
+                            <div class="trend down">-5% vs mês ant.</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card balance">
+                        <div class="kpi-icon-wrapper">
+                            <i data-lucide="wallet"></i>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="label">Saldo Atual</span>
+                            <div class="value" id="kpi-saldo">R$ 0,00</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card projections">
+                        <div class="kpi-icon-wrapper">
+                            <i data-lucide="calendar"></i>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="label">Previsto (30d)</span>
+                            <div class="value" id="kpi-previsto">R$ 0,00</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-row">
+                    <div class="chart-card glass">
+                        <h3><i data-lucide="bar-chart-3"></i> Entradas vs Saídas (Áltimos 12 Meses)</h3>
+                        <canvas id="cashflowChart"></canvas>
+                    </div>
+                    <div class="chart-card glass">
+                        <h3><i data-lucide="pie-chart"></i> Despesas por Categoria</h3>
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. CONTAS A PAGAR -->
+            <section id="tab-pagar" class="tab-content">
+                <div class="kpi-grid">
+                    <div class="kpi-card expense">
+                        <div class="kpi-icon-wrapper"><i data-lucide="dollar-sign"></i></div>
+                        <div class="kpi-info">
+                            <span class="label">Total a Pagar</span>
+                            <div class="value" id="kpi-pagar-total">R$ 0,00</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card projections">
+                        <div class="kpi-icon-wrapper"><i data-lucide="alert-triangle"></i></div>
+                        <div class="kpi-info">
+                            <span class="label">Vencendo Hoje</span>
+                            <div class="value" id="kpi-pagar-hoje">R$ 0,00</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card expense">
+                        <div class="kpi-icon-wrapper"><i data-lucide="alert-circle"></i></div>
+                        <div class="kpi-info">
+                            <span class="label">Atrasadas</span>
+                            <div class="value" id="kpi-pagar-atrasadas">R$ 0,00</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card income">
+                        <div class="kpi-icon-wrapper"><i data-lucide="check-circle-2"></i></div>
+                        <div class="kpi-info">
+                            <span class="label">Pagas no Mês</span>
+                            <div class="value" id="kpi-pagar-pagas">R$ 0,00</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NOVOS CONTROLES HARMONIZADOS (Sync com Compras) -->
+                <div class="controls">
+                    <div class="search-box">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="pagarSearch"
+                            placeholder="Buscar por fornecedor, descrição, nota, placa..."
+                            oninput="filterFinancial('PAGAR', this.value)">
+                    </div>
+                    <div class="admin-actions" style="display:flex; gap:1rem; align-items:center;">
+                        <button class="btn-excel-new" onclick="exportToExcel('PAGAR')">
+                            <i data-lucide="download"></i> Excel
+                        </button>
+                        <button class="btn-col-config">
+                            <i data-lucide="settings-2"></i> Colunas
+                        </button>
+                        <button class="btn-primary-new" onclick="openEntryModal('PAGAR')">
+                            <i data-lucide="plus-circle"></i> Lançar Pagamento
+                        </button>
+                    </div>
+                </div>
+
+                <!-- FILTROS RÁPIDOS (Sync com Compras) -->
+                <div class="quick-filters">
+                    <div
+                        style="display:flex; align-items:center; gap:0.5rem; color:var(--primary); font-weight:800; font-size:0.75rem; text-transform:uppercase; margin-right:1rem; border-right:1px solid rgba(255,255,255,0.1); padding-right:1.5rem;">
+                        <i data-lucide="filter" style="width:14px;"></i> Filtros Rápidos
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Status</label>
+                        <select id="filterStatusPagar" class="filter-select"
+                            onchange="filterStatus('PAGAR', this.value)">
+                            <option value="">Todos os Status</option>
+                            <option value="ABERTO">Aberto</option>
+                            <option value="PAGO">Pago</option>
+                            <option value="ATRASADO">Atrasado</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Fornecedor</label>
+                        <select id="filterFornecedorPagar" class="filter-select"
+                            onchange="filterFinancial('PAGAR', this.value)">
+                            <option value="">Todos os Fornecedores</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group" style="flex: 1.5;">
+                        <label>Centro de Custo</label>
+                        <select id="filterCCPagar" class="filter-select"
+                            onchange="filterByCategory('PAGAR', this.value)">
+                            <option value="">Todos os Centros</option>
+                        </select>
+                    </div>
+
+                    <button class="btn-clear-filters" onclick="clearFilters('PAGAR')">
+                        <i data-lucide="filter-x"></i> Limpar
+                    </button>
+                </div>
+
+                <div class="glass-table-container">
+                    <table id="table-pagar">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px; text-align: center;"><input type="checkbox" id="chkAllPagar" onclick="toggleSelectAll('PAGAR', this)"></th>
+                                <th>Cód.</th>
+                                <th>Vencimento</th>
+                                <th>Fornecedor / Favorecido</th>
+                                <th>Descrição Principal</th>
+                                <th style="text-align:right">Valor Total</th>
+                                <th style="text-align:right">Valor Pago</th>
+                                <th>Status</th>
+                                <th>Centro Custo</th>
+                                <th style="text-align:center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-pagar" class="mobile-cards"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 3. CONTAS A RECEBER -->
+            <section id="tab-receber" class="tab-content">
+                <div class="kpi-grid">
+                    <div class="kpi-card income">
+                        <div class="kpi-icon-wrapper"><i data-lucide="trending-up"></i></div>
+                        <div class="kpi-info">
+                            <span class="label">Total a Receber</span>
+                            <div class="value" id="kpi-receber-total">R$ 0,00</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card projections">
+                        <div class="kpi-icon-wrapper"><i data-lucide="calendar"></i></div>
+                        <div class="kpi-info">
+                            <span class="label">Recebendo Hoje</span>
+                            <div class="value" id="kpi-receber-hoje">R$ 0,00</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card expense">
+                        <div class="kpi-icon-wrapper"><i data-lucide="alert-circle"></i></div>
+                        <div class="kpi-info">
+                            <span class="label">Atrasadas</span>
+                            <div class="value" id="kpi-receber-atrasadas">R$ 0,00</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card income">
+                        <div class="kpi-icon-wrapper"><i data-lucide="check-circle-2"></i></div>
+                        <div class="kpi-info">
+                            <span class="label">Recebidas no Mês</span>
+                            <div class="value" id="kpi-receber-recebidas">R$ 0,00</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <div class="search-box">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="receberSearch" placeholder="Buscar por cliente, descrição..."
+                            oninput="filterFinancial('RECEBER', this.value)">
+                    </div>
+                    <div class="admin-actions" style="display:flex; gap:1rem; align-items:center;">
+                        <button class="btn-excel-new" onclick="exportToExcel('RECEBER')">
+                            <i data-lucide="download"></i> Excel
+                        </button>
+                        <button class="btn-primary-new" onclick="openEntryModal('RECEBER')">
+                            <i data-lucide="plus-circle"></i> Lançar Recebimento
+                        </button>
+                    </div>
+                </div>
+
+                <div class="quick-filters">
+                    <div
+                        style="display:flex; align-items:center; gap:0.5rem; color:var(--primary); font-weight:800; font-size:0.75rem; text-transform:uppercase; margin-right:1rem; border-right:1px solid rgba(255,255,255,0.1); padding-right:1.5rem;">
+                        <i data-lucide="filter" style="width:14px;"></i> Filtros Rápidos
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Status</label>
+                        <select id="filterStatusReceber" class="filter-select"
+                            onchange="filterStatus('RECEBER', this.value)">
+                            <option value="">Todos os Status</option>
+                            <option value="ABERTO">Aberto</option>
+                            <option value="PAGO">Pago</option>
+                            <option value="ATRASADO">Atrasado</option>
+                        </select>
+                    </div>
+
+                    <button class="btn-clear-filters" onclick="clearFilters('RECEBER')">
+                        <i data-lucide="filter-x"></i> Limpar
+                    </button>
+                </div>
+
+                <div class="glass-table-container">
+                    <table id="table-receber">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px; text-align: center;"><input type="checkbox" id="chkAllReceber" onclick="toggleSelectAll('RECEBER', this)"></th>
+                                <th>Cód.</th>
+                                <th>Previsão</th>
+                                <th>Cliente</th>
+                                <th>Descrição</th>
+                                <th style="text-align:right">Vlr. Bruto</th>
+                                <th style="text-align:right">Vlr. Líquido</th>
+                                <th>Status</th>
+                                <th>Competência</th>
+                                <th style="text-align:center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-receber"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 4. FLUXO DE CAIXA -->
+            <section id="tab-fluxo" class="tab-content">
+                <div class="fluxo-header">
+                    <div class="period-selector">
+                        <button onclick="changeFluxoPeriod(-1)"><i data-lucide="chevron-left"></i></button>
+                        <span id="fluxo-current-period">Maio 2026</span>
+                        <button onclick="changeFluxoPeriod(1)"><i data-lucide="chevron-right"></i></button>
+                    </div>
+                    <div class="fluxo-summary">
+                        <div class="item">S. Anterior: <span id="fluxo-saldo-ant">R$ 0,00</span></div>
+                        <div class="item">Entradas: <span class="text-success" id="fluxo-entradas">R$ 0,00</span></div>
+                        <div class="item">Saídas: <span class="text-danger" id="fluxo-saidas">R$ 0,00</span></div>
+                        <div class="item">S. Final: <span class="text-primary" id="fluxo-saldo-fin">R$ 0,00</span></div>
+                    </div>
+                </div>
+                <div id="fluxoGrid" class="fluxo-grid-view"></div>
+            </section>
+
+            <!-- 5. DRE -->
+            <section id="tab-dre" class="tab-content">
+                <div class="dre-container glass">
+                    <div class="dre-header">
+                        <h2>Demonstrativo de Resultados (DRE)</h2>
+                        <div class="dre-filters">
+                            <select id="dre-year"></select>
+                            <button class="btn-secondary" onclick="exportDRE()"><i data-lucide="download"></i>
+                                Exportar</button>
+                        </div>
+                    </div>
+                    <div id="dreContent"></div>
+                </div>
+            </section>
+
+            <!-- 6. CONCILIAÇÃO -->
+            <section id="tab-conciliacao" class="tab-content">
+                <div class="conciliacao-layout">
+                    <div class="conc-bank-list">
+                        <h3>Extrato Bancário</h3>
+                        <div class="conc-actions">
+                            <input type="file" id="ofdImport" accept=".ofx,.csv" style="display:none"
+                                onchange="handleOFXUpload(this)">
+                            <button class="btn-outline" onclick="document.getElementById('ofdImport').click()"><i
+                                    data-lucide="upload"></i> Importar OFX</button>
+                        </div>
+                        <div id="extratoList" class="extrato-items"></div>
+                    </div>
+                    <div class="conc-match-list">
+                        <h3>Sugestões de Vínculo</h3>
+                        <div id="matchList" class="match-items"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 7. CADASTRO (Contas, Fornecedores, Plano Contas, Centros Custo) -->
+            <section id="tab-config" class="tab-content">
+                <div class="cadastro-wrapper glass">
+                    <div class="cadastro-subtabs">
+                        <button class="subtab-item active" onclick="switchSubTab('fornecedores')">Fornecedores</button>
+                        <button class="subtab-item" onclick="switchSubTab('contas')">Contas Bancárias</button>
+                        <button class="subtab-item" onclick="switchSubTab('plano')">Plano de Contas</button>
+                        <button class="subtab-item" onclick="switchSubTab('cc')">Centros de Custo</button>
+                        <button class="subtab-item" onclick="switchSubTab('pagamento')">Formas de Pagamento</button>
+                    </div>
+
+                    <div id="subtab-fornecedores" class="subtab-content active">
+                        <div class="subtab-header">
+                            <h3>Gestão de Fornecedores</h3>
+                            <button class="btn-primary btn-sm" onclick="openFornecedorModal()"><i
+                                    data-lucide="plus"></i> Novo Fornecedor</button>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Nome / Razão Social</th>
+                                        <th>CNPJ/CPF</th>
+                                        <th>Categoria</th>
+                                        <th>Contato</th>
+                                        <th style="width: 100px;">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="fornecedoresList"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="subtab-contas" class="subtab-content">
+                        <div class="subtab-header">
+                            <h3>Contas Bancárias</h3>
+                            <button class="btn-primary btn-sm" onclick="openBankAccountModal()"><i
+                                    data-lucide="plus"></i> Nova Conta</button>
+                        </div>
+                        <div id="bankAccountsList" class="config-list"></div>
+                    </div>
+
+                    <div id="subtab-plano" class="subtab-content">
+                        <div class="subtab-header">
+                            <h3>Plano de Contas (Tipo de Despesa)</h3>
+                            <button class="btn-primary btn-sm" onclick="openPlanoModal()"><i data-lucide="plus"></i>
+                                Novo Nível</button>
+                        </div>
+                        <div id="planoContasTree" class="config-tree"></div>
+                    </div>
+
+                    <div id="subtab-cc" class="subtab-content">
+                        <div class="subtab-header">
+                            <h3>Centros de Custo</h3>
+                            <button class="btn-primary btn-sm" onclick="openCustoModal()"><i data-lucide="plus"></i>
+                                Novo Centro</button>
+                        </div>
+                        <div id="centroCustoTree" class="config-tree"></div>
+                    </div>
+
+                    <div id="subtab-pagamento" class="subtab-content">
+                        <div class="subtab-header">
+                            <h3>Formas de Pagamento</h3>
+                            <button class="btn-primary btn-sm" onclick="openFormaModal()"><i data-lucide="plus"></i>
+                                Nova Forma</button>
+                        </div>
+                        <table class="glass-table" style="width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>Nome / Descrição</th>
+                                    <th style="width: 100px; text-align: right;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="formasPagamentoList"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- MODAIS -->
+
+    <!-- Modal: Pagamento (Baixa) -->
+    <div id="paymentModal" class="modal-overlay">
+        <div class="modal-v2" style="max-width: 480px;">
+            <div class="modal-header"
+                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
+                <h2
+                    style="background: linear-gradient(to right, #10b981, #34d399); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; font-size:1.4rem; font-weight:800; margin:0;">
+                    Registrar Pagamento</h2>
+                <button onclick="closeModal('paymentModal')"
+                    style="background:none; border:none; color:#64748b; cursor:pointer; padding:0.4rem;"><i
+                        data-lucide="x" style="width:22px;height:22px;"></i></button>
+            </div>
+            <form id="paymentForm" style="display:flex; flex-direction:column; gap:1.2rem;">
+                <input type="hidden" id="payLancamentoId">
+
+                <div class="input-group">
+                    <label>Valor do Pagamento</label>
+                    <div class="input-money">
+                        <span>R$</span>
+                        <input type="number" step="0.01" id="payValor" class="financeiro-input"
+                            style="border:none; background:transparent;" required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Data do Pagamento</label>
+                    <input type="date" id="payData" class="financeiro-input" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Conta de Origem/Destino</label>
+                    <select id="payConta" class="financeiro-input" required></select>
+                </div>
+
+                <div class="input-group">
+                    <label>Forma de Pagamento</label>
+                    <select id="payForma" class="financeiro-input">
+                        <option value="BOLETO">Boleto</option>
+                        <option value="PIX">PIX</option>
+                        <option value="CARTAO_CREDITO">Cartão de Crédito</option>
+                        <option value="TRANSFERENCIA">Transferência</option>
+                    </select>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:0.5rem;">
+                    <button type="button" onclick="closeModal('paymentModal')"
+                        style="background:none; border:none; color:#64748b; font-weight:700; cursor:pointer; padding:0.8rem 1.5rem;">Cancelar</button>
+                    <button type="submit"
+                        style="background:#10b981; color:white; border:none; border-radius:10px; padding:0.8rem 2rem; font-weight:800; cursor:pointer;">Confirmar
+                        Baixa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- NOVO MODAL DE ENTRADA (Inspirado no módulo Compras) -->
+    <div id="entryModal" class="modal-overlay">
+        <div class="modal-v2">
+            <div class="modal-header">
+                <h2 class="modal-title"
+                    style="background: linear-gradient(to right, #818cf8, #c084fc); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
+                    Entrada de Nota / Despesa</h2>
+                <div class="cod-badge" id="labelCodUnico">NOVO REGISTRO</div>
+            </div>
+
+            <p style="color: #64748b; font-size: 0.8rem; margin: -1.5rem 0 1.5rem;">Configure itens, rateios e parcelas
+                do lançamento financeiro.</p>
+
+            <form id="entryForm" style="display:flex; flex-direction:column; height:100%; overflow:hidden;">
+                <input type="hidden" id="entryId">
+                <input type="hidden" id="entryTipo">
+
+                <div class="modal-body-scroll">
+                    <!-- CABEÇALHO DA NOTA -->
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 80px; gap: 1rem;">
+                        <div class="input-group">
+                            <label>Data Emissão</label>
+                            <input type="date" id="entryEmissao" name="data_emissao" class="financeiro-input" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Número Nota / Documento</label>
+                            <input type="text" id="entryNumNF" name="num_nf" class="financeiro-input"
+                                placeholder="000.000">
+                        </div>
+                        <div class="input-group">
+                            <label>Série</label>
+                            <input type="text" id="entrySerieNF" name="serie_nf" class="financeiro-input"
+                                placeholder="1">
+                        </div>
+                    </div>
+
+                    <div class="form-row grid-2">
+                        <div class="input-group">
+                            <label>Favorecido (Fornecedor/Cliente)</label>
+                            <div style="display:flex; gap:0.5rem; align-items:center;">
+                                <div class="input-with-chevron" style="flex:1;">
+                                    <input type="text" name="entidade_nome" id="entryEntidade" class="financeiro-input"
+                                        required placeholder="Digite ou selecione..." list="fornecedoresDatalist"
+                                        style="width:100%;">
+                                    <i data-lucide="chevron-down" class="chevron-icon"></i>
+                                </div>
+                                <button type="button" class="btn-quick-add" onclick="openModal('fornecedorModal')"
+                                    title="Novo Fornecedor" style="width:38px; height:38px;">
+                                    <i data-lucide="plus"></i>
+                                </button>
+                            </div>
+                            <datalist id="fornecedoresDatalist"></datalist>
+                        </div>
+                        <div class="input-group">
+                            <label>Tipo Despesa (Plano de Contas)</label>
+                            <div style="display:flex; gap:0.5rem; align-items:center;">
+                                <div class="input-with-chevron" style="flex:1;">
+                                    <input type="text" id="entryCategoriaName" class="financeiro-input" required
+                                        placeholder="Digite o código ou nome..." list="categoriasDatalist"
+                                        style="width:100%;">
+                                    <i data-lucide="chevron-down" class="chevron-icon"></i>
+                                </div>
+                                <button type="button" class="btn-quick-add" onclick="openModal('planoModal')"
+                                    title="Nova Conta" style="width:38px; height:38px;">
+                                    <i data-lucide="plus"></i>
+                                </button>
+                            </div>
+                            <datalist id="categoriasDatalist"></datalist>
+                            <input type="hidden" name="categoria_id" id="entryCategoriaId">
+                        </div>
+                    </div>
+
+                    <!-- ITENS DA NOTA -->
+                    <div class="section-header">
+                        <div class="section-title-wrap">
+                            <i data-lucide="list" style="color:#818cf8; width: 18px;"></i>
+                            <span class="section-title">Itens / Detalhamento</span>
+                        </div>
+                    </div>
+
+                    <div id="itemsContainer" class="items-container">
+                        <!-- Linhas de itens geradas via JS -->
+                    </div>
+
+                    <button type="button" class="btn-add-item" onclick="addFinItemRow()">
+                        <i data-lucide="plus" style="width:16px;"></i> Adicionar Novo Item
+                    </button>
+
+                    <!-- CUSTOS ADICIONAIS -->
+                    <div class="section-header">
+                        <div class="section-title-wrap">
+                            <i data-lucide="plus-circle" style="color:#64748b; width: 18px;"></i>
+                            <span class="section-title">Custos Adicionais (Frete, Impostos, etc)</span>
+                        </div>
+                        <button type="button" class="btn-link" onclick="addFinAdditionalRow()"
+                            style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-weight: 700; font-size: 0.75rem;">+
+                            Novo Adicional</button>
+                    </div>
+                    <div id="additionalContainer" class="items-container">
+                        <!-- Custos adicionais via JS -->
+                    </div>
+
+                    <!-- PAGAMENTO E PARCELAMENTO -->
+                    <div class="payment-details">
+                        <div class="section-title-wrap" style="margin-bottom: 1.5rem;">
+                            <i data-lucide="credit-card" style="color:var(--primary); width: 18px;"></i>
+                            <span class="section-title">Informações de Pagamento</span>
+                        </div>
+
+                        <div class="form-row grid-4" style="grid-template-columns: 1fr 1fr 1.5fr 1fr;">
+                            <div class="input-group">
+                                <label>Parcelas</label>
+                                <input type="number" id="qtdParcelas" name="numero_parcelas" class="financeiro-input"
+                                    value="1" min="1" oninput="generateInstallmentFields()">
+                            </div>
+                            <div class="input-group">
+                                <label>Forma de Pagamento</label>
+                                <select name="forma_pagamento" id="entryForma" class="financeiro-input">
+                                    <option value="BOLETO">Boleto</option>
+                                    <option value="PIX">PIX</option>
+                                    <option value="CARTAO">Cartão de Crédito</option>
+                                    <option value="TRANSFERENCIA">Transferência</option>
+                                    <option value="DINHEIRO">Dinheiro</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label>Conta de Origem</label>
+                                <select name="conta_bancaria_id" id="entryConta" class="financeiro-input"></select>
+                            </div>
+                            <div class="input-group" id="firstVencWrapper">
+                                <label>Vencimento (Primeira)</label>
+                                <input type="date" name="data_vencimento" id="entryVencimento" class="financeiro-input"
+                                    required oninput="generateInstallmentFields()">
+                            </div>
+                        </div>
+
+                        <!-- CONTAINER PARA DETALHAMENTO DE PARCELAS -->
+                        <div id="installmentsWrapper"
+                            style="display:none; margin-top: 1.5rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 1rem;">
+                            <div
+                                style="font-size: 0.75rem; font-weight: 700; color: #818cf8; margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                                Detalhamento das Parcelas</div>
+                            <div id="installmentsContainer" class="installments-grid">
+                                <!-- Gerado via JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group full" style="margin-top: 1.5rem;">
+                        <label>Observações Internas</label>
+                        <textarea name="observacoes" id="entryObs" class="financeiro-input" rows="2"
+                            style="width: 100%; resize: vertical;"></textarea>
+                    </div>
+                </div>
+
+                <!-- RODAPÉ FINANCEIRO -->
+                <div class="financial-summary-box">
+                    <div>
+                        <span
+                            style="font-size:0.6rem; text-transform:uppercase; color:var(--text-muted); font-weight:800;">Resumo
+                            Financeiro</span>
+                        <p id="summaryText"
+                            style="font-size:1.1rem; font-weight:800; color:#818cf8; margin-top:0.2rem;">0 itens + 0
+                            adicionais</p>
+                    </div>
+                    <div class="total-display">
+                        <span>Valor Total do Lançamento</span>
+                        <h2 id="totalVisual">R$ 0,00</h2>
+                    </div>
+                </div>
+
+                <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 0 0;">
+                    <div>
+                        <button type="button" id="btnDeleteEntry" class="btn-delete" onclick="deleteEntry(document.getElementById('entryId').value)" style="display:none; background:none; border:none; color:#ef4444; font-weight:700; cursor:pointer; align-items:center; gap:0.5rem;">
+                            <i data-lucide="trash-2" style="width:18px;"></i> EXCLUIR REGISTRO
+                        </button>
+                    </div>
+                    <div style="display: flex; gap: 1.5rem;">
+                        <button type="button" class="btn-secondary" onclick="closeModal('entryModal')" style="background: none; border: none; color: var(--text-muted); font-weight: 700; cursor: pointer;">CANCELAR</button>
+                        <button type="submit" class="btn-primary" style="background:#5c60f5; color:white; padding: 0.8rem 2rem; border-radius: 10px; border:none; font-weight:800; cursor:pointer;">SALVAR LANÇAMENTO</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- NOVO MODAL DE RECEBIMENTO (SEQUÊNCIA ESPECÍFICA SOLICITADA) -->
+    <div id="receberModal" class="modal-overlay">
+        <div class="modal-v2" style="max-width: 950px;">
+            <div class="modal-header">
+                <h2 class="modal-title" style="background: linear-gradient(to right, #10b981, #3b82f6); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
+                    Lançar Recebimento
+                </h2>
+                <div class="cod-badge" id="receberCodUnico">NOVO REGISTRO</div>
+            </div>
+
+            <form id="receberForm" style="display:flex; flex-direction:column; gap: 1.2rem; padding: 0 1rem;">
+                <input type="hidden" id="receberId">
+
+                <!-- LINHA 1: BÁSICOS -->
+                <div class="form-row grid-3" style="grid-template-columns: 1fr 2fr 1fr;">
+                    <div class="input-group">
+                        <label>DATA</label>
+                        <input type="date" id="receberData" name="data_emissao" class="financeiro-input" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Cliente / Contratante</label>
+                        <input type="text" name="entidade_nome" id="receberEntidade" class="financeiro-input"
+                            required placeholder="Nome do cliente ou empresa..." style="width:100%;" list="clientesDatalist">
+                        <datalist id="clientesDatalist"></datalist>
+                    </div>
+                    <div class="input-group">
+                        <label>Nº NOTA FISCAL</label>
+                        <input type="text" id="receberNumNF" name="num_nf" class="financeiro-input" placeholder="000.000">
+                    </div>
+                </div>
+
+                <!-- LINHA 2: DESCRIÇÃO (DESTAQUE) -->
+                <div class="input-group">
+                    <label>DESCRIÇÃO</label>
+                    <input type="text" id="receberDescricao" name="descricao" class="financeiro-input" required placeholder="Ex: Prestação de serviço de transporte executivo...">
+                </div>
+
+                <!-- LINHA 3: FISCAL E VALOR -->
+                <div class="form-row grid-3" style="grid-template-columns: 1fr 1fr 1.5fr;">
+                    <div class="input-group">
+                        <label>COMPETÊNCIA</label>
+                        <input type="month" id="receberCompetencia" name="data_competencia" class="financeiro-input">
+                    </div>
+                    <div class="input-group">
+                        <label>TIPO</label>
+                        <select id="receberTipoServico" name="tipo_servico_produto" class="financeiro-input">
+                            <option value="SERVICO">Serviço</option>
+                            <option value="PRODUTO">Produto</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>VALOR BRUTO</label>
+                        <div class="input-money">
+                            <span>R$</span>
+                            <input type="number" step="0.01" id="receberValorBruto" name="valor_total" class="financeiro-input" style="border:none; background:transparent;" oninput="calculateReceberTaxes()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LINHA 4: IMPOSTOS (COMPACTO) -->
+                <div class="form-row grid-3" style="background: rgba(0,0,0,0.15); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); gap: 1rem;">
+                    <div class="input-group">
+                        <label style="color:#94a3b8">VALOR INSS</label>
+                        <input type="number" step="0.01" id="receberValorINSS" name="valor_inss" class="financeiro-input" value="0.00" oninput="calculateReceberTaxes()">
+                    </div>
+                    <div class="input-group">
+                        <label style="color:#94a3b8">VALOR ISS</label>
+                        <input type="number" step="0.01" id="receberValorISS" name="valor_iss" class="financeiro-input" value="0.00" oninput="calculateReceberTaxes()">
+                    </div>
+                    <div class="input-group">
+                        <label style="color:#94a3b8">VALOR IR</label>
+                        <input type="number" step="0.01" id="receberValorIR" name="valor_ir" class="financeiro-input" value="0.00" oninput="calculateReceberTaxes()">
+                    </div>
+                </div>
+
+                <!-- LINHA 5: TOTAIS E PRAZOS -->
+                <div class="form-row grid-4" style="grid-template-columns: 1fr 1fr 0.8fr 1fr;">
+                    <div class="input-group">
+                        <label>TOTAL TRIBUTO</label>
+                        <input type="text" id="receberTotalTributo" class="financeiro-input" readonly style="background: rgba(255,255,255,0.03); color:#94a3b8;">
+                    </div>
+                    <div class="input-group">
+                        <label style="color:#10b981">VALOR LÍQUIDO</label>
+                        <div class="input-money" style="border-color:rgba(16,185,129,0.3)">
+                            <span style="color:#10b981">R$</span>
+                            <input type="number" step="0.01" id="receberValorLiquido" class="financeiro-input" readonly style="border:none; background:transparent; color:#10b981; font-weight:800;">
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>PRAZO (DIAS)</label>
+                        <input type="number" id="receberPrazo" name="prazo_pagamento" class="financeiro-input" value="0" oninput="calculateReceberForecast()">
+                    </div>
+                    <div class="input-group">
+                        <label>PREVISÃO PAGAMENTO</label>
+                        <input type="date" id="receberPrevisao" name="previsao_pagamento" class="financeiro-input">
+                    </div>
+                </div>
+
+                <div class="modal-footer" style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                    <button type="button" class="btn-secondary" onclick="closeModal('receberModal')" style="background:none; border:none; color:var(--text-muted); font-weight:700;">CANCELAR</button>
+                    <div style="display: flex; gap: 1rem;">
+                        <button type="button" id="btnGerarNF" class="btn-primary" onclick="generateNF()" style="background:#8b5cf6; display: flex; align-items: center; gap: 0.5rem;">
+                            <i data-lucide="file-text" style="width:18px;"></i> GERAR NF
+                        </button>
+                        <button type="submit" class="btn-primary" style="background:#10b981;">SALVAR RECEBIMENTO</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <script src="financeiro.js?v=4"></script>
+    <script src="orb_menu.js"></script>
+    <!-- MODAL FORNECEDOR (FULL SYNC WITH COMPRAS) -->
+    <div id="fornecedorModal" class="modal-overlay">
+        <div class="modal" style="max-width: 750px;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="fornecedorModalTitle">Cadastro de Fornecedor</h2>
+                <button type="button" class="btn-close-modal-fornecedor"
+                    onclick="closeModal('fornecedorModal')">&times;</button>
+            </div>
+            <form id="fornecedorForm">
+                <input type="hidden" id="fornecedorId" name="id">
+                <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+                    <div class="input-group" style="grid-column: 1 / -1;">
+                        <label>Razão Social / Nome Fantasia</label>
+                        <input type="text" id="fNome" name="nome" class="compra-input" required
+                            placeholder="Nome do Fornecedor">
+                    </div>
+                    <div class="input-group">
+                        <label>CNPJ / CPF</label>
+                        <input type="text" id="fDoc" name="cnpj_cpf" class="compra-input"
+                            placeholder="00.000.000/0000-00">
+                    </div>
+                    <div class="input-group">
+                        <label>Inscrição Estadual</label>
+                        <input type="text" id="fIE" name="inscricao_estadual" class="compra-input"
+                            placeholder="Isento ou Nº">
+                    </div>
+
+                    <div class="form-section-header">Endereço & Contato</div>
+
+                    <div class="input-group" style="grid-column: 1 / -1;">
+                        <label>Logradouro / Rua</label>
+                        <input type="text" id="fRua" name="endereco" class="compra-input"
+                            placeholder="Rua, Número, Bairro...">
+                    </div>
+                    <div class="input-group">
+                        <label>Cidade / UF</label>
+                        <input type="text" id="fCidade" name="cidade" class="compra-input"
+                            placeholder="Ex: São Paulo / SP">
+                    </div>
+                    <div class="input-group">
+                        <label>Telefone / WhatsApp</label>
+                        <input type="text" id="fTel" name="contato" class="compra-input" placeholder="(00) 00000-0000">
+                    </div>
+                    <div class="input-group" style="grid-column: 1 / -1;">
+                        <label>E-mail Corporativo</label>
+                        <input type="email" id="fEmail" name="email" class="compra-input"
+                            placeholder="contato@fornecedor.com">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="closeModal('fornecedorModal')">Cancelar</button>
+                    <button type="submit" class="btn-save">SALVAR FORNECEDOR</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- MODAL: PLANO DE CONTAS (GRAU 1-4) -->
+    <div id="planoModal" class="modal-overlay">
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="planoModalTitle">Cadastro de Plano de Contas</h2>
+                <button type="button" class="btn-close-modal-fornecedor"
+                    onclick="closeModal('planoModal')">&times;</button>
+            </div>
+            <form id="planoForm">
+                <input type="hidden" id="planoId" name="id">
+                <div class="form-row">
+                    <div class="input-group">
+                        <label>Conta Pai / Grupo</label>
+                        <select id="planoParentId" name="parent_id" class="compra-input" onchange="generatePlanoCode()">
+                            <option value="">Nenhum (Grau 1)</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Código Estrutural (Automático)</label>
+                        <input type="text" id="planoCodigo" name="codigo" class="compra-input" readonly
+                            style="background:rgba(255,255,255,0.05); color:#818cf8; font-family:'JetBrains Mono'; font-weight:800;">
+                    </div>
+                    <div class="input-group">
+                        <label>Nome da Conta</label>
+                        <input type="text" id="planoNome" name="nome" class="compra-input" required
+                            placeholder="Ex: Combustível">
+                    </div>
+                    <div class="input-group">
+                        <label>Tipo de Natureza</label>
+                        <select id="planoTipo" name="tipo" class="compra-input">
+                            <option value="RECEITA">Receita / Ativo</option>
+                            <option value="DESPESA">Despesa / Passivo</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="closeModal('planoModal')">Cancelar</button>
+                    <button type="submit" class="btn-save">SALVAR CONTA</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- MODAL: CENTRO DE CUSTO -->
+    <div id="custoModal" class="modal-overlay">
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="custoModalTitle">Cadastro de Centro de Custo</h2>
+                <button type="button" class="btn-close-modal-fornecedor"
+                    onclick="closeModal('custoModal')">&times;</button>
+            </div>
+            <form id="custoForm">
+                <input type="hidden" id="custoId" name="id">
+                <div class="form-row">
+                    <div class="input-group">
+                        <label>Grupo / Centro Pai</label>
+                        <select id="custoParentId" name="parent_id" class="compra-input" onchange="generateCustoCode()">
+                            <option value="">Nenhum (Grupo Principal)</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Código (Automático)</label>
+                        <input type="text" id="custoCodigo" name="codigo" class="compra-input" readonly
+                            style="background:rgba(255,255,255,0.05); color:#10b981; font-family:'JetBrains Mono'; font-weight:800;">
+                    </div>
+                    <div class="input-group">
+                        <label>Nome / Descrição</label>
+                        <input type="text" id="custoNome" name="nome" class="compra-input" required
+                            placeholder="Ex: Oficina Interna">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="closeModal('custoModal')">Cancelar</button>
+                    <button type="submit" class="btn-save"
+                        style="background:#10b981; box-shadow:0 10px 20px -5px rgba(16, 185, 129, 0.4);">SALVAR
+                        CENTRO</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- MODAL: CONTA BANCÁRIA -->
+    <div id="bankAccountModal" class="modal-overlay">
+        <div class="modal" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="bankModalTitle">Cadastro de Conta Bancária</h2>
+                <button type="button" class="btn-close-modal-fornecedor"
+                    onclick="closeModal('bankAccountModal')">&times;</button>
+            </div>
+            <form id="bankForm">
+                <input type="hidden" id="bankId" name="id">
+                <div class="form-row">
+                    <div class="input-group">
+                        <label>Nome Identificador (Ex: Sicredi Principal)</label>
+                        <input type="text" id="bankNome" name="nome" class="compra-input" required>
+                    </div>
+                    <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+                        <div class="input-group">
+                            <label>Banco</label>
+                            <input type="text" id="bankBanco" name="banco" class="compra-input"
+                                placeholder="Ex: Sicredi">
+                        </div>
+                        <div class="input-group">
+                            <label>Agência</label>
+                            <input type="text" id="bankAgencia" name="agencia" class="compra-input" placeholder="0000">
+                        </div>
+                    </div>
+                    <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+                        <div class="input-group">
+                            <label>Número da Conta</label>
+                            <input type="text" id="bankNumero" name="numero_conta" class="compra-input"
+                                placeholder="00000-0">
+                        </div>
+                        <div class="input-group">
+                            <label>Saldo Inicial</label>
+                            <input type="number" step="0.01" id="bankSaldo" name="saldo_inicial" class="compra-input"
+                                value="0.00">
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>Chave PIX</label>
+                        <input type="text" id="bankPix" name="pix" class="compra-input"
+                            placeholder="CPF, CNPJ, Email ou Aleatória">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="closeModal('bankAccountModal')">Cancelar</button>
+                    <button type="submit" class="btn-save">SALVAR CONTA</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- MODAL: FORMA DE PAGAMENTO -->
+    <div id="formaModal" class="modal-overlay">
+        <div class="modal" style="max-width: 450px;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="formaModalTitle">Cadastro de Forma de Pagamento</h2>
+                <button type="button" class="btn-close-modal-fornecedor"
+                    onclick="closeModal('formaModal')">&times;</button>
+            </div>
+            <form id="formaForm">
+                <input type="hidden" id="formaId" name="id">
+                <div class="form-row">
+                    <div class="input-group">
+                        <label>Nome da Forma (Ex: Boleto 30 Dias)</label>
+                        <input type="text" id="formaNome" name="nome" class="compra-input" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="closeModal('formaModal')">Cancelar</button>
+                    <button type="submit" class="btn-save">SALVAR FORMA</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- MODAL: CONFIRMAÇÃO POR PIN (6 DÍGITOS) -->
+    <div id="pinModal" class="modal-overlay">
+        <div class="modal-v2" style="max-width: 450px; text-align: center; padding: 2rem;">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+                <div class="icon-circle" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);">
+                    <i data-lucide="shield-alert" style="width: 30px; height: 30px;"></i>
+                </div>
+                <div>
+                    <h2 style="font-size: 1.6rem; font-weight: 800; color: white; margin: 0; line-height: 1.2;">Confirmação de Segurança</h2>
+                    <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 0.5rem;">Insira o código abaixo para confirmar a exclusão:</p>
+                </div>
+                
+                <div id="generatedPinDisplay" style="background: rgba(129, 140, 248, 0.1); border: 2px dashed rgba(129, 140, 248, 0.3); border-radius: 16px; padding: 1.2rem; width: 100%; max-width: 300px; margin: 0.5rem 0;">
+                    <span id="pinChallengeValue" style="font-family: 'JetBrains Mono', monospace; font-size: 2.5rem; font-weight: 800; letter-spacing: 0.4rem; color: #818cf8; display: block;">000000</span>
+                </div>
+            </div>
+
+            <div class="pin-inputs" style="display: flex; gap: 0.6rem; justify-content: center; margin: 1.5rem 0;">
+                <input type="password" maxlength="1" class="pin-field" data-index="0" oninput="movePinFocus(this)" style="width: 45px; height: 60px; background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; font-size: 2rem; font-weight: 800; color: white; text-align: center; outline: none; transition: all 0.3s;">
+                <input type="password" maxlength="1" class="pin-field" data-index="1" oninput="movePinFocus(this)" style="width: 45px; height: 60px; background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; font-size: 2rem; font-weight: 800; color: white; text-align: center; outline: none; transition: all 0.3s;">
+                <input type="password" maxlength="1" class="pin-field" data-index="2" oninput="movePinFocus(this)" style="width: 45px; height: 60px; background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; font-size: 2rem; font-weight: 800; color: white; text-align: center; outline: none; transition: all 0.3s;">
+                <input type="password" maxlength="1" class="pin-field" data-index="3" oninput="movePinFocus(this)" style="width: 45px; height: 60px; background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; font-size: 2rem; font-weight: 800; color: white; text-align: center; outline: none; transition: all 0.3s;">
+                <input type="password" maxlength="1" class="pin-field" data-index="4" oninput="movePinFocus(this)" style="width: 45px; height: 60px; background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; font-size: 2rem; font-weight: 800; color: white; text-align: center; outline: none; transition: all 0.3s;">
+                <input type="password" maxlength="1" class="pin-field" data-index="5" oninput="movePinFocus(this)" style="width: 45px; height: 60px; background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; font-size: 2rem; font-weight: 800; color: white; text-align: center; outline: none; transition: all 0.3s;">
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 2rem;">
+                <button onclick="confirmPin()" style="background: #ef4444; color: white; border: none; border-radius: 12px; padding: 1rem; font-weight: 800; cursor: pointer; width: 100%; transition: all 0.2s;">CONFIRMAR EXCLUSÃO</button>
+                <button onclick="closeModal('pinModal')" style="background: transparent; border: none; color: #94a3b8; font-weight: 700; cursor: pointer; padding: 0.5rem;">CANCELAR</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: VISUALIZAÇÃO DE DETALHES -->
+    <div id="viewModal" class="modal-overlay">
+        <div class="modal-v2" style="max-width: 800px; padding: 0;">
+            <div class="modal-header" style="padding: 1.5rem 2rem; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 id="viewModalTitle" style="font-size: 1.4rem; font-weight: 800; color: white; margin: 0;">Detalhes do Lançamento</h2>
+                    <p id="viewModalSubtitle" style="color: #94a3b8; font-size: 0.8rem; margin: 0;">Resumo completo da operação financeira</p>
+                </div>
+                <button onclick="closeModal('viewModal')" style="background: rgba(255,255,255,0.05); border: none; color: white; width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                    <i data-lucide="x" style="width: 20px;"></i>
+                </button>
+            </div>
+
+            <div class="modal-body" style="padding: 2rem; max-height: 80vh; overflow-y: auto;">
+                <!-- Cabeçalho de Status -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; background: rgba(255,255,255,0.02); padding: 1.5rem; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05);">
+                    <div>
+                        <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.4rem;">Código / Ref</div>
+                        <div id="viewCod" style="font-weight: 800; color: #818cf8; font-family: 'JetBrains Mono'; font-size: 1.1rem;">-</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.4rem;">Valor Total</div>
+                        <div id="viewValor" style="font-weight: 800; color: white; font-size: 1.2rem;">R$ 0,00</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.4rem;">Status Atual</div>
+                        <span id="viewStatus" class="status-badge" style="display: inline-block; padding: 4px 12px; font-size: 0.75rem;">-</span>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.4rem;">Data Vencimento</div>
+                        <div id="viewVenc" style="font-weight: 700; color: white;">-</div>
+                    </div>
+                </div>
+
+                <!-- Info Grid -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+                    <div>
+                        <h3 style="font-size: 0.9rem; color: #818cf8; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="user" style="width:16px;"></i> Favorecido / Entidade</h3>
+                        <div id="viewEntidade" style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.5rem;">-</div>
+                        <div id="viewCategoria" style="font-size: 0.85rem; color: #94a3b8;">Categoria: -</div>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 0.9rem; color: #818cf8; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="info" style="width:16px;"></i> Documento</h3>
+                        <div id="viewDoc" style="font-size: 0.9rem; font-weight: 600;">NF: - | Série: -</div>
+                        <div id="viewEmissao" style="font-size: 0.85rem; color: #94a3b8; margin-top: 0.5rem;">Emissão: -</div>
+                    </div>
+                </div>
+
+                <!-- Seção de Tributos (Específica para Receber ou quando houver impostos) -->
+                <div id="viewTaxWrapper" style="display: none; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 1.5rem; margin-bottom: 2rem;">
+                    <h3 style="font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.5rem;">Detalhamento de Impostos e Líquido</h3>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
+                        <div>
+                            <div style="font-size: 0.65rem; color: #64748b; text-transform: uppercase; font-weight: 700;">INSS</div>
+                            <div id="viewINSS" style="font-weight: 700; color: white;">R$ 0,00</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.65rem; color: #64748b; text-transform: uppercase; font-weight: 700;">ISS</div>
+                            <div id="viewISS" style="font-weight: 700; color: white;">R$ 0,00</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.65rem; color: #64748b; text-transform: uppercase; font-weight: 700;">IR</div>
+                            <div id="viewIR" style="font-weight: 700; color: white;">R$ 0,00</div>
+                        </div>
+                        <div style="background: rgba(16, 185, 129, 0.05); padding: 0.5rem; border-radius: 8px;">
+                            <div style="font-size: 0.65rem; color: #10b981; text-transform: uppercase; font-weight: 800;">Valor Líquido</div>
+                            <div id="viewLiquido" style="font-weight: 800; color: #10b981; font-size: 1.1rem;">R$ 0,00</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detalhamento de Itens -->
+                <div style="margin-bottom: 2rem;">
+                    <h3 style="font-size: 0.9rem; color: #818cf8; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="list" style="width:16px;"></i> Itens do Lançamento</h3>
+                    <div style="background: rgba(255,255,255,0.01); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                            <thead style="background: rgba(255,255,255,0.03);">
+                                <tr>
+                                    <th style="padding: 0.8rem; text-align: left; color: #94a3b8; font-weight: 600;">Descrição</th>
+                                    <th style="padding: 0.8rem; text-align: center; color: #94a3b8; font-weight: 600;">Qtd</th>
+                                    <th style="padding: 0.8rem; text-align: right; color: #94a3b8; font-weight: 600;">Unitário</th>
+                                    <th style="padding: 0.8rem; text-align: right; color: #94a3b8; font-weight: 600;">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="viewItemsList">
+                                <!-- JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Parcelas -->
+                <div id="viewParcelasWrapper" style="display: none; margin-bottom: 2rem;">
+                    <h3 style="font-size: 0.9rem; color: #818cf8; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="calendar" style="width:16px;"></i> Cronograma de Parcelas</h3>
+                    <div id="viewParcelasList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;">
+                        <!-- JS -->
+                    </div>
+                </div>
+
+                <!-- Observações -->
+                <div id="viewObsWrapper" style="display: none;">
+                    <h3 style="font-size: 0.9rem; color: #818cf8; margin-bottom: 0.5rem;">Observações Internas</h3>
+                    <div id="viewObs" style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 12px; font-size: 0.85rem; border-left: 3px solid #818cf8; color: #cbd5e1; font-style: italic;"></div>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="padding: 1.5rem 2rem; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: flex-end; gap: 1rem; background: rgba(255,255,255,0.01);">
+                <button onclick="closeModal('viewModal')" class="btn-cancel" style="padding: 0.7rem 1.5rem; font-size: 0.85rem;">Fechar Detalhes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BARRA DE AÇÕES EM LOTE -->
+    <div id="bulkActionsBar" class="bulk-actions-bar" style="display: none; position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1rem 2rem; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5); z-index: 1000; align-items: center; gap: 1.5rem; animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);">
+        <div style="display: flex; align-items: center; gap: 0.5rem; color: #fff; font-weight: 700; font-size: 0.9rem;">
+            <i data-lucide="check-square" style="color: #6366f1; width: 18px; height: 18px;"></i>
+            <span id="bulkSelectedCount">0</span> selecionados
+        </div>
+        <div style="height: 20px; width: 1px; background: rgba(255,255,255,0.1);"></div>
+        <div style="display: flex; gap: 0.8rem;">
+            <button class="btn" onclick="openBulkPaymentModal()" style="background: #10b981; border: none; border-radius: 10px; padding: 0.6rem 1.5rem; color: white; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                <i data-lucide="check-circle-2" style="width: 16px;"></i> BAIXAR EM LOTE
+            </button>
+            <button class="btn" onclick="deleteBulkSelected()" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 0.6rem 1.5rem; color: #ef4444; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                <i data-lucide="trash-2" style="width: 16px;"></i> EXCLUIR
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal: Baixa em Lote -->
+    <div id="bulkPaymentModal" class="modal-overlay">
+        <div class="modal-v2" style="max-width: 480px;">
+            <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
+                <h2 style="background: linear-gradient(to right, #10b981, #34d399); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; font-size:1.4rem; font-weight:800; margin:0;">
+                    Registrar Baixa em Lote</h2>
+                <button onclick="closeModal('bulkPaymentModal')" style="background:none; border:none; color:#64748b; cursor:pointer; padding:0.4rem;">
+                    <i data-lucide="x" style="width:22px;height:22px;"></i>
+                </button>
+            </div>
+            <form id="bulkPaymentForm" style="display:flex; flex-direction:column; gap:1.2rem;">
+                <div class="input-group">
+                    <label>Data de Pagamento/Recebimento</label>
+                    <input type="date" id="bulkPayData" class="financeiro-input" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Conta de Origem/Destino</label>
+                    <select id="bulkPayConta" class="financeiro-input" required></select>
+                </div>
+
+                <div class="input-group">
+                    <label>Forma de Pagamento</label>
+                    <select id="bulkPayForma" class="financeiro-input">
+                        <option value="BOLETO">Boleto</option>
+                        <option value="PIX">PIX</option>
+                        <option value="CARTAO_CREDITO">CartÃo de Crédito</option>
+                        <option value="TRANSFERENCIA">Transferéncia</option>
+                        <option value="DINHEIRO">Dinheiro</option>
+                    </select>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:0.5rem;">
+                    <button type="button" onclick="closeModal('bulkPaymentModal')" style="background:none; border:none; color:#64748b; font-weight:700; cursor:pointer; padding:0.8rem 1.5rem;">Cancelar</button>
+                    <button type="submit" style="background:#10b981; color:white; border:none; border-radius:10px; padding:0.8rem 2rem; font-weight:800; cursor:pointer;">Confirmar Baixa em Lote</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+
+</html>
+

@@ -1,0 +1,2191 @@
+﻿<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FROTALINK | Estoque & Inventário</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap"
+        rel="stylesheet">
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="orb_menu.css">
+    <style>
+        :root {
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --primary: #6366f1;
+            --primary-light: #818cf8;
+            --secondary: #ec4899;
+            --accent: #f59e0b;
+            color-scheme: dark;
+        }
+
+        .ops-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .nav-back {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+
+        .nav-back:hover {
+            color: var(--primary);
+        }
+
+        /* Tabs System â€” padronizado com global style.css */
+        .tabs-header {
+            display: inline-flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 0.5rem;
+            border-radius: 16px;
+            width: fit-content;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-item {
+            padding: 0.8rem 1.5rem;
+            border-radius: 12px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            white-space: nowrap;
+        }
+
+        .tab-item.active {
+            background: #6366f1;
+            color: white;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        /* Top Mini Stats */
+        .top-stats-grid {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .mini-stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            min-width: 140px;
+            position: relative;
+        }
+
+        .mini-stat-label {
+            font-size: 0.65rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.3rem;
+        }
+
+        .mini-stat-value {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .mini-stat-card.alert {
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .mini-stat-card.alert .mini-stat-label {
+            color: var(--accent);
+        }
+
+        /* Inventory Control Section */
+        .inventory-control-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .control-header {
+            margin-bottom: 2rem;
+        }
+
+        .control-header h2 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-bottom: 0.3rem;
+        }
+
+        .control-header p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .search-input-wrapper {
+            flex: 1;
+            min-width: 250px;
+            position: relative;
+        }
+
+        .search-input-wrapper i {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            width: 18px;
+        }
+
+        .search-input-wrapper input {
+            width: 100%;
+            padding: 0.8rem 1rem 0.8rem 2.8rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-card);
+            border-radius: 10px;
+            color: #fff;
+            font-size: 0.9rem;
+        }
+
+        .filter-select {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-card);
+            border-radius: 10px;
+            padding: 0.8rem 1rem;
+            color: #fff;
+            font-size: 0.9rem;
+            min-width: 150px;
+        }
+
+        .btn-alert-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.8rem 1.2rem;
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--accent);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.8rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: all 0.3s;
+        }
+
+        .btn-alert-toggle:hover {
+            background: rgba(245, 158, 11, 0.2);
+        }
+
+        .btn-new-product {
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-transform: uppercase;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(234, 88, 12, 0.3);
+        }
+
+        .btn-new-product:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(234, 88, 12, 0.4);
+        }
+
+        /* Table Styles */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 1rem;
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.05);
+        }
+
+        td {
+            padding: 1.2rem 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            font-size: 0.9rem;
+        }
+
+        .product-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        .product-name {
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .product-meta {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .stock-badge {
+            display: inline-flex;
+            flex-direction: column;
+        }
+
+        .stock-qty {
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .stock-min {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .price-val {
+            font-weight: 600;
+        }
+
+        .price-val.sell {
+            font-weight: 800;
+            color: #fff;
+        }
+
+        /* Bottom Stats Cards */
+        .bottom-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .bottom-stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: 20px;
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .icon-box {
+            width: 54px;
+            height: 54px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary);
+        }
+
+        .stat-content {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .alert-card {
+            background: #0f172a;
+            border-color: rgba(99, 102, 241, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .alert-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+            opacity: 0.1;
+            transform: translate(30%, -30%);
+        }
+
+        .btn-view-suggestions {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 0.6rem 1rem;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 0.5rem;
+            transition: all 0.3s;
+        }
+
+        .btn-view-suggestions:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: transparent;
+            backdrop-filter: blur(8px);
+            z-index: 3000;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            overflow: hidden;
+        }
+
+        .modal.active {
+            display: flex !important;
+        }
+
+        /* Base para modais de tela cheia ou centralizados sem div dupla */
+        .modal-single {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 3000;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            overflow: hidden;
+        }
+
+        .modal-single.active {
+            display: flex !important;
+        }
+
+        .modal-content {
+            background: #1e293b;
+            border: 1px solid var(--border-card);
+            border-radius: 24px;
+            width: 100%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 2.5rem;
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .modal-header h2 {
+            font-size: 1.5rem;
+            font-weight: 800;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0.5rem;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group.full {
+            grid-column: span 2;
+        }
+
+        label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        input,
+        select,
+        textarea {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-card);
+            border-radius: 10px;
+            padding: 0.8rem;
+            color: #fff;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        /* Corrigir placeholders cortados e altura nos inputs/selects do Modal de Venda */
+        #vendaModal input,
+        #vendaModal select {
+            padding: 0.4rem 0.8rem !important;
+            box-sizing: border-box !important;
+        }
+
+        /* Fix select native dropdown white background and text visibility */
+        select option {
+            background-color: #1e293b !important;
+            color: #fff !important;
+        }
+
+        .modal-footer {
+            margin-top: 2rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+        }
+
+        .btn-cancel {
+            background: transparent;
+            border: 1px solid var(--border-card);
+            color: var(--text-muted);
+            padding: 0.8rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-save {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 0.8rem 2rem;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .top-stats-grid {
+                justify-content: center;
+            }
+        }
+
+        /* New Product View Modal Styles - Single Div Approach */
+        #productViewModal {
+            background: #111827;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            width: 90%;
+            max-width: 1100px;
+            padding: 2.5rem;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.95);
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 0 0 100vw rgba(0, 0, 0, 0.7), 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+            z-index: 4000;
+            display: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        #productViewModal.active {
+            display: block;
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .view-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .view-header-left {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .view-icon-box {
+            width: 64px;
+            height: 64px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+
+        .view-title-group h2 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            margin-bottom: 0.2rem;
+            color: #fff;
+        }
+
+        .view-meta {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            gap: 1rem;
+        }
+
+        .view-header-right {
+            display: flex;
+            gap: 0.8rem;
+        }
+
+        .view-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2.5rem;
+        }
+
+        .view-side-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .info-section {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 1.5rem;
+        }
+
+        .info-section h3 {
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 1.2rem;
+            letter-spacing: 1px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.8rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            font-size: 0.85rem;
+        }
+
+        .info-row:last-child {
+            border: none;
+        }
+
+        .info-label {
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .info-value {
+            color: #fff;
+            font-weight: 800;
+        }
+
+        .price-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .price-card {
+            padding: 1.2rem;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .price-card.cost {
+            background: rgba(245, 158, 11, 0.05);
+            border: 1px solid rgba(245, 158, 11, 0.1);
+        }
+
+        .price-card.sell {
+            background: rgba(16, 185, 129, 0.05);
+            border: 1px solid rgba(16, 185, 129, 0.1);
+        }
+
+        .price-label {
+            font-size: 0.65rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .price-val {
+            font-size: 1.4rem;
+            font-weight: 800;
+        }
+
+        .price-card.cost .price-label {
+            color: var(--accent);
+        }
+
+        .price-card.cost .price-val {
+            color: var(--accent);
+        }
+
+        .price-card.sell .price-label {
+            color: #10b981;
+        }
+
+        .price-card.sell .price-val {
+            color: #10b981;
+        }
+
+        .adjust-form {
+            background: rgba(249, 115, 22, 0.03);
+            border: 1px solid rgba(249, 115, 22, 0.1);
+            border-radius: 24px;
+            padding: 2rem;
+        }
+
+        .history-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-title {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            font-size: 0.9rem;
+            font-weight: 800;
+            color: #fff;
+            text-transform: uppercase;
+        }
+
+        .balance-badge {
+            background: #000;
+            color: #fff;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+        }
+
+        .history-table-container {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 24px;
+            padding: 1rem;
+            min-height: 400px;
+        }
+
+        .action-btn-view {
+            padding: 0.8rem 1.2rem;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            transition: 0.3s;
+        }
+
+        .btn-view-edit {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .btn-view-delete {
+            background: rgba(239, 68, 68, 0.05);
+            border: 1px solid rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+
+        .inventory_row_clickable {
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .inventory_row_clickable:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        /* Venda Modal Style - Single Div Approach */
+        #vendaModal {
+            background: #111827;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            width: 95%;
+            max-width: 1100px;
+            padding: 2.5rem;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.95);
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 0 0 100vw rgba(0, 0, 0, 0.7), 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+            z-index: 4000;
+            display: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        #vendaModal.active {
+            display: block;
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        #vendaModal .form-grid {
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+
+        .form-group.span-2 {
+            grid-column: span 2;
+        }
+
+        .form-group.span-3 {
+            grid-column: span 3;
+        }
+
+        .form-group.span-4 {
+            grid-column: span 4;
+        }
+
+        /* Estilos para busca de produto */
+        .search-container {
+            position: relative;
+            width: 100%;
+        }
+
+        .search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #1f2937;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 5000;
+            display: none;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            margin-top: 5px;
+        }
+
+        .search-item {
+            padding: 0.8rem 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .search-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .search-item:last-child {
+            border-bottom: none;
+        }
+
+        .search-item .name {
+            display: block;
+            font-weight: 700;
+            color: #fff;
+            font-size: 0.9rem;
+        }
+
+        .search-item .info {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Tabela de itens da venda */
+        .venda-items-table {
+            width: 100%;
+            margin-top: 1.5rem;
+            border-collapse: separate;
+            border-spacing: 0 0.5rem;
+        }
+
+        .venda-items-table th {
+            text-align: left;
+            padding: 0.5rem 1rem;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            font-weight: 800;
+            letter-spacing: 1px;
+        }
+
+        .venda-items-table td {
+            background: rgba(255, 255, 255, 0.02);
+            padding: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .venda-items-table tr td:first-child {
+            border-radius: 12px 0 0 12px;
+        }
+
+        .venda-items-table tr td:last-child {
+            border-radius: 0 12px 12px 0;
+        }
+
+        .btn-add-item {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border: 1px dashed rgba(16, 185, 129, 0.3);
+            border-radius: 12px;
+            padding: 0.8rem;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            font-weight: 700;
+            transition: all 0.3s;
+            margin-top: 0.5rem;
+        }
+
+        .btn-add-item:hover {
+            background: rgba(16, 185, 129, 0.2);
+            border-style: solid;
+        }
+
+        /* Estilo para o Modal de Recibo */
+        #receiptModal .modal-content {
+            background: #fff;
+            color: #000;
+            padding: 0;
+            border-radius: 12px;
+            overflow: hidden;
+            max-width: 450px;
+        }
+
+        .receipt-container {
+            padding: 2rem;
+            font-family: 'Inter', sans-serif;
+            background: #fff;
+            color: #333;
+        }
+
+        .receipt-header {
+            text-align: center;
+            border-bottom: 2px dashed #eee;
+            padding-bottom: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .receipt-header h1 {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: #000;
+            margin: 0.5rem 0;
+        }
+
+        .receipt-header p {
+            font-size: 0.8rem;
+            color: #666;
+            margin: 0;
+        }
+
+        .receipt-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            margin-bottom: 1rem;
+            color: #666;
+            font-weight: 600;
+        }
+
+        .receipt-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+        }
+
+        .receipt-table th {
+            text-align: left;
+            font-size: 0.7rem;
+            color: #999;
+            text-transform: uppercase;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .receipt-table td {
+            padding: 0.8rem 0;
+            font-size: 0.85rem;
+            border-bottom: 1px solid #f9f9f9;
+        }
+
+        .receipt-totals {
+            border-top: 2px solid #333;
+            padding-top: 1rem;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .total-row.final {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px dashed #eee;
+            font-weight: 800;
+            font-size: 1.2rem;
+            color: #000;
+        }
+
+        .receipt-footer {
+            margin-top: 2rem;
+            text-align: center;
+            font-size: 0.75rem;
+            color: #999;
+            border-top: 1px solid #eee;
+            padding-top: 1rem;
+        }
+
+        #receiptModal .close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: #f3f4f6;
+            color: #333;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+    <script src="config.js"></script>
+</head>
+
+<body>
+    <div class="ops-container">
+        <div class="header-actions">
+            <div>
+                <a href="home.html"
+                    style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;"
+                    onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                    <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
+                </a>
+                <h1 style="margin-top: 0.5rem;">Estoque & Inventário</h1>
+            </div>
+            <div id="connectionStatus" class="date-badge">
+                <div class="status-indicator"></div>
+                <span>Conectando...</span>
+            </div>
+        </div>
+
+        <div class="tabs-header">
+            <div class="tab-item active" onclick="switchTab('list')">
+                <i data-lucide="list" style="width: 18px;"></i>
+                Lista de Itens
+            </div>
+            <div class="tab-item" onclick="switchTab('history')">
+                <i data-lucide="history" style="width: 18px;"></i>
+                Histórico de Movimentação
+            </div>
+            <div class="tab-item" onclick="prepareNewProduct()">
+                <i data-lucide="package-plus" style="width: 18px;"></i>
+                Novo Produto
+            </div>
+            <div class="tab-item" onclick="switchTab('setup')">
+                <i data-lucide="settings-2" style="width: 18px;"></i>
+                Cadastros Auxiliares
+            </div>
+        </div>
+
+        <div class="top-stats-grid">
+            <div class="mini-stat-card">
+                <span class="mini-stat-label">Total SKU</span>
+                <span id="stat_total_sku" class="mini-stat-value">0</span>
+            </div>
+            <div class="mini-stat-card alert" id="card_low_stock">
+                <span class="mini-stat-label">Baixo Estoque</span>
+                <span id="stat_low_stock" class="mini-stat-value">0</span>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div id="section_list" class="tab-content active">
+            <div class="inventory-control-card">
+                <div class="control-header">
+                    <h2>Controle de Inventário</h2>
+                    <p>Gerencie peças e suprimentos com precisão.</p>
+                </div>
+
+                <div class="filter-bar">
+                    <div class="search-input-wrapper">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="inventory_search" placeholder="Buscar no estoque..."
+                            oninput="filterInventory()">
+                    </div>
+                    <select id="filter_category" class="filter-select" onchange="filterInventory()"
+                        style="display: none;">
+                        <option value="">Todas Categorias</option>
+                        <option value="MECANICA">Mecânica</option>
+                        <option value="ELÉTRICA">Elétrica</option>
+                        <option value="FILTROS">Filtros</option>
+                        <option value="LUBRIFICANTES">Lubrificantes</option>
+                        <option value="PNEUS">Pneus</option>
+                        <option value="OUTROS">Outros</option>
+                    </select>
+                    <select id="filter_status" class="filter-select" onchange="filterInventory()"
+                        style="display: none;">
+                        <option value="ATIVO">Ativos</option>
+                        <option value="INATIVO">Inativos</option>
+                        <option value="TODOS">Todos</option>
+                    </select>
+                    <button class="btn-alert-toggle" onclick="toggleLowStockOnly()" id="btn_low_stock_toggle">
+                        <i data-lucide="alert-circle"></i> Baixo Estoque
+                    </button>
+                    <button class="btn-new-product" onclick="openVendaModal()"
+                        style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
+                        <i data-lucide="shopping-cart"></i> Vendas / SaÃ­da
+                    </button>
+                    <button class="btn-new-product" onclick="prepareNewProduct()">
+                        <i data-lucide="plus"></i> Novo Produto
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <table id="inventory_table" class="mobile-cards">
+                        <thead>
+                            <tr>
+                                <th>Produto & Marca</th>
+                                <th>Aplicação</th>
+                                <th>Estoque</th>
+                                <th>Vlr. Custo</th>
+                                <th>Vlr. Venda</th>
+                                <th id="th_acoes_inventario" style="text-align: right;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory_body">
+                            <!-- JS content -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bottom-stats-grid">
+                <div class="bottom-stat-card">
+                    <div class="icon-box" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">
+                        <i data-lucide="wallet"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Valor em Estoque</span>
+                        <span id="stat_total_value" class="stat-value">R$ 0,00</span>
+                    </div>
+                </div>
+                <div class="bottom-stat-card alert-card">
+                    <div class="icon-box" style="background: rgba(99, 102, 241, 0.1); color: var(--primary);">
+                        <i data-lucide="bell"></i>
+                    </div>
+                    <div class="stat-content" style="flex: 1;">
+                        <span class="stat-label">Alerta de Reposição</span>
+                        <span id="stat_alert_msg"
+                            style="font-size: 0.8rem; color: #fff; font-weight: 500; margin: 0.2rem 0;">Mantenha seu
+                            estoque abastecido.</span>
+                        <button class="btn-view-suggestions">VER SUGESTOES</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="section_history" class="tab-content" style="display:none;">
+            <!-- History Stats -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
+                <div class="inventory-control-card"
+                    style="margin-bottom: 0; padding: 1.5rem; display: flex; align-items: center; gap: 1.5rem;">
+                    <div
+                        style="background: rgba(16, 185, 129, 0.1); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #10b981;">
+                        <i data-lucide="arrow-down-left" style="width: 24px;"></i>
+                    </div>
+                    <div>
+                        <p
+                            style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">
+                            Entradas (Mês)</p>
+                        <h3 id="stat_entradas" style="font-size: 1.25rem; font-weight: 800; color: #fff;">0 itens</h3>
+                    </div>
+                </div>
+                <div class="inventory-control-card"
+                    style="margin-bottom: 0; padding: 1.5rem; display: flex; align-items: center; gap: 1.5rem;">
+                    <div
+                        style="background: rgba(239, 68, 68, 0.1); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #ef4444;">
+                        <i data-lucide="arrow-up-right" style="width: 24px;"></i>
+                    </div>
+                    <div>
+                        <p
+                            style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">
+                            Saídas (Mês)</p>
+                        <h3 id="stat_saidas" style="font-size: 1.25rem; font-weight: 800; color: #fff;">0 itens</h3>
+                    </div>
+                </div>
+                <div class="inventory-control-card"
+                    style="margin-bottom: 0; padding: 1.5rem; display: flex; align-items: center; gap: 1.5rem;">
+                    <div
+                        style="background: rgba(16, 185, 129, 0.1); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #10b981;">
+                        <i data-lucide="dollar-sign" style="width: 24px;"></i>
+                    </div>
+                    <div>
+                        <p
+                            style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">
+                            Lucro Estimado</p>
+                        <h3 id="stat_lucro" style="font-size: 1.25rem; font-weight: 800; color: #fff;">R$ 0,00</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters Bar -->
+            <div class="inventory-control-card" style="margin-bottom: 1.5rem; padding: 1rem;">
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <div style="position: relative; flex: 1;">
+                        <i data-lucide="search"
+                            style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); width: 16px; color: var(--text-muted);"></i>
+                        <input type="text" id="search_history" placeholder="Buscar movimentação..."
+                            style="padding-left: 2.8rem; height: 42px; background: rgba(255,255,255,0.03);">
+                    </div>
+                    <select id="filter_type"
+                        style="width: 120px; height: 42px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">
+                        <option value="">Tipos</option>
+                        <option value="ENTRADA">Entrada</option>
+                        <option value="SAIDA">Saída</option>
+                        <option value="ESTORNO">Estorno</option>
+                        <option value="AJUSTE">Ajuste</option>
+                    </select>
+                    <select id="filter_period"
+                        style="width: 150px; height: 42px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">
+                        <option value="mes">Este Mês</option>
+                        <option value="hoje">Hoje</option>
+                        <option value="semana">Esta Semana</option>
+                        <option value="todos">Todo Período</option>
+                        <option value="custom">Personalizado</option>
+                    </select>
+                    <div id="history_custom_date_range"
+                        style="display: none; gap: 0.6rem; align-items: center; flex-wrap: nowrap; flex-shrink: 0; margin-left: 0.5rem;">
+                        <div style="display: flex; flex-direction: column;">
+                            <span
+                                style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 2px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Início</span>
+                            <input type="date" id="history_filter_start"
+                                style="width: 130px; height: 42px; font-size: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 8px; padding: 0 0.5rem; border: 1px solid var(--border-card); color: #fff;">
+                        </div>
+                        <div style="display: flex; flex-direction: column;">
+                            <span
+                                style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 2px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Fim</span>
+                            <input type="date" id="history_filter_end"
+                                style="width: 130px; height: 42px; font-size: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 8px; padding: 0 0.5rem; border: 1px solid var(--border-card); color: #fff;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Table -->
+            <div class="inventory-control-card" style="padding: 0;">
+                <div class="table-container">
+                    <table class="mobile-cards" style="border-collapse: separate; border-spacing: 0 0.5rem;">
+                        <thead style="background: transparent;">
+                            <tr>
+                                <th style="font-size: 0.65rem; letter-spacing: 1px; color: var(--text-muted);">DATA</th>
+                                <th style="font-size: 0.65rem; letter-spacing: 1px; color: var(--text-muted);">PRODUTO
+                                </th>
+                                <th style="font-size: 0.65rem; letter-spacing: 1px; color: var(--text-muted);">LOTE /
+                                    REF</th>
+                                <th style="font-size: 0.65rem; letter-spacing: 1px; color: var(--text-muted);">TIPO</th>
+                                <th
+                                    style="font-size: 0.65rem; letter-spacing: 1px; color: var(--text-muted); text-align: center;">
+                                    QUANTIDADE</th>
+                                <th
+                                    style="font-size: 0.65rem; letter-spacing: 1px; color: #10b981; text-align: center;">
+                                    SALDO</th>
+                                <th style="font-size: 0.65rem; letter-spacing: 1px; color: var(--text-muted);">VLR.
+                                    UNITÁRIO</th>
+                                <th style="font-size: 0.65rem; letter-spacing: 1px; color: #10b981;">LUCRO</th>
+                                <th style="font-size: 0.65rem; letter-spacing: 1px; color: var(--text-muted);">MOTIVO /
+                                    FORNECEDOR</th>
+                                <th style="font-size: 0.65rem; letter-spacing: 1px; color: var(--text-muted);">
+                                    RESPONSÁVEL</th>
+                                <th style="width: 50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="history_body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="section_new" class="tab-content" style="display:none;">
+            <div class="breadcrumb"
+                style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 2rem; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px;">
+                <span style="color: var(--text-muted);">Estoque</span>
+                <i data-lucide="chevron-right" style="width: 14px; color: var(--text-muted);"></i>
+                <span style="color: var(--text-main);">Novo Registro</span>
+            </div>
+
+            <div style="display: flex; justify-content: center; width: 100%;">
+                <div class="inventory-control-card"
+                    style="max-width: 900px; width: 100%; margin: 0 auto; padding: 2.5rem; position: relative; overflow: hidden;">
+                    <!-- Decorative background element -->
+                    <div
+                        style="position: absolute; top: 0; right: 0; width: 150px; height: 150px; background: radial-gradient(circle, var(--primary) 0%, transparent 70%); opacity: 0.05; transform: translate(30%, -30%); pointer-events: none;">
+                    </div>
+
+                    <div class="card-header-flex"
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.5rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 1.5rem;">
+                        <div>
+                            <h2 id="newProductTitle"
+                                style="font-size: 1.6rem; font-weight: 800; color: #fff; margin-bottom: 0.3rem;">Dados
+                                do Produto</h2>
+                            <p
+                                style="color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">
+                                Preencha as informações para registro no estoque</p>
+                        </div>
+                        <div
+                            style="background: rgba(99, 102, 241, 0.1); padding: 1.2rem; border-radius: 16px; border: 1px solid rgba(99, 102, 241, 0.2);">
+                            <i data-lucide="package" style="color: var(--primary); width: 32px; height: 32px;"></i>
+                        </div>
+                    </div>
+
+                    <form id="form_new_product" onsubmit="saveProduct(event)">
+                        <input type="hidden" id="mp_id">
+
+                        <!-- Linha 1: Barras, Ref e Interno -->
+                        <div class="form-grid"
+                            style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                            <div class="form-group">
+                                <label>Código de Barras</label>
+                                <div style="position: relative;">
+                                    <i data-lucide="scan-barcode"
+                                        style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); width: 16px; color: var(--text-muted);"></i>
+                                    <input type="text" id="mp_barras" placeholder="Ex: 7890..."
+                                        style="height: 48px; padding-left: 2.8rem;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Código Referência*</label>
+                                <input type="text" id="mp_ref" placeholder="Ex: 0204.01" style="height: 48px;" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Código Interno</label>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <input type="text" id="mp_interno" placeholder="Gere automÃ¡tico..."
+                                        style="height: 48px; flex: 1;">
+                                    <button type="button" onclick="generateInternalCode()"
+                                        style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-card); border-radius: 10px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); cursor: pointer;"
+                                        title="Gerar CÃ³digo">
+                                        <i data-lucide="refresh-cw" style="width: 18px;"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Linha 2: Nome e Marca -->
+                        <div class="form-grid"
+                            style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                            <div class="form-group">
+                                <label>Nome do Produto*</label>
+                                <input type="text" id="mp_nome" placeholder="Ex: Pastilha de Freio Dianteira"
+                                    style="height: 48px;" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Marca do Produto</label>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <select id="mp_marca" style="height: 48px; flex: 1;"></select>
+                                    <button type="button" onclick="switchTab('setup')"
+                                        style="background: rgba(245, 158, 11, 0.1); border: none; border-radius: 10px; width: 38px; height: 48px; color: var(--accent); cursor: pointer;">
+                                        <i data-lucide="plus" style="width: 18px;"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Linha 3: Unidade, Categoria e AplicaÃ§Ã£o -->
+                        <div class="form-grid"
+                            style="display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                            <div class="form-group">
+                                <label>Unidade de Medida*</label>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <select id="mp_unidade" style="height: 48px; flex: 1;" required></select>
+                                    <button type="button" onclick="switchTab('setup')"
+                                        style="background: rgba(245, 158, 11, 0.1); border: none; border-radius: 10px; width: 38px; height: 48px; color: var(--accent); cursor: pointer;">
+                                        <i data-lucide="plus" style="width: 18px;"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Categoria*</label>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <select id="mp_categoria" style="height: 48px; flex: 1;" required></select>
+                                    <button type="button" onclick="switchTab('setup')"
+                                        style="background: rgba(245, 158, 11, 0.1); border: none; border-radius: 10px; width: 38px; height: 48px; color: var(--accent); cursor: pointer;">
+                                        <i data-lucide="plus" style="width: 18px;"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Aplicação (Veículos)*</label>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <select id="mp_aplicacao" style="height: 48px; flex: 1;"
+                                        onchange="handleApplicationSelect(this)"></select>
+                                    <button type="button" onclick="switchTab('setup')"
+                                        style="background: rgba(245, 158, 11, 0.1); border: none; border-radius: 10px; width: 38px; height: 48px; color: var(--accent); cursor: pointer;">
+                                        <i data-lucide="plus" style="width: 18px;"></i>
+                                    </button>
+                                </div>
+                                <div id="aplicacoes_chips"
+                                    style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.8rem;">
+                                    <!-- Chips will be rendered here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Linha Adicional: Localização de Estoque -->
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label
+                                style="color: var(--accent); font-weight: 800; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.8rem;">
+                                <i data-lucide="map-pin" style="width: 16px;"></i> LOCALIZAÇÃO DE ESTOQUE
+                            </label>
+                            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.8rem;">
+                                <div class="form-group">
+                                    <label style="font-size: 0.65rem; color: var(--text-muted);">Setor</label>
+                                    <input type="text" id="mp_local_setor" placeholder="Ex: 1" style="height: 42px;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-size: 0.65rem; color: var(--text-muted);">Rua</label>
+                                    <input type="text" id="mp_local_rua" placeholder="Ex: 2" style="height: 42px;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-size: 0.65rem; color: var(--text-muted);">Prateleira</label>
+                                    <input type="text" id="mp_local_prateleira" placeholder="Ex: B"
+                                        style="height: 42px;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-size: 0.65rem; color: var(--text-muted);">NÃ­vel</label>
+                                    <input type="text" id="mp_local_nivel" placeholder="Ex: 5" style="height: 42px;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-size: 0.65rem; color: var(--text-muted);">Gaveta</label>
+                                    <input type="text" id="mp_local_gaveta" placeholder="Ex: 010" style="height: 42px;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Linha 4: Descrição Detalhada -->
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label>Descrição Detalhada</label>
+                            <textarea id="mp_descricao" placeholder="Observações técnicas..."
+                                style="min-height: 100px; resize: vertical;"></textarea>
+                        </div>
+
+                        <!-- Linha 5: Estoque e Valores -->
+                        <div class="form-grid"
+                            style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2.5rem;">
+                            <div class="form-group">
+                                <label>Estoque Atual*</label>
+                                <input type="number" id="mp_estoque_atual" value="0" style="height: 48px;" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Estoque Mínimo*</label>
+                                <input type="number" id="mp_estoque_minimo" value="5" style="height: 48px;" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Valor Custo*</label>
+                                <div style="position: relative;">
+                                    <span
+                                        style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.8rem; font-weight: 700;">R$</span>
+                                    <input type="number" id="mp_valor_custo" step="0.01" value="0.00"
+                                        style="height: 48px; padding-left: 2.8rem;" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Valor Venda*</label>
+                                <div style="position: relative;">
+                                    <span
+                                        style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.8rem; font-weight: 700;">R$</span>
+                                    <input type="number" id="mp_valor_venda" step="0.01" value="0.00"
+                                        style="height: 48px; padding-left: 2.8rem;" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div
+                            style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 1rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 2rem;">
+                            <button type="button" onclick="switchTab('list')" class="btn-cancel"
+                                style="height: 56px; font-size: 0.9rem; letter-spacing: 1px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-card);">CANCELAR</button>
+                            <button type="submit" class="btn-save"
+                                style="height: 56px; font-size: 0.9rem; letter-spacing: 1px; background: #a64d00; box-shadow: 0 10px 20px rgba(166, 77, 0, 0.2);">SALVAR
+                                PRODUTO</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aba Auxiliares (Setup) -->
+        <div id="section_setup" class="tab-content" style="display:none;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 2rem;">
+
+                <!-- Brands Card -->
+                <div class="inventory-control-card" style="margin-bottom: 0; padding: 1.5rem;">
+                    <div class="card-header-flex"
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h2 style="font-size: 1.2rem; font-weight: 800;">Marcas do Produto</h2>
+                        <i data-lucide="tag" style="color: var(--accent); width: 20px;"></i>
+                    </div>
+                    <div class="quick-add-group" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+                        <input type="text" id="new_brand_name" placeholder="Nova marca..."
+                            style="flex: 1; height: 48px; background: rgba(255,255,255,0.03);">
+                        <button onclick="addBrand()"
+                            style="background: var(--accent); border: none; border-radius: 8px; width: 48px; color: #fff; cursor: pointer;">
+                            <i data-lucide="plus" style="width: 20px;"></i>
+                        </button>
+                    </div>
+                    <div id="brands_list" class="styled-list-container"
+                        style="max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.6rem;">
+                        <!-- List items here -->
+                    </div>
+                </div>
+
+                <!-- Categories Card -->
+                <div class="inventory-control-card" style="margin-bottom: 0; padding: 1.5rem;">
+                    <div class="card-header-flex"
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h2 style="font-size: 1.2rem; font-weight: 800;">Categorias</h2>
+                        <i data-lucide="layers" style="color: var(--accent); width: 20px;"></i>
+                    </div>
+                    <div class="quick-add-group" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+                        <input type="text" id="new_category_name" placeholder="Nova categoria..."
+                            style="flex: 1; height: 48px; background: rgba(255,255,255,0.03);">
+                        <button onclick="addCategory()"
+                            style="background: var(--accent); border: none; border-radius: 8px; width: 48px; color: #fff; cursor: pointer;">
+                            <i data-lucide="plus" style="width: 20px;"></i>
+                        </button>
+                    </div>
+                    <div id="categories_list" class="styled-list-container"
+                        style="max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.6rem;">
+                        <!-- List items here -->
+                    </div>
+                </div>
+
+                <!-- Models Card -->
+                <div class="inventory-control-card" style="margin-bottom: 0; padding: 1.5rem;">
+                    <div class="card-header-flex"
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h2 style="font-size: 1.2rem; font-weight: 800;">Modelos de VeÃ­culos</h2>
+                        <i data-lucide="truck" style="color: var(--accent); width: 20px;"></i>
+                    </div>
+
+                    <div class="quick-add-group" style="margin-bottom: 1.5rem; width: 100%;">
+                        <div
+                            style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.8rem; width: 100%;">
+                            <input type="text" id="new_model_marca" placeholder="Marca (Ex: Volvo)"
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                            <input type="text" id="new_model_nome" placeholder="Modelo (Ex: FH 540)"
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                            <input type="text" id="new_model_potencia" placeholder="Potência (Ex: 540cv)"
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                            <input type="text" id="new_model_ano" placeholder="Ano (Ex: 2022)"
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                        </div>
+                        <button onclick="addModel()"
+                            style="width: 100%; background: var(--accent); border: none; border-radius: 8px; height: 42px; color: #fff; cursor: pointer; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.3s ease;">
+                            <i data-lucide="plus" style="width: 16px;"></i> ADICIONAR VEÍCULO
+                        </button>
+                    </div>
+
+                    <div id="models_list" class="styled-list-container"
+                        style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.6rem;">
+                        <!-- List items here -->
+                    </div>
+                </div>
+
+                <!-- Units Card -->
+                <div class="inventory-control-card" style="margin-bottom: 0; padding: 1.5rem;">
+                    <div class="card-header-flex"
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h2 style="font-size: 1.2rem; font-weight: 800;">Unidades de Medida</h2>
+                        <i data-lucide="ruler" style="color: var(--accent); width: 20px;"></i>
+                    </div>
+                    <div class="quick-add-group" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+                        <input type="text" id="new_unit_name" placeholder="Ex: PeÃ§a, Litro, Kit..."
+                            style="flex: 1; height: 48px; background: rgba(255,255,255,0.03);">
+                        <button onclick="addUnit()"
+                            style="background: var(--accent); border: none; border-radius: 8px; width: 48px; color: #fff; cursor: pointer;">
+                            <i data-lucide="plus" style="width: 20px;"></i>
+                        </button>
+                    </div>
+                    <div id="units_list" class="styled-list-container"
+                        style="max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.6rem;">
+                        <!-- List items here -->
+                    </div>
+                </div>
+
+                <!-- Clientes Card -->
+                <div class="inventory-control-card" style="margin-bottom: 0; padding: 1.5rem;">
+                    <div class="card-header-flex"
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h2 style="font-size: 1.2rem; font-weight: 800;">Cadastro de Clientes</h2>
+                        <i data-lucide="users" style="color: var(--accent); width: 20px;"></i>
+                    </div>
+
+                    <div class="quick-add-group" style="margin-bottom: 1.5rem; width: 100%;">
+                        <div
+                            style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 0.5rem; margin-bottom: 0.5rem; width: 100%;">
+                            <input type="text" id="new_cliente_nome" placeholder="Nome / RazÃ£o Social*"
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                            <input type="text" id="new_cliente_documento" placeholder="CPF / CNPJ"
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                        </div>
+                        <div
+                            style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.8rem; width: 100%;">
+                            <input type="text" id="new_cliente_telefone" placeholder="Telefone"
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                            <input type="text" id="new_cliente_email" placeholder="E-mail"
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                        </div>
+                        <button onclick="addCliente()"
+                            style="width: 100%; background: var(--accent); border: none; border-radius: 8px; height: 42px; color: #fff; cursor: pointer; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.3s ease;">
+                            <i data-lucide="plus" style="width: 16px;"></i> CADASTRAR CLIENTE
+                        </button>
+                    </div>
+
+                    <div id="clientes_list" class="styled-list-container"
+                        style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.6rem;">
+                        <!-- List items here -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
+
+
+    <div id="productViewModal">
+        <div class="view-header">
+            <div class="view-header-left">
+                <div class="view-icon-box">
+                    <i data-lucide="package" style="width: 32px; height: 32px;"></i>
+                </div>
+                <div class="view-title-group">
+                    <h2 id="view_prod_nome">DISCO FREIO</h2>
+                    <div class="view-meta">
+                        <span>SKU: <span id="view_prod_ref">1561</span></span>
+                        <span id="view_prod_categoria" style="color: var(--accent);">ACESSÓRIOS</span>
+                    </div>
+                </div>
+            </div>
+            <div class="view-header-right">
+                <button class="action-btn-view btn-view-edit" id="btn_view_edit_trigger">
+                    <i data-lucide="edit-3" style="width: 14px;"></i> EDITAR
+                </button>
+                <button class="action-btn-view btn-view-delete" id="btn_view_delete_trigger">
+                    <i data-lucide="trash-2" style="width: 14px;"></i> EXCLUIR
+                </button>
+                <button class="close-btn" onclick="closeProductViewModal()"
+                    style="margin-left: 1rem; background: rgba(255,255,255,0.05); border-radius: 12px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="x" style="width: 20px;"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="view-grid">
+            <!-- Left Column -->
+            <div class="view-side-panel">
+                <div class="info-section">
+                    <h3>Informações Gerais</h3>
+                    <div class="info-row">
+                        <span class="info-label">Marca</span>
+                        <span class="info-value" id="view_prod_marca">COBREQ</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Aplicação</span>
+                        <span class="info-value" id="view_prod_aplicacao">Multiveículos (Universal)</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Ref. Code</span>
+                        <span class="info-value" id="view_prod_ref_code">54</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Data Cadastro</span>
+                        <span class="info-value" id="view_prod_data">30/04/2026</span>
+                    </div>
+                    <div class="info-row"
+                        style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <span class="info-label" style="color: var(--accent);"><i data-lucide="map-pin"
+                                style="width: 12px; margin-right: 4px;"></i> LocalizaÃ§Ã£o</span>
+                        <span class="info-value" id="view_prod_localizacao"
+                            style="font-weight: 800; color: #fff;">---</span>
+                    </div>
+                </div>
+
+                <div class="price-grid">
+                    <div class="price-card cost">
+                        <span class="price-label">Custo MÃ©dio</span>
+                        <span class="price-val" id="view_prod_custo">R$ 10,00</span>
+                    </div>
+                    <div class="price-card sell">
+                        <span class="price-label">PreÃ§o Venda</span>
+                        <span class="price-val" id="view_prod_venda">R$ 15,00</span>
+                    </div>
+                </div>
+
+                <div class="adjust-form">
+                    <h3
+                        style="font-size: 0.75rem; font-weight: 800; color: var(--accent); text-transform: uppercase; margin-bottom: 1rem;">
+                        Ajuste de Inventário</h3>
+                    <p style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 1.5rem;">Correção manual de
+                        saldo em estoque</p>
+
+                    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                        <div class="form-group">
+                            <label style="font-size: 0.6rem;">Novo Saldo</label>
+                            <input type="number" id="adjust_new_qty"
+                                style="height: 44px; background: rgba(255,255,255,0.05);">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size: 0.6rem;">Unidade</label>
+                            <div style="height: 44px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: var(--text-muted);"
+                                id="view_prod_unidade_label">CJ</div>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 1.5rem;">
+                        <label style="font-size: 0.6rem;">Motivo do Ajuste</label>
+                        <textarea id="adjust_reason" rows="2" placeholder="Ex: InventÃ¡rio rotativo, perda, quebra..."
+                            style="background: rgba(255,255,255,0.05); font-size: 0.8rem;"></textarea>
+                    </div>
+
+                    <button class="btn-new-product" onclick="saveQuickAdjustment()"
+                        style="width: 100%; height: 48px; justify-content: center;">SALVAR REAJUSTE</button>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="history-section">
+                <div class="history-header">
+                    <div class="history-title">
+                        <i data-lucide="history" style="width: 18px; color: var(--primary);"></i>
+                        Histórico de Movimentação do Item
+                    </div>
+                    <div class="balance-badge">SALDO ATUAL: <span id="view_prod_saldo_final">10</span></div>
+                </div>
+
+                <div class="history-table-container">
+                    <table style="font-size: 0.8rem;">
+                        <thead>
+                            <tr>
+                                <th style="font-size: 0.65rem;">Data</th>
+                                <th style="font-size: 0.65rem;">Operação</th>
+                                <th style="font-size: 0.65rem;">Qtd</th>
+                                <th style="font-size: 0.65rem; color: var(--accent); text-align: center;">Saldo</th>
+                                <th style="font-size: 0.65rem;">Valor</th>
+                                <th style="font-size: 0.65rem;">Referência / Lote</th>
+                            </tr>
+                        </thead>
+                        <tbody id="view_prod_history_body">
+                            <!-- JS items -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Venda / SaÃ­da Modal - Single Div Approach -->
+    <div id="vendaModal"
+        style="max-width: 1200px; width: 95%; background: #111827; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); padding: 1.5rem;">
+        <div class="modal-header"
+            style="margin-bottom: 1rem; padding-bottom: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <div style="display: flex; align-items: center; gap: 0.8rem;">
+                <div style="background: rgba(16, 185, 129, 0.1); padding: 0.6rem; border-radius: 10px; color: #10b981;">
+                    <i data-lucide="shopping-cart" style="width: 20px;"></i>
+                </div>
+                <div>
+                    <h2 style="margin: 0; font-size: 1.2rem;">Registrar Saída / Venda</h2>
+                    <p
+                        style="font-size: 0.65rem; color: var(--text-muted); margin: 0; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">
+                        Geração de Código Sequencial Automático</p>
+                </div>
+            </div>
+            <button class="close-btn" onclick="closeVendaModal()"
+                style="background: rgba(255,255,255,0.05); border-radius: 10px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
+                <i data-lucide="x" style="width: 18px;"></i>
+            </button>
+        </div>
+
+        <form id="vendaForm" onsubmit="saveVenda(event)">
+            <div class="form-grid">
+                <!-- Configuração Geral em Linha Única -->
+                <div class="form-group span-4">
+                    <div style="display: grid; grid-template-columns: 1fr 1.5fr 0.8fr; gap: 0.8rem;">
+                        <div class="form-group">
+                            <label style="font-size: 0.7rem;">Tipo de Saída*</label>
+                            <select id="v_tipo" required onchange="toggleVendaTypeFields()"
+                                style="height: 40px; background: rgba(255,255,255,0.03); font-size: 0.85rem;">
+                                <option value="SIMPLES">Saída Simples (Veículo)</option>
+                                <option value="OS">Vincular a Ordem de Serviço</option>
+                                <option value="EXTERNA">Venda Externa / Balcão</option>
+                            </select>
+                        </div>
+
+                        <!-- Campo DinÃ¢mico: Placa -->
+                        <div class="form-group" id="group_v_placa">
+                            <label style="font-size: 0.7rem;">Selecionar Veiculo (Placa)*</label>
+                            <select id="v_veiculo_id"
+                                style="height: 40px; background: rgba(255,255,255,0.03); font-size: 0.85rem;">
+                                <option value="">Carregando veiculos...</option>
+                            </select>
+                        </div>
+
+                        <!-- Campo DinÃ¢mico: OS -->
+                        <div class="form-group" id="group_v_os" style="display: none;">
+                            <label style="font-size: 0.7rem;">Numero da OS*</label>
+                            <input type="text" id="v_os_id" placeholder="Ex: 1054"
+                                style="height: 40px; font-size: 0.85rem;">
+                        </div>
+
+                        <!-- Campo DinÃ¢mico: Cliente -->
+                        <div class="form-group" id="group_v_cliente" style="display: none; position: relative;">
+                            <label style="font-size: 0.7rem;">Nome do Cliente*</label>
+                            <input type="text" id="v_cliente_nome" oninput="searchVendaCliente(this.value)"
+                                onfocus="searchVendaCliente(this.value)" placeholder="Busque o cliente..."
+                                style="height: 40px; font-size: 0.85rem;" autocomplete="off">
+                            <div id="v_cliente_search_results" class="search-autocomplete-dropdown"
+                                style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #1f2937; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; z-index: 1000; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5);">
+                                <!-- Clientes filtered list -->
+                            </div>
+                        </div>
+
+                        <!-- Data da Saída -->
+                        <div class="form-group">
+                            <label style="font-size: 0.7rem;">Data da Saída*</label>
+                            <input type="date" id="v_data_venda" required
+                                style="height: 40px; background: rgba(255,255,255,0.03); font-size: 0.85rem;">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group span-4"
+                    style="height: 1px; background: rgba(255,255,255,0.05); margin: 0.5rem 0;"></div>
+
+                <!-- Adicionar Item -->
+                <div class="form-group span-4">
+                    <h3
+                        style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 1px;">
+                        Adicionar Itens ao Carrinho</h3>
+                    <div
+                        style="display: grid; grid-template-columns: 2fr 0.5fr 0.8fr 0.8fr 0.8fr auto; gap: 0.5rem; align-items: flex-end;">
+                        <!-- Busca de Produto -->
+                        <div class="form-group">
+                            <label style="font-size: 0.65rem;">Produto*</label>
+                            <div class="search-container">
+                                <input type="text" id="v_search_input" placeholder="Nome ou ref..."
+                                    oninput="searchVendaProduct(this.value)" autocomplete="off"
+                                    style="height: 38px; font-size: 0.8rem;">
+                                <div id="v_search_results" class="search-results"></div>
+                                <input type="hidden" id="v_selected_product_id">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="font-size: 0.65rem;">Qtd*</label>
+                            <input type="number" id="v_quantidade" step="1" min="1" value="1"
+                                oninput="updateVendaItemPreview()"
+                                style="height: 38px; font-size: 0.8rem; padding: 0 5px; text-align: center;">
+                        </div>
+
+                        <div class="form-group">
+                            <label style="font-size: 0.65rem;">Valor Unit.*</label>
+                            <div style="position: relative;">
+                                <span
+                                    style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.65rem;">R$</span>
+                                <input type="number" id="v_valor_unitario" step="0.01" min="0"
+                                    oninput="updateVendaItemPreview()"
+                                    style="height: 38px; padding-left: 22px; font-size: 0.8rem;">
+                            </div>
+                        </div>
+
+                        <!-- Desconto -->
+                        <div class="form-group">
+                            <label style="font-size: 0.65rem;">Desc. Item</label>
+                            <div style="display: flex; gap: 0.2rem;">
+                                <select id="v_item_desconto_tipo" onchange="updateVendaItemPreview()"
+                                    style="width: 40px; height: 38px; font-size: 0.65rem; padding: 0 2px;">
+                                    <option value="PORCENTAGEM">%</option>
+                                    <option value="VALOR">$</option>
+                                </select>
+                                <input type="number" id="v_item_desconto_valor" step="0.01" value="0"
+                                    oninput="updateVendaItemPreview()"
+                                    style="flex: 1; height: 38px; font-size: 0.8rem; padding: 0 5px;">
+                            </div>
+                        </div>
+
+                        <!-- Acréscimo -->
+                        <div class="form-group">
+                            <label style="font-size: 0.65rem;">Acrésc. Item</label>
+                            <div style="display: flex; gap: 0.2rem;">
+                                <select id="v_item_acrescimo_tipo" onchange="updateVendaItemPreview()"
+                                    style="width: 40px; height: 38px; font-size: 0.65rem; padding: 0 2px;">
+                                    <option value="PORCENTAGEM">%</option>
+                                    <option value="VALOR">$</option>
+                                </select>
+                                <input type="number" id="v_item_acrescimo_valor" step="0.01" value="0"
+                                    oninput="updateVendaItemPreview()"
+                                    style="flex: 1; height: 38px; font-size: 0.8rem; padding: 0 5px;">
+                            </div>
+                        </div>
+
+                        <div class="form-group"
+                            style="display: flex; flex-direction: column; justify-content: flex-end;">
+                            <label style="font-size: 0.65rem; visibility: hidden;">Botão</label>
+                            <button type="button" onclick="addItemToVendaList()" id="v_btn_add_item"
+                                style="height: 38px; width: 38px; padding: 0; margin: 0; border-radius: 8px; background: #10b981; border: none; color: #fff; cursor: pointer; display: none; align-items: center; justify-content: center;">
+                                <i data-lucide="plus" style="width: 18px;"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Info do Produto Selecionado (Preview) -->
+                    <div id="v_product_selection_info"
+                        style="display: none; margin-top: 0.4rem; padding: 0.4rem 0.8rem; background: rgba(16, 185, 129, 0.05); border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.1);">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="line-height: 1.1;">
+                                <span id="v_info_name"
+                                    style="font-weight: 700; color: #fff; font-size: 0.75rem;">PRODUTO</span>
+                                <span id="v_info_stock"
+                                    style="font-size: 0.6rem; color: var(--text-muted); margin-left: 8px;">Estoque: 0
+                                    UN</span>
+                            </div>
+                            <div style="line-height: 1.1; display: flex; align-items: center; gap: 1rem;">
+                                <div style="text-align: right;">
+                                    <span
+                                        style="font-size: 0.55rem; color: var(--text-muted); display: block; text-transform: uppercase;">Subtotal
+                                        Previsto</span>
+                                    <span id="v_info_price"
+                                        style="color: #10b981; font-weight: 800; font-size: 0.8rem;">R$ 0,00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabela de Itens Adicionados -->
+                <div class="form-group span-4" style="max-height: 140px; overflow-y: auto; margin-top: 0.5rem;">
+                    <table class="venda-items-table" style="margin-top: 0;">
+                        <thead>
+                            <tr>
+                                <th style="padding: 0.3rem 1rem;">Produto</th>
+                                <th style="text-align: center; padding: 0.3rem 1rem;">Qtd</th>
+                                <th style="text-align: right; padding: 0.3rem 1rem;">Unitário</th>
+                                <th style="text-align: right; padding: 0.3rem 1rem;">Ajustes</th>
+                                <th style="text-align: right; padding: 0.3rem 1rem;">Subtotal</th>
+                                <th style="width: 80px; text-align: center; padding: 0.3rem 1rem;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="v_items_tbody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                                    Nenhum item adicionado ao carrinho.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="form-group span-4"
+                    style="height: 1px; background: rgba(255,255,255,0.05); margin: 0.5rem 0;"></div>
+
+                <!-- Controle de Pagamento -->
+                <div class="form-group span-2" id="group_v_pagamento"
+                    style="display: none; background: rgba(16, 185, 129, 0.05); padding: 1.2rem; border-radius: 16px; border: 1px solid rgba(16, 185, 129, 0.1);">
+                    <h3
+                        style="font-size: 0.7rem; font-weight: 800; color: #10b981; text-transform: uppercase; margin-bottom: 0.8rem; letter-spacing: 1px;">
+                        Controle Financeiro</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
+                        <div class="form-group">
+                            <label style="font-size: 0.75rem;">Status</label>
+                            <select id="v_status_pagamento" style="height: 42px; font-size: 0.85rem;">
+                                <option value="PENDENTE">PENDENTE</option>
+                                <option value="PAGO">PAGO</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size: 0.75rem;">Data</label>
+                            <input type="date" id="v_data_pagamento" style="height: 42px; font-size: 0.85rem;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Observações -->
+                <div id="wrapper_v_observacoes" class="form-group span-4">
+                    <label style="font-size: 0.75rem;">Observações</label>
+                    <textarea id="v_observacoes" placeholder="Informações adicionais..." rows="2"
+                        style="background: rgba(255,255,255,0.03); min-height: 50px; font-size: 0.85rem; padding: 0.8rem;"></textarea>
+                </div>
+
+                <!-- Resumo de Valores Ultra-Compacto -->
+                <div class="form-group span-4"
+                    style="margin-top: 0.3rem; background: #000; padding: 0.7rem 1.2rem; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.08);">
+                    <div style="display: flex; gap: 2rem; align-items: center;">
+                        <div>
+                            <span
+                                style="font-size: 0.6rem; color: var(--text-muted); font-weight: 800; text-transform: uppercase;">Bruto</span>
+                            <div id="v_total_bruto" style="font-size: 0.9rem; font-weight: 700; color: #fff;">R$ 0,00
+                            </div>
+                        </div>
+                        <div>
+                            <span
+                                style="font-size: 0.6rem; color: #10b981; font-weight: 800; text-transform: uppercase;">Líquido</span>
+                            <div id="v_total_final" style="font-size: 1.3rem; font-weight: 900; color: #10b981;">R$ 0,00
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.6rem;">
+                        <button type="button" id="btn_delete_venda_edit" onclick="confirmDeleteFromEdit()"
+                            style="display: none; height: 34px; padding: 0 1rem; border-radius: 8px; font-weight: 700; font-size: 0.75rem; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; cursor: pointer;">EXCLUIR
+                            VENDA</button>
+                        <button type="button" class="btn-cancel" onclick="closeVendaModal()"
+                            style="height: 34px; padding: 0 1rem; border-radius: 8px; font-weight: 700; font-size: 0.75rem; background: rgba(255,255,255,0.05); border: none; color: #fff; cursor: pointer;">CANCELAR</button>
+                        <button type="submit" class="btn-save" id="btn_confirm_venda" disabled
+                            style="height: 34px; padding: 0 1.2rem; background: #10b981; border: none; color: #fff; border-radius: 8px; font-weight: 800; font-size: 0.75rem; opacity: 0.5; cursor: not-allowed;">CONFIRMAR
+                            SAÃDA</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Modal de Recibo de Venda -->
+    <div id="receiptModal" class="modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeReceiptModal()">
+                <i data-lucide="x"></i>
+            </button>
+
+            <div class="receipt-container">
+                <div class="receipt-header">
+                    <div
+                        style="background: #000; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0 auto; color: #fff;">
+                        <i data-lucide="package" style="width: 24px;"></i>
+                    </div>
+                    <h1>FROTALINK</h1>
+                    <p>Frotalink | Controle de Estoque</p>
+                    <div id="receipt_codigo"
+                        style="margin-top: 0.5rem; font-weight: 800; font-size: 0.9rem; color: var(--primary);">VD-1000
+                    </div>
+                </div>
+
+                <div class="receipt-info">
+                    <span id="receipt_data">08/05/2026</span>
+                    <span id="receipt_tipo">VENDA BALCÃO</span>
+                </div>
+
+                <div id="receipt_cliente_box"
+                    style="background: #f9fafb; padding: 0.8rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    <span
+                        style="font-size: 0.65rem; color: #999; text-transform: uppercase; display: block; font-weight: 700;">Cliente
+                        / Veículo</span>
+                    <span id="receipt_cliente" style="font-size: 0.9rem; font-weight: 700;">Consumidor Final</span>
+                </div>
+
+                <table class="receipt-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th style="text-align: center;">Qtd</th>
+                            <th style="text-align: right;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="receipt_items">
+                        <!-- Itens aqui -->
+                    </tbody>
+                </table>
+
+                <div class="receipt-totals">
+                    <div class="total-row">
+                        <span>Subtotal</span>
+                        <span id="receipt_subtotal">R$ 0,00</span>
+                    </div>
+                    <div class="total-row" id="receipt_discount_row">
+                        <span>Descontos</span>
+                        <span id="receipt_discount" style="color: #ef4444;">- R$ 0,00</span>
+                    </div>
+                    <div class="total-row" id="receipt_increase_row">
+                        <span>AcrÃ©scimos</span>
+                        <span id="receipt_increase" style="color: #10b981;">+ R$ 0,00</span>
+                    </div>
+                    <div class="total-row final">
+                        <span>TOTAL</span>
+                        <span id="receipt_total">R$ 0,00</span>
+                    </div>
+                </div>
+
+                <div class="receipt-footer">
+                    <p>Obrigado pela preferência!</p>
+                    <p id="receipt_responsavel" style="margin-top: 0.5rem; font-weight: 600;">Vendedor: Sistema</p>
+                </div>
+
+                <div style="margin-top: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
+                    <button onclick="window.print()"
+                        style="grid-column: span 2; background: #000; color: #fff; border: none; padding: 0.8rem; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                        <i data-lucide="printer" style="width: 16px;"></i> Imprimir Recibo
+                    </button>
+
+                    <button id="btn_edit_sale"
+                        style="background: rgba(99, 102, 241, 0.1); color: var(--primary); border: 1px solid var(--primary); padding: 0.8rem; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                        <i data-lucide="edit-3" style="width: 16px;"></i> Editar Venda
+                    </button>
+
+                    <button id="btn_delete_sale"
+                        style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid #ef4444; padding: 0.8rem; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                        <i data-lucide="trash-2" style="width: 16px;"></i> Excluir Venda
+                    </button>
+
+                    <button onclick="closeReceiptModal()"
+                        style="grid-column: span 2; background: #f3f4f6; color: #333; border: 1px solid #e5e7eb; padding: 0.8rem; border-radius: 8px; font-weight: 700; cursor: pointer;">
+                        Fechar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="estoque.js"></script>
+    <script src="orb_menu.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initEstoque();
+        });
+    </script>
+</body>
+
+</html>

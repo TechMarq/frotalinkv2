@@ -1,0 +1,933 @@
+﻿<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FROTALINK | ManutenÃ§Ã£o</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap"
+        rel="stylesheet">
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="orb_menu.css">
+    <style>
+        :root {
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --primary: #f59e0b; /* Orange for Maintenance */
+            --primary-light: #fbbf24;
+            --secondary: #6366f1;
+            --accent: #10b981;
+            color-scheme: dark;
+        }
+
+        .ops-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .nav-back {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+
+        .nav-back:hover {
+            color: var(--primary);
+        }
+
+        /* Tabs System â€” padronizado com global style.css */
+        .tabs-header {
+            display: inline-flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 0.5rem;
+            border-radius: 16px;
+            width: fit-content;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-item {
+            padding: 0.8rem 1.5rem;
+            border-radius: 12px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            white-space: nowrap;
+        }
+
+        .tab-item.active {
+            background: #6366f1;
+            color: white;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        /* Content Sections */
+        .tab-content,
+        .dashboard-container,
+        #maintSection,
+        #setupSection {
+            display: none;
+        }
+
+        .tab-content.active,
+        .dashboard-container.active,
+        #maintSection.active,
+        #setupSection.active {
+            display: block;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .pulse-red {
+            animation: pulse-red 2s infinite;
+            border-radius: 50%;
+        }
+
+        @keyframes pulse-red {
+            0% { transform: scale(0.95); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(0.95); opacity: 1; }
+        }
+
+        .setup-content {
+            display: none;
+        }
+
+        .setup-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .data-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Tables & Lists */
+        .glass-table-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: 16px;
+            overflow: hidden;
+            backdrop-filter: blur(12px);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #1e293b;
+            text-align: left;
+            padding: 1rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid var(--border-card);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-card);
+            font-size: 0.85rem;
+            vertical-align: middle;
+        }
+
+        .type-badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .badge-preventiva { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .badge-corretiva { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100% !important;
+            height: 100% !important;
+            max-width: none !important;
+            max-height: none !important;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(12px);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+
+        .modal.active {
+            display: flex;
+            animation: modalFadeIn 0.3s ease-out;
+        }
+
+        .modal-content {
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            width: 95%;
+            max-width: 1350px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 2.5rem;
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+            margin: auto;
+            animation: modalSlideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes modalSlideUp {
+            from {
+                transform: translateY(30px) scale(0.95);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .form-group.full { grid-column: span 2; }
+
+        .btn-submit {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 1rem;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 2rem;
+            transition: all 0.3s;
+        }
+
+        .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(245, 158, 11, 0.4); }
+
+        .card-kpi {
+            background: var(--bg-card);
+            padding: 1.5rem;
+            border-radius: 16px;
+            border: 1px solid var(--border-card);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        /* Notifications Sidebar */
+        .notification-wrapper {
+            position: relative;
+        }
+
+        .noti-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-card);
+            color: var(--text-main);
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.3s;
+        }
+
+        .noti-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .noti-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ef4444;
+            color: white;
+            font-size: 0.65rem;
+            font-weight: 800;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid var(--bg-main);
+        }
+
+        .noti-panel {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            width: 350px;
+            background: #1e293b;
+            border: 1px solid var(--border-card);
+            border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            margin-top: 10px;
+            display: none;
+            animation: slideIn 0.3s ease-out;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .noti-panel.active {
+            display: block;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .noti-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-card);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .noti-header h3 { margin: 0; font-size: 1rem; }
+
+        .noti-list {
+            padding: 0.5rem;
+        }
+
+        .noti-item {
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
+            background: rgba(255, 255, 255, 0.02);
+            border-left: 4px solid #ef4444;
+            transition: background 0.2s;
+        }
+
+        .noti-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .noti-empty {
+            padding: 2rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* --- Estilos Responsivos (Mobile) --- */
+        @media (max-width: 768px) {
+            .ops-container { padding: 0.75rem; }
+            
+            .header-actions {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 1.5rem;
+            }
+            .header-actions h1 { font-size: 1.2rem; margin: 0; }
+            .nav-back { font-size: 0.8rem; }
+
+            .tabs-header {
+                width: 100%;
+                display: flex;
+                gap: 0.25rem;
+                padding: 0.25rem;
+                overflow: hidden; /* Sem scroll */
+            }
+            .tab-item { 
+                flex: 1; 
+                justify-content: center; 
+                padding: 0.6rem 0.25rem; 
+                font-size: 0.65rem; 
+                gap: 0.3rem;
+                white-space: nowrap;
+            }
+            .tab-item i { width: 14px !important; }
+
+            .stats-summary {
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 0.4rem !important;
+                margin-bottom: 1.5rem !important;
+            }
+            .card-kpi { padding: 0.75rem !important; gap: 0.4rem !important; }
+            .card-kpi .kpi-icon { width: 30px; height: 30px; }
+            .card-kpi .kpi-icon i { width: 16px; }
+            .card-kpi div div:last-child { font-size: 1rem !important; }
+
+            .data-header { gap: 0.5rem !important; margin-bottom: 1rem !important; }
+            .data-header h2 { font-size: 1rem !important; margin-bottom: 0.25rem !important; margin-top: -10px !important; }
+            
+            /* Nova estrutura de Grid para evitar cortes */
+            .data-header > div:last-child { 
+                display: flex !important;
+                flex-direction: column !important;
+                width: 100%;
+                gap: 0.4rem !important;
+            }
+            
+            /* Linha 1: Busca */
+            .search-box { width: 100% !important; order: 1; min-width: unset !important; }
+            .search-box input { padding: 0.6rem 1rem 0.6rem 2.5rem !important; font-size: 0.8rem; }
+
+            /* Linha 2: Placa + Ãcones rÃ¡pidos reduzidos */
+            .data-header .compact-row-mobile {
+                display: flex !important;
+                gap: 0.25rem;
+                order: 2;
+                width: 100%;
+                align-items: center;
+            }
+            #maintFilterPlaca { 
+                flex: 1 !important; 
+                min-width: 0 !important; 
+                padding: 0.6rem 0.5rem !important; 
+                font-size: 0.75rem !important;
+            }
+
+            /* Ãcones menores no mobile para nÃ£o cortar */
+            .noti-btn, .notification-wrapper .noti-btn {
+                height: 36px !important;
+                width: 36px !important;
+            }
+            .noti-btn i { width: 16px !important; }
+
+            /* Linha 3: AÃ§Ãµes de arquivo */
+            .data-header .actions-row-mobile {
+                display: flex !important;
+                gap: 0.4rem;
+                order: 3;
+                width: 100%;
+            }
+            .actions-row-mobile .btn-plus { flex: 1; justify-content: center; height: 36px !important; font-size: 0.65rem !important; }
+
+            /* BotÃ£o Nova ManutenÃ§Ã£o sempre por Ãºltimo e cheio */
+            .data-header button[onclick="openMaintModal()"] {
+                order: 4;
+                width: 100% !important;
+                height: 40px !important;
+                margin-top: 0;
+            }
+
+            /* Garantir que Ã­cones nÃ£o amassem */
+            .noti-btn, .notification-wrapper { flex-shrink: 0 !important; }
+
+            /* Transformar Tabela em Cards COMPACTOS */
+            .mobile-cards thead { display: none; }
+            .mobile-cards tbody tr {
+                display: block;
+                margin-bottom: 0.75rem; /* Margem reduzida */
+                border-radius: 12px;
+                padding: 0.75rem !important; /* Padding reduzido */
+                background: rgba(30, 41, 59, 0.5);
+            }
+            .mobile-cards td {
+                padding: 0.4rem 0 !important;
+                font-size: 0.75rem;
+            }
+            .mobile-cards td::before { font-size: 0.6rem; }
+            
+            .mobile-cards td[data-label="VeÃ­culo"] { color: var(--primary); font-size: 0.9rem !important; margin-bottom: 0.25rem; border-bottom: 2px solid rgba(255,255,255,0.05) !important;}
+            .mobile-cards td[data-label="AÃ§Ãµes"] { border-top: 1px solid rgba(255,255,255,0.05); margin-top: 0.5rem; padding-top: 0.75rem !important; }
+
+            .charts-row { grid-template-columns: 1fr !important; gap: 1rem; }
+            .card-kpi[style*="height: 350px"] { height: 280px !important; }
+
+            .modal-content { padding: 1.25rem; }
+        }
+
+        @media (max-width: 480px) {
+            .tab-item { flex-direction: column; height: auto; }
+            .tab-item i { margin-bottom: 2px; }
+        }
+    </style>
+    <script src="config.js"></script>
+</head>
+
+<body>
+    <div class="ops-container">
+        <div class="header-actions">
+            <div>
+                <a href="home.html" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                    <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
+                </a>
+                <h1 style="margin-top: 0.5rem;">GestÃ£o de ManutenÃ§Ã£o</h1>
+            </div>
+            
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <div id="connectionStatus" class="date-badge">
+                    <div class="status-indicator"></div>
+                    <span>Conectando...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="tabs-header">
+            <div class="tab-item active" onclick="switchMainTab('maint')" data-perm="manutencao_os:view">
+                <i data-lucide="wrench" style="width: 18px;"></i>
+                Ordens de ServiÃ§o
+            </div>
+            <div class="tab-item" onclick="switchMainTab('dashboard')" data-perm="manutencao_os:view">
+                <i data-lucide="pie-chart" style="width: 18px;"></i>
+                Dashboard
+            </div>
+            <div class="tab-item" onclick="switchMainTab('setup')" data-perm="manutencao_cadastros:view">
+                <i data-lucide="settings" style="width: 18px;"></i>
+                Cadastros
+            </div>
+        </div>
+
+        <div class="stats-summary" id="statsRow" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem;">
+            <!-- KPI 1: Total ServiÃ§os -->
+            <div class="card-kpi" style="padding: 1.2rem;">
+                <div class="kpi-icon" style="background: rgba(99, 102, 241, 0.1); color: #818cf8; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="wrench" style="width: 20px;"></i>
+                </div>
+                <div>
+                    <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Total de ServiÃ§os</div>
+                    <div id="totalMaintCount" style="font-size: 1.3rem; font-weight: 800; color: white;">0</div>
+                </div>
+            </div>
+
+            <!-- KPI 2: Preventiva -->
+            <div class="card-kpi" style="padding: 1.2rem;">
+                <div class="kpi-icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="check-circle" style="width: 20px;"></i>
+                </div>
+                <div>
+                    <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Taxa Preventiva</div>
+                    <div id="preventivePerc" style="font-size: 1.3rem; font-weight: 800; color: white;">0%</div>
+                </div>
+            </div>
+
+            <!-- KPI 3: Corretiva -->
+            <div class="card-kpi" style="padding: 1.2rem;">
+                <div class="kpi-icon" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="alert-circle" style="width: 20px;"></i>
+                </div>
+                <div>
+                    <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Taxa Corretiva</div>
+                    <div id="correctivePerc" style="font-size: 1.3rem; font-weight: 800; color: white;">0%</div>
+                </div>
+            </div>
+
+            <!-- KPI 4: Alertas CrÃ­ticos -->
+            <div class="card-kpi" style="padding: 1.2rem;">
+                <div class="kpi-icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="shield-alert" style="width: 20px;"></i>
+                </div>
+                <div>
+                    <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Alertas Ativos</div>
+                    <div id="activeAlertsCount" style="font-size: 1.3rem; font-weight: 800; color: white;">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="maintSection" class="active">
+            <div class="data-header">
+                <h2 style="margin: 0;">HistÃ³rico de ManutenÃ§Ãµes</h2>
+                
+                <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                    <!-- Botoes de Filtro de Status (Pills) -->
+                    <div class="status-filters-pills" style="display: inline-flex; background: rgba(30, 41, 59, 0.6); padding: 0.3rem; border-radius: 12px; gap: 0.3rem; border: 1px solid var(--border-card);">
+                        <button type="button" class="status-filter-btn active" onclick="filterByStatus('TODOS', this)" style="background: var(--primary); border: none; color: white; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">Todos</button>
+                        <button type="button" class="status-filter-btn" onclick="filterByStatus('VENCIDO', this)" style="background: transparent; border: none; color: var(--text-muted); padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">Vencido</button>
+                        <button type="button" class="status-filter-btn" onclick="filterByStatus('PENDENTE', this)" style="background: transparent; border: none; color: var(--text-muted); padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">Pendente</button>
+                        <button type="button" class="status-filter-btn" onclick="filterByStatus('PROXIMO', this)" style="background: transparent; border: none; color: var(--text-muted); padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">PrÃ³ximo</button>
+                    </div>
+                    <!-- Barra de Filtros e Busca -->
+                    <div class="search-box" style="position: relative; flex: 1; min-width: 300px;">
+                        <i data-lucide="search" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); width: 18px;"></i>
+                        <input type="text" id="maintSearch" placeholder="Pesquise por modelo, oficina..." 
+                            style="padding: 0.8rem 1rem 0.8rem 3rem; width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border-card); border-radius: 12px;"
+                            oninput="renderMaintTable()">
+                    </div>
+
+                    <!-- Linha Compacta: Placa + Ãcones -->
+                    <div class="compact-row-mobile" style="display: flex; gap: 0.5rem; align-items: center;">
+                        <select id="maintFilterPlaca" onchange="renderMaintTable()" style="padding: 0.8rem 1rem; background: #1e293b; border: 1px solid var(--border-card); border-radius: 12px; color: white; outline: none; cursor: pointer; min-width: 150px;">
+                            <option value="" style="background: #1e293b; color: white;">Todas as Placas</option>
+                        </select>
+
+                        <div class="notification-wrapper" style="display: flex; align-items: center;">
+                            <button id="notiBtn" class="noti-btn" onclick="toggleNotiPanel()" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444; width: 45px; height: 45px;">
+                                <i data-lucide="alert-triangle"></i>
+                                <span id="notiBadge" class="noti-badge" style="display: none; background: #ef4444; border-color: #1e293b;">0</span>
+                            </button>
+                            <div id="notiPanel" class="noti-panel" style="top: 55px;">
+                                <div class="noti-header">
+                                    <h3>Alertas de ManutenÃ§Ã£o</h3>
+                                    <button class="noti-close" onclick="toggleNotiPanel()" style="background:none; border:none; color:white; cursor:pointer; font-size:1.5rem;">&times;</button>
+                                </div>
+                                <div id="notiList" class="noti-list">
+                                    <div class="noti-empty">Nenhum alerta pendente.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="toggleColorBtn" class="noti-btn" onclick="toggleRowColors()" style="width: 45px; height: 45px; background: rgba(255,255,255,0.05);" title="Alternar Cores das Linhas">
+                            <i data-lucide="palette"></i>
+                        </button>
+
+                        <button class="noti-btn" style="width: 45px; height: 45px; background: rgba(255,255,255,0.05);">
+                            <i data-lucide="settings"></i>
+                        </button>
+                    </div>
+
+                    <!-- Linha de AÃ§Ãµes: Modelo + Importar -->
+                    <div class="actions-row-mobile" style="display: flex; gap: 0.5rem; align-items: center;">
+                        <button class="btn-plus" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); height: 45px; padding: 0 1.2rem;" onclick="exportMaintToExcel()">
+                            <i data-lucide="download" style="width: 18px;"></i> Modelo
+                        </button>
+
+                        <button class="btn-plus" style="background: rgba(99, 102, 241, 0.1); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.2); height: 45px; padding: 0 1.2rem;">
+                            <i data-lucide="upload" style="width: 18px;"></i> Importar
+                        </button>
+                    </div>
+
+                    <button class="btn-plus" onclick="openMaintModal()" style="height: 45px; padding: 0 1.5rem;" data-perm="manutencao_os:add">
+                        <i data-lucide="plus"></i> Nova ManutenÃ§Ã£o
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass-table-container">
+                <table id="maintTable" class="mobile-cards">
+                    <thead>
+                        <tr>
+                            <th style="width: 120px;">VeÃ­culo</th>
+                            <th style="width: 110px;">Data</th>
+                            <th>Fornecedor / Oficina</th>
+                            <th>ServiÃ§o / Itens</th>
+                            <th style="width: 110px;">KM Troca</th>
+                            <th style="width: 110px;">PrÃ³xima Troca</th>
+                            <th style="width: 110px;">KM Faltante</th>
+                            <th style="width: 100px;">Status</th>
+                            <th style="width: 100px;">Garantia</th>
+                            <th style="text-align: center; width: 100px;">AÃ§Ãµes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="maintList">
+                        <!-- JS content -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="dashboardSection" class="dashboard-container">
+            <div class="charts-row" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                <div class="card-kpi" style="height: 350px; flex-direction: column; align-items: flex-start;">
+                    <h3 style="font-size: 0.9rem; margin-bottom: 1rem;">Volume de ServiÃ§os Mensal (Ãšltimos 12 Meses)</h3>
+                    <canvas id="maintChart"></canvas>
+                </div>
+                <div class="card-kpi" style="height: 350px; flex-direction: column; align-items: flex-start;">
+                    <h3 style="font-size: 0.9rem; margin-bottom: 1rem;">DistribuiÃ§Ã£o por Tipo</h3>
+                    <canvas id="maintTypeChart"></canvas>
+                </div>
+            </div>
+
+            <div class="charts-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                <div class="card-kpi" style="height: 350px; flex-direction: column; align-items: flex-start;">
+                    <h3 style="font-size: 0.9rem; margin-bottom: 1rem;">Top 5 VeÃ­culos (Mais Atendimentos)</h3>
+                    <canvas id="topVehiclesChart"></canvas>
+                </div>
+                <div class="card-kpi" style="height: 350px; flex-direction: column; align-items: flex-start;">
+                    <h3 style="font-size: 0.9rem; margin-bottom: 1rem;">UtilizaÃ§Ã£o de Oficinas / Parceiros</h3>
+                    <canvas id="topSuppliersChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Setup Section -->
+        <div id="setupSection" class="dashboard-container">
+            <div class="tabs-header" style="margin-bottom: 2rem;">
+                <div class="tab-item active" onclick="switchSetupTab('acoes')">AÃ§Ãµes</div>
+                <div class="tab-item" onclick="switchSetupTab('tipos')">Tipos</div>
+            </div>
+
+
+            <!-- AÃ§Ãµes List -->
+            <div id="setup_acoes" class="setup-content active">
+                <div class="data-header">
+                    <h2>Gerenciar AÃ§Ãµes de ManutenÃ§Ã£o</h2>
+                    <button class="btn-plus" onclick="openAcaoModal()" data-perm="manutencao_cadastros:add">
+                        <i data-lucide="plus"></i> Nova AÃ§Ã£o
+                    </button>
+                </div>
+                <div class="glass-table-container">
+                    <table class="mobile-cards">
+                        <thead>
+                            <tr>
+                                <th style="width: 80%;">DescriÃ§Ã£o da AÃ§Ã£o</th>
+                                <th style="text-align: right; padding-right: 2rem;">AÃ§Ãµes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="setup_acoes_list"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tipos List -->
+            <div id="setup_tipos" class="setup-content">
+                <div class="data-header">
+                    <h2>Gerenciar Tipos de ManutenÃ§Ã£o</h2>
+                    <button class="btn-plus" onclick="openTipoModal()" data-perm="manutencao_cadastros:add">
+                        <i data-lucide="plus"></i> Novo Tipo
+                    </button>
+                </div>
+                <div class="glass-table-container">
+                    <table style="width: 100%;" class="mobile-cards">
+                        <thead>
+                            <tr>
+                                <th style="width: 80%;">DescriÃ§Ã£o do Tipo</th>
+                                <th style="text-align: right; padding-right: 2rem;">AÃ§Ãµes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="setup_tipos_list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div> <!-- End ops-container -->
+
+    <!-- Modal ManutenÃ§Ã£o (Move to body root) -->
+    <div id="modalMaint" class="modal">
+        <div class="modal-content" style="max-width: 1350px;">
+            <div class="modal-header">
+                <h2 id="maintModalTitle">Registrar ManutenÃ§Ã£o Detalhada</h2>
+                <button class="close-btn" onclick="closeModal('modalMaint')"><i data-lucide="x"></i></button>
+            </div>
+            <form id="maintForm">
+                <div class="form-grid">
+                    <!-- SeÃ§Ã£o: IdentificaÃ§Ã£o -->
+                    <div class="form-group full" style="margin-bottom: 0.5rem;">
+                        <label style="color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
+                            <i data-lucide="car" style="width: 16px;"></i> IdentificaÃ§Ã£o do VeÃ­culo
+                        </label>
+                        <div style="height: 1px; background: var(--border-card); width: 100%; margin-top: 5px;"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>VeÃ­culo (Placa)</label>
+                        <select id="maint_veiculo" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Tipo de ManutenÃ§Ã£o</label>
+                        <select id="maint_tipo" required>
+                            <option value="">Selecione o tipo...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Data do ServiÃ§o</label>
+                        <input type="date" id="maint_data" required oninput="calculateNextMaint()">
+                    </div>
+                    <div class="form-group">
+                        <label>Quilometragem (KM)</label>
+                        <input type="number" id="maint_km" required placeholder="Ex: 105000" oninput="calculateNextMaint()">
+                    </div>
+
+                    <!-- SeÃ§Ã£o: Oficina -->
+                    <div class="form-group full" style="margin-top: 1rem; margin-bottom: 0.5rem;">
+                        <label style="color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
+                            <i data-lucide="wrench" style="width: 16px;"></i> Oficina e LocalizaÃ§Ã£o
+                        </label>
+                        <div style="height: 1px; background: var(--border-card); width: 100%; margin-top: 5px;"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Oficina / Fornecedor</label>
+                        <select id="maint_oficina" required></select>
+                    </div>
+                    <!-- SeÃ§Ã£o: Itens da ManutenÃ§Ã£o (DINÃ‚MICO) -->
+                    <div class="form-group full" style="margin-top: 1.5rem; margin-bottom: 0.5rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label style="color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
+                                <i data-lucide="list-checks" style="width: 16px;"></i> Itens e ServiÃ§os Realizados
+                            </label>
+                            <button type="button" class="btn-plus" onclick="addMaintItem()" style="padding: 0.4rem 0.8rem; font-size: 0.7rem;">
+                                <i data-lucide="plus" style="width: 14px;"></i> ADICIONAR ITEM
+                            </button>
+                        </div>
+                        <div style="height: 1px; background: var(--border-card); width: 100%; margin-top: 5px; margin-bottom: 1rem;"></div>
+                        
+                        <div id="maint_items_container" style="display: flex; flex-direction: column; gap: 1rem;">
+                            <!-- Itens inseridos via JS -->
+                        </div>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                    <button type="button" class="btn-submit"
+                        style="background: rgba(255,255,255,0.05); color: white;"
+                        onclick="closeModal('modalMaint')">CANCELAR</button>
+                    <button type="submit" class="btn-submit">FINALIZAR ORDEM DE SERVIÃ‡O</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Setup Modals -->
+    <div id="modalFornecedor" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 id="fornecedorModalTitle">Cadastrar Fornecedor</h2>
+                <button class="close-btn" onclick="closeModal('modalFornecedor')"><i data-lucide="x"></i></button>
+            </div>
+            <form id="fornecedorForm">
+                <input type="hidden" id="fornecedor_id">
+                <div class="form-group">
+                    <label>Nome do Estabelecimento</label>
+                    <input type="text" id="fornecedor_nome" required>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                    <div class="form-group">
+                        <label>Cidade</label>
+                        <input type="text" id="fornecedor_cidade">
+                    </div>
+                    <div class="form-group">
+                        <label>Estado (UF)</label>
+                        <input type="text" id="fornecedor_estado" maxlength="2">
+                    </div>
+                </div>
+                <button type="submit" class="btn-submit">SALVAR FORNECEDOR</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modalAcao" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2 id="acaoModalTitle">Cadastrar AÃ§Ã£o</h2>
+                <button class="close-btn" onclick="closeModal('modalAcao')"><i data-lucide="x"></i></button>
+            </div>
+            <form id="acaoForm">
+                <input type="hidden" id="acao_id">
+                <div class="form-group">
+                    <label>DescriÃ§Ã£o da AÃ§Ã£o</label>
+                    <input type="text" id="acao_desc" required placeholder="Ex: LIMPEZA, REVISÃƒO">
+                </div>
+                <button type="submit" class="btn-submit">SALVAR AÃ‡ÃƒO</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modalTipo" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2 id="tipoModalTitle">Cadastrar Tipo</h2>
+                <button class="close-btn" onclick="closeModal('modalTipo')"><i data-lucide="x"></i></button>
+            </div>
+            <form id="tipoForm">
+                <input type="hidden" id="tipo_id">
+                <div class="form-group">
+                    <label>DescriÃ§Ã£o do Tipo</label>
+                    <input type="text" id="tipo_desc" required placeholder="Ex: PREVENTIVA, CORRETIVA">
+                </div>
+                <button type="submit" class="btn-submit">SALVAR TIPO</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal AutorizaÃ§Ã£o Antecipada -->
+    <div id="modalAuth" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 id="authModalTitle">AutorizaÃ§Ã£o Antecipada</h2>
+                <button class="close-btn" onclick="closeModal('modalAuth')"><i data-lucide="x"></i></button>
+            </div>
+            <div id="authModalBody" style="margin-bottom: 1.5rem; background: rgba(239, 68, 68, 0.05); padding: 1rem; border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.1);">
+                <!-- Mensagem dinÃ¢mica -->
+            </div>
+            <form id="authForm">
+                <input type="hidden" id="auth_maint_id">
+                <div class="form-group">
+                    <label>Motivo da AntecipaÃ§Ã£o</label>
+                    <textarea id="auth_motivo" required placeholder="Descreva o motivo da realizaÃ§Ã£o antecipada..." 
+                        style="width: 100%; padding: 1rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border-card); border-radius: 8px; color: white; min-height: 100px; font-family: inherit; resize: none;"></textarea>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="button" class="btn-submit" style="background: rgba(255,255,255,0.05); color: white;" onclick="closeModal('modalAuth')">CANCELAR</button>
+                    <button type="submit" class="btn-submit">AUTORIZAR E FINALIZAR</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">
+        <i data-lucide="info"></i>
+        <span id="toastMsg"></span>
+    </div>
+
+    <script src="manutencao.js"></script>
+    <script src="orb_menu.js"></script>
+    <script>
+        // FunÃ§Ãµes de UI bÃ¡sicas movidas para manutencao.js
+        lucide.createIcons();
+    </script>
+</body>
+</html>
+
+
+

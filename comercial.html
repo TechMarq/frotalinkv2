@@ -1,0 +1,971 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comercial | GestÃ£o de Contratos | FrotaLink</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="orb_menu.css">
+    <link rel="icon" type="image/png" href="https://img.icons8.com/color/48/truck.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script defer src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --secondary: #1e293b;
+            --bg-dark: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --border-color: rgba(255, 255, 255, 0.1);
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+        }
+
+        .comercial-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Tabs System â€” padronizado com global style.css */
+        .tabs-header {
+            display: inline-flex;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 0.5rem;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .tab-item {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+
+        .tab-item i {
+            width: 18px;
+            height: 18px;
+        }
+
+        .tab-item:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-item.active {
+            background: #6366f1;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        /* KPI Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .kpi-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 1.5rem;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 1.2rem;
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .kpi-icon-wrapper {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary);
+        }
+
+        .kpi-info .label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.3rem;
+        }
+
+        .kpi-info .value {
+            font-size: 1.7rem;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        /* Sections */
+        .view-section {
+            display: none;
+            animation: fadeIn 0.4s ease forwards;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Filters & Table container */
+        .content-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .btn-new {
+            background: var(--primary);
+            color: #fff;
+            padding: 0.8rem 1.8rem;
+            border-radius: 14px;
+            font-weight: 800;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            transition: all 0.2s;
+        }
+
+        .btn-new:hover {
+            background: var(--primary-hover);
+            transform: scale(1.02);
+        }
+
+        .quick-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.2rem;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1.2rem;
+            border-radius: 18px;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .filter-group label {
+            font-size: 0.65rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            padding-left: 0.4rem;
+        }
+
+        .filter-select {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 0.6rem 1rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            outline: none;
+            transition: border-color 0.2s;
+            min-width: 180px;
+        }
+
+        .filter-select:focus {
+            border-color: var(--primary);
+        }
+
+        /* Table */
+        .table-container {
+            max-height: 700px;
+            overflow-y: auto;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            background: #1e293b;
+            z-index: 10;
+        }
+
+        th {
+            text-align: left;
+            padding: 1.2rem 1rem;
+            color: var(--text-muted);
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .action-btn-mini {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border-color);
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn-mini:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        /* Modals */
+        .custom-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(2, 6, 23, 0.8);
+            backdrop-filter: blur(12px);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .custom-modal-overlay.active {
+            display: flex;
+        }
+
+        .custom-modal-content {
+            background: #1e293b;
+            width: 90%;
+            max-width: 900px;
+            max-height: 90vh;
+            border-radius: 28px;
+            position: relative;
+            border: 1px solid var(--border-color);
+            overflow-y: auto;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        @media (max-width: 768px) {
+            .form-grid {
+                grid-template-columns: 1fr !important;
+                padding: 1rem !important;
+            }
+            .custom-modal-content {
+                width: 95% !important;
+                max-height: 95vh !important;
+                border-radius: 16px !important;
+            }
+            #contratoForm div[style*="display: grid"] {
+                grid-template-columns: 1fr !important;
+            }
+            #contratoForm div[style*="grid-template-columns: 1fr auto"] {
+                grid-template-columns: 1fr !important;
+            }
+            #contratoForm button[style*="margin-top: 1.4rem"] {
+                margin-top: 0 !important;
+                width: 100%;
+            }
+            #clientForm div[style*="display: grid"] {
+                grid-template-columns: 1fr !important;
+            }
+            #clientForm div[style*="grid-column: span 2"] {
+                grid-column: span 1 !important;
+            }
+        }
+
+        .modal-header {
+            padding: 2rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .form-grid {
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+        }
+
+        .com-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .com-group label {
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .com-input {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 0.8rem 1.2rem;
+            border-radius: 14px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .com-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        /* Client specific styling */
+        .client-search-wrapper {
+            position: relative;
+        }
+
+        #clientSearchResults {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            margin-top: 5px;
+            z-index: 100;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .client-option {
+            padding: 0.8rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .client-option:hover {
+            background: var(--primary);
+        }
+
+        /* Generic Admin Modal */
+        .generic-modal {
+            max-width: 400px !important;
+        }
+
+        /* Sub-tabs */
+        .sub-tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1rem;
+        }
+
+        .sub-tab-item {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 0.6rem 1.2rem;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .sub-tab-item:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .sub-tab-item.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+
+        .sub-view {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .sub-view.active {
+            display: block;
+        }
+
+        @keyframes pulse-alert {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+            50% { opacity: 0.8; box-shadow: 0 0 0 4px rgba(239,68,68,0); }
+        }
+
+        /* ===== COLUMN ORGANIZER ===== */
+        .col-organizer-bar {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            margin-bottom: 1rem;
+            gap: 0.8rem;
+        }
+
+        .btn-col-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(99,102,241,0.12);
+            border: 1px solid rgba(99,102,241,0.4);
+            color: var(--primary);
+            padding: 0.55rem 1.1rem;
+            border-radius: 10px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-col-toggle:hover {
+            background: rgba(99,102,241,0.25);
+        }
+
+        .col-organizer-panel {
+            display: none;
+            background: rgba(15,23,42,0.97);
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            padding: 1.2rem 1.4rem 1rem;
+            margin-bottom: 1.2rem;
+            backdrop-filter: blur(14px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+
+        .col-organizer-panel.open {
+            display: block;
+            animation: fadeIn 0.25s ease;
+        }
+
+        .col-organizer-hint {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-bottom: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .col-organizer-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .col-chip {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.12);
+            padding: 0.45rem 0.85rem;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-main);
+            cursor: grab;
+            transition: all 0.2s;
+            user-select: none;
+        }
+
+        .col-chip:active { cursor: grabbing; }
+
+        .col-chip.dragging {
+            opacity: 0.4;
+            transform: scale(0.95);
+        }
+
+        .col-chip.drag-over {
+            border-color: var(--primary);
+            background: rgba(99,102,241,0.2);
+        }
+
+        .col-chip.hidden-col {
+            opacity: 0.45;
+            border-style: dashed;
+        }
+
+        .col-chip.pinned-col {
+            background: rgba(99,102,241,0.15);
+            border-color: rgba(99,102,241,0.5);
+            color: var(--primary);
+            cursor: default;
+        }
+
+        .col-chip-drag {
+            color: var(--text-muted);
+            cursor: grab;
+        }
+
+        .col-chip-eye {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            color: var(--text-muted);
+            transition: color 0.15s;
+        }
+
+        .col-chip-eye:hover { color: var(--primary); }
+
+        .col-chip-eye.eye-off { color: rgba(255,255,255,0.2); }
+
+        .col-organizer-footer {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 0.9rem;
+        }
+
+        .btn-reset-cols {
+            background: none;
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-muted);
+            padding: 0.4rem 0.9rem;
+            border-radius: 8px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-reset-cols:hover {
+            color: #fff;
+            border-color: rgba(255,255,255,0.3);
+        }
+
+        @media (max-width: 768px) {
+            .col-organizer-chips { gap: 0.4rem; }
+            .col-chip { font-size: 0.7rem; padding: 0.4rem 0.7rem; }
+        }
+    </style>
+    <script src="config.js"></script>
+</head>
+<body>
+    <div id="orb-menu-container"></div>
+
+    <div class="comercial-container">
+        <header style="margin-bottom: 2rem;">
+            <a href="home.html" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
+            </a>
+            <h1 style="font-size: 2.2rem; font-weight: 900; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">Comercial</h1>
+            <p style="color: var(--text-muted); font-size: 0.9rem; font-weight: 500; margin-top: 0.5rem;">GestÃ£o estratÃ©gica de contratos de clientes</p>
+        </header>
+
+        <nav class="tabs-header">
+            <button class="tab-item active" onclick="switchTab('dashboard')">
+                <i data-lucide="layout-dashboard"></i> Dashboard
+            </button>
+            <button class="tab-item" onclick="switchTab('contratos')">
+                <i data-lucide="file-text"></i> Contratos
+                <span id="contratosTabBadge" style="display:none;align-items:center;justify-content:center;background:#ef4444;color:#fff;font-size:0.6rem;font-weight:900;border-radius:50%;min-width:18px;height:18px;padding:0 4px;margin-left:6px;line-height:1;"></span>
+            </button>
+            <button class="tab-item" onclick="switchTab('admin')">
+                <i data-lucide="database"></i> Cadastro
+            </button>
+        </nav>
+
+        <!-- VIEW: DASHBOARD -->
+        <section id="view-dashboard" class="view-section active">
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-icon-wrapper"><i data-lucide="file-text"></i></div>
+                    <div class="kpi-info">
+                        <span class="label">Total Contratos</span>
+                        <div id="dash_total_contratos" class="value">0</div>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon-wrapper" style="background: rgba(16, 185, 129, 0.1); color: #10b981;"><i data-lucide="check-circle"></i></div>
+                    <div class="kpi-info">
+                        <span class="label">Contratos Ativos</span>
+                        <div id="dash_ativos" class="value">0</div>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon-wrapper" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;"><i data-lucide="clock"></i></div>
+                    <div class="kpi-info">
+                        <span class="label">Vencendo (30 dias)</span>
+                        <div id="dash_vencendo" class="value">0</div>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon-wrapper" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;"><i data-lucide="alert-triangle"></i></div>
+                    <div class="kpi-info">
+                        <span class="label">Vencidos</span>
+                        <div id="dash_vencidos" class="value">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;">
+                <div class="content-card">
+                    <h3 style="margin-bottom: 2rem; display: flex; align-items: center; gap: 0.8rem;"><i data-lucide="trending-up" style="color: var(--primary);"></i> Contratos por VigÃªncia</h3>
+                    <div style="height: 400px;"><canvas id="chartVigencia"></canvas></div>
+                </div>
+                <div class="content-card">
+                    <h3 style="margin-bottom: 2rem; display: flex; align-items: center; gap: 0.8rem;"><i data-lucide="pie-chart" style="color: var(--primary);"></i> Mix de Demanda</h3>
+                    <div style="height: 400px;"><canvas id="chartDemanda"></canvas></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW: CONTRATOS -->
+        <section id="view-contratos" class="view-section">
+            <div class="content-card">
+                <div class="header-actions">
+                    <div class="search-box" style="position: relative; width: 400px;">
+                        <input type="text" id="contratoSearch" class="com-input" placeholder="Buscar por cliente, CNPJ ou descriÃ§Ã£o..." style="width: 100%; padding-left: 3rem;">
+                        <i data-lucide="search" style="position: absolute; left: 1.2rem; top: 50%; transform: translateY(-50%); width: 18px; color: var(--text-muted);"></i>
+                    </div>
+                    <button class="btn-new" onclick="openContratoModal()">
+                        <i data-lucide="plus"></i> NOVO CONTRATO
+                    </button>
+                </div>
+
+                <div class="quick-filters">
+                    <div style="display:flex; align-items:center; gap:0.5rem; color:var(--primary); font-weight:800; font-size:0.75rem; text-transform:uppercase; margin-right:1rem; border-right:1px solid rgba(255,255,255,0.1); padding-right:1.5rem;">
+                        <i data-lucide="filter" style="width:14px;"></i> Filtros RÃ¡pidos
+                    </div>
+                    <div class="filter-group">
+                        <label>Status</label>
+                        <select id="filterStatus" class="filter-select" onchange="renderContratos()"></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Demanda</label>
+                        <select id="filterDemanda" class="filter-select" onchange="renderContratos()"></select>
+                    </div>
+                </div>
+
+                <!-- Banner de Alertas de Vencimento -->
+                <div id="alertBanner" style="display:none;margin-bottom:1.2rem;"></div>
+
+                <!-- Organizador de Colunas -->
+                <div class="col-organizer-bar">
+                    <button class="btn-col-toggle" id="btnToggleCols" onclick="toggleColOrganizer()">
+                        <i data-lucide="columns" style="width:15px;"></i> Colunas
+                    </button>
+                    <button class="btn-col-toggle" id="btnExportExcel" onclick="exportExcel()" style="background:rgba(16,185,129,0.12);border-color:rgba(16,185,129,0.4);color:#10b981;">
+                        <i data-lucide="file-spreadsheet" style="width:15px;"></i> Excel
+                    </button>
+                    <button class="btn-col-toggle" id="btnExportPdf" onclick="exportPdf()" style="background:rgba(239,68,68,0.12);border-color:rgba(239,68,68,0.4);color:#ef4444;">
+                        <i data-lucide="file-text" style="width:15px;"></i> PDF
+                    </button>
+                </div>
+
+                <div class="col-organizer-panel" id="colOrganizerPanel">
+                    <div class="col-organizer-hint">
+                        <i data-lucide="grip-vertical" style="width:13px;"></i>
+                        Arraste para reordenar &bull; Clique no olho para mostrar/ocultar
+                    </div>
+                    <div class="col-organizer-chips" id="colChipsContainer"></div>
+                    <div class="col-organizer-footer">
+                        <button class="btn-reset-cols" onclick="resetColConfig()">Redefinir padrÃ£o</button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr id="contractsHeader"></tr>
+                        </thead>
+                        <tbody id="contractsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW: ADMIN / CADASTRO -->
+        <section id="view-admin" class="view-section">
+            <div class="content-card">
+                <!-- SUB-TABS -->
+                <nav class="sub-tabs">
+                    <button class="sub-tab-item active" onclick="switchSubTab('tabelas')">
+                        <i data-lucide="list" style="width:16px;"></i> Tabelas de PreÃ§o
+                    </button>
+                    <button class="sub-tab-item" onclick="switchSubTab('demandas')">
+                        <i data-lucide="activity" style="width:16px;"></i> Tipos de Demanda
+                    </button>
+                    <button class="sub-tab-item" onclick="switchSubTab('status')">
+                        <i data-lucide="tag" style="width:16px;"></i> Status de Contrato
+                    </button>
+                </nav>
+
+                <!-- SUB-VIEW: TABELAS -->
+                <div id="subview-tabelas" class="sub-view active">
+                    <div class="header-actions">
+                        <h4 style="text-transform: uppercase; font-size: 0.8rem; color: var(--text-muted);">Tabelas de PreÃ§o</h4>
+                        <button class="btn-new" onclick="openAdminModal('tabelas_preco')" style="padding: 0.6rem 1.2rem; font-size: 0.75rem;">
+                            <i data-lucide="plus"></i> NOVA TABELA
+                        </button>
+                    </div>
+                    <div id="list_tabelas_preco" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;"></div>
+                </div>
+
+                <!-- SUB-VIEW: DEMANDAS -->
+                <div id="subview-demandas" class="sub-view">
+                    <div class="header-actions">
+                        <h4 style="text-transform: uppercase; font-size: 0.8rem; color: var(--text-muted);">Tipos de Demanda</h4>
+                        <button class="btn-new" onclick="openAdminModal('tipos_demanda')" style="padding: 0.6rem 1.2rem; font-size: 0.75rem;">
+                            <i data-lucide="plus"></i> NOVA DEMANDA
+                        </button>
+                    </div>
+                    <div id="list_tipos_demanda" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;"></div>
+                </div>
+
+                <!-- SUB-VIEW: STATUS -->
+                <div id="subview-status" class="sub-view">
+                    <div class="header-actions">
+                        <h4 style="text-transform: uppercase; font-size: 0.8rem; color: var(--text-muted);">Status de Contrato</h4>
+                        <button class="btn-new" onclick="openAdminModal('status')" style="padding: 0.6rem 1.2rem; font-size: 0.75rem;">
+                            <i data-lucide="plus"></i> NOVO STATUS
+                        </button>
+                    </div>
+                    <div id="list_status" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;"></div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- MODAL: NOVO CONTRATO (Premium Layout) -->
+    <div id="contratoModal" class="custom-modal-overlay">
+        <div class="custom-modal-content" style="max-width: 960px; display: flex; flex-direction: column; max-height: 92vh;">
+            <!-- Header -->
+            <div class="modal-header" style="background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.05)); flex-shrink: 0;">
+                <div>
+                    <h2 id="modalTitle" style="font-size: 1.6rem; font-weight: 900; color: #fff;">Novo Contrato</h2>
+                    <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.3rem;">Configure os dados do cliente e as condiÃ§Ãµes contratuais.</p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span id="contratoCodeBadge" style="display: none; background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.4); color: var(--primary); padding: 0.4rem 0.9rem; border-radius: 8px; font-size: 0.75rem; font-weight: 800; font-family: 'JetBrains Mono', monospace;"></span>
+                    <button onclick="closeContratoModal()" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-muted); cursor: pointer; border-radius: 10px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;"><i data-lucide="x" style="width:16px;"></i></button>
+                </div>
+            </div>
+
+            <!-- Body (scrollable) -->
+            <form id="contratoForm" style="flex: 1; overflow-y: auto; padding: 2rem; display: flex; flex-direction: column; gap: 2rem;">
+                <input type="hidden" id="editId">
+
+                <!-- Section 1: Cliente -->
+                <div>
+                    <div style="display: flex; align-items: center; gap: 0.7rem; margin-bottom: 1.5rem; padding-bottom: 0.8rem; border-bottom: 1px solid var(--border-color);">
+                        <i data-lucide="user" style="width: 16px; color: var(--primary);"></i>
+                        <span style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px;">IdentificaÃ§Ã£o do Cliente</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="com-group">
+                            <label>Nome / RazÃ£o Social do Cliente</label>
+                            <input type="text" id="cliente_nome" class="com-input" required placeholder="Ex: Transportadora LogÃ­stica LTDA">
+                        </div>
+                        <div class="com-group">
+                            <label>CNPJ / CPF</label>
+                            <input type="text" id="cliente_cnpj_cpf" class="com-input" placeholder="Ex: 00.000.000/0000-00 ou 000.000.000-00" maxlength="18">
+                        </div>
+                        <div class="com-group">
+                            <label>Email do Cliente</label>
+                            <input type="email" id="cliente_email" class="com-input" placeholder="Ex: comercial@empresa.com">
+                        </div>
+                        <div class="com-group">
+                            <label>Telefone / Celular</label>
+                            <input type="text" id="cliente_telefone" class="com-input" placeholder="Ex: (11) 9 9999-9999" maxlength="16">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Dados do Contrato -->
+                <div>
+                    <div style="display: flex; align-items: center; gap: 0.7rem; margin-bottom: 1.5rem; padding-bottom: 0.8rem; border-bottom: 1px solid var(--border-color);">
+                        <i data-lucide="file-text" style="width: 16px; color: var(--primary);"></i>
+                        <span style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px;">Dados do Contrato</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="com-group" style="grid-column: span 2;">
+                            <label>DescriÃ§Ã£o do Contrato</label>
+                            <input type="text" id="descricao_contrato" class="com-input" placeholder="Ex: Contrato de PrestaÃ§Ã£o de ServiÃ§os LogÃ­sticos">
+                        </div>
+                        <div class="com-group">
+                            <label>VersÃ£o do Contrato</label>
+                            <input type="text" id="versao_contrato" class="com-input" placeholder="Ex: v1.0">
+                        </div>
+                        <div class="com-group">
+                            <label>ReferÃªncia</label>
+                            <input type="text" id="referencia" class="com-input" placeholder="Ex: REF-2024-001">
+                        </div>
+                        <div class="com-group">
+                            <label>VigÃªncia</label>
+                            <input type="text" id="vigencia" class="com-input" placeholder="Ex: 2026/2027">
+                        </div>
+                        <div class="com-group">
+                            <label>Tipo de Demanda</label>
+                            <select id="tipo_demanda_id" class="com-input"></select>
+                        </div>
+                        <div class="com-group">
+                            <label>Data Assinatura</label>
+                            <input type="date" id="data_assinatura" class="com-input" onchange="calculateExpiration()">
+                        </div>
+                        <div class="com-group">
+                            <label>Prazo (Meses)</label>
+                            <input type="number" id="prazo_meses" class="com-input" placeholder="Ex: 12" onchange="calculateExpiration()" oninput="calculateExpiration()">
+                        </div>
+                        <div class="com-group">
+                            <label>Vencimento (Calculado)</label>
+                            <input type="date" id="data_vencimento" class="com-input" readonly style="background: rgba(0,0,0,0.15); color: var(--text-muted);">
+                        </div>
+                        <div class="com-group">
+                            <label>Tabela de PreÃ§o</label>
+                            <select id="tabela_preco_id" class="com-input"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: ResponsÃ¡vel & Status -->
+                <div>
+                    <div style="display: flex; align-items: center; gap: 0.7rem; margin-bottom: 1.5rem; padding-bottom: 0.8rem; border-bottom: 1px solid var(--border-color);">
+                        <i data-lucide="shield-check" style="width: 16px; color: var(--primary);"></i>
+                        <span style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px;">ResponsÃ¡vel & Status</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                        <div class="com-group">
+                            <label>Nome ResponsÃ¡vel</label>
+                            <input type="text" id="nome_responsavel" class="com-input" placeholder="Ex: JoÃ£o Silva">
+                        </div>
+                        <div class="com-group">
+                            <label>Contato ResponsÃ¡vel</label>
+                            <input type="text" id="contato_responsavel" class="com-input" placeholder="Ex: (11) 9 9999-9999" maxlength="16">
+                        </div>
+                        <div class="com-group">
+                            <label>Status do Contrato</label>
+                            <select id="status_id" class="com-input"></select>
+                        </div>
+                        <div class="com-group" style="grid-column: span 3;">
+                            <label>ObservaÃ§Ãµes</label>
+                            <textarea id="observacao" class="com-input" style="height: 70px; resize: none;" placeholder="AnotaÃ§Ãµes, condiÃ§Ãµes especiais..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Footer fixo -->
+            <div style="flex-shrink: 0; padding: 1.5rem 2rem; border-top: 1px solid var(--border-color); background: rgba(15,23,42,0.4); display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-size: 0.75rem; color: var(--text-muted);">
+                    <i data-lucide="info" style="width: 13px; display: inline;"></i>
+                    Preencha os campos obrigatÃ³rios antes de salvar.
+                </div>
+                <div style="display: flex; gap: 1rem;">
+                    <button type="button" onclick="closeContratoModal()" style="background: none; border: 1px solid var(--border-color); color: var(--text-muted); padding: 0.8rem 1.5rem; border-radius: 14px; font-weight: 700; cursor: pointer; font-size: 0.85rem;">Cancelar</button>
+                    <button type="button" onclick="document.getElementById('contratoForm').requestSubmit()" id="btnSaveContrato" class="btn-new" style="font-size: 0.9rem; padding: 0.9rem 2rem;">
+                        <i data-lucide="save" style="width: 16px;"></i> SALVAR CONTRATO
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- MODAL GENERICO (Admin) -->
+    <div id="adminModal" class="custom-modal-overlay">
+        <div class="custom-modal-content generic-modal">
+            <div class="modal-header">
+                <h3 id="adminModalTitle" style="font-weight: 900;">Cadastrar Item</h3>
+                <button onclick="closeAdminModal()" style="background: none; border: none; color: var(--text-muted); cursor: pointer;"><i data-lucide="x"></i></button>
+            </div>
+            <form id="adminForm" style="padding: 2rem;">
+                <input type="hidden" id="adminTable">
+                <div class="com-group">
+                    <label>Nome / DescriÃ§Ã£o</label>
+                    <input type="text" id="adminValue" class="com-input" required style="width: 100%;">
+                </div>
+                <div style="margin-top: 2rem; display: flex; justify-content: flex-end; gap: 1rem;">
+                    <button type="button" onclick="closeAdminModal()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-weight: 700;">CANCELAR</button>
+                    <button type="submit" class="btn-new">SALVAR</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <script src="orb_menu.js"></script>
+    <script src="comercial.js"></script>
+</body>
+</html>
+
+

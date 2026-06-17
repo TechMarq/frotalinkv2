@@ -1,0 +1,580 @@
+﻿<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fechamento de PerÃ­odo | FrotaLink</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="orb_menu.css">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-light: #818cf8;
+            --primary-dark: #4f46e5;
+            --accent: #f59e0b;
+            --bg-main: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.5);
+            --bg-hover: rgba(255, 255, 255, 0.05);
+            --border-card: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --radius: 16px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body {
+            background: var(--bg-main);
+            color: var(--text-main);
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
+                radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 1) 0, transparent 50%),
+                radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 1) 0, transparent 50%);
+            background-attachment: fixed;
+            padding-bottom: 2rem;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+
+        header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;
+        }
+        .header-title h1 {
+            font-size: 1.8rem; font-weight: 900; letter-spacing: -0.025em;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text; 
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header-title p { color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem; }
+
+        /* Filters Bar */
+        .filter-bar {
+            background: var(--bg-card); border: 1px solid var(--border-card);
+            border-radius: var(--radius); padding: 1.2rem; margin-bottom: 1.5rem;
+            backdrop-filter: blur(12px); display: flex; gap: 1.2rem; align-items: flex-end;
+            flex-wrap: wrap; position: relative; z-index: 50;
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; min-width: 180px; }
+        .filter-group label { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+        .filter-group select, .filter-group input {
+            background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-card);
+            border-radius: 10px; color: white; padding: 0.7rem 1rem; font-size: 0.9rem;
+            outline: none; transition: all 0.3s ease;
+        }
+        .filter-group select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2); }
+
+        .btn-generate {
+            background: var(--primary); color: white; border: none; border-radius: 10px;
+            padding: 0.8rem 1.5rem; font-weight: 700; cursor: pointer; transition: all 0.3s ease;
+            display: flex; align-items: center; gap: 0.6rem; height: 44px;
+        }
+        .btn-generate:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
+
+        .btn-pdf {
+            background: var(--danger); color: white; border: none; border-radius: 10px;
+            padding: 0.8rem 1.5rem; font-weight: 700; cursor: pointer; transition: all 0.3s ease;
+            display: flex; align-items: center; gap: 0.6rem; height: 44px;
+        }
+        .btn-pdf:hover { background: #dc2626; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); }
+
+        /* Custom Multiselect */
+        .multiselect-container { position: relative; width: 100%; }
+        .multiselect-trigger {
+            background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-card);
+            border-radius: 10px; color: white; padding: 0.7rem 1rem; font-size: 0.9rem;
+            cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+            min-height: 44px; transition: all 0.3s;
+        }
+        .multiselect-trigger:hover { border-color: var(--primary); }
+        .multiselect-trigger.active { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2); }
+        
+        .multiselect-dropdown {
+            position: absolute; top: calc(100% + 5px); left: 0; width: 100%;
+            background: #1e293b; border: 1px solid var(--border-card);
+            border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            display: none; flex-direction: column; z-index: 1000;
+            max-height: 300px; overflow-y: auto; padding: 0.5rem;
+        }
+        .multiselect-dropdown.show { display: flex; }
+        
+        .multiselect-option {
+            padding: 0.7rem 1rem; border-radius: 8px; display: flex; align-items: center;
+            gap: 0.8rem; cursor: pointer; transition: background 0.2s;
+            font-size: 0.85rem; color: var(--text-main);
+        }
+        .multiselect-option:hover { background: rgba(255, 255, 255, 0.05); }
+        .multiselect-option input { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+        .multiselect-option label { cursor: pointer; flex: 1; margin: 0; }
+        
+        .multiselect-badge {
+            background: var(--primary); color: white; padding: 0.1rem 0.5rem;
+            border-radius: 4px; font-size: 0.7rem; font-weight: 800;
+        }
+
+        /* KPI Cards */
+        .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+        .kpi-card {
+            background: var(--bg-card); border: 1px solid var(--border-card); border-radius: var(--radius);
+            padding: 1.5rem; backdrop-filter: blur(8px); position: relative; overflow: hidden;
+        }
+        .kpi-card::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+            background: var(--primary); opacity: 0.7;
+        }
+        .kpi-card.fuel::before { background: var(--success); }
+        .kpi-card.maint::before { background: var(--accent); }
+        .kpi-card.estoque::before { background: var(--primary-light); }
+        .kpi-card.total::before { background: #fff; }
+
+        .kpi-label { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem; display: block; }
+        .kpi-value { font-size: 1.8rem; font-weight: 900; color: #fff; display: block; }
+        .kpi-sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem; display: block; }
+
+        /* Main Content Layout */
+        .main-grid { display: grid; grid-template-columns: 400px 1fr; gap: 1.5rem; }
+
+        .summary-panel {
+            background: var(--bg-card); border: 1px solid var(--border-card);
+            border-radius: var(--radius); padding: 1.5rem; backdrop-filter: blur(12px);
+            display: flex; flex-direction: column; gap: 1rem;
+        }
+
+        .summary-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+        .summary-header h2 { font-size: 1.1rem; font-weight: 800; color: #fff; }
+
+        .owner-group {
+            background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-card);
+            border-radius: 12px; overflow: hidden; margin-bottom: 0.8rem;
+        }
+        .owner-header {
+            padding: 1rem; background: rgba(255, 255, 255, 0.03); cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center;
+            transition: background 0.3s;
+        }
+        .owner-header:hover { background: rgba(255, 255, 255, 0.06); }
+        .owner-info { display: flex; flex-direction: column; }
+        .owner-name { font-weight: 800; font-size: 0.95rem; color: #fff; text-transform: uppercase; }
+        .owner-total { font-weight: 800; color: var(--primary-light); font-size: 1rem; }
+
+        .plate-list { padding: 0.5rem; display: flex; flex-direction: column; gap: 0.4rem; }
+        .plate-item {
+            padding: 0.8rem; border-radius: 8px; border: 1px solid transparent;
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .plate-item:hover { background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.2); }
+        .plate-item.active { background: rgba(99, 102, 241, 0.15); border-color: var(--primary); }
+        .plate-label { font-weight: 700; font-size: 0.85rem; color: #fff; }
+        .plate-value { font-weight: 700; color: var(--text-muted); font-size: 0.85rem; }
+
+        /* Detail Area */
+        .detail-panel {
+            background: var(--bg-card); border: 1px solid var(--border-card);
+            border-radius: var(--radius); padding: 1.5rem; backdrop-filter: blur(12px);
+            min-height: 600px;
+        }
+        .empty-state {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100%; color: var(--text-muted); gap: 1rem; padding: 4rem 0;
+        }
+
+        .detail-header {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            margin-bottom: 2rem; border-bottom: 1px solid var(--border-card);
+            padding-bottom: 1.5rem;
+        }
+        .detail-title h3 { font-size: 1.5rem; font-weight: 900; margin-bottom: 0.2rem; }
+        .detail-title p { color: var(--text-muted); font-size: 0.85rem; }
+
+        .section-block { margin-bottom: 2.5rem; }
+        .section-block h4 {
+            font-size: 0.75rem; font-weight: 800; color: var(--primary-light);
+            text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 1rem;
+            display: flex; align-items: center; gap: 0.6rem;
+        }
+        .section-block h4::after { content: ''; flex: 1; height: 1px; background: rgba(99, 102, 241, 0.25); }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 0.8rem; font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; border-bottom: 2px solid var(--border-card); }
+        td { padding: 1rem 0.8rem; font-size: 0.85rem; border-bottom: 1px solid var(--border-card); vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        .val-col { font-weight: 700; text-align: right; }
+        .total-row { background: rgba(255, 255, 255, 0.03); font-weight: 800; }
+
+        .status-pill { padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; }
+        .pill-fuel { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
+        .pill-maint { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); }
+
+        .loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(5px);
+            display: none; align-items: center; justify-content: center; z-index: 1000;
+            flex-direction: column; gap: 1rem;
+        }
+        .spinner { width: 40px; height: 40px; border: 4px solid var(--primary); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Navigation Sidebar (Home link) */
+        .nav-link {
+            position: fixed; top: 1.5rem; left: 1.5rem; display: flex; align-items: center; gap: 0.5rem;
+            color: var(--text-muted); text-decoration: none; font-weight: 700; font-size: 0.85rem;
+            transition: color 0.3s; z-index: 100;
+        }
+        .nav-link:hover { color: #fff; }
+
+        @media (max-width: 1024px) {
+            .main-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Modal de ExportaÃ§Ã£o Estilo Glassmorphism Premium */
+        .modal-export {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(12px);
+            display: flex; align-items: center; justify-content: center; z-index: 1000;
+            animation: fadeIn 0.3s ease;
+        }
+        .modal-export-content {
+            background: rgba(30, 41, 59, 0.85); border: 1px solid var(--border-card);
+            border-radius: var(--radius); padding: 2rem; max-width: 480px; width: 90%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5); text-align: center;
+        }
+        .modal-export-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;
+        }
+        .modal-export-header h2 { font-size: 1.25rem; font-weight: 800; color: #fff; }
+        .modal-export-close {
+            background: none; border: none; color: var(--text-muted); font-size: 1.8rem;
+            cursor: pointer; transition: color 0.2s;
+        }
+        .modal-export-close:hover { color: #fff; }
+        .modal-export-content p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem; }
+        .modal-export-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        
+        .btn-export-opt {
+            border: 1px solid var(--border-card); border-radius: 12px; padding: 1.5rem 1rem;
+            cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.8rem;
+            font-weight: 700; font-size: 0.9rem; transition: all 0.3s ease;
+        }
+        .btn-export-opt.pdf {
+            background: rgba(239, 68, 68, 0.1); color: #f87171; border-color: rgba(239, 68, 68, 0.2);
+        }
+        .btn-export-opt.pdf:hover {
+            background: var(--danger); color: white; transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+        }
+        .btn-export-opt.excel {
+            background: rgba(16, 185, 129, 0.1); color: #34d399; border-color: rgba(16, 185, 129, 0.2);
+        }
+        .btn-export-opt.excel:hover {
+            background: var(--success); color: white; transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        /* Sortable Table Headers */
+        .sortable-th {
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+            transition: color 0.2s, background 0.2s;
+        }
+        .sortable-th:hover {
+            color: var(--primary-light);
+            background: rgba(99, 102, 241, 0.08);
+        }
+        .sortable-th span { display: inline; }
+        .sort-icon {
+            margin-left: 0.4rem;
+            font-size: 0.7rem;
+            opacity: 0.5;
+            transition: opacity 0.2s, color 0.2s;
+        }
+        .sortable-th:hover .sort-icon {
+            opacity: 1;
+            color: var(--primary-light);
+        }
+    </style>
+    <script src="config.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <div class="header-title">
+                <a href="home.html" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                    <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
+                </a>
+                <h1>MÃ³dulo de Fechamento</h1>
+                <p>ConsolidaÃ§Ã£o de custos para repasse financeiro</p>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button class="btn-pdf" id="btnExportPDF" onclick="exportToPDF()" style="display: none;">
+                    <i data-lucide="file-text"></i> Exportar PDF Consolidado
+                </button>
+                <button class="btn-pdf" id="btnExportFuelPDF" onclick="exportDetailedReportPDF()" style="display: none; background: var(--success);">
+                    <i data-lucide="file-text"></i> RelatÃ³rio Detalhado
+                </button>
+            </div>
+        </header>
+
+        <!-- ADDED: Main Tabs -->
+        <nav class="tabs-header" style="margin-bottom: 2rem;">
+            <button class="tab-item active" id="tab-veiculos" onclick="switchModuleTab('veiculos')">
+                <i data-lucide="truck" style="width: 18px;"></i> CUSTO VEICULAR
+            </button>
+            <button class="tab-item" id="tab-fornecedores" onclick="switchModuleTab('fornecedores')">
+                <i data-lucide="building-2" style="width: 18px;"></i> FORNECEDORES
+            </button>
+            <button class="tab-item" id="tab-abastecimento" onclick="switchModuleTab('abastecimento')">
+                <i data-lucide="fuel" style="width: 18px;"></i> ABASTECIMENTO
+            </button>
+        </nav>
+        <style>
+            .module-view { display: none; }
+            .module-view.active { display: block; animation: fadeIn 0.4s ease; }
+            @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        </style>
+        <div class="filter-bar">
+            <div class="filter-group">
+                <label>PerÃ­odo (MÃªs/Ano)</label>
+                <input type="month" id="filter_period" onclick="this.showPicker()">
+            </div>
+            <div class="filter-group" id="group-classificacao">
+                <label>ClassificaÃ§Ã£o</label>
+                <select id="filter_classificacao" onchange="populateProprietarios()">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+            <div class="filter-group" id="group-proprietario">
+                <label>ProprietÃ¡rio</label>
+                <div class="multiselect-container" id="propMultiselect">
+                    <div class="multiselect-trigger" onclick="toggleMultiselect(this)">
+                        <span id="propSelectedLabel">Todos</span>
+                        <i data-lucide="chevron-down" style="width: 16px;"></i>
+                    </div>
+                    <div class="multiselect-dropdown" id="propDropdown">
+                        <!-- Options injected via JS -->
+                    </div>
+                </div>
+            </div>
+            <div class="filter-group" id="group-fornecedor" style="display: none;">
+                <label>Fornecedor</label>
+                <div class="multiselect-container" id="fornMultiselect">
+                    <div class="multiselect-trigger" onclick="toggleMultiselect(this)">
+                        <span id="fornSelectedLabel">Todos</span>
+                        <i data-lucide="chevron-down" style="width: 16px;"></i>
+                    </div>
+                    <div class="multiselect-dropdown" id="fornDropdown">
+                        <!-- Options injected via JS -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="filter-group" id="group-categoria-posto" style="display: none;">
+                <label>Categoria do Posto</label>
+                <div class="multiselect-container" id="catPostoMultiselect">
+                    <div class="multiselect-trigger" onclick="toggleMultiselect(this)">
+                        <span id="catPostoSelectedLabel">Todas</span>
+                        <i data-lucide="chevron-down" style="width: 16px;"></i>
+                    </div>
+                    <div class="multiselect-dropdown" id="catPostoDropdown">
+                        <!-- Options injected via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-group" id="group-posto-combustivel" style="display: none;">
+                <label>Postos</label>
+                <div class="multiselect-container" id="postoMultiselect">
+                    <div class="multiselect-trigger" onclick="toggleMultiselect(this)">
+                        <span id="postoSelectedLabel">Todos</span>
+                        <i data-lucide="chevron-down" style="width: 16px;"></i>
+                    </div>
+                    <div class="multiselect-dropdown" id="postoDropdown">
+                        <!-- Options injected via JS -->
+                    </div>
+                </div>
+            </div>
+            <button class="btn-generate" onclick="generateClosing()">
+                <i data-lucide="refresh-cw"></i> Gerar Fechamento
+            </button>
+        </div>
+
+        <!-- MODULE VIEW: VEICULOS -->
+        <div id="view-veiculos" class="module-view active">
+            <div class="kpi-row">
+                <div class="kpi-card total">
+                    <span class="kpi-label">Total Geral</span>
+                    <span class="kpi-value" id="kpi_total_geral">R$ 0,00</span>
+                    <span class="kpi-sub" id="kpi_plate_count">0 VeÃ­culos</span>
+                </div>
+                <div class="kpi-card fuel">
+                    <span class="kpi-label">Abastecimentos</span>
+                    <span class="kpi-value" id="kpi_total_fuel">R$ 0,00</span>
+                    <span class="kpi-sub" id="kpi_fuel_count">0 Registros</span>
+                </div>
+                <div class="kpi-card maint">
+                    <span class="kpi-label">ManutenÃ§Ãµes</span>
+                    <span class="kpi-value" id="kpi_total_maint">R$ 0,00</span>
+                    <span class="kpi-sub" id="kpi_maint_count">0 Ordens</span>
+                </div>
+                <div class="kpi-card estoque">
+                    <span class="kpi-label">SaÃ­das / Venda Estoque</span>
+                    <span class="kpi-value" id="kpi_total_estoque">R$ 0,00</span>
+                    <span class="kpi-sub" id="kpi_estoque_count">0 Itens</span>
+                </div>
+                <div class="kpi-card">
+                    <span class="kpi-label">Custo MÃ©dio / Placa</span>
+                    <span class="kpi-value" id="kpi_avg_plate">R$ 0,00</span>
+                    <span class="kpi-sub">Referente ao perÃ­odo</span>
+                </div>
+            </div>
+
+            <div class="main-grid">
+                <!-- Sidebar: Summary by Owner -->
+                <div class="summary-panel" id="summaryList">
+                    <div class="empty-state">
+                        <i data-lucide="search" style="width: 48px; height: 48px; opacity: 0.3;"></i>
+                        <p>Selecione os filtros e clique em "Gerar Fechamento"</p>
+                    </div>
+                </div>
+
+                <!-- Detail Area: Selected Plate -->
+                <div class="detail-panel" id="detailArea">
+                    <div class="empty-state">
+                        <i data-lucide="mouse-pointer-2" style="width: 48px; height: 48px; opacity: 0.3;"></i>
+                        <p>Selecione uma placa na lista ao lado para ver os detalhes</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODULE VIEW: FORNECEDORES -->
+        <div id="view-fornecedores" class="module-view">
+            <div class="kpi-row">
+                <div class="kpi-card total">
+                    <span class="kpi-label">Total Faturado</span>
+                    <span class="kpi-value" id="kpi_forn_total">R$ 0,00</span>
+                    <span class="kpi-sub" id="kpi_forn_count">0 Fornecedores</span>
+                </div>
+                <div class="kpi-card fuel">
+                    <span class="kpi-label">Total de Notas</span>
+                    <span class="kpi-value" id="kpi_forn_notas_total">0</span>
+                    <span class="kpi-sub" id="kpi_forn_notas_sub">Faturadas no perÃ­odo</span>
+                </div>
+                <div class="kpi-card maint">
+                    <span class="kpi-label">Maior Volume</span>
+                    <span class="kpi-value" id="kpi_forn_max">R$ 0,00</span>
+                    <span class="kpi-sub" id="kpi_forn_max_label">-</span>
+                </div>
+            </div>
+
+            <div class="main-grid">
+                <!-- Sidebar: Summary by Supplier -->
+                <div class="summary-panel" id="fornSummaryList">
+                    <div class="empty-state">
+                        <i data-lucide="search" style="width: 48px; height: 48px; opacity: 0.3;"></i>
+                        <p>Selecione os filtros e clique em "Gerar Fechamento"</p>
+                    </div>
+                </div>
+
+                <!-- Detail Area: Selected Supplier -->
+                <div class="detail-panel" id="fornDetailArea">
+                    <div class="empty-state">
+                        <i data-lucide="mouse-pointer-2" style="width: 48px; height: 48px; opacity: 0.3;"></i>
+                        <p>Selecione um fornecedor na lista ao lado para ver os detalhes</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODULE VIEW: ABASTECIMENTO -->
+        <div id="view-abastecimento" class="module-view">
+            <div class="kpi-row">
+                <div class="kpi-card total">
+                    <span class="kpi-label">Total Abastecido</span>
+                    <span class="kpi-value" id="kpi_fuel_total_val">R$ 0,00</span>
+                    <span class="kpi-sub" id="kpi_fuel_posto_count">0 Postos</span>
+                </div>
+                <div class="kpi-card fuel">
+                    <span class="kpi-label">Volume Total (Litros)</span>
+                    <span class="kpi-value" id="kpi_fuel_vol_litros">0,00 L</span>
+                    <span class="kpi-sub">CombustÃ­veis lÃ­quidos</span>
+                </div>
+                <div class="kpi-card maint">
+                    <span class="kpi-label">Volume Total (GÃ¡s)</span>
+                    <span class="kpi-value" id="kpi_fuel_vol_gas">0,00 mÂ³</span>
+                    <span class="kpi-sub">GÃ¡s Natural Veicular</span>
+                </div>
+            </div>
+
+            <div class="main-grid">
+                <!-- Sidebar: Summary by Posto & Categoria -->
+                <div class="summary-panel" id="fuelSummaryList">
+                    <div class="empty-state">
+                        <i data-lucide="search" style="width: 48px; height: 48px; opacity: 0.3;"></i>
+                        <p>Selecione os filtros e clique em "Gerar Fechamento"</p>
+                    </div>
+                </div>
+
+                <!-- Detail Area: Selected Posto Details -->
+                <div class="detail-panel" id="fuelDetailArea">
+                    <div class="empty-state">
+                        <i data-lucide="mouse-pointer-2" style="width: 48px; height: 48px; opacity: 0.3;"></i>
+                        <p>Selecione um posto na lista ao lado para ver os detalhes</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: OpÃ§Ãµes de ExportaÃ§Ã£o -->
+    <div id="modalExportOptions" class="modal-export" style="display: none;">
+        <div class="modal-export-content">
+            <div class="modal-export-header">
+                <h2>Exportar RelatÃ³rio Detalhado</h2>
+                <button class="modal-export-close" onclick="closeExportModal()">&times;</button>
+            </div>
+            <p>Selecione o formato desejado para o download do relatÃ³rio:</p>
+            <div class="modal-export-buttons">
+                <button class="btn-export-opt pdf" onclick="triggerDetailedExport('PDF')">
+                    <i data-lucide="file-text" style="width: 24px; height: 24px;"></i>
+                    <span>Baixar em PDF</span>
+                </button>
+                <button class="btn-export-opt excel" onclick="triggerDetailedExport('EXCEL')">
+                    <i data-lucide="file-spreadsheet" style="width: 24px; height: 24px;"></i>
+                    <span>Baixar em Excel</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <p id="loadingText">Processando dados...</p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+    <script src="fechamento.js"></script>
+    <script src="orb_menu.js"></script>
+    <script>
+        lucide.createIcons();
+        // Set default period to current month
+        const now = new Date();
+        document.getElementById('filter_period').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    </script>
+</body>
+</html>
+
+

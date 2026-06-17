@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FROTALINK | GestÃ£o de Compras & Insumos</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap"
+        rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="orb_menu.css">
+
+    <style>
+        :root {
+            --primary: #5c60f5;
+            --primary-hover: #4e52d1;
+            --bg-modal: #0f172a;
+            --bg-input: #1e293b;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        /* Tabs â€” padronizado com global style.css (pill nav) */
+        .tabs {
+            display: inline-flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 0.5rem;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            overflow-x: auto;
+            width: fit-content;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.9rem;
+            padding: 0.8rem 1.5rem;
+            cursor: pointer;
+            border-radius: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            white-space: nowrap;
+        }
+
+        .tab-btn.active {
+            background: #6366f1;
+            color: white;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        th.active-sort {
+            color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        th.active-sort i {
+            color: var(--primary);
+            opacity: 1;
+        }
+
+        th:hover:not(:last-child) {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--primary);
+        }
+
+        th:hover:not(:last-child) .sort-icon-wrapper i {
+            opacity: 0.8 !important;
+            color: var(--primary);
+        }
+
+        .sub-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 0.4rem;
+            border-radius: 12px;
+            width: fit-content;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .sub-tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-weight: 700;
+            font-size: 0.75rem;
+            padding: 0.5rem 1.2rem;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.03rem;
+        }
+
+        .sub-tab-btn.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .sub-tab-btn:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.05);
+            color: #e2e8f0;
+        }
+
+        .view-section {
+            display: none;
+            margin-top: 1.5rem;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Ensure edit/delete buttons are always visible in Cadastro tab */
+        #view-generic .btn-edit,
+        #view-generic .btn-delete {
+            visibility: visible;
+        }
+
+        /* Autocomplete Styles */
+        .autocomplete-wrapper {
+            position: relative;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .autocomplete-results {
+            position: fixed;
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            z-index: 99999;
+            max-height: 250px;
+            overflow-y: auto;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8);
+            display: none;
+        }
+
+        .autocomplete-item {
+            padding: 0.8rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            transition: background 0.2s;
+        }
+
+        .autocomplete-item:last-child { border-bottom: none; }
+        .autocomplete-item:hover { background: rgba(99, 102, 241, 0.1); }
+
+        .autocomplete-item .prod-name {
+            display: block;
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: #fff;
+        }
+
+        .autocomplete-item .prod-meta {
+            display: block;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-top: 0.2rem;
+        }
+
+        .search-icon-inside {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+
+        .item-produto-search {
+            padding-left: 2.8rem !important;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .spin-animation {
+            animation: spin 1s linear infinite;
+        }
+
+        /* Modal Structure (Match Image) */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(15px);
+        }
+
+        .view-item-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 0.8rem 1.2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: 0.2s;
+        }
+
+        .view-item-card:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--primary);
+        }
+
+        .view-parc-badge {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            padding: 0.5rem;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            text-align: center;
+        }
+        
+        .modal-overlay {
+            padding: 2rem;
+        }
+
+        /* Modais que podem ser abertos por cima de outros (como Cadastro de Fornecedor dentro de Nota) */
+        #fornecedorModal, #custoModal, #genericModal, #viewCompraModal {
+            z-index: 3000;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: #0f172a;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 24px;
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 1080px;
+            max-height: 98vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            color: white;
+            box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.8);
+        }
+
+        .modal-body-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        .modal-body-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .modal-body-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .modal-body-scroll::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .modal-title {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .cod-badge {
+            background: #4f46e5;
+            color: white;
+            font-family: 'JetBrains Mono';
+            font-weight: 800;
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+        }
+
+        .form-row {
+            display: grid;
+            gap: 0.8rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .grid-header-1 {
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .grid-header-2 {
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .item-vinculo-section {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .vinculo-btns {
+            display: flex;
+            gap: 0.4rem;
+        }
+
+        .btn-vinculo {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .input-group label {
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05rem;
+        }
+
+        .compra-input {
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: white;
+            padding: 0.6rem 0.8rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            outline: none;
+        }
+
+        .compra-input:focus {
+            border-color: var(--primary);
+        }
+
+        .input-with-btn {
+            display: flex;
+            gap: 0.4rem;
+        }
+
+        .btn-plus {
+            background: #4f46e5;
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 1.2rem 0 1rem;
+        }
+
+        .section-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .section-title {
+            font-size: 1rem;
+            font-weight: 800;
+            color: #cbd5e1;
+        }
+
+        /* Items Table */
+        .items-table {
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .items-thead {
+            display: none;
+        }
+
+        .item-row {
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            gap: 1.2rem;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            margin-bottom: 1rem;
+            transition: 0.3s;
+        }
+
+        .item-row:hover {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(129, 140, 248, 0.2);
+        }
+
+        .item-line-1 {
+            display: grid;
+            grid-template-columns: 1fr 65px 95px 95px 36px;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .item-row input,
+        .item-row select {
+            width: 100%;
+            min-width: 0;
+        }
+
+        .item-line-2 {
+            display: grid;
+            grid-template-columns: 1fr 3fr;
+            gap: 2rem;
+            align-items: center;
+            padding-top: 1rem;
+            border-top: 1px dashed rgba(255, 255, 255, 0.05);
+        }
+
+        .item-line-3 {
+            display: grid;
+            grid-template-columns: 3fr 1fr;
+            gap: 2rem;
+            align-items: center;
+            padding-top: 1rem;
+            border-top: 1px dashed rgba(255, 255, 255, 0.05);
+        }
+
+        .btn-add-item {
+            border: 2px dashed rgba(255, 255, 255, 0.08);
+            background: none;
+            color: var(--text-muted);
+            padding: 1rem;
+            border-radius: 10px;
+            width: 100%;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 0.8rem;
+        }
+
+        .btn-add-item:hover {
+            background: rgba(255, 255, 255, 0.03);
+            border-color: rgba(255, 255, 255, 0.15);
+            color: white;
+        }
+
+        /* Action Buttons & Footer */
+        .financial-box {
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid rgba(79, 70, 229, 0.2);
+            border-radius: 14px;
+            padding: 1.2rem 2rem;
+            margin-top: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .resumo-info p {
+            font-size: 1.8rem;
+            font-weight: 900;
+            color: #818cf8;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 2rem;
+            align-items: center;
+            margin-top: 2rem;
+        }
+
+        .btn-cancel {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.9rem;
+            transition: 0.3s;
+        }
+
+        .btn-cancel:hover {
+            color: white;
+        }
+
+        .btn-save {
+            background: #5c60f5;
+            color: white;
+            border: none;
+            padding: 1.2rem 4rem;
+            border-radius: 16px;
+            font-weight: 800;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 10px 20px -5px rgba(92, 96, 245, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.05rem;
+        }
+
+        .btn-save:hover {
+            background: #4e52d1;
+            transform: translateY(-2px);
+            box-shadow: 0 15px 25px -5px rgba(92, 96, 245, 0.6);
+        }
+
+        .btn-save:active {
+            transform: translateY(0);
+        }
+
+        /* Helpers */
+        .payment-block {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(79, 70, 229, 0.1);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .stock-toggle {
+            width: 34px;
+            height: 18px;
+            background: #334155;
+            border-radius: 10px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .stock-toggle::after {
+            content: '';
+            position: absolute;
+            left: 2px;
+            top: 2px;
+            width: 14px;
+            height: 14px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.2s;
+        }
+
+        .stock-toggle.active {
+            background: #4f46e5;
+        }
+
+        .stock-toggle.active::after {
+            transform: translateX(16px);
+        }
+
+        .switch-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .btn-close-modal-fornecedor {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 40px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        /* Dashboard KPI Cards */
+        .stats-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .stat-card {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid var(--border-card);
+            border-radius: 20px;
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.2rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            background: rgba(30, 41, 59, 0.7);
+            border-color: var(--primary);
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--primary);
+            opacity: 0;
+            transition: 0.3s;
+        }
+
+        .stat-card:hover::before {
+            opacity: 1;
+        }
+
+        .stat-icon {
+            width: 54px;
+            height: 54px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            flex-shrink: 0;
+        }
+
+        .stat-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            font-weight: 800;
+            letter-spacing: 0.08rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .stat-value {
+            font-size: 1.6rem;
+            font-weight: 900;
+            color: white;
+            line-height: 1.2;
+        }
+
+        .icon-orange { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+        .icon-purple { background: rgba(168, 85, 247, 0.1); color: #a855f7; }
+        .icon-blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+        .icon-red { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+        /* Quick Filters row */
+        .quick-filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            background: rgba(30, 41, 59, 0.3);
+            padding: 1rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .filter-group label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 800;
+            letter-spacing: 0.05rem;
+        }
+
+        .filter-select {
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 0.5rem 0.8rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            outline: none;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .filter-select:focus {
+            border-color: var(--primary);
+        }
+
+        .btn-clear-filters {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+            height: 34px;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .btn-clear-filters:hover {
+            background: var(--danger);
+            color: white;
+        }
+
+        .period-presets {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .preset-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-muted);
+            padding: 0.4rem 1rem;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+        }
+
+        .preset-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .preset-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(92, 96, 245, 0.3);
+        }
+    </style>
+    <script src="config.js"></script>
+</head>
+
+<body class="admin-active">
+    <div class="container" style="padding-top: 2rem;">
+        <header style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <a href="home.html" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                    <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
+                </a>
+                <h1 style="font-size: 1.8rem; font-weight: 800; color: white;">GestÃ£o de Compras & Insumos</h1>
+            </div>
+        </header>
+
+        <section class="tabs" id="mainTabs">
+            <button class="tab-btn" onclick="switchTab('dashboard')">
+                <i data-lucide="pie-chart" style="width:18px;"></i> Dashboard & Analytics
+            </button>
+            <button class="tab-btn active" onclick="switchTab('compras')">
+                <i data-lucide="shopping-cart" style="width:18px;"></i> Histórico de Compras
+            </button>
+            <button class="tab-btn" onclick="switchTab('cadastro')">
+                <i data-lucide="database" style="width:18px;"></i> Cadastro
+            </button>
+            <button class="tab-btn" onclick="switchTab('integracao')">
+                <i data-lucide="refresh-cw" style="width:18px;"></i> Integração Financeira
+            </button>
+        </section>
+
+        <!-- ABA DASHBOARD -->
+        <div id="view-dashboard" class="view-section">
+            <!-- Filtros do Dashboard -->
+            <div class="quick-filters" style="margin-bottom: 2rem; background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); padding: 1.5rem; border-radius: 20px;">
+                <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.8rem; color: #fff; font-weight: 800;">
+                        <i data-lucide="filter" style="width:18px;"></i> FILTROS E ANÃ LISE TEMPORAL
+                    </div>
+                    <button class="btn-clear-filters" onclick="clearDashboardFilters()">
+                        <i data-lucide="filter-x"></i> LIMPAR FILTROS
+                    </button>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 1.5rem; width: 100%;">
+                    <!-- Linha 1: Datas e PerÃ­odos -->
+                    <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 2rem; padding-bottom: 1.2rem; border-bottom: 1px dashed rgba(255,255,255,0.08);">
+                        <div style="flex: 1;">
+                            <div class="period-presets">
+                                <button class="preset-btn" onclick="setDashPeriod(7, this)">7 Dias</button>
+                                <button class="preset-btn" onclick="setDashPeriod(15, this)">15 Dias</button>
+                                <button class="preset-btn" onclick="setDashPeriod(30, this)">30 Dias</button>
+                                <button class="preset-btn active" onclick="setDashPeriod('month', this)">MÃªs Atual</button>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 1rem; align-items: flex-end;">
+                            <div class="filter-group" style="min-width: 150px;">
+                                <label style="font-size: 0.65rem;">Data InÃ­cio</label>
+                                <input type="date" id="dash_date_start" class="filter-select" onchange="applyDashboardFilters()">
+                            </div>
+                            <div style="margin-bottom: 0.8rem; color: var(--text-muted); font-size: 0.8rem; font-weight: 700;">atÃ©</div>
+                            <div class="filter-group" style="min-width: 150px;">
+                                <label style="font-size: 0.65rem;">Data Fim</label>
+                                <input type="date" id="dash_date_end" class="filter-select" onchange="applyDashboardFilters()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Linha 2: Selects Inteligentes -->
+                    <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.8rem;">
+                        <div class="filter-group">
+                            <label>EspÃ©cie de Nota</label>
+                            <select id="dash_filter_especie" class="filter-select" onchange="handleDashIntelligentFilter('dash_filter_especie')">
+                                <option value="">Todas as EspÃ©cies</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Fornecedor</label>
+                            <select id="dash_filter_fornecedor" class="filter-select" onchange="handleDashIntelligentFilter('dash_filter_fornecedor')">
+                                <option value="">Todos os Fornecedores</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Placa</label>
+                            <select id="dash_filter_placa" class="filter-select" onchange="handleDashIntelligentFilter('dash_filter_placa')">
+                                <option value="">Todas as Placas</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Centro de Custo</label>
+                            <select id="dash_filter_centro_pai" class="filter-select" onchange="handleDashIntelligentFilter('dash_filter_centro_pai')">
+                                <option value="">Todos os Centros</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Subcentro</label>
+                            <select id="dash_filter_custo" class="filter-select" onchange="handleDashIntelligentFilter('dash_filter_custo')">
+                                <option value="">Todos os Subcentros</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Forma de Pagamento</label>
+                            <select id="dash_filter_pagamento" class="filter-select" onchange="handleDashIntelligentFilter('dash_filter_pagamento')">
+                                <option value="">Todas as Formas</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <section class="stats-summary" style="margin-bottom: 2rem;">
+                <!-- Card 1: Investimento Total -->
+                <div class="stat-card">
+                    <div class="stat-icon icon-orange">
+                        <i data-lucide="wallet"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label">Investimento Total</span>
+                        <span class="stat-value" id="dash_total_compras">R$ 0,00</span>
+                    </div>
+                </div>
+
+                <!-- Card 2: Fluxo de Notas -->
+                <div class="stat-card">
+                    <div class="stat-icon icon-purple">
+                        <i data-lucide="file-text"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label">Fluxo de Notas</span>
+                        <span class="stat-value" id="dash_count_compras">0</span>
+                    </div>
+                </div>
+
+                <!-- Card 3: Ticket MÃ©dio -->
+                <div class="stat-card">
+                    <div class="stat-icon icon-blue">
+                        <i data-lucide="trending-up"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label">Ticket MÃ©dio</span>
+                        <span class="stat-value" id="dash_avg_compra">R$ 0,00</span>
+                    </div>
+                </div>
+
+                <!-- Card 4: Vencimentos Hoje -->
+                <div class="stat-card" id="card_vencimentos">
+                    <div class="stat-icon icon-red">
+                        <i data-lucide="calendar-clock"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label">Vencimentos Hoje</span>
+                        <span class="stat-value" id="dash_vencimentos_hoje">0</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Linha de GrÃ¡ficos 1 -->
+            <div style="display: grid; grid-template-columns: 2fr 1.2fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                <div class="chart-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
+                    <h3 style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
+                        <i data-lucide="bar-chart-3" style="width:16px;"></i> EvoluÃ§Ã£o de Gastos (Ãšltimos 6 Meses)
+                    </h3>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="chartEvolucao"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
+                    <h3 style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
+                        <i data-lucide="pie-chart" style="width:16px;"></i> Mix de Compras
+                    </h3>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="chartMix"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Linha de GrÃ¡ficos 2 -->
+            <div style="display: grid; grid-template-columns: 1.2fr 2fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                <div class="chart-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
+                    <h3 style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
+                        <i data-lucide="layout-grid" style="width:16px;"></i> Gastos por Centro de Custo
+                    </h3>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="chartCentroCusto"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
+                    <h3 style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
+                        <i data-lucide="users" style="width:16px;"></i> Top 10 Fornecedores (Maiores Gastos)
+                    </h3>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="chartTopFornecedores"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Linha de GrÃ¡ficos 3 -->
+            <div style="display: grid; grid-template-columns: 2fr 1.2fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                <div class="chart-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
+                    <h3 style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
+                        <i data-lucide="truck" style="width:16px;"></i> Top 10 VeÃ­culos (Maior Gasto)
+                    </h3>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="chartVeiculos"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
+                    <h3 style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
+                        <i data-lucide="package-search" style="width:16px;"></i> Top PeÃ§as Compradas
+                    </h3>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="chartPecas"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- IA Insights Card -->
+            <div style="background: linear-gradient(90deg, #5c60f5 0%, #8b5cf6 100%); padding: 1.5rem 2rem; border-radius: 24px; color: white; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 15px 30px -10px rgba(92, 96, 245, 0.4);">
+                <div style="display: flex; align-items: center; gap: 1.5rem;">
+                    <div style="background: rgba(255,255,255,0.2); width: 60px; height: 60px; border-radius: 18px; display: flex; align-items: center; justify-content: center;">
+                        <i data-lucide="bot" style="width: 32px; height: 32px;"></i>
+                    </div>
+                    <div>
+                        <h4 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 0.2rem;">Analista FrotaLink IA</h4>
+                        <p style="font-size: 0.8rem; opacity: 0.9; font-weight: 500;">Sua inteligÃªncia artificial estÃ¡ processando os dados de compras para gerar insights financeiros...</p>
+                    </div>
+                </div>
+                <button style="background: white; color: #5c60f5; border: none; padding: 0.8rem 1.5rem; border-radius: 12px; font-weight: 800; font-size: 0.75rem; cursor: pointer; text-transform: uppercase; letter-spacing: 0.05rem;">Analisar Agora</button>
+            </div>
+        </div>
+
+        <!-- ABA COMPRAS -->
+        <div id="view-compras" class="view-section active">
+            <section class="stats-summary" id="history-stats" style="margin-bottom: 1rem; display: grid; grid-template-columns: 1fr 1fr 2.5fr; gap: 0.8rem;">
+                <!-- Card 1: Valor Total Selecionado -->
+                <div class="stat-card" style="padding: 0.8rem; min-height: 70px;">
+                    <div class="stat-icon icon-orange" style="width: 36px; height: 36px; font-size: 1rem;">
+                        <i data-lucide="wallet"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label" style="font-size: 0.6rem;">Total da SeleÃ§Ã£o</span>
+                        <span class="stat-value" id="sel_total_valor" style="font-size: 1.1rem;">R$ 0,00</span>
+                    </div>
+                </div>
+
+                <!-- Card 2: Quantidade de Notas Selecionadas -->
+                <div class="stat-card" style="padding: 0.8rem; min-height: 70px;">
+                    <div class="stat-icon icon-purple" style="width: 36px; height: 36px; font-size: 1rem;">
+                        <i data-lucide="file-text"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label" style="font-size: 0.6rem;">Notas Filtradas</span>
+                        <span class="stat-value" id="sel_total_notas" style="font-size: 1.1rem;">0</span>
+                    </div>
+                </div>
+
+                <!-- Card 3: Mix por Centro de Custo (Pai) -->
+                <div class="stat-card" onclick="openCCDetailModal()" style="padding: 0.8rem; min-height: 70px; flex-direction: column; align-items: stretch; gap: 0.4rem; overflow: visible; cursor: pointer;">
+                    <div style="display: flex; align-items: center; gap: 0.8rem;">
+                        <div class="stat-icon icon-blue" style="width: 36px; height: 36px; font-size: 1rem;">
+                            <i data-lucide="layout-grid"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label" style="font-size: 0.6rem;">Investimento por Centro de Custo</span>
+                        </div>
+                    </div>
+                    <div id="sel_cc_breakdown" style="display: flex; flex-direction: column; gap: 0.3rem; width: 100%;">
+                        <!-- ConteÃºdo dinÃ¢mico -->
+                        <div style="color: var(--text-muted); font-size: 0.65rem; text-align: center; padding: 0.2rem;">Carregando anÃ¡lise...</div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="controls">
+                <div class="search-box" style="flex: 1; min-width: 280px;">
+                    <i data-lucide="search"></i>
+                    <input type="text" id="compraSearch" placeholder="Buscar por fornecedor, produto, nota, placa..."
+                        oninput="handleSearchInput(this)">
+                    <button id="clearSearchBtn" class="clear-btn" onclick="clearSearch()">âœ•</button>
+                </div>
+                <div class="admin-actions" style="display:flex; gap:1rem; align-items:center;">
+                    <button class="btn-col-config" onclick="toggleColPanel('compras')">
+                        <i data-lucide="settings-2" style="width:14px;"></i> Colunas
+                    </button>
+
+                    <button class="btn btn-primary" onclick="openCompraModal()" style="background:#5c60f5;">
+                        <i data-lucide="plus-circle"></i> Lan&ccedil;ar Compra
+                    </button>
+                </div>
+            </div>
+
+            <div class="quick-filters">
+                <div style="display:flex; align-items:center; gap:0.5rem; color:var(--primary); font-weight:800; font-size:0.75rem; text-transform:uppercase; margin-right:1rem; border-right:1px solid rgba(255,255,255,0.1); padding-right:1.5rem;">
+                    <i data-lucide="filter" style="width:14px;"></i> Filtros RÃ¡pidos
+                </div>
+                
+                <div class="filter-group" style="min-width: 140px;">
+                    <label>PerÃ­odo</label>
+                    <select id="filterDatePreset" class="filter-select" onchange="handleDatePresetChange(this)">
+                        <option value="all">Todos</option>
+                        <option value="month">MÃªs Atual</option>
+                        <option value="15days">Ãšltimos 15 Dias</option>
+                        <option value="lastMonth">MÃªs Anterior</option>
+                        <option value="custom">Personalizado</option>
+                    </select>
+                </div>
+
+                <div id="customDateContainer" style="display:none; gap:1rem;">
+                    <div class="filter-group" style="min-width: 120px;">
+                        <label>InÃ­cio</label>
+                        <input type="date" id="filterDateStart" class="filter-select" onchange="handleIntelligentFilter('filterDateStart')">
+                    </div>
+                    <div class="filter-group" style="min-width: 120px;">
+                        <label>Fim</label>
+                        <input type="date" id="filterDateEnd" class="filter-select" onchange="handleIntelligentFilter('filterDateEnd')">
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label>EspÃ©cie de Nota</label>
+                    <select id="filterEspecie" class="filter-select" onchange="handleIntelligentFilter('filterEspecie')">
+                        <option value="">Todas as EspÃ©cies</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>Fornecedor</label>
+                    <select id="filterFornecedor" class="filter-select" onchange="handleIntelligentFilter('filterFornecedor')">
+                        <option value="">Todos os Fornecedores</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>Placa</label>
+                    <select id="filterPlaca" class="filter-select" onchange="handleIntelligentFilter('filterPlaca')">
+                        <option value="">Todas as Placas</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>Centro de Custo</label>
+                    <select id="filterCentroPai" class="filter-select" onchange="handleIntelligentFilter('filterCentroPai')">
+                        <option value="">Todos os Centros</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>Subcentro</label>
+                    <select id="filterCusto" class="filter-select" onchange="handleIntelligentFilter('filterCusto')">
+                        <option value="">Todos os Subcentros</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>Forma de Pagamento</label>
+                    <select id="filterPagamento" class="filter-select" onchange="handleIntelligentFilter('filterPagamento')">
+                        <option value="">Todas as Formas</option>
+                    </select>
+                </div>
+
+                <button class="btn-clear-filters" onclick="clearAllFilters()">
+                    <i data-lucide="filter-x"></i> Limpar
+                </button>
+            </div>
+
+            <div id="colPanel-compras" class="col-panel" style="display:none; margin: 0 0 1rem 0;">
+                <p class="col-panel-hint"><i data-lucide="grip-vertical" style="width:12px;"></i> Arraste para reordenar
+                    &bull; Clique no olho para ocultar</p>
+                <div id="colList-compras" class="col-list"></div>
+                <div class="col-panel-actions">
+                    <button class="btn-col-reset" onclick="resetColumns('compras')">PadrÃ£o</button>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table class="mobile-cards" style="width: 100%;">
+                    <thead id="thead-compras"></thead>
+                    <tbody id="comprasTable"></tbody>
+                </table>
+            </div>
+
+            <div class="pagination-footer">
+                <div class="pagination-info" id="paginationInfo">
+                    Mostrando 1-200 de 0 registros
+                </div>
+                <div class="pagination-controls">
+                    <button class="btn-page" id="btnPrevPage" onclick="changePage(-1)">
+                        Anterior
+                    </button>
+                    <div class="page-numbers" id="pageNumbers">
+                        <!-- NÃºmeros das pÃ¡ginas gerados via JS -->
+                    </div>
+                    <button class="btn-page" id="btnNextPage" onclick="changePage(1)">
+                        PrÃ³xima
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-generic" class="view-section">
+            <div class="sub-tabs" id="subTabsCadastro">
+                <button class="sub-tab-btn active" onclick="switchSubTab('fornecedores')">Fornecedores</button>
+                <button class="sub-tab-btn" onclick="switchSubTab('custo')">Centros de Custo</button>
+                <button class="sub-tab-btn" onclick="switchSubTab('pagamento')">Formas de Pagamento</button>
+                <button class="sub-tab-btn" onclick="switchSubTab('especie')">EspÃ©cie de Nota</button>
+            </div>
+            <div class="controls">
+                <div class="search-box" style="flex: 1; min-width: 250px;">
+                    <i data-lucide="search"></i>
+                    <input type="text" id="genericSearch" placeholder="Filtrar nesta lista...">
+                </div>
+                <button class="btn btn-primary" id="btnGenericAdd" style="background:#5c60f5;">
+                    <i data-lucide="plus"></i> Cadastrar Novo
+                </button>
+            </div>
+            <div class="table-container">
+                <table id="table-generic-wrapper" class="mobile-cards" style="width: 100%;">
+                    <thead id="thead-generic"></thead>
+                    <tbody id="genericTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ABA INTEGRAÇÃO FINANCEIRA -->
+        <div id="view-integracao" class="view-section">
+            <div class="controls" style="justify-content: space-between; margin-bottom: 1.5rem;">
+                <div>
+                    <h2 style="font-size: 1.2rem; font-weight: 800; color: white; display: flex; align-items: center; gap: 0.5rem;">
+                        <i data-lucide="refresh-cw" style="color: #6366f1;"></i> Notas Pendentes de Integração
+                    </h2>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.3rem;">Selecione as notas para formalizar e enviar ao setor Financeiro.</p>
+                </div>
+                <button class="btn btn-primary" onclick="integrarAoFinanceiro()" style="background:#10b981; gap: 0.5rem; font-weight: 800; padding: 0.8rem 2rem;">
+                    <i data-lucide="file-check-2"></i> GERAR INTEGRAÇÃO
+                </button>
+            </div>
+            <div class="table-container">
+                <table class="mobile-cards" style="width: 100%;">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px; text-align: center;"><input type="checkbox" id="chkAllIntegracao" onclick="toggleSelectAllIntegracao(this)"></th>
+                            <th>Data</th>
+                            <th>Nº Nota</th>
+                            <th>Fornecedor</th>
+                            <th>Forma Pgto</th>
+                            <th>Parcelado?</th>
+                            <th>Valor Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyIntegracao">
+                        <!-- Preenchido via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL FORNECEDOR (FULL) -->
+    <div id="fornecedorModal" class="modal-overlay">
+        <div class="modal" style="max-width: 750px;">
+            <div class="modal-header">
+                <h2 class="modal-title">Cadastro de Fornecedor</h2>
+                <button class="btn-close-modal-fornecedor" onclick="closeFornecedorModal()">&times;</button>
+            </div>
+            <form id="fornecedorForm">
+                <input type="hidden" id="editFornecedorId">
+                <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+                    <div class="input-group" style="grid-column: 1 / -1;"><label>RazÃ£o Social / Nome
+                            Fantasia</label><input type="text" id="fNome" class="compra-input" required></div>
+                    <div class="input-group"><label>CNPJ / CPF</label><input type="text" id="fDoc" class="compra-input"
+                            placeholder="00.000.000/0000-00"></div>
+                    <div class="input-group"><label>InscriÃ§Ã£o Estadual</label><input type="text" id="fIE"
+                            class="compra-input"></div>
+
+                    <div class="form-section-header"
+                        style="grid-column: 1 / -1; font-weight:800; color:var(--primary); font-size:0.75rem; margin-top:1.5rem; text-transform:uppercase; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:0.5rem;">
+                        EndereÃ§o & Contato</div>
+                    <div class="input-group" style="grid-column: 1 / -1;"><label>Logradouro / Rua</label><input
+                            type="text" id="fRua" class="compra-input"></div>
+                    <div class="input-group"><label>Cidade / UF</label><input type="text" id="fCidade"
+                            class="compra-input"></div>
+                    <div class="input-group"><label>Telefone / WhatsApp</label><input type="text" id="fTel"
+                            class="compra-input"></div>
+                    <div class="input-group" style="grid-column: 1 / -1;"><label>E-mail Corporativo</label><input
+                            type="email" id="fEmail" class="compra-input"></div>
+                </div>
+                <div class="modal-footer">
+                    <a href="#" class="btn-cancel" onclick="closeFornecedorModal()">Cancelar</a>
+                    <button type="submit" class="btn-save">SALVAR FORNECEDOR</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL CENTRO DE CUSTO -->
+    <div id="custoModal" class="modal-overlay">
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 class="modal-title">Cadastro de Centro de Custo</h2>
+                <button type="button" class="btn-close-modal-fornecedor" onclick="closeCustoModal()">&times;</button>
+            </div>
+            <form id="custoForm">
+                <input type="hidden" id="editCustoId">
+                <div class="form-row" style="grid-template-columns: 1fr;">
+                    
+                    <div class="input-group" style="flex-direction:row; gap: 1.5rem; margin-bottom: 1rem;">
+                        <label style="display:flex; align-items:center; gap:0.5rem; font-size: 0.8rem; color: #e2e8f0; text-transform:none;">
+                            <input type="radio" name="custoTipo" value="main" checked onchange="handleCustoTypeChange()">
+                            Centro de Custo Principal
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; font-size: 0.8rem; color: #e2e8f0; text-transform:none;">
+                            <input type="radio" name="custoTipo" value="sub" onchange="handleCustoTypeChange()">
+                            Sub Centro de Custo
+                        </label>
+                    </div>
+
+                    <div class="input-group" id="groupCustoPai" style="display:none;">
+                        <label>Centro de Custo Vinculado</label>
+                        <select id="cCustoPai" class="compra-input" onchange="generateCustoCode()"></select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>CÃ³digo (AutomÃ¡tico)</label>
+                        <input type="text" id="cCustoCodigo" class="compra-input" readonly style="background: rgba(255,255,255,0.05); color: #818cf8; font-family: 'JetBrains Mono'; font-weight: bold;">
+                    </div>
+
+                    <div class="input-group">
+                        <label>Nome / DescriÃ§Ã£o</label>
+                        <input type="text" id="cCustoNome" class="compra-input" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <a href="#" class="btn-cancel" onclick="closeCustoModal()">Cancelar</a>
+                    <button type="submit" class="btn-save">SALVAR CENTRO DE CUSTO</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL GENERICO (Para itens simples como Formas de Pagamento) -->
+    <div id="genericModal" class="modal-overlay">
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="genericModalTitle">Cadastro</h2>
+                <button type="button" class="btn-close-modal-fornecedor" onclick="closeGenericModal()">&times;</button>
+            </div>
+            <form id="genericForm">
+                <input type="hidden" id="genericEditId">
+                <input type="hidden" id="genericEditTab">
+                <div class="form-row" style="grid-template-columns: 1fr;">
+                    <div class="input-group">
+                        <label id="genericModalLabel">Nome / DescriÃ§Ã£o</label>
+                        <input type="text" id="genericInputNome" class="compra-input" placeholder="Digite o nome..." required>
+                    </div>
+                </div>
+                <div class="modal-footer" style="margin-top: 3rem;">
+                    <a href="#" class="btn-cancel" onclick="closeGenericModal()">Cancelar</a>
+                    <button type="submit" class="btn-save" id="genericSaveBtn">SALVAR CADASTRO</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- MODAL COMPRA (EXACT DESIGN FROM IMAGE - NO SCROLL) -->
+    <div id="compraModal" class="modal-overlay">
+        <div class="modal" style="max-width: 1200px;">
+            <div class="modal-header">
+                <h2 class="modal-title">Entrada de Nota / Despesa</h2>
+                <div class="cod-badge" id="labelCodUnico">COD: NC-000000</div>
+            </div>
+            <p style="color: #64748b; font-size: 0.8rem; margin: -1rem 0 1.5rem;">Configure itens, custos adicionais e
+                parcelas.</p>
+
+            <form id="compraForm" style="display:flex; flex-direction:column; height:100%; overflow:hidden;">
+                <!-- SEÃ‡ÃƒO FIXA SUPERIOR -->
+                <div class="modal-fixed-top"
+                    style="padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 1rem;">
+                    <div class="form-row grid-header-1">
+                        <div class="input-group">
+                            <label>Data EmissÃ£o</label>
+                            <input type="date" id="dataCompra" class="compra-input" required>
+                        </div>
+                        <div class="input-group">
+                            <label>NÃºmero Nota</label>
+                            <input type="text" id="numNota" class="compra-input" placeholder="000.000">
+                        </div>
+                        <div class="input-group">
+                            <label>EspÃ©cie</label>
+                            <div class="input-with-btn">
+                                <select id="especieId" class="compra-input" style="flex: 1;"></select>
+                                <button type="button" class="btn-plus" onclick="quickAdd('especie')"><i
+                                        data-lucide="plus"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row grid-header-2">
+                        <div class="input-group">
+                            <label>Fornecedor</label>
+                            <div class="input-with-btn">
+                                <div class="autocomplete-wrapper" style="flex: 1;">
+                                    <input type="text" id="fornecedorSearch" class="compra-input" placeholder="Buscar fornecedor..." required oninput="handleFornecedorSearch(this)" onfocus="handleFornecedorSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)" style="width: 100%; box-sizing: border-box;">
+                                    <input type="hidden" id="fornecedorId" required>
+                                    <div class="autocomplete-results"></div>
+                                </div>
+                                <button type="button" class="btn-plus" onclick="quickAdd('fornecedor')"><i
+                                        data-lucide="plus"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-body-scroll">
+                    <div class="section-header">
+                        <div class="section-title-wrap">
+                            <i data-lucide="list" style="color:#818cf8;"></i>
+                            <span class="section-title">Itens da Nota</span>
+                        </div>
+                    </div>
+
+                    <div class="items-table">
+                        <div class="items-thead" style="display:none;"></div>
+                        <div id="itemsContainer" class="items-container"></div>
+                    </div>
+
+                    <button type="button" class="btn-add-item" onclick="addItemRow()">
+                        <i data-lucide="plus" style="width:16px;"></i> Adicionar Novo Item
+                    </button>
+
+                    <div class="section-header">
+                        <div class="section-title-wrap">
+                            <i data-lucide="plus-square" style="color:#64748b;"></i>
+                            <span class="section-title">Custos Adicionais</span>
+                        </div>
+                        <a href="#"
+                            style="color:var(--text-muted); font-size:0.75rem; text-decoration:none; font-weight:700;"
+                            onclick="addAdditionalRow()">+ Novo Adicional</a>
+                    </div>
+                    <div id="additionalContainer" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+
+                    <div class="payment-block">
+                        <div class="section-title-wrap" style="margin-bottom: 1.5rem;">
+                            <i data-lucide="credit-card" style="color:var(--primary);"></i>
+                            <span class="section-title">InformaÃ§Ãµes de Pagamento</span>
+                        </div>
+                        <div class="form-row" style="grid-template-columns: 1.5fr 1fr 1.5fr 0.8fr; align-items: flex-end;">
+                            <div class="input-group">
+                                <label>Forma de Pagamento</label>
+                                <div class="input-with-btn">
+                                    <select id="tipoPgtoId" class="compra-input" style="flex:1;"></select>
+                                    <button type="button" class="btn-plus" onclick="quickAdd('pgto')"><i
+                                            data-lucide="plus"></i></button>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label>Vencimento</label>
+                                <input type="date" id="vencimentoNota" class="compra-input">
+                            </div>
+                            <div class="input-group"
+                                style="flex-direction:row; align-items:center; gap:0.8rem; height:42px;">
+                                <label style="margin-bottom:0;">Deseja Parcelar?</label>
+                                <div class="stock-toggle" id="toggleParcelas" onclick="toggleParcelasSection(this)">
+                                </div>
+                                <span style="font-size:0.6rem; font-weight:800; color:#4f46e5;">HABILITAR
+                                    PARCELAS</span>
+                            </div>
+                            <div class="input-group" id="qtdParcWrapper" style="opacity:0.5; pointer-events:none;">
+                                <label>Quantidade:</label>
+                                <input type="number" id="qtdParcelas" class="compra-input" value="1" min="1"
+                                    onchange="generateInstallments()">
+                            </div>
+                        </div>
+
+                        <div id="parcelasSection"
+                            style="display:none; margin-top:1.5rem; border-top: 1px dashed rgba(255,255,255,0.05); padding-top:1.5rem;">
+                            <div id="parcelasContainer"></div>
+                            <div
+                                style="text-align:right; margin-top:1rem; font-family:'JetBrains Mono'; font-weight:800; color:#818cf8; font-size:0.85rem;">
+                                Total Parcelas: R$ <span id="sumParcelas">0,00</span>
+                            </div>
+                            <div id="validationMsg"
+                                style="display:none; text-align:right; color:#ef4444; font-size:0.7rem; font-weight:800; margin-top:0.5rem;">
+                                âš ï¸ A SOMA DAS PARCELAS NÃƒO CONFERE COM O TOTAL
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="financial-box">
+                    <div class="resumo-info">
+                        <span
+                            style="font-size:0.6rem; text-transform:uppercase; color:var(--text-muted); font-weight:800; letter-spacing:0.05rem;">Resumo
+                            Financeiro</span>
+                        <p id="summaryText"
+                            style="font-size:1.2rem; font-weight:800; color:#818cf8; margin-top:0.3rem;">0 itens + 0
+                            adicionais</p>
+                    </div>
+                    <div style="text-align:right;">
+                        <span
+                            style="font-size:0.65rem; font-weight:800; color:var(--text-muted); text-transform:uppercase;">Valor
+                            Total da Compra</span>
+                        <p id="totalNotaVisual"
+                            style="font-size: 2.2rem; font-weight: 950; color: #818cf8; line-height:1;">R$ 0,00</p>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <a href="#" class="btn-cancel" onclick="closeCompraModal()">Cancelar</a>
+                    <button type="submit" id="btnSaveCompra" class="btn-save">SALVAR COMPRA</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- MODAL VISUALIZAR COMPRA -->
+    <div id="viewCompraModal" class="modal-overlay">
+        <div class="modal" style="max-width: 900px; padding: 2rem;">
+            <div class="modal-header">
+                <div>
+                    <h2 style="font-size: 1.5rem; margin-bottom: 0.2rem;">Detalhes da Compra</h2>
+                    <p id="viewCodUnico" style="color: var(--primary); font-family: 'JetBrains Mono'; font-weight: 800; font-size: 0.9rem;"></p>
+                </div>
+                <button type="button" class="btn-close" onclick="closeViewModal()" style="background: none; border: none; color: var(--text-muted); cursor: pointer;"><i data-lucide="x"></i></button>
+            </div>
+
+            <div class="modal-body-scroll" style="margin-top: 1.5rem; overflow-y: auto; max-height: 70vh; padding-right: 10px;">
+                <div class="view-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border-color);">
+                    <div>
+                        <label style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">Data EmissÃ£o</label>
+                        <p id="viewData" style="font-weight: 600;"></p>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">NÂº da Nota</label>
+                        <p id="viewNumNota" style="font-weight: 600;"></p>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">Vencimento</label>
+                        <p id="viewVencimento" style="font-weight: 800; color: #fbbf24;"></p>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">EspÃ©cie</label>
+                        <p id="viewEspecie" style="font-weight: 600;"></p>
+                    </div>
+                    <div style="grid-column: span 2;">
+                        <label style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">Fornecedor</label>
+                        <p id="viewFornecedor" style="font-weight: 700; color: #fff;"></p>
+                    </div>
+                    <div style="grid-column: span 2;">
+                        <label style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">Forma de Pagamento</label>
+                        <p id="viewFormaPgto" style="font-weight: 600;"></p>
+                    </div>
+                </div>
+
+                <div style="margin-top: 2rem;">
+                    <h3 style="font-size: 0.9rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="package" style="width:16px;"></i> Itens da Nota</h3>
+                    <div id="viewItemsList" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <!-- Items populated by JS -->
+                    </div>
+                </div>
+
+                <div id="viewAdicionaisSection" style="margin-top: 2rem; display: none;">
+                    <h3 style="font-size: 0.9rem; font-weight: 800; color: #6366f1; text-transform: uppercase; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="plus-circle" style="width:16px;"></i> Custos Adicionais</h3>
+                    <div id="viewAdicionaisList" style="display: flex; flex-direction: column; gap: 0.4rem;">
+                        <!-- Adicionais populated by JS -->
+                    </div>
+                </div>
+
+                <div id="viewParcelasSection" style="margin-top: 2rem; display: none;">
+                    <h3 style="font-size: 0.9rem; font-weight: 800; color: #10b981; text-transform: uppercase; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="layers" style="width:16px;"></i> Detalhes do Parcelamento</h3>
+                    <div id="viewParcelasList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.8rem;">
+                        <!-- Parcelas populated by JS -->
+                    </div>
+                </div>
+
+                <div id="viewObsSection" style="margin-top: 2rem; display: none;">
+                   <h3 style="font-size: 0.9rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem;">ObservaÃ§Ãµes</h3>
+                   <p id="viewObservacoes" style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px; font-size: 0.85rem; color: var(--text-muted); border: 1px dashed var(--border-color);"></p>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="margin-top: 2rem; display: flex; justify-content: space-between; align-items: flex-end; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                <div>
+                        <p style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.2rem;">Valor Total</p>
+                        <h2 id="viewTotalValue" style="font-size: 2.2rem; font-weight: 950; color: #818cf8; line-height: 1;">R$ 0,00</h2>
+                </div>
+                <div style="display: flex; gap: 0.8rem;">
+                    <button type="button" class="btn-cancel" onclick="closeViewModal()">FECHAR</button>
+                    <button type="button" id="btnEditFromView" class="btn-save" style="background: var(--primary);">EDITAR NOTA</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DETALHE CENTRO DE CUSTO -->
+    <div id="ccDetailModal" class="modal-overlay">
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title">Detalhamento por Centro de Custo</h2>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem; font-weight: 600;">VISÃƒO GERAL DO INVESTIMENTO NA SELEÃ‡ÃƒO ATUAL</p>
+                </div>
+                <button type="button" class="btn-close-modal-fornecedor" onclick="closeCCDetailModal()">&times;</button>
+            </div>
+            
+            <div class="modal-body-scroll">
+                <div id="ccDetailList" style="display: flex; flex-direction: column; gap: 1rem; padding-bottom: 2rem;">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <div class="modal-footer" style="margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+                <div style="width: 100%; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div>
+                        <p style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.2rem;">Total Analisado</p>
+                        <h2 id="ccDetailGrandTotal" style="font-size: 1.8rem; font-weight: 950; color: #818cf8; line-height: 1;">R$ 0,00</h2>
+                    </div>
+                    <button type="button" class="btn-save" onclick="closeCCDetailModal()" style="padding: 0.8rem 2rem; font-size: 0.8rem;">FECHAR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script src="compras.js?v=10"></script>
+    <script src="orb_menu.js"></script>
+    <script>
+        lucide.createIcons();
+        window.closeGenericModal = () => {
+            document.getElementById('genericModal').classList.remove('active');
+        };
+    </script>
+</body>
+</html>
+
+

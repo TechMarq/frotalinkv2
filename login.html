@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FrotaLink | Entrar</title>
+    <meta name="description" content="Acesse o sistema de gestão integrada FrotaLink com sua conta corporativa.">
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-main: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.8);
+            --border-card: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --radius: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+
+        body {
+            background: var(--bg-main);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background-image:
+                radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
+                radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 1) 0, transparent 50%),
+                radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 1) 0, transparent 50%);
+        }
+
+        /* Grid background */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            opacity: 0.06;
+            pointer-events: none;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        /* Glowing orbs */
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .orb-1 {
+            width: 500px; height: 500px;
+            background: rgba(99, 102, 241, 0.15);
+            top: -150px; left: -100px;
+        }
+        .orb-2 {
+            width: 400px; height: 400px;
+            background: rgba(192, 132, 252, 0.1);
+            bottom: -100px; right: -100px;
+        }
+
+        /* Login card */
+        .login-card {
+            position: relative;
+            z-index: 1;
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius);
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 420px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
+            animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to   { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Brand */
+        .brand {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .brand-icon {
+            width: 64px; height: 64px;
+            background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(192,132,252,0.2));
+            border: 1px solid rgba(99,102,241,0.3);
+            border-radius: 18px;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 1.8rem;
+        }
+
+        .brand h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.25rem;
+        }
+
+        .brand p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* Message banner */
+        .auth-message {
+            display: none;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+            border: 1px solid;
+        }
+
+        .auth-message.error {
+            background: rgba(239,68,68,0.08);
+            color: #fca5a5;
+            border-color: rgba(239,68,68,0.2);
+        }
+
+        .auth-message.success {
+            background: rgba(16,185,129,0.08);
+            color: #6ee7b7;
+            border-color: rgba(16,185,129,0.2);
+        }
+
+        .auth-message.info {
+            background: rgba(99,102,241,0.08);
+            color: #a5b4fc;
+            border-color: rgba(99,102,241,0.2);
+        }
+
+        /* Form */
+        .form-group {
+            margin-bottom: 1.2rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.85rem 1rem;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            font-family: inherit;
+            transition: all 0.2s;
+            outline: none;
+        }
+
+        .form-group input:focus {
+            border-color: var(--primary);
+            background: rgba(79, 70, 229, 0.06);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+        }
+
+        .form-group input::placeholder {
+            color: rgba(148,163,184,0.5);
+        }
+
+        /* Password toggle */
+        .password-wrapper {
+            position: relative;
+        }
+
+        .password-wrapper input {
+            padding-right: 3rem;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 0.85rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0.25rem;
+            display: flex;
+            align-items: center;
+            transition: color 0.2s;
+        }
+
+        .password-toggle:hover {
+            color: var(--text-main);
+        }
+
+        /* Forgot password link */
+        .forgot-link {
+            display: block;
+            text-align: right;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            margin-top: -0.75rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+
+        .forgot-link:hover {
+            color: #818cf8;
+        }
+
+        /* Login button */
+        .btn-login {
+            width: 100%;
+            padding: 0.9rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-login:hover:not(:disabled) {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(79, 70, 229, 0.4);
+        }
+
+        .btn-login:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-login .spinner {
+            display: none;
+            width: 18px; height: 18px;
+            border: 2.5px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        .btn-login.loading .spinner { display: block; }
+        .btn-login.loading .btn-text { display: none; }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Reset password form */
+        .reset-form {
+            display: none;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-family: inherit;
+            padding: 0;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover { color: var(--text-main); }
+
+        /* Footer */
+        .login-footer {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.75rem;
+            color: rgba(148, 163, 184, 0.5);
+        }
+
+        @media (max-width: 480px) {
+            .login-card {
+                margin: 1rem;
+                padding: 1.75rem 1.5rem;
+                max-width: 100%;
+            }
+        }
+    </style>
+    <script src="config.js"></script>
+</head>
+
+<body>
+    <div class="bg-grid"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+
+    <div class="login-card">
+        <!-- Login Form -->
+        <div id="loginForm">
+            <div class="brand">
+                <div class="brand-icon">🔗</div>
+                <h1>FrotaLink</h1>
+                <p>FrotaLink — Acesso Corporativo</p>
+            </div>
+
+            <div class="auth-message" id="authMessage"></div>
+
+            <form id="loginFormEl" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="loginEmail">E-mail corporativo</label>
+                    <input
+                        type="email"
+                        id="loginEmail"
+                        placeholder="seu@email.com"
+                        autocomplete="email"
+                        required>
+                </div>
+
+                <div class="form-group">
+                    <label for="loginPassword">Senha</label>
+                    <div class="password-wrapper">
+                        <input
+                            type="password"
+                            id="loginPassword"
+                            placeholder="••••••••"
+                            autocomplete="current-password"
+                            required>
+                        <button type="button" class="password-toggle" onclick="togglePassword('loginPassword', this)" title="Mostrar/ocultar senha">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; margin-top: -0.75rem; margin-bottom: 1.5rem;">
+                    <button type="button" class="forgot-link" style="margin: 0;" onclick="showFirstAccessForm()">
+                        Primeiro acesso?
+                    </button>
+                    <button type="button" class="forgot-link" style="margin: 0;" onclick="showResetForm()">
+                        Esqueceu sua senha?
+                    </button>
+                </div>
+
+                <button type="submit" id="loginBtn" class="btn-login">
+                    <span class="spinner"></span>
+                    <span class="btn-text">Entrar</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- First Access Form -->
+        <div id="firstAccessForm" style="display: none;">
+            <button class="back-link" onclick="showLoginForm()">
+                ← Voltar ao login
+            </button>
+            <div class="brand">
+                <div class="brand-icon" style="font-size: 1.5rem;">✨</div>
+                <h1 style="font-size: 1.4rem; margin-bottom: 0.5rem;">Primeiro Acesso</h1>
+                <p>Cadastre sua senha corporativa personalizada.</p>
+            </div>
+
+            <div class="auth-message" id="firstAccessMessage"></div>
+
+            <form id="firstAccessFormEl" onsubmit="handleFirstAccessRegister(event)" style="margin-top: 1.5rem;">
+                <div class="form-group">
+                    <label for="firstAccessEmail">E-mail corporativo</label>
+                    <input
+                        type="email"
+                        id="firstAccessEmail"
+                        placeholder="seu@email.com"
+                        required>
+                </div>
+                <div class="form-group">
+                    <label for="firstAccessPassword">Nova Senha</label>
+                    <div class="password-wrapper">
+                        <input
+                            type="password"
+                            id="firstAccessPassword"
+                            placeholder="Mínimo 6 caracteres"
+                            required>
+                        <button type="button" class="password-toggle" onclick="togglePassword('firstAccessPassword', this)" title="Mostrar/ocultar senha">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="firstAccessConfirmPassword">Confirmar Nova Senha</label>
+                    <div class="password-wrapper">
+                        <input
+                            type="password"
+                            id="firstAccessConfirmPassword"
+                            placeholder="Digite novamente"
+                            required>
+                        <button type="button" class="password-toggle" onclick="togglePassword('firstAccessConfirmPassword', this)" title="Mostrar/ocultar senha">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <button type="submit" id="firstAccessBtn" class="btn-login" style="margin-top: 1rem;">
+                    <span class="spinner"></span>
+                    <span class="btn-text">Ativar Meu Acesso</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- Reset Password Form -->
+        <div id="resetForm" class="reset-form">
+            <button class="back-link" onclick="showLoginForm()">
+                ← Voltar ao login
+            </button>
+            <div class="brand">
+                <div class="brand-icon" style="font-size: 1.5rem;">🔑</div>
+                <h1 style="font-size: 1.4rem; margin-bottom: 0.5rem;">Redefinir Senha</h1>
+                <p>Enviaremos um link de redefinição para seu e-mail.</p>
+            </div>
+
+            <div class="auth-message" id="resetMessage"></div>
+
+            <form id="resetFormEl" onsubmit="handlePasswordReset(event)" style="margin-top: 1.5rem;">
+                <div class="form-group">
+                    <label for="resetEmail">E-mail corporativo</label>
+                    <input
+                        type="email"
+                        id="resetEmail"
+                        placeholder="seu@email.com"
+                        autocomplete="email"
+                        required>
+                </div>
+                <button type="submit" id="resetBtn" class="btn-login">
+                    <span class="spinner"></span>
+                    <span class="btn-text">Enviar link de redefinição</span>
+                </button>
+            </form>
+        </div>
+
+        <div class="login-footer">
+            FrotaLink &bull; Acesso restrito &bull; <a href="home.html" style="color: inherit;">Versão 2.0</a>
+        </div>
+    </div>
+
+    <script>
+let authClient = null;
+
+        window.addEventListener('load', async () => {
+            authClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+            // Exibir mensagem de redirecionamento se existir
+            const msg = sessionStorage.getItem('auth_message');
+            if (msg) {
+                showMessage('authMessage', msg, 'info');
+                sessionStorage.removeItem('auth_message');
+            }
+
+            // Verificar se já está logado — redirecionar direto
+            const { data: { session } } = await authClient.auth.getSession();
+            if (session) {
+                window.location.href = 'home.html';
+            }
+        });
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+            const password = document.getElementById('loginPassword').value;
+            const btn = document.getElementById('loginBtn');
+
+            setLoading(btn, true);
+            clearMessage('authMessage');
+
+            try {
+                // 1. Tentar login direto no Supabase Auth (autenticação)
+                let { data, error } = await authClient.auth.signInWithPassword({ email, password });
+
+                if (error) {
+                    showMessage('authMessage', 'E-mail ou senha incorretos. Tente novamente.', 'error');
+                    return;
+                }
+
+                // 2. Verificar se o e-mail tem acesso liberado no banco de dados (agora autenticado, passa pela RLS)
+                const { data: accessData, error: accessError } = await authClient
+                    .from('user_access')
+                    .select('*')
+                    .eq('email', email)
+                    .eq('active', true)
+                    .single();
+
+                if (accessError || !accessData) {
+                    await authClient.auth.signOut();
+                    showMessage('authMessage', 'Acesso não autorizado ou inativo. Peça acesso ao administrador.', 'error');
+                    return;
+                }
+
+                // 3. Login bem-sucedido - redirecionar
+                showMessage('authMessage', 'Acesso autorizado! Redirecionando...', 'success');
+                setTimeout(() => { window.location.href = 'home.html'; }, 800);
+
+            } catch (err) {
+                showMessage('authMessage', 'Erro inesperado. Tente novamente.', 'error');
+                console.error(err);
+            } finally {
+                setLoading(btn, false);
+            }
+        }
+
+        async function handleFirstAccessRegister(e) {
+            e.preventDefault();
+            const email = document.getElementById('firstAccessEmail').value.trim().toLowerCase();
+            const password = document.getElementById('firstAccessPassword').value;
+            const confirmPassword = document.getElementById('firstAccessConfirmPassword').value;
+            const btn = document.getElementById('firstAccessBtn');
+
+            if (password.length < 6) {
+                showMessage('firstAccessMessage', 'A senha precisa ter no mínimo 6 caracteres.', 'error');
+                return;
+            }
+
+            if (password !== confirmPassword) {
+                showMessage('firstAccessMessage', 'As senhas não coincidem.', 'error');
+                return;
+            }
+
+            setLoading(btn, true);
+            clearMessage('firstAccessMessage');
+
+            try {
+                // 1. Verificar se o e-mail tem acesso liberado no banco de dados via RPC (bypassa RLS)
+                const { data: isRegistered, error: checkError } = await authClient
+                    .rpc('check_email_registered', { p_email: email });
+
+                if (checkError) {
+                    console.error('Erro ao verificar e-mail:', checkError);
+                }
+
+                if (!isRegistered) {
+                    showMessage('firstAccessMessage', 'E-mail corporativo não cadastrado ou inativo. Peça acesso ao administrador.', 'error');
+                    return;
+                }
+
+                // 2. Realizar o cadastro (signUp) no Supabase Auth com a senha escolhida
+                const { data: signUpData, error: signUpError } = await authClient.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            is_temporary_password: false // senha já definida
+                        }
+                    }
+                });
+
+                if (signUpError) {
+                    if (signUpError.message.includes('already registered')) {
+                        showMessage('firstAccessMessage', 'Este usuário já possui acesso ativado. Use a tela de login ou redefina sua senha.', 'error');
+                    } else {
+                        showMessage('firstAccessMessage', 'Erro ao registrar credenciais: ' + signUpError.message, 'error');
+                    }
+                    return;
+                }
+
+                // 3. Efetuar o login imediato com as credenciais criadas
+                const loginResult = await authClient.auth.signInWithPassword({ email, password });
+
+                if (loginResult.error) {
+                    showMessage('firstAccessMessage', 'Acesso ativado! Volte à tela anterior para fazer o login.', 'success');
+                    setTimeout(() => showLoginForm(), 3000);
+                } else {
+                    showMessage('firstAccessMessage', 'Acesso ativado com sucesso! Redirecionando...', 'success');
+                    setTimeout(() => { window.location.href = 'home.html'; }, 1000);
+                }
+
+            } catch (err) {
+                showMessage('firstAccessMessage', 'Erro inesperado. Tente novamente.', 'error');
+                console.error(err);
+            } finally {
+                setLoading(btn, false);
+            }
+        }
+
+        async function handlePasswordReset(e) {
+            e.preventDefault();
+            const email = document.getElementById('resetEmail').value.trim();
+            const btn = document.getElementById('resetBtn');
+
+            setLoading(btn, true);
+            clearMessage('resetMessage');
+
+            try {
+                const { error } = await authClient.auth.resetPasswordForEmail(email, {
+                    redirectTo: window.location.origin + '/login.html'
+                });
+
+                if (error) {
+                    showMessage('resetMessage', 'Erro ao enviar o e-mail. Verifique o endereço informado.', 'error');
+                } else {
+                    showMessage('resetMessage', 'Link enviado! Verifique sua caixa de entrada (e spam).', 'success');
+                    document.getElementById('resetFormEl').reset();
+                }
+            } catch (err) {
+                showMessage('resetMessage', 'Erro inesperado. Tente novamente.', 'error');
+            } finally {
+                setLoading(btn, false);
+            }
+        }
+
+        function showFirstAccessForm() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('resetForm').style.display = 'none';
+            document.getElementById('firstAccessForm').style.display = 'block';
+            clearMessage('firstAccessMessage');
+        }
+
+        function showResetForm() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('firstAccessForm').style.display = 'none';
+            document.getElementById('resetForm').style.display = 'block';
+            clearMessage('resetMessage');
+        }
+
+        function showLoginForm() {
+            document.getElementById('resetForm').style.display = 'none';
+            document.getElementById('firstAccessForm').style.display = 'none';
+            document.getElementById('loginForm').style.display = 'block';
+            clearMessage('authMessage');
+        }
+
+        function togglePassword(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+            btn.innerHTML = isPassword
+                ? `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+                : `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
+        }
+
+        function setLoading(btn, loading) {
+            btn.disabled = loading;
+            btn.classList.toggle('loading', loading);
+        }
+
+        function showMessage(id, text, type) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = text;
+            el.className = `auth-message ${type}`;
+            el.style.display = 'block';
+        }
+
+        function clearMessage(id) {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        }
+    </script>
+</body>
+
+</html>
+
+
+
