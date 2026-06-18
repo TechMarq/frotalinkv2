@@ -2598,6 +2598,9 @@ function renderCompras() {
             if (col.key === 'placa') {
                 const itns = c.itens || c.items || [];
                 const uniquePlacas = [...new Set(itns.map(it => {
+                    if (it.pessoa) {
+                        return it.pessoa;
+                    }
                     if (it.veiculoId) {
                         const v = (vehicles || []).find(veh => veh.id == it.veiculoId);
                         return v ? v.placa : null;

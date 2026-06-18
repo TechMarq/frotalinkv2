@@ -663,6 +663,122 @@ async function openReceberModal(id = null) {
     modal.classList.add('active');
 }
 
+function handleReceberXMLUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const xmlText = e.target.result;
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+
+            // Verifica erros no parser XML
+            const parserError = xmlDoc.getElementsByTagName("parsererror");
+            if (parserError.length > 0) {
+                showToast("Erro ao processar arquivo XML: Formato inválido.", "error");
+                return;
+            }
+
+            // Função auxiliar de busca segura de texto da tag
+            const getTagText = (parent, tagName) => {
+                const els = parent.getElementsByTagName(tagName);
+                return els.length > 0 ? els[0].textContent.trim() : null;
+            };
+
+            // 1. Data de Emissão / Competência
+            let dataEmi = getTagText(xmlDoc, "dCompet") || getTagText(xmlDoc, "dhEmi") || getTagText(xmlDoc, "dEmi") || getTagText(xmlDoc, "DataEmissao") || getTagText(xmlDoc, "DtEmissao");
+            if (dataEmi) {
+                dataEmi = dataEmi.substring(0, 10);
+            } else {
+                dataEmi = new Date().toISOString().split('T')[0];
+            }
+
+            // 2. Número da Nota Fiscal / CT-e / NFSe
+            const numNF = getTagText(xmlDoc, "nNFSe") || getTagText(xmlDoc, "nCT") || getTagText(xmlDoc, "nNF") || getTagText(xmlDoc, "Numero") || getTagText(xmlDoc, "NumeroNfse");
+
+            // 3. Cliente / Razão Social (Tomador do Serviço na NFSe/CT-e, Destinatário na NFe)
+            let cliente = null;
+            const dest = xmlDoc.getElementsByTagName("dest")[0];
+            if (dest) {
+                cliente = getTagText(dest, "xNome");
+            }
+            if (!cliente) {
+                const toma = xmlDoc.getElementsByTagName("toma")[0];
+                if (toma) {
+                    cliente = getTagText(toma, "xNome");
+                }
+            }
+            if (!cliente) {
+                const tomador = xmlDoc.getElementsByTagName("TomadorServico")[0] || xmlDoc.getElementsByTagName("Tomador")[0] || xmlDoc.getElementsByTagName("TomadorServicoId")[0];
+                if (tomador) {
+                    cliente = getTagText(tomador, "RazaoSocial") || getTagText(tomador, "NomeTomador") || getTagText(tomador, "xNome");
+                }
+            }
+            if (!cliente) {
+                cliente = getTagText(xmlDoc, "RazaoSocialTomador") || getTagText(xmlDoc, "xNome");
+            }
+
+            // 4. Descrição (Serviço ou discriminação)
+            let descricao = "";
+            const servico = xmlDoc.getElementsByTagName("serv")[0] || xmlDoc.getElementsByTagName("Servico")[0];
+            if (servico) {
+                descricao = getTagText(servico, "Discriminacao") || getTagText(servico, "xServ") || "";
+            }
+            if (!descricao) {
+                const infServ = xmlDoc.getElementsByTagName("infServ")[0];
+                if (infServ) {
+                    descricao = getTagText(infServ, "xDescServ") || "";
+                }
+            }
+            if (!descricao) {
+                descricao = getTagText(xmlDoc, "xDescServ") || getTagText(xmlDoc, "Discriminacao") || getTagText(xmlDoc, "xProd") || "";
+            }
+            if (!descricao) {
+                descricao = `Recebimento referente à Nota Fiscal/CT-e ${numNF || ''}`;
+            }
+
+            // 5. Valor Bruto
+            let valorBruto = 0;
+            let valorTexto = getTagText(xmlDoc, "vTPrest") || getTagText(xmlDoc, "vServ") || getTagText(xmlDoc, "vBC") || getTagText(xmlDoc, "vNF") || getTagText(xmlDoc, "ValorServicos") || getTagText(xmlDoc, "ValorTotal");
+            if (valorTexto) {
+                valorBruto = parseFloat(valorTexto) || 0;
+            }
+
+            // 6. Impostos
+            let valorINSS = parseFloat(getTagText(xmlDoc, "vRetCP") || getTagText(xmlDoc, "vRetINSS") || getTagText(xmlDoc, "vINSS") || getTagText(xmlDoc, "ValorInss") || "0.00") || 0;
+            let valorISS = parseFloat(getTagText(xmlDoc, "vISSQN") || getTagText(xmlDoc, "vRetISS") || getTagText(xmlDoc, "vISS") || getTagText(xmlDoc, "ValorIss") || getTagText(xmlDoc, "ValorIssRetido") || "0.00") || 0;
+            let valorIR = parseFloat(getTagText(xmlDoc, "vRetIRRF") || getTagText(xmlDoc, "vRetIR") || getTagText(xmlDoc, "vIRRF") || getTagText(xmlDoc, "ValorIr") || getTagText(xmlDoc, "ValorIrrf") || getTagText(xmlDoc, "vIR") || "0.00") || 0;
+
+            // Preenche os campos do form
+            if (dataEmi) document.getElementById('receberData').value = dataEmi;
+            if (cliente) document.getElementById('receberEntidade').value = cliente;
+            if (numNF) document.getElementById('receberNumNF').value = numNF;
+            if (descricao) document.getElementById('receberDescricao').value = descricao;
+            document.getElementById('receberCompetencia').value = "";
+            document.getElementById('receberPrazo').value = "";
+            document.getElementById('receberPrevisao').value = "";
+            
+            document.getElementById('receberValorBruto').value = valorBruto.toFixed(2);
+            document.getElementById('receberValorINSS').value = valorINSS.toFixed(2);
+            document.getElementById('receberValorISS').value = valorISS.toFixed(2);
+            document.getElementById('receberValorIR').value = valorIR.toFixed(2);
+
+            // Executa atualizações e recálculos automáticos do modal
+            calculateReceberTaxes();
+            calculateReceberForecast();
+
+            showToast("XML importado com sucesso!", "success");
+        } catch (err) {
+            console.error("Erro ao ler XML:", err);
+            showToast("Falha ao analisar o arquivo XML: " + err.message, "error");
+        }
+    };
+    reader.readAsText(file);
+    input.value = "";
+}
+
 function calculateReceberTaxes() {
     const bruto = parseFloat(document.getElementById('receberValorBruto').value) || 0;
     const inss = parseFloat(document.getElementById('receberValorINSS').value) || 0;
@@ -678,8 +794,14 @@ function calculateReceberTaxes() {
 
 function calculateReceberForecast() {
     const dataRef = document.getElementById('receberData').value;
-    const prazo = parseInt(document.getElementById('receberPrazo').value) || 0;
+    const prazoVal = document.getElementById('receberPrazo').value;
     
+    if (prazoVal === "" || prazoVal === null || prazoVal === undefined) {
+        document.getElementById('receberPrevisao').value = "";
+        return;
+    }
+
+    const prazo = parseInt(prazoVal) || 0;
     if (dataRef) {
         const date = new Date(dataRef + 'T00:00:00');
         date.setDate(date.getDate() + prazo);

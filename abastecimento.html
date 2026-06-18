@@ -19,7 +19,8 @@
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script defer
+        src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="orb_menu.css">
     <style>
@@ -1183,7 +1184,9 @@
     <div class="ops-container">
         <div class="header-actions">
             <div>
-                <a href="home.html" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                <a href="home.html"
+                    style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;"
+                    onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
                     <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
                 </a>
                 <h1 style="margin-top: 0.5rem;">Controle de Abastecimento</h1>
@@ -1209,7 +1212,7 @@
             </div>
             <div class="tab-item" onclick="switchMainTab('imports')" data-perm="abastecimento_importacoes:view">
                 <i data-lucide="file-up" style="width: 18px;"></i>
-                ImportaÃ§Ãµes
+                Importações
             </div>
             <div class="tab-item" onclick="switchMainTab('setup')" data-perm="abastecimento_postos:view">
                 <i data-lucide="settings" style="width: 18px;"></i>
@@ -1417,7 +1420,8 @@
                     </div>
                     <div>
                         <h2 style="margin-bottom: 0.5rem; font-size: 1.5rem;">Analista FrotaLink IA</h2>
-                        <p style="opacity: 0.9;">A inteligÃªncia artificial estÃ¡ processando seus dados. Em breve, vocÃª
+                        <p style="opacity: 0.9;">A inteligÃªncia artificial estÃ¡ processando seus dados. Em breve,
+                            vocÃª
                             terÃ¡ insights automÃ¡ticos sobre:</p>
                         <ul style="margin-top: 1rem; columns: 2; font-size: 0.9rem; opacity: 0.8;">
                             <li>âœ“ Oportunidades de economia</li>
@@ -1825,10 +1829,12 @@
                                             data-lucide="chevrons-up-down" style="width: 14px;"></i></span></th>
                                 <th onclick="handleSort('fuel', 'media')" data-column="media" data-col="media">MÃ©dia
                                     <span class="sort-icon"><i data-lucide="chevrons-up-down"
-                                            style="width: 14px;"></i></span></th>
+                                            style="width: 14px;"></i></span>
+                                </th>
                                 <th onclick="handleSort('fuel', 'valor')" data-column="valor" data-col="valor">Total
                                     <span class="sort-icon"><i data-lucide="chevrons-up-down"
-                                            style="width: 14px;"></i></span></th>
+                                            style="width: 14px;"></i></span>
+                                </th>
                                 <th onclick="handleSort('fuel', 'posto')" data-column="posto" data-col="col-posto">Posto
                                     / Local <span class="sort-icon"><i data-lucide="chevrons-up-down"
                                             style="width: 14px;"></i></span></th>
@@ -2012,8 +2018,9 @@
                 <table id="importsTable">
                     <thead>
                         <tr>
-                            <th onclick="handleSort('imports', 'display_id')" data-col="display_id">ID ImportaÃ§Ã£o <span
-                                    class="sort-icon"><i data-lucide="chevrons-up-down" style="width: 14px;"></i></span>
+                            <th onclick="handleSort('imports', 'display_id')" data-col="display_id">ID ImportaÃ§Ã£o
+                                <span class="sort-icon"><i data-lucide="chevrons-up-down"
+                                        style="width: 14px;"></i></span>
                             </th>
                             <th onclick="handleSort('imports', 'data_importacao')" data-col="data_importacao">Data /
                                 Hora <span class="sort-icon"><i data-lucide="chevrons-up-down"
@@ -2210,5 +2217,3 @@
 </body>
 
 </html>
-
-

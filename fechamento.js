@@ -1,4 +1,4 @@
-﻿let supabaseClient = null;
+let supabaseClient = null;
 const state = {
     vehicles: [],
     fueling: [],
@@ -87,12 +87,13 @@ async function updateIntelligentSupplierFilter() {
 
 async function loadInitialData() {
     try {
-        const [vRes, fRes, pRes, postosRes, catsRes] = await Promise.all([
+        const [vRes, fRes, pRes, postosRes, catsRes, driversRes] = await Promise.all([
             supabaseClient.from('veiculos').select('*').order('placa'),
             supabaseClient.from('fornecedores').select('id, nome'),
             supabaseClient.from('formas_pagamento').select('id, nome'),
             supabaseClient.from('postos').select('*').order('nome'),
-            supabaseClient.from('categorias_posto').select('*').order('descricao')
+            supabaseClient.from('categorias_posto').select('*').order('descricao'),
+            supabaseClient.from('motoristas').select('id, nome_completo').order('nome_completo')
         ]);
 
         state.vehicles = vRes.data || [];
@@ -100,6 +101,7 @@ async function loadInitialData() {
         state.formasPagamento = pRes.data || [];
         state.postos = postosRes.data || [];
         state.postCategories = catsRes.data || [];
+        state.drivers = driversRes.data || [];
 
         // Build a mapping of postos to their categories based on fueling history
         let postToCategoryMap = {};
@@ -208,39 +210,63 @@ window.updatePostoFilterOptions = (event) => {
 }
 
 function populateClassificacoes() {
-    const classSel = document.getElementById('filter_classificacao');
+    const dropdown = document.getElementById('classificacaoDropdown');
+    if (!dropdown) return;
     const classes = [...new Set(state.vehicles.map(v => v.classificacao))].filter(Boolean).sort();
-    classSel.innerHTML = '<option value="">Todas</option>' + 
-        classes.map(c => `<option value="${c}">${c}</option>`).join('') +
-        '<option value="SAIDA_ESTOQUE">Saída / Venda Estoque</option>';
+    
+    dropdown.innerHTML = classes.map(c => `
+        <div class="multiselect-option" onclick="toggleOption(this, event)">
+            <input type="checkbox" value="${c}" onchange="populateProprietarios(); updateMultiselectDisplay(event, 'classificacao');">
+            <label>${c}</label>
+        </div>
+    `).join('') + `
+        <div class="multiselect-option" onclick="toggleOption(this, event)">
+            <input type="checkbox" value="SAIDA_ESTOQUE" onchange="populateProprietarios(); updateMultiselectDisplay(event, 'classificacao');">
+            <label>Saída / Venda Estoque</label>
+        </div>
+        <div class="multiselect-option" onclick="toggleOption(this, event)">
+            <input type="checkbox" value="VINCULO_PESSOA" onchange="populateProprietarios(); updateMultiselectDisplay(event, 'classificacao');">
+            <label>Vínculo Pessoa (Compras)</label>
+        </div>
+    `;
+    
+    updateMultiselectDisplay(null, 'classificacao');
 }
 
 window.populateProprietarios = () => {
-    const filterClass = document.getElementById('filter_classificacao').value;
+    const selectedClasses = Array.from(document.querySelectorAll('#classificacaoDropdown input:checked')).map(cb => cb.value);
     const dropdown = document.getElementById('propDropdown');
+    if (!dropdown) return;
     
     let props = [];
-    if (filterClass === 'SAIDA_ESTOQUE') {
-        // Show clients from estoque_clientes
-        props = [...new Set((state.estoqueClientes || []).map(c => c.nome))].filter(Boolean).sort();
-    } else {
-        // Filter vehicles by selected class first
-        const filteredVehicles = filterClass 
-            ? state.vehicles.filter(v => v.classificacao === filterClass)
-            : state.vehicles;
-
-        props = [...new Set(filteredVehicles.map(v => v.proprietario))].filter(Boolean).sort();
+    if (selectedClasses.includes('SAIDA_ESTOQUE')) {
+        props = [...new Set((state.estoqueClientes || []).map(c => c.nome))].filter(Boolean);
     }
+    
+    if (selectedClasses.includes('VINCULO_PESSOA')) {
+        props = [...props, ...new Set((state.drivers || []).map(d => d.nome_completo))].filter(Boolean);
+    }
+    
+    const hasVehiclesClasses = selectedClasses.filter(c => c !== 'SAIDA_ESTOQUE' && c !== 'VINCULO_PESSOA');
+    if (hasVehiclesClasses.length > 0) {
+        const filteredVehicles = state.vehicles.filter(v => hasVehiclesClasses.includes(v.classificacao));
+        props = [...props, ...new Set(filteredVehicles.map(v => v.proprietario))].filter(Boolean);
+    } else if (!selectedClasses.includes('SAIDA_ESTOQUE') && !selectedClasses.includes('VINCULO_PESSOA')) {
+        props = [...props, ...new Set(state.vehicles.map(v => v.proprietario))].filter(Boolean);
+    }
+
+    props.sort();
+
+    const currentSelected = Array.from(document.querySelectorAll('#propDropdown input:checked')).map(cb => cb.value);
 
     dropdown.innerHTML = props.map(p => `
         <div class="multiselect-option" onclick="toggleOption(this, event)">
-            <input type="checkbox" value="${p}" onchange="updateMultiselectDisplay(event)">
+            <input type="checkbox" value="${p}" ${currentSelected.includes(p) ? 'checked' : ''} onchange="updateMultiselectDisplay(event, 'prop')">
             <label>${p}</label>
         </div>
     `).join('');
     
-    // Reset selection display
-    updateMultiselectDisplay();
+    updateMultiselectDisplay(null, 'prop');
 }
 
 // --- Multiselect Logic ---
@@ -291,11 +317,16 @@ window.toggleOption = (optionDiv, event) => {
         if (dropdown.id === 'fornDropdown') type = 'forn';
         else if (dropdown.id === 'catPostoDropdown') type = 'catPosto';
         else if (dropdown.id === 'postoDropdown') type = 'posto';
+        else if (dropdown.id === 'classificacaoDropdown') type = 'classificacao';
     }
     
     // For catPosto, also refresh the posto list based on selected categories
     if (type === 'catPosto') {
         updatePostoFilterOptions();
+    }
+    
+    if (type === 'classificacao') {
+        populateProprietarios();
     }
     
     updateMultiselectDisplay(null, type);
@@ -308,6 +339,7 @@ window.updateMultiselectDisplay = (event, type = 'prop') => {
     if (type === 'forn') prefix = 'forn';
     else if (type === 'catPosto') prefix = 'catPosto';
     else if (type === 'posto') prefix = 'posto';
+    else if (type === 'classificacao') prefix = 'classificacao';
     
     // Read label text instead of checkbox value (value can be a UUID/ID)
     const selectedOptions = Array.from(document.querySelectorAll(`#${prefix}Dropdown input:checked`));
@@ -320,7 +352,11 @@ window.updateMultiselectDisplay = (event, type = 'prop') => {
     if (!label) return;
     
     if (selectedLabels.length === 0) {
-        label.innerHTML = 'Todos';
+        if (prefix === 'classificacao') {
+            label.innerHTML = 'Todas';
+        } else {
+            label.innerHTML = 'Todos';
+        }
     } else if (selectedLabels.length === 1) {
         label.innerHTML = selectedLabels[0];
     } else {
@@ -336,7 +372,7 @@ window.updateMultiselectDisplay = (event, type = 'prop') => {
 
 // Close multiselect on click outside
 document.addEventListener('click', (e) => {
-    const multiselectIds = ['prop', 'forn', 'catPosto', 'posto'];
+    const multiselectIds = ['prop', 'forn', 'catPosto', 'posto', 'classificacao'];
     multiselectIds.forEach(prefix => {
         const container = document.getElementById(`${prefix}Multiselect`);
         const dropdown = document.getElementById(`${prefix}Dropdown`);
@@ -421,7 +457,7 @@ async function generateClosing() {
 
     state.periodLabel = new Date(year, month - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
     
-    const filterClass = document.getElementById('filter_classificacao').value;
+    const selectedClasses = Array.from(document.querySelectorAll('#classificacaoDropdown input:checked')).map(cb => cb.value);
     const selectedProps = Array.from(document.querySelectorAll('#propDropdown input:checked')).map(cb => cb.value);
     const selectedCats = Array.from(document.querySelectorAll('#catPostoDropdown input:checked')).map(cb => cb.value);
     const selectedPostos = Array.from(document.querySelectorAll('#postoDropdown input:checked')).map(cb => cb.value);
@@ -538,8 +574,13 @@ async function generateClosing() {
         // Apply filters in memory
         const relevantVehicles = state.vehicles.filter(v => {
             let ok = true;
-            if (filterClass && filterClass !== 'SAIDA_ESTOQUE' && v.classificacao !== filterClass) ok = false;
-            if (selectedProps.length > 0 && filterClass !== 'SAIDA_ESTOQUE' && !selectedProps.includes(v.proprietario)) ok = false;
+            const hasVehiclesClasses = selectedClasses.filter(c => c !== 'SAIDA_ESTOQUE');
+            if (hasVehiclesClasses.length > 0) {
+                if (!hasVehiclesClasses.includes(v.classificacao)) ok = false;
+            }
+            if (selectedProps.length > 0) {
+                if (!selectedProps.includes(v.proprietario)) ok = false;
+            }
             return ok;
         });
         const vehicleIds = relevantVehicles.map(v => v.id);
@@ -558,7 +599,12 @@ async function generateClosing() {
 
         // Filter purchases and their items
         const filteredPurchases = purchases.filter(p => {
-            return (p.compra_itens || []).some(it => vehicleIds.includes(it.vinculo_veiculo_id));
+            return (p.compra_itens || []).some(it => {
+                if (it.vinculo_pessoa) {
+                    return selectedClasses.includes('VINCULO_PESSOA');
+                }
+                return vehicleIds.includes(it.vinculo_veiculo_id);
+            });
         });
 
         console.log('Abastecimentos após filtro de veículos:', fuel.length);
@@ -593,7 +639,7 @@ async function generateClosing() {
 
 function processData(fuel, maint, vehicles, purchases, sales) {
     const grouped = {};
-    const filterClass = document.getElementById('filter_classificacao').value;
+    const selectedClasses = Array.from(document.querySelectorAll('#classificacaoDropdown input:checked')).map(cb => cb.value);
     const selectedProps = Array.from(document.querySelectorAll('#propDropdown input:checked')).map(cb => cb.value);
 
     // Build product ID -> Name map
@@ -602,7 +648,12 @@ function processData(fuel, maint, vehicles, purchases, sales) {
         state.products.forEach(p => productMap[p.id] = p.nome);
     }
 
-    if (filterClass === 'SAIDA_ESTOQUE') {
+    const shouldProcessEstoque = selectedClasses.includes('SAIDA_ESTOQUE');
+    const shouldProcessPessoa = selectedClasses.includes('VINCULO_PESSOA');
+    const hasVehicleClasses = selectedClasses.filter(c => c !== 'SAIDA_ESTOQUE' && c !== 'VINCULO_PESSOA').length > 0;
+    const shouldProcessVehicles = (selectedClasses.length === 0) || hasVehicleClasses;
+
+    if (shouldProcessEstoque) {
         // Group ONLY by client sales (estoque)
         sales.forEach(s => {
             if (s.tipo !== 'EXTERNA' || !s.cliente_nome) return;
@@ -640,7 +691,48 @@ function processData(fuel, maint, vehicles, purchases, sales) {
                 grouped[owner][subKey].total += val;
             });
         });
-    } else {
+    }
+
+    if (shouldProcessPessoa) {
+        // Group by person (Vínculo Pessoa)
+        purchases.forEach(p => {
+            (p.compra_itens || []).forEach(it => {
+                if (!it.vinculo_pessoa) return;
+                const owner = it.vinculo_pessoa;
+                if (selectedProps.length > 0 && !selectedProps.includes(owner)) return;
+
+                if (!grouped[owner]) grouped[owner] = {};
+                
+                const subKey = "VÍNCULO PESSOA";
+                if (!grouped[owner][subKey]) {
+                    grouped[owner][subKey] = {
+                        id: null,
+                        fuel: [],
+                        maint: [],
+                        estoque: [],
+                        totalFuel: 0,
+                        totalMaint: 0,
+                        totalEstoque: 0,
+                        total: 0
+                    };
+                }
+                const val = (parseFloat(it.quantidade) || 0) * (parseFloat(it.valor_unitario) || 0);
+                
+                grouped[owner][subKey].maint.push({
+                    data: p.data_emissao,
+                    servicos: `${it.produto}${it.marca ? ' ('+it.marca+')' : ''}`,
+                    tipo: it.tipo === 'servico' ? 'SERVIÇO (COMPRAS)' : 'PEÇA (COMPRAS)',
+                    fornecedor: p.fornecedores?.nome || 'Fornecedor não inf.',
+                    valor: val
+                });
+                
+                grouped[owner][subKey].totalMaint += val;
+                grouped[owner][subKey].total += val;
+            });
+        });
+    }
+
+    if (shouldProcessVehicles) {
         // Traditional vehicle grouping
         vehicles.forEach(v => {
             const owner = v.proprietario || 'NÃO INFORMADO';
@@ -671,6 +763,7 @@ function processData(fuel, maint, vehicles, purchases, sales) {
         // Add Purchases linked to vehicles (module COMPRAS only)
         purchases.forEach(p => {
             (p.compra_itens || []).forEach(it => {
+                if (it.vinculo_pessoa) return; // Skip person links under vehicle costs
                 if (!it.vinculo_veiculo_id) return;
                 
                 const vehicle = vehicles.find(v => v.id === it.vinculo_veiculo_id);
@@ -963,12 +1056,22 @@ function updateKPIs() {
 
     document.getElementById('kpi_avg_plate').innerText = format(plateCount > 0 ? totalGeral / plateCount : 0);
     
-    const filterClass = document.getElementById('filter_classificacao').value;
-    if (filterClass === 'SAIDA_ESTOQUE') {
-        document.getElementById('kpi_plate_count').innerText = `${plateCount} Clientes`;
-    } else {
-        document.getElementById('kpi_plate_count').innerText = `${plateCount} Veículos`;
+    const selectedClasses = Array.from(document.querySelectorAll('#classificacaoDropdown input:checked')).map(cb => cb.value);
+    const hasEstoque = selectedClasses.includes('SAIDA_ESTOQUE');
+    const hasPessoa = selectedClasses.includes('VINCULO_PESSOA');
+    const hasVehicles = selectedClasses.filter(c => c !== 'SAIDA_ESTOQUE' && c !== 'VINCULO_PESSOA').length > 0;
+    
+    let label = 'Veículos';
+    if ((hasEstoque || hasPessoa) && hasVehicles) {
+        label = 'Veículos / Clientes / Pessoas';
+    } else if (hasEstoque && hasPessoa) {
+        label = 'Clientes / Pessoas';
+    } else if (hasEstoque) {
+        label = 'Clientes';
+    } else if (hasPessoa) {
+        label = 'Pessoas';
     }
+    document.getElementById('kpi_plate_count').innerText = `${plateCount} ${label}`;
     
     document.getElementById('kpi_fuel_count').innerText = `${fuelCount} Registros`;
     document.getElementById('kpi_maint_count').innerText = `${maintCount} Ordens`;
@@ -1029,10 +1132,17 @@ function renderSummary() {
         return;
     }
 
-    const filterClass = document.getElementById('filter_classificacao').value;
+    const selectedClasses = Array.from(document.querySelectorAll('#classificacaoDropdown input:checked')).map(cb => cb.value);
+    const isSaidaEstoqueOnly = selectedClasses.length === 1 && selectedClasses[0] === 'SAIDA_ESTOQUE';
+    const isPessoaOnly = selectedClasses.length === 1 && selectedClasses[0] === 'VINCULO_PESSOA';
+    
     let html = '';
-    if (filterClass === 'SAIDA_ESTOQUE') {
+    if (isSaidaEstoqueOnly) {
         html = '<div class="summary-header"><h2>Resumo por Cliente</h2></div>';
+    } else if (isPessoaOnly) {
+        html = '<div class="summary-header"><h2>Resumo por Pessoa</h2></div>';
+    } else if (selectedClasses.includes('SAIDA_ESTOQUE') || selectedClasses.includes('VINCULO_PESSOA')) {
+        html = '<div class="summary-header"><h2>Resumo por Proprietário / Outros</h2></div>';
     } else {
         html = '<div class="summary-header"><h2>Resumo por Proprietário</h2></div>';
     }
@@ -1049,7 +1159,7 @@ function renderSummary() {
                 <div class="owner-header" onclick="toggleOwnerGroup(this)">
                     <div class="owner-info">
                         <span class="owner-name">${owner}</span>
-                        <span style="font-size: 0.7rem; color: var(--text-muted);">${filterClass === 'SAIDA_ESTOQUE' ? 'Venda Estoque' : `${Object.keys(plates).length} veículo(s)`}</span>
+                        <span style="font-size: 0.7rem; color: var(--text-muted);">${plates["VENDA ESTOQUE"] ? 'Venda Estoque' : (plates["VÍNCULO PESSOA"] ? 'Vínculo Pessoa' : `${Object.keys(plates).length} veículo(s)`)}</span>
                     </div>
                     <span class="owner-total">${ownerTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                 </div>
@@ -1079,14 +1189,18 @@ function selectPlate(plate, owner) {
     const data = state.closingData[owner][plate];
     const detailArea = document.getElementById('detailArea');
 
-    const filterClass = document.getElementById('filter_classificacao').value;
-
     let detailSubtitle = '';
-    if (filterClass === 'SAIDA_ESTOQUE') {
+    if (plate === 'VENDA ESTOQUE') {
         detailSubtitle = `Cliente: ${owner} | Venda Externa de Estoque`;
+    } else if (plate === 'VÍNCULO PESSOA') {
+        detailSubtitle = `Pessoa: ${owner} | Custo sem vínculo a veículo (Compras)`;
     } else {
-        const vehicle = state.vehicles.find(v => v.id === data.id);
-        detailSubtitle = `${vehicle?.marca || ''} ${vehicle?.modelo || ''} | ${owner} | ${vehicle?.classificacao || 'S/C'}`;
+        const vehicle = state.vehicles.find(v => v.id === data.id || v.placa === plate);
+        if (vehicle) {
+            detailSubtitle = `${vehicle?.marca || ''} ${vehicle?.modelo || ''} | ${owner} | ${vehicle?.classificacao || 'S/C'}`;
+        } else {
+            detailSubtitle = `Custo para Pessoa | ${owner}`;
+        }
     }
 
     let html = `
@@ -1102,7 +1216,7 @@ function selectPlate(plate, owner) {
         </div>
     `;
 
-    if (filterClass !== 'SAIDA_ESTOQUE') {
+    if (plate !== 'VENDA ESTOQUE' && plate !== 'VÍNCULO PESSOA') {
         // Hierarchical Fueling by Driver
         const fuelByDriver = {};
         data.fuel.forEach(f => {
@@ -1167,7 +1281,9 @@ function selectPlate(plate, owner) {
                 </div>
             </div>
         `;
+    }
 
+    if (plate !== 'VENDA ESTOQUE') {
         // Manutenções Section
         html += `
             <div class="section-block">
@@ -1194,7 +1310,7 @@ function selectPlate(plate, owner) {
                                         <td data-label="Fornecedor">${m.fornecedor}</td>
                                         <td data-label="Valor" class="val-col" style="font-weight: 700;">R$ ${m.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
                                     </tr>
-                                `;
+                                  `;
                             }).join('')
                         }
                     </tbody>
@@ -1358,7 +1474,7 @@ function selectSupplier(sName) {
                                     </thead>
                                     <tbody>
                                         ${(p.compra_itens || []).map(it => {
-                                            const plate = state.vehicles.find(v => v.id === it.vinculo_veiculo_id)?.placa || '-';
+                                            const plate = it.vinculo_pessoa || state.vehicles.find(v => v.id === it.vinculo_veiculo_id)?.placa || '-';
                                             return `
                                                 <tr style="background: none; border-color: rgba(255,255,255,0.05);">
                                                     <td style="border: none;">${it.produto} ${it.marca ? '['+it.marca+']' : ''}</td>
@@ -1588,7 +1704,8 @@ function exportToPDF() {
     doc.setFont('helvetica', 'normal');
     doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, margin, y);
     
-    const filterClass = document.getElementById('filter_classificacao').value || 'TODAS';
+    const selectedClasses = Array.from(document.querySelectorAll('#classificacaoDropdown input:checked')).map(cb => cb.value);
+    const filterClass = selectedClasses.length > 0 ? selectedClasses.join(', ') : 'TODAS';
     const selectedProps = Array.from(document.querySelectorAll('#propDropdown input:checked')).map(cb => cb.value);
     
     y += 5;
@@ -1651,7 +1768,7 @@ function exportToPDF() {
         }
     });
 
-    doc.save(`FECHAMENTO_${state.periodLabel.replace(' ','_')}_${filterClass}.pdf`);
+    doc.save(`FECHAMENTO_${state.periodLabel.replace(' ','_')}_${selectedClasses.join('_') || 'TODAS'}.pdf`);
 }
 
 function exportSupplierConsolidatedPDF() {
@@ -1840,7 +1957,8 @@ function generateDetailedReportPDF() {
     doc.setTextColor(100, 116, 139);
     doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, margin, y);
     
-    const filterClassSelected = document.getElementById('filter_classificacao').value || 'TODAS';
+    const selectedClasses = Array.from(document.querySelectorAll('#classificacaoDropdown input:checked')).map(cb => cb.value);
+    const filterClassSelected = selectedClasses.length > 0 ? selectedClasses.join(', ') : 'TODAS';
     y += 5;
     doc.text(`Filtro Classificação: ${filterClassSelected}`, margin, y);
     

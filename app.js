@@ -1,4 +1,4 @@
-﻿const ADMIN_PASSWORD = "M@nu2398";
+const ADMIN_PASSWORD = "M@nu2398";
 
 // --- Configuração Supabase ---
 let client = null;
@@ -742,13 +742,17 @@ function renderVehicles() {
     // Filtra apenas veículos ativos para o Dashboard de alocação
     // Exclui INATIVO e ATIVO - NÃO ALOCAR
     const activeVehicles = vehicles.filter(v => (v.status === 'ATIVO' || !v.status));
+    updateStatusCounts();
 
     const searchWords = searchTerm.split(/\s+/).filter(w => w);
     const filtered = activeVehicles.filter(v => {
         // Filtro por Status rápido (Botões)
         if (currentStatusFilter) {
-            const currentStatus = (v.status_alocacao || 'DISPONÍVEL').toUpperCase();
-            if (currentStatus !== currentStatusFilter) return false;
+            let currentStatus = (v.status_alocacao || 'DISPONIVEL').toUpperCase();
+            if (currentStatus === 'DISPONÍVEL') currentStatus = 'DISPONIVEL';
+            let filterVal = currentStatusFilter.toUpperCase();
+            if (filterVal === 'DISPONÍVEL') filterVal = 'DISPONIVEL';
+            if (currentStatus !== filterVal) return false;
         }
 
         const isMainStatus = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase());
@@ -986,6 +990,30 @@ function updateClassificationCounts() {
 
     for (const [key, value] of Object.entries(counts)) {
         const el = document.getElementById(`count-${key}`);
+        if (el) el.innerText = value;
+    }
+}
+
+function updateStatusCounts() {
+    const counts = {
+        MANUTENCAO: 0,
+        GARAGEM: 0,
+        DISPONIVEL: 0
+    };
+
+    // Filtra apenas veículos ativos para o Dashboard de alocação (Exclui INATIVO e ATIVO - NÃO ALOCAR)
+    const activeVehicles = vehicles.filter(v => (v.status === 'ATIVO' || !v.status));
+
+    activeVehicles.forEach(v => {
+        let status = (v.status_alocacao || 'DISPONIVEL').toUpperCase();
+        if (status === 'DISPONÍVEL') status = 'DISPONIVEL';
+        if (counts.hasOwnProperty(status)) {
+            counts[status]++;
+        }
+    });
+
+    for (const [key, value] of Object.entries(counts)) {
+        const el = document.getElementById(`count-status-${key}`);
         if (el) el.innerText = value;
     }
 }

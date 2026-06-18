@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-br">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FROTALINK | GestÃ£o de Compras & Insumos</title>
+    <title>FROTALINK | Gestão de Compras & Insumos</title>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,7 +16,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="auth.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script defer
+        src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="orb_menu.css">
@@ -76,7 +77,7 @@
             color: var(--primary);
             background: rgba(99, 102, 241, 0.05);
         }
-        
+
         th.active-sort i {
             color: var(--primary);
             opacity: 1;
@@ -181,8 +182,13 @@
             transition: background 0.2s;
         }
 
-        .autocomplete-item:last-child { border-bottom: none; }
-        .autocomplete-item:hover { background: rgba(99, 102, 241, 0.1); }
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+
+        .autocomplete-item:hover {
+            background: rgba(99, 102, 241, 0.1);
+        }
 
         .autocomplete-item .prod-name {
             display: block;
@@ -214,8 +220,13 @@
         }
 
         @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         .spin-animation {
@@ -262,13 +273,16 @@
             font-size: 0.75rem;
             text-align: center;
         }
-        
+
         .modal-overlay {
             padding: 2rem;
         }
 
         /* Modais que podem ser abertos por cima de outros (como Cadastro de Fornecedor dentro de Nota) */
-        #fornecedorModal, #custoModal, #genericModal, #viewCompraModal {
+        #fornecedorModal,
+        #custoModal,
+        #genericModal,
+        #viewCompraModal {
             z-index: 3000;
         }
 
@@ -719,10 +733,25 @@
             line-height: 1.2;
         }
 
-        .icon-orange { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-        .icon-purple { background: rgba(168, 85, 247, 0.1); color: #a855f7; }
-        .icon-blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-        .icon-red { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+        .icon-orange {
+            background: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+        }
+
+        .icon-purple {
+            background: rgba(168, 85, 247, 0.1);
+            color: #a855f7;
+        }
+
+        .icon-blue {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+        }
+
+        .icon-red {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
 
         /* Quick Filters row */
         .quick-filters {
@@ -828,10 +857,12 @@
     <div class="container" style="padding-top: 2rem;">
         <header style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
             <div>
-                <a href="home.html" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                <a href="home.html"
+                    style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;"
+                    onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
                     <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
                 </a>
-                <h1 style="font-size: 1.8rem; font-weight: 800; color: white;">GestÃ£o de Compras & Insumos</h1>
+                <h1 style="font-size: 1.8rem; font-weight: 800; color: white;">Gestão de Compras & Insumos</h1>
             </div>
         </header>
 
@@ -853,10 +884,12 @@
         <!-- ABA DASHBOARD -->
         <div id="view-dashboard" class="view-section">
             <!-- Filtros do Dashboard -->
-            <div class="quick-filters" style="margin-bottom: 2rem; background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); padding: 1.5rem; border-radius: 20px;">
-                <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 1rem;">
+            <div class="quick-filters"
+                style="margin-bottom: 2rem; background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); padding: 1.5rem; border-radius: 20px;">
+                <div
+                    style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.8rem; color: #fff; font-weight: 800;">
-                        <i data-lucide="filter" style="width:18px;"></i> FILTROS E ANÃ LISE TEMPORAL
+                        <i data-lucide="filter" style="width:18px;"></i> FILTROS E ANÁLISE TEMPORAL
                     </div>
                     <button class="btn-clear-filters" onclick="clearDashboardFilters()">
                         <i data-lucide="filter-x"></i> LIMPAR FILTROS
@@ -865,24 +898,30 @@
 
                 <div style="display: flex; flex-direction: column; gap: 1.5rem; width: 100%;">
                     <!-- Linha 1: Datas e PerÃ­odos -->
-                    <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 2rem; padding-bottom: 1.2rem; border-bottom: 1px dashed rgba(255,255,255,0.08);">
+                    <div
+                        style="display: flex; align-items: flex-end; justify-content: space-between; gap: 2rem; padding-bottom: 1.2rem; border-bottom: 1px dashed rgba(255,255,255,0.08);">
                         <div style="flex: 1;">
                             <div class="period-presets">
                                 <button class="preset-btn" onclick="setDashPeriod(7, this)">7 Dias</button>
                                 <button class="preset-btn" onclick="setDashPeriod(15, this)">15 Dias</button>
                                 <button class="preset-btn" onclick="setDashPeriod(30, this)">30 Dias</button>
-                                <button class="preset-btn active" onclick="setDashPeriod('month', this)">MÃªs Atual</button>
+                                <button class="preset-btn active" onclick="setDashPeriod('month', this)">Mês
+                                    Atual</button>
                             </div>
                         </div>
                         <div style="display: flex; gap: 1rem; align-items: flex-end;">
                             <div class="filter-group" style="min-width: 150px;">
-                                <label style="font-size: 0.65rem;">Data InÃ­cio</label>
-                                <input type="date" id="dash_date_start" class="filter-select" onchange="applyDashboardFilters()">
+                                <label style="font-size: 0.65rem;">Data Início</label>
+                                <input type="date" id="dash_date_start" class="filter-select"
+                                    onchange="applyDashboardFilters()">
                             </div>
-                            <div style="margin-bottom: 0.8rem; color: var(--text-muted); font-size: 0.8rem; font-weight: 700;">atÃ©</div>
+                            <div
+                                style="margin-bottom: 0.8rem; color: var(--text-muted); font-size: 0.8rem; font-weight: 700;">
+                                até</div>
                             <div class="filter-group" style="min-width: 150px;">
                                 <label style="font-size: 0.65rem;">Data Fim</label>
-                                <input type="date" id="dash_date_end" class="filter-select" onchange="applyDashboardFilters()">
+                                <input type="date" id="dash_date_end" class="filter-select"
+                                    onchange="applyDashboardFilters()">
                             </div>
                         </div>
                     </div>
@@ -890,38 +929,44 @@
                     <!-- Linha 2: Selects Inteligentes -->
                     <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.8rem;">
                         <div class="filter-group">
-                            <label>EspÃ©cie de Nota</label>
-                            <select id="dash_filter_especie" class="filter-select" onchange="handleDashIntelligentFilter('dash_filter_especie')">
-                                <option value="">Todas as EspÃ©cies</option>
+                            <label>Espécie de Nota</label>
+                            <select id="dash_filter_especie" class="filter-select"
+                                onchange="handleDashIntelligentFilter('dash_filter_especie')">
+                                <option value="">Todas as Espécies</option>
                             </select>
                         </div>
                         <div class="filter-group">
                             <label>Fornecedor</label>
-                            <select id="dash_filter_fornecedor" class="filter-select" onchange="handleDashIntelligentFilter('dash_filter_fornecedor')">
+                            <select id="dash_filter_fornecedor" class="filter-select"
+                                onchange="handleDashIntelligentFilter('dash_filter_fornecedor')">
                                 <option value="">Todos os Fornecedores</option>
                             </select>
                         </div>
                         <div class="filter-group">
                             <label>Placa</label>
-                            <select id="dash_filter_placa" class="filter-select" onchange="handleDashIntelligentFilter('dash_filter_placa')">
+                            <select id="dash_filter_placa" class="filter-select"
+                                onchange="handleDashIntelligentFilter('dash_filter_placa')">
                                 <option value="">Todas as Placas</option>
                             </select>
                         </div>
                         <div class="filter-group">
                             <label>Centro de Custo</label>
-                            <select id="dash_filter_centro_pai" class="filter-select" onchange="handleDashIntelligentFilter('dash_filter_centro_pai')">
+                            <select id="dash_filter_centro_pai" class="filter-select"
+                                onchange="handleDashIntelligentFilter('dash_filter_centro_pai')">
                                 <option value="">Todos os Centros</option>
                             </select>
                         </div>
                         <div class="filter-group">
                             <label>Subcentro</label>
-                            <select id="dash_filter_custo" class="filter-select" onchange="handleDashIntelligentFilter('dash_filter_custo')">
+                            <select id="dash_filter_custo" class="filter-select"
+                                onchange="handleDashIntelligentFilter('dash_filter_custo')">
                                 <option value="">Todos os Subcentros</option>
                             </select>
                         </div>
                         <div class="filter-group">
                             <label>Forma de Pagamento</label>
-                            <select id="dash_filter_pagamento" class="filter-select" onchange="handleDashIntelligentFilter('dash_filter_pagamento')">
+                            <select id="dash_filter_pagamento" class="filter-select"
+                                onchange="handleDashIntelligentFilter('dash_filter_pagamento')">
                                 <option value="">Todas as Formas</option>
                             </select>
                         </div>
@@ -958,7 +1003,7 @@
                         <i data-lucide="trending-up"></i>
                     </div>
                     <div class="stat-info">
-                        <span class="stat-label">Ticket MÃ©dio</span>
+                        <span class="stat-label">Ticket Médio</span>
                         <span class="stat-value" id="dash_avg_compra">R$ 0,00</span>
                     </div>
                 </div>
@@ -975,18 +1020,22 @@
                 </div>
             </section>
 
-            <!-- Linha de GrÃ¡ficos 1 -->
+            <!-- Linha de Gráficos 1 -->
             <div style="display: grid; grid-template-columns: 2fr 1.2fr; gap: 1.5rem; margin-bottom: 1.5rem;">
-                <div class="chart-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
-                    <h3 style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
-                        <i data-lucide="bar-chart-3" style="width:16px;"></i> EvoluÃ§Ã£o de Gastos (Ãšltimos 6 Meses)
+                <div class="chart-card"
+                    style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
+                    <h3
+                        style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
+                        <i data-lucide="bar-chart-3" style="width:16px;"></i> Evolução de Gastos (Últimos 6 Meses)
                     </h3>
                     <div style="height: 300px; position: relative;">
                         <canvas id="chartEvolucao"></canvas>
                     </div>
                 </div>
-                <div class="chart-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
-                    <h3 style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
+                <div class="chart-card"
+                    style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
+                    <h3
+                        style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
                         <i data-lucide="pie-chart" style="width:16px;"></i> Mix de Compras
                     </h3>
                     <div style="height: 300px; position: relative;">
@@ -995,18 +1044,22 @@
                 </div>
             </div>
 
-            <!-- Linha de GrÃ¡ficos 2 -->
+            <!-- Linha de Gráficos 2 -->
             <div style="display: grid; grid-template-columns: 1.2fr 2fr; gap: 1.5rem; margin-bottom: 1.5rem;">
-                <div class="chart-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
-                    <h3 style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
+                <div class="chart-card"
+                    style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
+                    <h3
+                        style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
                         <i data-lucide="layout-grid" style="width:16px;"></i> Gastos por Centro de Custo
                     </h3>
                     <div style="height: 300px; position: relative;">
                         <canvas id="chartCentroCusto"></canvas>
                     </div>
                 </div>
-                <div class="chart-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
-                    <h3 style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
+                <div class="chart-card"
+                    style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
+                    <h3
+                        style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
                         <i data-lucide="users" style="width:16px;"></i> Top 10 Fornecedores (Maiores Gastos)
                     </h3>
                     <div style="height: 300px; position: relative;">
@@ -1015,19 +1068,23 @@
                 </div>
             </div>
 
-            <!-- Linha de GrÃ¡ficos 3 -->
+            <!-- Linha de Gráficos 3 -->
             <div style="display: grid; grid-template-columns: 2fr 1.2fr; gap: 1.5rem; margin-bottom: 1.5rem;">
-                <div class="chart-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
-                    <h3 style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
-                        <i data-lucide="truck" style="width:16px;"></i> Top 10 VeÃ­culos (Maior Gasto)
+                <div class="chart-card"
+                    style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
+                    <h3
+                        style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
+                        <i data-lucide="truck" style="width:16px;"></i> Top 10 Veículos (Maior Gasto)
                     </h3>
                     <div style="height: 300px; position: relative;">
                         <canvas id="chartVeiculos"></canvas>
                     </div>
                 </div>
-                <div class="chart-card" style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
-                    <h3 style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
-                        <i data-lucide="package-search" style="width:16px;"></i> Top PeÃ§as Compradas
+                <div class="chart-card"
+                    style="background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-color); border-radius: 20px; padding: 1.5rem;">
+                    <h3
+                        style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; color: #fff;">
+                        <i data-lucide="package-search" style="width:16px;"></i> Top Peças Compradas
                     </h3>
                     <div style="height: 300px; position: relative;">
                         <canvas id="chartPecas"></canvas>
@@ -1036,30 +1093,37 @@
             </div>
 
             <!-- IA Insights Card -->
-            <div style="background: linear-gradient(90deg, #5c60f5 0%, #8b5cf6 100%); padding: 1.5rem 2rem; border-radius: 24px; color: white; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 15px 30px -10px rgba(92, 96, 245, 0.4);">
+            <div
+                style="background: linear-gradient(90deg, #5c60f5 0%, #8b5cf6 100%); padding: 1.5rem 2rem; border-radius: 24px; color: white; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 15px 30px -10px rgba(92, 96, 245, 0.4);">
                 <div style="display: flex; align-items: center; gap: 1.5rem;">
-                    <div style="background: rgba(255,255,255,0.2); width: 60px; height: 60px; border-radius: 18px; display: flex; align-items: center; justify-content: center;">
+                    <div
+                        style="background: rgba(255,255,255,0.2); width: 60px; height: 60px; border-radius: 18px; display: flex; align-items: center; justify-content: center;">
                         <i data-lucide="bot" style="width: 32px; height: 32px;"></i>
                     </div>
                     <div>
-                        <h4 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 0.2rem;">Analista FrotaLink IA</h4>
-                        <p style="font-size: 0.8rem; opacity: 0.9; font-weight: 500;">Sua inteligÃªncia artificial estÃ¡ processando os dados de compras para gerar insights financeiros...</p>
+                        <h4 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 0.2rem;">Analista FrotaLink IA
+                        </h4>
+                        <p style="font-size: 0.8rem; opacity: 0.9; font-weight: 500;">Sua inteligência artificial está
+                            processando os dados de compras para gerar insights financeiros...</p>
                     </div>
                 </div>
-                <button style="background: white; color: #5c60f5; border: none; padding: 0.8rem 1.5rem; border-radius: 12px; font-weight: 800; font-size: 0.75rem; cursor: pointer; text-transform: uppercase; letter-spacing: 0.05rem;">Analisar Agora</button>
+                <button
+                    style="background: white; color: #5c60f5; border: none; padding: 0.8rem 1.5rem; border-radius: 12px; font-weight: 800; font-size: 0.75rem; cursor: pointer; text-transform: uppercase; letter-spacing: 0.05rem;">Analisar
+                    Agora</button>
             </div>
         </div>
 
         <!-- ABA COMPRAS -->
         <div id="view-compras" class="view-section active">
-            <section class="stats-summary" id="history-stats" style="margin-bottom: 1rem; display: grid; grid-template-columns: 1fr 1fr 2.5fr; gap: 0.8rem;">
+            <section class="stats-summary" id="history-stats"
+                style="margin-bottom: 1rem; display: grid; grid-template-columns: 1fr 1fr 2.5fr; gap: 0.8rem;">
                 <!-- Card 1: Valor Total Selecionado -->
                 <div class="stat-card" style="padding: 0.8rem; min-height: 70px;">
                     <div class="stat-icon icon-orange" style="width: 36px; height: 36px; font-size: 1rem;">
                         <i data-lucide="wallet"></i>
                     </div>
                     <div class="stat-info">
-                        <span class="stat-label" style="font-size: 0.6rem;">Total da SeleÃ§Ã£o</span>
+                        <span class="stat-label" style="font-size: 0.6rem;">Total da Seleção</span>
                         <span class="stat-value" id="sel_total_valor" style="font-size: 1.1rem;">R$ 0,00</span>
                     </div>
                 </div>
@@ -1076,7 +1140,8 @@
                 </div>
 
                 <!-- Card 3: Mix por Centro de Custo (Pai) -->
-                <div class="stat-card" onclick="openCCDetailModal()" style="padding: 0.8rem; min-height: 70px; flex-direction: column; align-items: stretch; gap: 0.4rem; overflow: visible; cursor: pointer;">
+                <div class="stat-card" onclick="openCCDetailModal()"
+                    style="padding: 0.8rem; min-height: 70px; flex-direction: column; align-items: stretch; gap: 0.4rem; overflow: visible; cursor: pointer;">
                     <div style="display: flex; align-items: center; gap: 0.8rem;">
                         <div class="stat-icon icon-blue" style="width: 36px; height: 36px; font-size: 1rem;">
                             <i data-lucide="layout-grid"></i>
@@ -1086,8 +1151,9 @@
                         </div>
                     </div>
                     <div id="sel_cc_breakdown" style="display: flex; flex-direction: column; gap: 0.3rem; width: 100%;">
-                        <!-- ConteÃºdo dinÃ¢mico -->
-                        <div style="color: var(--text-muted); font-size: 0.65rem; text-align: center; padding: 0.2rem;">Carregando anÃ¡lise...</div>
+                        <!-- Conteúdo dinâmico -->
+                        <div style="color: var(--text-muted); font-size: 0.65rem; text-align: center; padding: 0.2rem;">
+                            Carregando análise...</div>
                     </div>
                 </div>
             </section>
@@ -1111,42 +1177,47 @@
             </div>
 
             <div class="quick-filters">
-                <div style="display:flex; align-items:center; gap:0.5rem; color:var(--primary); font-weight:800; font-size:0.75rem; text-transform:uppercase; margin-right:1rem; border-right:1px solid rgba(255,255,255,0.1); padding-right:1.5rem;">
-                    <i data-lucide="filter" style="width:14px;"></i> Filtros RÃ¡pidos
+                <div
+                    style="display:flex; align-items:center; gap:0.5rem; color:var(--primary); font-weight:800; font-size:0.75rem; text-transform:uppercase; margin-right:1rem; border-right:1px solid rgba(255,255,255,0.1); padding-right:1.5rem;">
+                    <i data-lucide="filter" style="width:14px;"></i> Filtros Rápidos
                 </div>
-                
+
                 <div class="filter-group" style="min-width: 140px;">
-                    <label>PerÃ­odo</label>
+                    <label>Período</label>
                     <select id="filterDatePreset" class="filter-select" onchange="handleDatePresetChange(this)">
                         <option value="all">Todos</option>
-                        <option value="month">MÃªs Atual</option>
-                        <option value="15days">Ãšltimos 15 Dias</option>
-                        <option value="lastMonth">MÃªs Anterior</option>
+                        <option value="month">Mês Atual</option>
+                        <option value="15days">Últimos 15 Dias</option>
+                        <option value="lastMonth">Mês Anterior</option>
                         <option value="custom">Personalizado</option>
                     </select>
                 </div>
 
                 <div id="customDateContainer" style="display:none; gap:1rem;">
                     <div class="filter-group" style="min-width: 120px;">
-                        <label>InÃ­cio</label>
-                        <input type="date" id="filterDateStart" class="filter-select" onchange="handleIntelligentFilter('filterDateStart')">
+                        <label>Início</label>
+                        <input type="date" id="filterDateStart" class="filter-select"
+                            onchange="handleIntelligentFilter('filterDateStart')">
                     </div>
                     <div class="filter-group" style="min-width: 120px;">
                         <label>Fim</label>
-                        <input type="date" id="filterDateEnd" class="filter-select" onchange="handleIntelligentFilter('filterDateEnd')">
+                        <input type="date" id="filterDateEnd" class="filter-select"
+                            onchange="handleIntelligentFilter('filterDateEnd')">
                     </div>
                 </div>
 
                 <div class="filter-group">
-                    <label>EspÃ©cie de Nota</label>
-                    <select id="filterEspecie" class="filter-select" onchange="handleIntelligentFilter('filterEspecie')">
-                        <option value="">Todas as EspÃ©cies</option>
+                    <label>Espécie de Nota</label>
+                    <select id="filterEspecie" class="filter-select"
+                        onchange="handleIntelligentFilter('filterEspecie')">
+                        <option value="">Todas as Espécies</option>
                     </select>
                 </div>
 
                 <div class="filter-group">
                     <label>Fornecedor</label>
-                    <select id="filterFornecedor" class="filter-select" onchange="handleIntelligentFilter('filterFornecedor')">
+                    <select id="filterFornecedor" class="filter-select"
+                        onchange="handleIntelligentFilter('filterFornecedor')">
                         <option value="">Todos os Fornecedores</option>
                     </select>
                 </div>
@@ -1160,7 +1231,8 @@
 
                 <div class="filter-group">
                     <label>Centro de Custo</label>
-                    <select id="filterCentroPai" class="filter-select" onchange="handleIntelligentFilter('filterCentroPai')">
+                    <select id="filterCentroPai" class="filter-select"
+                        onchange="handleIntelligentFilter('filterCentroPai')">
                         <option value="">Todos os Centros</option>
                     </select>
                 </div>
@@ -1174,7 +1246,8 @@
 
                 <div class="filter-group">
                     <label>Forma de Pagamento</label>
-                    <select id="filterPagamento" class="filter-select" onchange="handleIntelligentFilter('filterPagamento')">
+                    <select id="filterPagamento" class="filter-select"
+                        onchange="handleIntelligentFilter('filterPagamento')">
                         <option value="">Todas as Formas</option>
                     </select>
                 </div>
@@ -1189,7 +1262,7 @@
                     &bull; Clique no olho para ocultar</p>
                 <div id="colList-compras" class="col-list"></div>
                 <div class="col-panel-actions">
-                    <button class="btn-col-reset" onclick="resetColumns('compras')">PadrÃ£o</button>
+                    <button class="btn-col-reset" onclick="resetColumns('compras')">Padrão</button>
                 </div>
             </div>
 
@@ -1209,10 +1282,10 @@
                         Anterior
                     </button>
                     <div class="page-numbers" id="pageNumbers">
-                        <!-- NÃºmeros das pÃ¡ginas gerados via JS -->
+                        <!-- Números das páginas gerados via JS -->
                     </div>
                     <button class="btn-page" id="btnNextPage" onclick="changePage(1)">
-                        PrÃ³xima
+                        Próxima
                     </button>
                 </div>
             </div>
@@ -1223,7 +1296,7 @@
                 <button class="sub-tab-btn active" onclick="switchSubTab('fornecedores')">Fornecedores</button>
                 <button class="sub-tab-btn" onclick="switchSubTab('custo')">Centros de Custo</button>
                 <button class="sub-tab-btn" onclick="switchSubTab('pagamento')">Formas de Pagamento</button>
-                <button class="sub-tab-btn" onclick="switchSubTab('especie')">EspÃ©cie de Nota</button>
+                <button class="sub-tab-btn" onclick="switchSubTab('especie')">Espécie de Nota</button>
             </div>
             <div class="controls">
                 <div class="search-box" style="flex: 1; min-width: 250px;">
@@ -1246,12 +1319,15 @@
         <div id="view-integracao" class="view-section">
             <div class="controls" style="justify-content: space-between; margin-bottom: 1.5rem;">
                 <div>
-                    <h2 style="font-size: 1.2rem; font-weight: 800; color: white; display: flex; align-items: center; gap: 0.5rem;">
+                    <h2
+                        style="font-size: 1.2rem; font-weight: 800; color: white; display: flex; align-items: center; gap: 0.5rem;">
                         <i data-lucide="refresh-cw" style="color: #6366f1;"></i> Notas Pendentes de Integração
                     </h2>
-                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.3rem;">Selecione as notas para formalizar e enviar ao setor Financeiro.</p>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.3rem;">Selecione as notas para
+                        formalizar e enviar ao setor Financeiro.</p>
                 </div>
-                <button class="btn btn-primary" onclick="integrarAoFinanceiro()" style="background:#10b981; gap: 0.5rem; font-weight: 800; padding: 0.8rem 2rem;">
+                <button class="btn btn-primary" onclick="integrarAoFinanceiro()"
+                    style="background:#10b981; gap: 0.5rem; font-weight: 800; padding: 0.8rem 2rem;">
                     <i data-lucide="file-check-2"></i> GERAR INTEGRAÇÃO
                 </button>
             </div>
@@ -1259,7 +1335,8 @@
                 <table class="mobile-cards" style="width: 100%;">
                     <thead>
                         <tr>
-                            <th style="width: 40px; text-align: center;"><input type="checkbox" id="chkAllIntegracao" onclick="toggleSelectAllIntegracao(this)"></th>
+                            <th style="width: 40px; text-align: center;"><input type="checkbox" id="chkAllIntegracao"
+                                    onclick="toggleSelectAllIntegracao(this)"></th>
                             <th>Data</th>
                             <th>Nº Nota</th>
                             <th>Fornecedor</th>
@@ -1286,16 +1363,16 @@
             <form id="fornecedorForm">
                 <input type="hidden" id="editFornecedorId">
                 <div class="form-row" style="grid-template-columns: 1fr 1fr;">
-                    <div class="input-group" style="grid-column: 1 / -1;"><label>RazÃ£o Social / Nome
+                    <div class="input-group" style="grid-column: 1 / -1;"><label>Razão Social / Nome
                             Fantasia</label><input type="text" id="fNome" class="compra-input" required></div>
                     <div class="input-group"><label>CNPJ / CPF</label><input type="text" id="fDoc" class="compra-input"
                             placeholder="00.000.000/0000-00"></div>
-                    <div class="input-group"><label>InscriÃ§Ã£o Estadual</label><input type="text" id="fIE"
+                    <div class="input-group"><label>Inscrição Estadual</label><input type="text" id="fIE"
                             class="compra-input"></div>
 
                     <div class="form-section-header"
                         style="grid-column: 1 / -1; font-weight:800; color:var(--primary); font-size:0.75rem; margin-top:1.5rem; text-transform:uppercase; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:0.5rem;">
-                        EndereÃ§o & Contato</div>
+                        Endereço & Contato</div>
                     <div class="input-group" style="grid-column: 1 / -1;"><label>Logradouro / Rua</label><input
                             type="text" id="fRua" class="compra-input"></div>
                     <div class="input-group"><label>Cidade / UF</label><input type="text" id="fCidade"
@@ -1323,13 +1400,16 @@
             <form id="custoForm">
                 <input type="hidden" id="editCustoId">
                 <div class="form-row" style="grid-template-columns: 1fr;">
-                    
+
                     <div class="input-group" style="flex-direction:row; gap: 1.5rem; margin-bottom: 1rem;">
-                        <label style="display:flex; align-items:center; gap:0.5rem; font-size: 0.8rem; color: #e2e8f0; text-transform:none;">
-                            <input type="radio" name="custoTipo" value="main" checked onchange="handleCustoTypeChange()">
+                        <label
+                            style="display:flex; align-items:center; gap:0.5rem; font-size: 0.8rem; color: #e2e8f0; text-transform:none;">
+                            <input type="radio" name="custoTipo" value="main" checked
+                                onchange="handleCustoTypeChange()">
                             Centro de Custo Principal
                         </label>
-                        <label style="display:flex; align-items:center; gap:0.5rem; font-size: 0.8rem; color: #e2e8f0; text-transform:none;">
+                        <label
+                            style="display:flex; align-items:center; gap:0.5rem; font-size: 0.8rem; color: #e2e8f0; text-transform:none;">
                             <input type="radio" name="custoTipo" value="sub" onchange="handleCustoTypeChange()">
                             Sub Centro de Custo
                         </label>
@@ -1341,12 +1421,13 @@
                     </div>
 
                     <div class="input-group">
-                        <label>CÃ³digo (AutomÃ¡tico)</label>
-                        <input type="text" id="cCustoCodigo" class="compra-input" readonly style="background: rgba(255,255,255,0.05); color: #818cf8; font-family: 'JetBrains Mono'; font-weight: bold;">
+                        <label>Código (Automático)</label>
+                        <input type="text" id="cCustoCodigo" class="compra-input" readonly
+                            style="background: rgba(255,255,255,0.05); color: #818cf8; font-family: 'JetBrains Mono'; font-weight: bold;">
                     </div>
 
                     <div class="input-group">
-                        <label>Nome / DescriÃ§Ã£o</label>
+                        <label>Nome / Descrição</label>
                         <input type="text" id="cCustoNome" class="compra-input" required>
                     </div>
                 </div>
@@ -1370,8 +1451,9 @@
                 <input type="hidden" id="genericEditTab">
                 <div class="form-row" style="grid-template-columns: 1fr;">
                     <div class="input-group">
-                        <label id="genericModalLabel">Nome / DescriÃ§Ã£o</label>
-                        <input type="text" id="genericInputNome" class="compra-input" placeholder="Digite o nome..." required>
+                        <label id="genericModalLabel">Nome / Descrição</label>
+                        <input type="text" id="genericInputNome" class="compra-input" placeholder="Digite o nome..."
+                            required>
                     </div>
                 </div>
                 <div class="modal-footer" style="margin-top: 3rem;">
@@ -1394,20 +1476,20 @@
                 parcelas.</p>
 
             <form id="compraForm" style="display:flex; flex-direction:column; height:100%; overflow:hidden;">
-                <!-- SEÃ‡ÃƒO FIXA SUPERIOR -->
+                <!-- SEÇÃO FIXA SUPERIOR -->
                 <div class="modal-fixed-top"
                     style="padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 1rem;">
                     <div class="form-row grid-header-1">
                         <div class="input-group">
-                            <label>Data EmissÃ£o</label>
+                            <label>Data Emissão</label>
                             <input type="date" id="dataCompra" class="compra-input" required>
                         </div>
                         <div class="input-group">
-                            <label>NÃºmero Nota</label>
+                            <label>Nº Nota</label>
                             <input type="text" id="numNota" class="compra-input" placeholder="000.000">
                         </div>
                         <div class="input-group">
-                            <label>EspÃ©cie</label>
+                            <label>Espécie</label>
                             <div class="input-with-btn">
                                 <select id="especieId" class="compra-input" style="flex: 1;"></select>
                                 <button type="button" class="btn-plus" onclick="quickAdd('especie')"><i
@@ -1420,7 +1502,11 @@
                             <label>Fornecedor</label>
                             <div class="input-with-btn">
                                 <div class="autocomplete-wrapper" style="flex: 1;">
-                                    <input type="text" id="fornecedorSearch" class="compra-input" placeholder="Buscar fornecedor..." required oninput="handleFornecedorSearch(this)" onfocus="handleFornecedorSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)" style="width: 100%; box-sizing: border-box;">
+                                    <input type="text" id="fornecedorSearch" class="compra-input"
+                                        placeholder="Buscar fornecedor..." required
+                                        oninput="handleFornecedorSearch(this)" onfocus="handleFornecedorSearch(this)"
+                                        onkeydown="handleAutocompleteKeydown(event, this)"
+                                        style="width: 100%; box-sizing: border-box;">
                                     <input type="hidden" id="fornecedorId" required>
                                     <div class="autocomplete-results"></div>
                                 </div>
@@ -1462,9 +1548,10 @@
                     <div class="payment-block">
                         <div class="section-title-wrap" style="margin-bottom: 1.5rem;">
                             <i data-lucide="credit-card" style="color:var(--primary);"></i>
-                            <span class="section-title">InformaÃ§Ãµes de Pagamento</span>
+                            <span class="section-title">Informações de Pagamento</span>
                         </div>
-                        <div class="form-row" style="grid-template-columns: 1.5fr 1fr 1.5fr 0.8fr; align-items: flex-end;">
+                        <div class="form-row"
+                            style="grid-template-columns: 1.5fr 1fr 1.5fr 0.8fr; align-items: flex-end;">
                             <div class="input-group">
                                 <label>Forma de Pagamento</label>
                                 <div class="input-with-btn">
@@ -1501,7 +1588,7 @@
                             </div>
                             <div id="validationMsg"
                                 style="display:none; text-align:right; color:#ef4444; font-size:0.7rem; font-weight:800; margin-top:0.5rem;">
-                                âš ï¸ A SOMA DAS PARCELAS NÃƒO CONFERE COM O TOTAL
+                                ⚠ A SOMA DAS PARCELAS NÃO CONFERE COM O TOTAL
                             </div>
                         </div>
                     </div>
@@ -1538,74 +1625,108 @@
             <div class="modal-header">
                 <div>
                     <h2 style="font-size: 1.5rem; margin-bottom: 0.2rem;">Detalhes da Compra</h2>
-                    <p id="viewCodUnico" style="color: var(--primary); font-family: 'JetBrains Mono'; font-weight: 800; font-size: 0.9rem;"></p>
+                    <p id="viewCodUnico"
+                        style="color: var(--primary); font-family: 'JetBrains Mono'; font-weight: 800; font-size: 0.9rem;">
+                    </p>
                 </div>
-                <button type="button" class="btn-close" onclick="closeViewModal()" style="background: none; border: none; color: var(--text-muted); cursor: pointer;"><i data-lucide="x"></i></button>
+                <button type="button" class="btn-close" onclick="closeViewModal()"
+                    style="background: none; border: none; color: var(--text-muted); cursor: pointer;"><i
+                        data-lucide="x"></i></button>
             </div>
 
-            <div class="modal-body-scroll" style="margin-top: 1.5rem; overflow-y: auto; max-height: 70vh; padding-right: 10px;">
-                <div class="view-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border-color);">
+            <div class="modal-body-scroll"
+                style="margin-top: 1.5rem; overflow-y: auto; max-height: 70vh; padding-right: 10px;">
+                <div class="view-grid"
+                    style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border-color);">
                     <div>
-                        <label style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">Data EmissÃ£o</label>
+                        <label
+                            style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">Data
+                            Emissão</label>
                         <p id="viewData" style="font-weight: 600;"></p>
                     </div>
                     <div>
-                        <label style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">NÂº da Nota</label>
+                        <label
+                            style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">Nº
+                            da Nota</label>
                         <p id="viewNumNota" style="font-weight: 600;"></p>
                     </div>
                     <div>
-                        <label style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">Vencimento</label>
+                        <label
+                            style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">Vencimento</label>
                         <p id="viewVencimento" style="font-weight: 800; color: #fbbf24;"></p>
                     </div>
                     <div>
-                        <label style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">EspÃ©cie</label>
+                        <label
+                            style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">Espécie</label>
                         <p id="viewEspecie" style="font-weight: 600;"></p>
                     </div>
                     <div style="grid-column: span 2;">
-                        <label style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">Fornecedor</label>
+                        <label
+                            style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">Fornecedor</label>
                         <p id="viewFornecedor" style="font-weight: 700; color: #fff;"></p>
                     </div>
                     <div style="grid-column: span 2;">
-                        <label style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">Forma de Pagamento</label>
+                        <label
+                            style="display: block; font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; margin-bottom: 0.4rem;">Forma
+                            de Pagamento</label>
                         <p id="viewFormaPgto" style="font-weight: 600;"></p>
                     </div>
                 </div>
 
                 <div style="margin-top: 2rem;">
-                    <h3 style="font-size: 0.9rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="package" style="width:16px;"></i> Itens da Nota</h3>
+                    <h3
+                        style="font-size: 0.9rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i data-lucide="package" style="width:16px;"></i> Itens da Nota
+                    </h3>
                     <div id="viewItemsList" style="display: flex; flex-direction: column; gap: 0.5rem;">
                         <!-- Items populated by JS -->
                     </div>
                 </div>
 
                 <div id="viewAdicionaisSection" style="margin-top: 2rem; display: none;">
-                    <h3 style="font-size: 0.9rem; font-weight: 800; color: #6366f1; text-transform: uppercase; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="plus-circle" style="width:16px;"></i> Custos Adicionais</h3>
+                    <h3
+                        style="font-size: 0.9rem; font-weight: 800; color: #6366f1; text-transform: uppercase; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i data-lucide="plus-circle" style="width:16px;"></i> Custos Adicionais
+                    </h3>
                     <div id="viewAdicionaisList" style="display: flex; flex-direction: column; gap: 0.4rem;">
                         <!-- Adicionais populated by JS -->
                     </div>
                 </div>
 
                 <div id="viewParcelasSection" style="margin-top: 2rem; display: none;">
-                    <h3 style="font-size: 0.9rem; font-weight: 800; color: #10b981; text-transform: uppercase; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="layers" style="width:16px;"></i> Detalhes do Parcelamento</h3>
-                    <div id="viewParcelasList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.8rem;">
+                    <h3
+                        style="font-size: 0.9rem; font-weight: 800; color: #10b981; text-transform: uppercase; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i data-lucide="layers" style="width:16px;"></i> Detalhes do Parcelamento
+                    </h3>
+                    <div id="viewParcelasList"
+                        style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.8rem;">
                         <!-- Parcelas populated by JS -->
                     </div>
                 </div>
 
                 <div id="viewObsSection" style="margin-top: 2rem; display: none;">
-                   <h3 style="font-size: 0.9rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem;">ObservaÃ§Ãµes</h3>
-                   <p id="viewObservacoes" style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px; font-size: 0.85rem; color: var(--text-muted); border: 1px dashed var(--border-color);"></p>
+                    <h3
+                        style="font-size: 0.9rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem;">
+                        Observações</h3>
+                    <p id="viewObservacoes"
+                        style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px; font-size: 0.85rem; color: var(--text-muted); border: 1px dashed var(--border-color);">
+                    </p>
                 </div>
             </div>
 
-            <div class="modal-footer" style="margin-top: 2rem; display: flex; justify-content: space-between; align-items: flex-end; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+            <div class="modal-footer"
+                style="margin-top: 2rem; display: flex; justify-content: space-between; align-items: flex-end; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
                 <div>
-                        <p style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.2rem;">Valor Total</p>
-                        <h2 id="viewTotalValue" style="font-size: 2.2rem; font-weight: 950; color: #818cf8; line-height: 1;">R$ 0,00</h2>
+                    <p
+                        style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.2rem;">
+                        Valor Total</p>
+                    <h2 id="viewTotalValue"
+                        style="font-size: 2.2rem; font-weight: 950; color: #818cf8; line-height: 1;">R$ 0,00</h2>
                 </div>
                 <div style="display: flex; gap: 0.8rem;">
                     <button type="button" class="btn-cancel" onclick="closeViewModal()">FECHAR</button>
-                    <button type="button" id="btnEditFromView" class="btn-save" style="background: var(--primary);">EDITAR NOTA</button>
+                    <button type="button" id="btnEditFromView" class="btn-save"
+                        style="background: var(--primary);">EDITAR NOTA</button>
                 </div>
             </div>
         </div>
@@ -1617,24 +1738,30 @@
             <div class="modal-header">
                 <div>
                     <h2 class="modal-title">Detalhamento por Centro de Custo</h2>
-                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem; font-weight: 600;">VISÃƒO GERAL DO INVESTIMENTO NA SELEÃ‡ÃƒO ATUAL</p>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem; font-weight: 600;">
+                        VISÃO GERAL DO INVESTIMENTO NA SELEÇÃO ATUAL</p>
                 </div>
                 <button type="button" class="btn-close-modal-fornecedor" onclick="closeCCDetailModal()">&times;</button>
             </div>
-            
+
             <div class="modal-body-scroll">
                 <div id="ccDetailList" style="display: flex; flex-direction: column; gap: 1rem; padding-bottom: 2rem;">
                     <!-- Populated by JS -->
                 </div>
             </div>
 
-            <div class="modal-footer" style="margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+            <div class="modal-footer"
+                style="margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
                 <div style="width: 100%; display: flex; justify-content: space-between; align-items: flex-end;">
                     <div>
-                        <p style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.2rem;">Total Analisado</p>
-                        <h2 id="ccDetailGrandTotal" style="font-size: 1.8rem; font-weight: 950; color: #818cf8; line-height: 1;">R$ 0,00</h2>
+                        <p
+                            style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.2rem;">
+                            Total Analisado</p>
+                        <h2 id="ccDetailGrandTotal"
+                            style="font-size: 1.8rem; font-weight: 950; color: #818cf8; line-height: 1;">R$ 0,00</h2>
                     </div>
-                    <button type="button" class="btn-save" onclick="closeCCDetailModal()" style="padding: 0.8rem 2rem; font-size: 0.8rem;">FECHAR</button>
+                    <button type="button" class="btn-save" onclick="closeCCDetailModal()"
+                        style="padding: 0.8rem 2rem; font-size: 0.8rem;">FECHAR</button>
                 </div>
             </div>
         </div>
@@ -1650,6 +1777,5 @@
         };
     </script>
 </body>
+
 </html>
-
-

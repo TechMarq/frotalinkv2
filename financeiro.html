@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-br">
 
 <head>
@@ -712,11 +712,19 @@
     <!-- NOVO MODAL DE RECEBIMENTO (SEQUÊNCIA ESPECÍFICA SOLICITADA) -->
     <div id="receberModal" class="modal-overlay">
         <div class="modal-v2" style="max-width: 950px;">
-            <div class="modal-header">
-                <h2 class="modal-title" style="background: linear-gradient(to right, #10b981, #3b82f6); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
-                    Lançar Recebimento
-                </h2>
-                <div class="cod-badge" id="receberCodUnico">NOVO REGISTRO</div>
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <h2 class="modal-title" style="background: linear-gradient(to right, #10b981, #3b82f6); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin: 0;">
+                        Lançar Recebimento
+                    </h2>
+                    <div class="cod-badge" id="receberCodUnico">NOVO REGISTRO</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="file" id="receberXmlImport" accept=".xml" style="display:none" onchange="handleReceberXMLUpload(this)">
+                    <button type="button" class="btn-outline" onclick="document.getElementById('receberXmlImport').click()" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.2); padding: 0.5rem 1rem; border-radius: 8px; font-weight: 700; display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: all 0.2s;">
+                        <i data-lucide="file-up" style="width:16px; height:16px;"></i> Importar XML
+                    </button>
+                </div>
             </div>
 
             <form id="receberForm" style="display:flex; flex-direction:column; gap: 1.2rem; padding: 0 1rem;">
@@ -743,14 +751,14 @@
                 <!-- LINHA 2: DESCRIÇÃO (DESTAQUE) -->
                 <div class="input-group">
                     <label>DESCRIÇÃO</label>
-                    <input type="text" id="receberDescricao" name="descricao" class="financeiro-input" required placeholder="Ex: Prestação de serviço de transporte executivo...">
+                    <textarea id="receberDescricao" name="descricao" class="financeiro-input" required placeholder="Ex: Prestação de serviço de transporte executivo..." rows="3" style="resize: vertical; height: auto; padding: 0.8rem;"></textarea>
                 </div>
 
                 <!-- LINHA 3: FISCAL E VALOR -->
                 <div class="form-row grid-3" style="grid-template-columns: 1fr 1fr 1.5fr;">
                     <div class="input-group">
                         <label>COMPETÊNCIA</label>
-                        <input type="month" id="receberCompetencia" name="data_competencia" class="financeiro-input">
+                        <input type="month" id="receberCompetencia" name="data_competencia" class="financeiro-input" required>
                     </div>
                     <div class="input-group">
                         <label>TIPO</label>
@@ -799,7 +807,7 @@
                     </div>
                     <div class="input-group">
                         <label>PRAZO (DIAS)</label>
-                        <input type="number" id="receberPrazo" name="prazo_pagamento" class="financeiro-input" value="0" oninput="calculateReceberForecast()">
+                        <input type="number" id="receberPrazo" name="prazo_pagamento" class="financeiro-input" required min="0" oninput="calculateReceberForecast()">
                     </div>
                     <div class="input-group">
                         <label>PREVISÃO PAGAMENTO</label>
