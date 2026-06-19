@@ -24,7 +24,8 @@ const state = {
         PAGAR: { key: 'data_vencimento', dir: 'asc' },
         RECEBER: { key: 'data_vencimento', dir: 'asc' }
     },
-    adminMode: true
+    adminMode: true,
+    importedXmlCnpj: ""
 };
 
 // --- Inicialização ---
@@ -64,13 +65,38 @@ async function loadInitialData() {
     if (!supabaseClient) return;
 
     try {
+        const fetchClientesSafely = async () => {
+            try {
+                const { data, error } = await supabaseClient.from('clientes').select('*').order('nome');
+                if (error) throw error;
+                return { data };
+            } catch (err) {
+                console.warn('Erro ao carregar tabela clientes, tentando com_contratos:', err);
+                try {
+                    const { data, error } = await supabaseClient.from('com_contratos').select('*').order('cliente_nome');
+                    if (error) throw error;
+                    return {
+                        data: (data || []).map(item => ({
+                            id: item.id,
+                            nome: item.cliente_nome,
+                            cnpj_cpf: item.cliente_cnpj_cpf,
+                            email: item.cliente_email,
+                            contato: item.cliente_telefone
+                        }))
+                    };
+                } catch (e2) {
+                    return { data: [] };
+                }
+            }
+        };
+
         const [l, c, cat, cc, forn, cl, formas] = await Promise.all([
             supabaseClient.from('fin_lancamentos').select('*'),
             supabaseClient.from('fin_contas_bancarias').select('*'),
             supabaseClient.from('fin_plano_contas').select('*').order('codigo'),
             supabaseClient.from('fin_centros_custo').select('*').order('codigo'),
             supabaseClient.from('fornecedores').select('*').order('nome'),
-            supabaseClient.from('com_contratos').select('*').order('cliente_nome'),
+            fetchClientesSafely(),
             supabaseClient.from('formas_pagamento').select('*').order('nome')
         ]);
 
@@ -81,10 +107,10 @@ async function loadInitialData() {
         state.fornecedores = forn.data || [];
         state.clientes = (cl.data || []).map(item => ({
             id: item.id,
-            nome: item.cliente_nome,
-            cnpj_cpf: item.cliente_cnpj_cpf,
-            email: item.cliente_email,
-            contato: item.cliente_telefone
+            nome: item.nome || item.cliente_nome,
+            cnpj_cpf: item.cnpj_cpf || item.cliente_cnpj_cpf,
+            email: item.email || item.cliente_email,
+            contato: item.contato || item.cliente_telefone
         }));
         state.formasPagamento = formas.data || [];
 
@@ -634,6 +660,10 @@ async function openReceberModal(id = null) {
     document.getElementById('receberId').value = id || '';
     document.getElementById('receberCodUnico').innerText = id ? 'EDITANDO REGISTRO' : 'NOVO REGISTRO';
 
+    state.importedXmlCnpj = "";
+    const warningDiv = document.getElementById('receberClienteWarning');
+    if (warningDiv) warningDiv.style.display = 'none';
+
     if (id) {
         const item = state.lancamentos.find(l => l.id === id);
         if (item) {
@@ -700,24 +730,59 @@ function handleReceberXMLUpload(input) {
 
             // 3. Cliente / Razão Social (Tomador do Serviço na NFSe/CT-e, Destinatário na NFe)
             let cliente = null;
+            let tomadorCnpjCpf = null;
+
+            const getCnpjCpfFromElement = (element) => {
+                if (!element) return null;
+                return getTagText(element, "CNPJ") || getTagText(element, "Cnpj") || getTagText(element, "CPF") || getTagText(element, "Cpf");
+            };
+
             const dest = xmlDoc.getElementsByTagName("dest")[0];
             if (dest) {
                 cliente = getTagText(dest, "xNome");
+                tomadorCnpjCpf = getCnpjCpfFromElement(dest);
             }
             if (!cliente) {
-                const toma = xmlDoc.getElementsByTagName("toma")[0];
+                const toma = xmlDoc.getElementsByTagName("toma")[0] || xmlDoc.getElementsByTagName("toma3")[0] || xmlDoc.getElementsByTagName("toma4")[0];
                 if (toma) {
                     cliente = getTagText(toma, "xNome");
+                    tomadorCnpjCpf = getCnpjCpfFromElement(toma);
                 }
             }
             if (!cliente) {
                 const tomador = xmlDoc.getElementsByTagName("TomadorServico")[0] || xmlDoc.getElementsByTagName("Tomador")[0] || xmlDoc.getElementsByTagName("TomadorServicoId")[0];
                 if (tomador) {
                     cliente = getTagText(tomador, "RazaoSocial") || getTagText(tomador, "NomeTomador") || getTagText(tomador, "xNome");
+                    const cpfCnpj = tomador.getElementsByTagName("CpfCnpj")[0] || tomador.getElementsByTagName("IdentificacaoTomador")[0] || tomador;
+                    tomadorCnpjCpf = getCnpjCpfFromElement(cpfCnpj);
                 }
             }
             if (!cliente) {
                 cliente = getTagText(xmlDoc, "RazaoSocialTomador") || getTagText(xmlDoc, "xNome");
+            }
+            if (!tomadorCnpjCpf) {
+                tomadorCnpjCpf = getTagText(xmlDoc, "CnpjTomador") || getTagText(xmlDoc, "CNPJTomador") || getTagText(xmlDoc, "Cnpj") || getTagText(xmlDoc, "CNPJ") || getTagText(xmlDoc, "Cpf") || getTagText(xmlDoc, "CPF");
+            }
+
+            // Validação por CNPJ contra base comercial
+            if (tomadorCnpjCpf) {
+                const cleanCnpj = tomadorCnpjCpf.replace(/\D/g, '');
+                state.importedXmlCnpj = cleanCnpj;
+
+                const exists = state.clientes.some(c => (c.cnpj_cpf || '').replace(/\D/g, '') === cleanCnpj);
+                const warningDiv = document.getElementById('receberClienteWarning');
+                if (warningDiv) {
+                    if (!exists) {
+                        warningDiv.style.display = 'block';
+                        showToast("Aviso: Tomador/Cliente do XML não cadastrado no Comercial.", "error");
+                    } else {
+                        warningDiv.style.display = 'none';
+                    }
+                }
+            } else {
+                state.importedXmlCnpj = "";
+                const warningDiv = document.getElementById('receberClienteWarning');
+                if (warningDiv) warningDiv.style.display = 'none';
             }
 
             // 4. Descrição (Serviço ou discriminação)
@@ -811,6 +876,24 @@ function calculateReceberForecast() {
 
 async function handleReceberSubmit(e) {
     e.preventDefault();
+
+    // Bloqueia se o cliente importado do XML não estiver cadastrado no Comercial
+    if (state.importedXmlCnpj) {
+        let exists = false;
+        try {
+            const { data: dbClientes } = await supabaseClient.from('clientes').select('cnpj_cpf');
+            exists = (dbClientes || []).some(c => (c.cnpj_cpf || '').replace(/\D/g, '') === state.importedXmlCnpj);
+        } catch (err) {
+            exists = state.clientes.some(c => (c.cnpj_cpf || '').replace(/\D/g, '') === state.importedXmlCnpj);
+        }
+        
+        if (!exists) {
+            showToast("Bloqueado: O Tomador/Cliente com CNPJ do XML não está cadastrado no sistema (Comercial).", "error");
+            alert("Não é possível salvar: O Tomador/Cliente com CNPJ do XML não está cadastrado no sistema (Comercial). Por favor, realize o cadastro antes de prosseguir.");
+            return;
+        }
+    }
+
     const formData = new FormData(e.target);
     const id = document.getElementById('receberId').value;
     

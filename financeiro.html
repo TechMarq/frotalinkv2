@@ -741,6 +741,10 @@
                         <input type="text" name="entidade_nome" id="receberEntidade" class="financeiro-input"
                             required placeholder="Nome do cliente ou empresa..." style="width:100%;" list="clientesDatalist">
                         <datalist id="clientesDatalist"></datalist>
+                        <div id="receberClienteWarning" style="display:none; color:#ef4444; font-size:0.75rem; font-weight:700; margin-top:0.3rem;">
+                            <i data-lucide="alert-circle" style="width:12px; height:12px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
+                            <span>Aviso: Este cliente/tomador não está cadastrado no sistema (Comercial)! O salvamento será bloqueado.</span>
+                        </div>
                     </div>
                     <div class="input-group">
                         <label>Nº NOTA FISCAL</label>
