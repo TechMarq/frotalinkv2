@@ -1,4 +1,4 @@
-﻿// --- Configuração Supabase ---
+// --- Configuração Supabase ---
 let supabaseClient = null;
 try {
     if (typeof supabase !== 'undefined') {
@@ -18,6 +18,58 @@ let config = {
 let currentTab = 'dashboard';
 let currentSort = { key: 'cliente', dir: 'asc' };
 let editId = null;
+let propostaAtual = null;
+
+// --- Helpers ---
+function dataAtualISO() {
+    return new Date().toISOString().split('T')[0];
+}
+
+function highlightElement(el) {
+    if (!el) return;
+    el.style.borderColor = '#ef4444';
+    el.style.boxShadow = '0 0 0 2px rgba(239, 68, 68, 0.2)';
+    const resetFn = () => {
+        el.style.borderColor = '';
+        el.style.boxShadow = '';
+        el.removeEventListener('input', resetFn);
+    };
+    el.addEventListener('input', resetFn);
+}
+
+function formatarDataExtenso(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const parts = dateStr.split('-');
+        if (parts.length !== 3) return dateStr;
+        const year = parseInt(parts[0]);
+        const month = parseInt(parts[1]) - 1;
+        const day = parseInt(parts[2]);
+        const meses = [
+            'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+            'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
+        ];
+        return `${day} de ${meses[month]} de ${year}`;
+    } catch (e) {
+        return dateStr;
+    }
+}
+
+function fmtMoeda(val) {
+    if (val === undefined || val === null || isNaN(val)) return 'R$ 0,00';
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function fmtDataBR(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const parts = dateStr.split('-');
+        if (parts.length !== 3) return dateStr;
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    } catch (e) {
+        return dateStr;
+    }
+}
 
 // --- Definição de Colunas ---
 const COL_DEFS = [
@@ -150,6 +202,7 @@ function setupEventListeners() {
         if (e.key === 'Escape') {
             closeContratoModal();
             closeAdminModal();
+            closeHistoricoModal();
         }
     });
 }
@@ -343,7 +396,7 @@ function renderContratos() {
             responsavel: `<td data-label="Responsável">${c.nome_responsavel || '-'}</td>`,
             contato:     `<td data-label="Contato Resp.">${c.contato_responsavel || '-'}</td>`,
             observacao:  `<td data-label="Observações"><span style="font-size:0.75rem;color:var(--text-muted);max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(c.observacao || '').replace(/"/g,"'")}">${c.observacao || '-'}</span></td>`,
-            acoes:       `<td style="text-align:right;"><div style="display:flex;gap:8px;justify-content:flex-end;"><button class="action-btn-mini" onclick="openContratoModal('${c.id}')"><i data-lucide="edit-2"></i></button><button class="action-btn-mini" onclick="deleteContrato('${c.id}')" style="color:#ef4444;"><i data-lucide="trash-2"></i></button></div></td>`
+            acoes:       `<td style="text-align:right;"><div style="display:flex;gap:8px;justify-content:flex-end;"><button class="action-btn-mini" onclick="openHistoricoModal('${c.id}')" title="Histórico"><i data-lucide="history"></i></button><button class="action-btn-mini" onclick="openContratoModal('${c.id}')" title="Editar"><i data-lucide="edit-2"></i></button><button class="action-btn-mini" onclick="deleteContrato('${c.id}')" style="color:#ef4444;" title="Excluir"><i data-lucide="trash-2"></i></button></div></td>`
         };
 
         const visibleCells = colConfig.order
@@ -539,32 +592,87 @@ window.openContratoModal = async (id = null) => {
     editId = id;
     const form = document.getElementById('contratoForm');
     form.reset();
-    document.getElementById('modalTitle').innerText = id ? 'Editar Contrato' : 'Novo Contrato';
-    
+
+    // Título dinâmico
+    document.getElementById('modalTitle').innerText = id ? 'Proposta / Contrato' : 'Nova Proposta';
+
+    // Reset estado da proposta
+    propostaAtual = { contratoId: id, propostaId: id, step: 0, itens: [], historico: [] };
+
+    // Preenche campos de contrato existente
     if (id) {
         const c = contratos.find(x => x.id === id);
         if (c) {
-            document.getElementById('cliente_nome').value = c.cliente_nome || '';
-            document.getElementById('cliente_cnpj_cpf').value = maskCnpjCpf(c.cliente_cnpj_cpf || '');
-            document.getElementById('cliente_email').value = c.cliente_email || '';
-            document.getElementById('cliente_telefone').value = maskTelefone(c.cliente_telefone || '');
-            document.getElementById('vigencia').value = c.vigencia || '';
-            document.getElementById('descricao_contrato').value = c.descricao_contrato || '';
-            document.getElementById('versao_contrato').value = c.versao_contrato || '';
-            document.getElementById('referencia').value = c.referencia || '';
-            document.getElementById('data_assinatura').value = c.data_assinatura || '';
-            document.getElementById('prazo_meses').value = c.prazo_meses || '';
-            document.getElementById('data_vencimento').value = c.data_vencimento || '';
-            document.getElementById('tipo_demanda_id').value = c.tipo_demanda_id || '';
-            document.getElementById('tabela_preco_id').value = c.tabela_preco_id || '';
-            document.getElementById('status_id').value = c.status_id || '';
-            document.getElementById('nome_responsavel').value = c.nome_responsavel || '';
-            document.getElementById('contato_responsavel').value = maskTelefone(c.contato_responsavel || '');
-            document.getElementById('observacao').value = c.observacao || '';
+            document.getElementById('cliente_nome').value          = c.cliente_nome || '';
+            document.getElementById('cliente_cnpj_cpf').value      = maskCnpjCpf(c.cliente_cnpj_cpf || '');
+            document.getElementById('cliente_email').value         = c.cliente_email || '';
+            document.getElementById('cliente_telefone').value      = maskTelefone(c.cliente_telefone || '');
+            document.getElementById('vigencia').value              = c.vigencia || '';
+            document.getElementById('descricao_contrato').value    = c.descricao_contrato || '';
+            document.getElementById('versao_contrato').value       = c.versao_contrato || '';
+            document.getElementById('referencia').value            = c.referencia || '';
+            document.getElementById('data_assinatura').value       = c.data_assinatura || '';
+            document.getElementById('prazo_meses').value           = c.prazo_meses || '';
+            document.getElementById('data_vencimento').value       = c.data_vencimento || '';
+            document.getElementById('tipo_demanda_id').value       = c.tipo_demanda_id || '';
+            document.getElementById('tabela_preco_id').value       = c.tabela_preco_id || '';
+            document.getElementById('status_id').value             = c.status_id || '';
+            document.getElementById('nome_responsavel').value      = c.nome_responsavel || '';
+            document.getElementById('contato_responsavel').value   = maskTelefone(c.contato_responsavel || '');
+            document.getElementById('observacao').value            = c.observacao || '';
+
+            // Campos de proposta
+            document.getElementById('objeto_proposta').value       = c.objeto_proposta      || '';
+            document.getElementById('endereco_proposta').value     = c.endereco_proposta    || '';
+            document.getElementById('cep_proposta').value          = c.cep_proposta         || '';
+            document.getElementById('contato_proposta').value      = c.contato_proposta     || c.nome_responsavel || '';
+            document.getElementById('assinatura_proposta').value   = c.assinatura_proposta  || 'New Cargo Transporte e Logística Ltda';
+            document.getElementById('prop_data_proposta').value    = c.data_proposta        || dataAtualISO();
+            document.getElementById('prop_validade_dias').value    = c.validade_dias        || 30;
+            document.getElementById('prop_data_validade').value    = c.data_validade        || '';
+            document.getElementById('prop_periodo_medicao').value  = c.periodo_medicao      || '';
+            document.getElementById('prop_forma_pagamento').value  = c.forma_pagamento      || '';
+            document.getElementById('prop_observacoes').value      = c.observacoes_proposta
+                || 'Permanecemos à disposição para quaisquer esclarecimentos que se façam necessários.';
+
+            propostaAtual.step = c.proposta_step ?? 0;
+
+            // Carrega itens e histórico do Supabase
+            const modal = document.getElementById('contratoModal');
+            modal.classList.add('active');
+            const painel = document.querySelector('#contratoModal form');
+            painel.style.opacity = '0.4';
+            painel.style.pointerEvents = 'none';
+
+            try {
+                await Promise.all([
+                    loadItensProposta(id),
+                    loadHistoricoProposta(id)
+                ]);
+            } catch (err) {
+                console.warn('Erro ao carregar dados da proposta:', err.message);
+                propostaAtual.itens = [{ id: null, descricao: '', unidade: '', quantidade: 0, preco_unit: 0 }];
+            } finally {
+                painel.style.opacity = '1';
+                painel.style.pointerEvents = '';
+            }
         }
+    } else {
+        // Nova proposta — inicializar campos
+        document.getElementById('prop_data_proposta').value  = dataAtualISO();
+        document.getElementById('prop_validade_dias').value  = 30;
+        document.getElementById('assinatura_proposta').value = 'New Cargo Transporte e Logística Ltda';
+        document.getElementById('prop_observacoes').value    = 'Permanecemos à disposição para quaisquer esclarecimentos que se façam necessários.';
+        propostaAtual.itens = [{ id: null, descricao: '', unidade: '', quantidade: 0, preco_unit: 0 }];
     }
 
+    calcularValidadeProposta();
+    renderItensProposta();
+    updateTimelineUI(propostaAtual.step);
+    renderHistoricoProposta();
+
     document.getElementById('contratoModal').classList.add('active');
+    if (window.lucide) lucide.createIcons();
 };
 
 window.closeContratoModal = () => {
@@ -575,56 +683,225 @@ async function handleSaveContrato(e) {
     e.preventDefault();
     const btn = document.getElementById('btnSaveContrato');
     btn.disabled = true;
-    btn.innerText = 'SALVANDO...';
+    const origText = btn.innerHTML;
+    btn.innerHTML = 'SALVANDO...';
 
     const payload = {
-        cliente_nome: document.getElementById('cliente_nome').value,
-        cliente_cnpj_cpf: document.getElementById('cliente_cnpj_cpf').value,
-        cliente_email: document.getElementById('cliente_email').value,
-        cliente_telefone: document.getElementById('cliente_telefone').value,
-        vigencia: document.getElementById('vigencia').value,
-        descricao_contrato: document.getElementById('descricao_contrato').value,
-        versao_contrato: document.getElementById('versao_contrato').value,
-        referencia: document.getElementById('referencia').value,
-        data_assinatura: document.getElementById('data_assinatura').value || null,
-        prazo_meses: parseInt(document.getElementById('prazo_meses').value) || 0,
-        data_vencimento: document.getElementById('data_vencimento').value || null,
-        tipo_demanda_id: document.getElementById('tipo_demanda_id').value || null,
-        tabela_preco_id: document.getElementById('tabela_preco_id').value || null,
-        status_id: document.getElementById('status_id').value || null,
-        nome_responsavel: document.getElementById('nome_responsavel').value,
-        contato_responsavel: document.getElementById('contato_responsavel').value,
-        observacao: document.getElementById('observacao').value
+        // Campos do contrato existentes
+        cliente_nome:         document.getElementById('cliente_nome').value,
+        cliente_cnpj_cpf:     document.getElementById('cliente_cnpj_cpf').value,
+        cliente_email:        document.getElementById('cliente_email').value,
+        cliente_telefone:     document.getElementById('cliente_telefone').value,
+        vigencia:             document.getElementById('vigencia').value,
+        descricao_contrato:   document.getElementById('descricao_contrato').value,
+        versao_contrato:      document.getElementById('versao_contrato').value,
+        referencia:           document.getElementById('referencia').value,
+        data_assinatura:      document.getElementById('data_assinatura').value || null,
+        prazo_meses:          parseInt(document.getElementById('prazo_meses').value) || 0,
+        data_vencimento:      document.getElementById('data_vencimento').value || null,
+        tipo_demanda_id:      document.getElementById('tipo_demanda_id').value || null,
+        tabela_preco_id:      document.getElementById('tabela_preco_id').value || null,
+        status_id:            document.getElementById('status_id').value || null,
+        nome_responsavel:     document.getElementById('nome_responsavel').value,
+        contato_responsavel:  document.getElementById('contato_responsavel').value,
+        observacao:           document.getElementById('observacao').value,
+        // Campos da proposta
+        proposta_step:        propostaAtual.step,
+        objeto_proposta:      document.getElementById('objeto_proposta').value,
+        endereco_proposta:    document.getElementById('endereco_proposta').value,
+        cep_proposta:         document.getElementById('cep_proposta').value,
+        contato_proposta:     document.getElementById('contato_proposta').value,
+        assinatura_proposta:  document.getElementById('assinatura_proposta').value,
+        data_proposta:        document.getElementById('prop_data_proposta').value || null,
+        validade_dias:        parseInt(document.getElementById('prop_validade_dias').value) || 30,
+        data_validade:        document.getElementById('prop_data_validade').value || null,
+        periodo_medicao:      document.getElementById('prop_periodo_medicao').value,
+        forma_pagamento:      document.getElementById('prop_forma_pagamento').value,
+        observacoes_proposta: document.getElementById('prop_observacoes').value
     };
 
-    if (!payload.cliente_nome) {
-        alert("Preencha o nome do cliente.");
+    // Limpa realces vermelhos anteriores
+    document.querySelectorAll('.com-input, .item-input').forEach(el => {
+        el.style.borderColor = '';
+        el.style.boxShadow = '';
+    });
+
+    let hasErrors = false;
+
+    if (!payload.cliente_nome?.trim()) {
+        highlightElement(document.getElementById('cliente_nome'));
+        hasErrors = true;
+    }
+    if (!payload.cliente_cnpj_cpf?.trim()) {
+        highlightElement(document.getElementById('cliente_cnpj_cpf'));
+        hasErrors = true;
+    }
+    if (!payload.nome_responsavel?.trim()) {
+        highlightElement(document.getElementById('nome_responsavel'));
+        hasErrors = true;
+    }
+    if (!payload.objeto_proposta?.trim()) {
+        highlightElement(document.getElementById('objeto_proposta'));
+        hasErrors = true;
+    }
+    if (!payload.periodo_medicao?.trim()) {
+        highlightElement(document.getElementById('prop_periodo_medicao'));
+        hasErrors = true;
+    }
+    if (!payload.forma_pagamento?.trim()) {
+        highlightElement(document.getElementById('prop_forma_pagamento'));
+        hasErrors = true;
+    }
+
+    // Se a proposta estiver aprovada/contrato (step === 2), os campos do contrato tornam-se obrigatórios
+    if (propostaAtual.step === 2) {
+        if (!payload.descricao_contrato?.trim()) {
+            highlightElement(document.getElementById('descricao_contrato'));
+            hasErrors = true;
+        }
+        if (!payload.versao_contrato?.trim()) {
+            highlightElement(document.getElementById('versao_contrato'));
+            hasErrors = true;
+        }
+        if (!payload.referencia?.trim()) {
+            highlightElement(document.getElementById('referencia'));
+            hasErrors = true;
+        }
+        if (!payload.vigencia?.trim()) {
+            highlightElement(document.getElementById('vigencia'));
+            hasErrors = true;
+        }
+        if (!payload.tipo_demanda_id) {
+            highlightElement(document.getElementById('tipo_demanda_id'));
+            hasErrors = true;
+        }
+        if (!payload.data_assinatura) {
+            highlightElement(document.getElementById('data_assinatura'));
+            hasErrors = true;
+        }
+        if (!payload.prazo_meses || payload.prazo_meses <= 0) {
+            highlightElement(document.getElementById('prazo_meses'));
+            hasErrors = true;
+        }
+        if (!payload.tabela_preco_id) {
+            highlightElement(document.getElementById('tabela_preco_id'));
+            hasErrors = true;
+        }
+    }
+
+
+    if (hasErrors) {
+        alert("Preencha todos os campos obrigatórios em destaque vermelho.");
         btn.disabled = false;
-        btn.innerText = 'SALVAR CONTRATO';
+        btn.innerHTML = origText;
+        return;
+    }
+
+    if (!propostaAtual.itens || propostaAtual.itens.length === 0) {
+        alert("Adicione pelo menos 1 item na proposta.");
+        btn.disabled = false;
+        btn.innerHTML = origText;
+        return;
+    }
+
+    let itemError = false;
+    propostaAtual.itens.forEach((it, idx) => {
+        const tr = document.querySelector(`#propostaItensBody tr[data-idx="${idx}"]`);
+        if (!tr) return;
+
+        const inputs = tr.querySelectorAll('.item-input');
+        const descInput  = inputs[0];
+        const unInput    = inputs[1];
+        const qtdInput   = inputs[2];
+        const precoInput = inputs[3];
+
+        if (!it.descricao?.trim()) { highlightElement(descInput); itemError = true; }
+        if (!it.unidade?.trim())   { highlightElement(unInput); itemError = true; }
+        if ((it.quantidade || 0) <= 0) { highlightElement(qtdInput); itemError = true; }
+        if ((it.preco_unit || 0) <= 0) { highlightElement(precoInput); itemError = true; }
+    });
+
+    if (itemError) {
+        alert("Preencha todos os campos dos itens da proposta com valores válidos destacados em vermelho.");
+        btn.disabled = false;
+        btn.innerHTML = origText;
         return;
     }
 
     try {
-        let res;
+        let res, savedId;
         if (editId) {
             res = await supabaseClient.from('com_contratos').update(payload).eq('id', editId);
+            if (res.error) throw res.error;
+            savedId = editId;
+
+            // Histórico de atualização
+            await supabaseClient.from('com_proposta_historico').insert([{
+                contrato_id: savedId,
+                step: propostaAtual.step,
+                label: 'Dados da proposta atualizados',
+                data: dataAtualISO()
+            }]);
         } else {
-            res = await supabaseClient.from('com_contratos').insert([payload]);
+            // Nova proposta: inicializa com step=0, status_id de proposta aberta e grava histórico inicial
+            payload.proposta_step = 0;
+            const statusAberta = config.status.find(s =>
+                s.nome.toUpperCase().includes('PROPOSTA ABERTA') ||
+                s.nome.toUpperCase().includes('ABERTA')
+            );
+            if (statusAberta) {
+                payload.status_id = statusAberta.id;
+                const selectStatus = document.getElementById('status_id');
+                if (selectStatus) selectStatus.value = statusAberta.id;
+            }
+            const { data: inserted, error: errIns } = await supabaseClient
+                .from('com_contratos').insert([payload]).select().single();
+            if (errIns) throw errIns;
+            savedId = inserted.id;
+            res = { error: null };
+
+            // Histórico inicial
+            await supabaseClient.from('com_proposta_historico').insert([{
+                contrato_id: savedId,
+                step: 0,
+                label: 'Proposta Aberta',
+                data: dataAtualISO()
+            }]);
         }
 
         if (res.error) throw res.error;
-        
+
+        // Salva itens da proposta
+        await supabaseClient.from('com_proposta_itens').delete().eq('contrato_id', savedId);
+        if (propostaAtual.itens.length > 0) {
+            const itensPayload = propostaAtual.itens.map((it, idx) => ({
+                contrato_id: savedId,
+                ordem:       idx + 1,
+                descricao:   it.descricao  || '',
+                unidade:     it.unidade    || '',
+                quantidade:  it.quantidade || 0,
+                preco_unit:  it.preco_unit || 0
+            }));
+            const { error: errItens } = await supabaseClient.from('com_proposta_itens').insert(itensPayload);
+            if (errItens) console.warn('Erro ao salvar itens:', errItens.message);
+        }
+
+        propostaAtual.contratoId = savedId;
+        propostaAtual.propostaId = savedId;
+        editId = savedId;
+
         await loadContratos();
         closeContratoModal();
-        alert("Contrato salvo com sucesso!");
     } catch (err) {
-        console.error("Erro ao salvar contrato:", err);
+        console.error("Erro ao salvar:", err);
         alert("Erro ao salvar: " + err.message);
     } finally {
         btn.disabled = false;
-        btn.innerText = 'SALVAR CONTRATO';
+        btn.innerHTML = origText;
     }
 }
+
+
 
 window.deleteContrato = async (id) => {
     if (typeof canDo === 'function' && !canDo('comercial_contratos', 'delete')) {
@@ -993,5 +1270,610 @@ window.exportPdf = () => {
 };
 
 
+window.calcularValidadeProposta = () => {
+    const dataProposta = document.getElementById('prop_data_proposta').value;
+    const dias = parseInt(document.getElementById('prop_validade_dias').value);
+    if (dataProposta && !isNaN(dias) && dias > 0) {
+        const d = new Date(dataProposta + 'T12:00:00');
+        d.setDate(d.getDate() + dias);
+        document.getElementById('prop_data_validade').value = d.toISOString().split('T')[0];
+    } else {
+        document.getElementById('prop_data_validade').value = '';
+    }
+};
 
+// -------------------------------------------------------------------
+// CRUD LOCAL DE ITENS (renderização)
+// -------------------------------------------------------------------
+
+window.addItemProposta = () => {
+    propostaAtual.itens.push({ id: null, descricao: '', unidade: '', quantidade: 0, preco_unit: 0 });
+    renderItensProposta();
+    if (window.lucide) lucide.createIcons();
+};
+
+window.removeItemProposta = (idx) => {
+    if (propostaAtual.itens.length <= 1) {
+        alert('A proposta deve ter pelo menos um item.');
+        return;
+    }
+    propostaAtual.itens.splice(idx, 1);
+    renderItensProposta();
+    if (window.lucide) lucide.createIcons();
+};
+
+window.updateItemProposta = (idx, field, value) => {
+    if (!propostaAtual.itens[idx]) return;
+    propostaAtual.itens[idx][field] = (field === 'quantidade' || field === 'preco_unit')
+        ? parseFloat(value) || 0
+        : value;
+
+    // Atualiza o total da linha no DOM sem re-renderizar para não perder o foco
+    const tr = document.querySelector(`#propostaItensBody tr[data-idx="${idx}"]`);
+    if (tr) {
+        const item = propostaAtual.itens[idx];
+        const rowTotal = (item.quantidade || 0) * (item.preco_unit || 0);
+        const totalCell = tr.querySelector('.row-total-val');
+        if (totalCell) {
+            totalCell.innerText = fmtMoeda(rowTotal);
+        }
+    }
+
+    calcularTotalProposta();
+};
+
+function calcularTotalProposta() {
+    const total = propostaAtual.itens.reduce((acc, it) => acc + ((it.quantidade || 0) * (it.preco_unit || 0)), 0);
+    const el = document.getElementById('propostaTotal');
+    if (el) el.innerText = fmtMoeda(total);
+}
+
+function renderItensProposta() {
+    const tbody = document.getElementById('propostaItensBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = propostaAtual.itens.map((item, idx) => `
+        <tr data-idx="${idx}">
+            <td style="text-align:center;font-weight:800;color:var(--primary);font-size:0.8rem;">${idx + 1}</td>
+            <td><input class="item-input" type="text" placeholder="Descrição do serviço/produto"
+                value="${(item.descricao || '').replace(/"/g, '&quot;')}"
+                oninput="updateItemProposta(${idx},'descricao',this.value)"></td>
+            <td><input class="item-input" type="text" placeholder="KM, Hrs, Un"
+                value="${(item.unidade || '').replace(/"/g, '&quot;')}"
+                oninput="updateItemProposta(${idx},'unidade',this.value)"></td>
+            <td><input class="item-input" type="number" placeholder="0" min="0" style="width: 90px; text-align: right;"
+                value="${item.quantidade || ''}"
+                oninput="updateItemProposta(${idx},'quantidade',this.value)"></td>
+            <td><input class="item-input" type="number" placeholder="0,00" min="0" step="0.01" style="width: 110px; text-align: right;"
+                value="${item.preco_unit || ''}"
+                oninput="updateItemProposta(${idx},'preco_unit',this.value)"></td>
+            <td class="row-total-val" style="font-weight:700;color:#fff;white-space:nowrap;text-align:right;padding-right:0.5rem;">
+                ${fmtMoeda((item.quantidade || 0) * (item.preco_unit || 0))}
+            </td>
+            <td><button class="btn-remove-item" onclick="removeItemProposta(${idx})" title="Remover">
+                <i data-lucide="trash-2" style="width:12px;"></i>
+            </button></td>
+        </tr>
+    `).join('');
+
+    calcularTotalProposta();
+    if (window.lucide) lucide.createIcons();
+}
+
+// Carrega itens do banco → propostaAtual.itens
+async function loadItensProposta(contratoId) {
+    const { data, error } = await supabaseClient
+        .from('com_proposta_itens')
+        .select('*')
+        .eq('contrato_id', contratoId)
+        .order('ordem', { ascending: true });
+
+    if (error) throw error;
+    propostaAtual.itens = data && data.length > 0 ? data : [{ id: null, descricao: '', unidade: '', quantidade: 0, preco_unit: 0 }];
+}
+
+async function loadHistoricoProposta(contratoId) {
+    const { data, error } = await supabaseClient
+        .from('com_proposta_historico')
+        .select('*')
+        .eq('contrato_id', contratoId)
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    propostaAtual.historico = data || [];
+}
+
+// -------------------------------------------------------------------
+// LINHA DO TEMPO
+// -------------------------------------------------------------------
+
+function updateTimelineUI(step) {
+    const badgeLabels   = ['PROPOSTA ABERTA', 'EM ANÁLISE', 'APROVADA'];
+    const badgeClasses  = ['badge-aberta', 'badge-analise', 'badge-aprovada'];
+    const avancarTextos = ['Enviar para Análise', 'Aprovar Proposta', '✓ Aprovada'];
+
+    const badge = document.getElementById('propostaStatusBadge');
+    if (badge) {
+        badge.className = `proposta-status-badge ${badgeClasses[step]}`;
+        badge.innerText = badgeLabels[step];
+    }
+
+    const btnTexto  = document.getElementById('btnAvancarTexto');
+    const btnAvancar = document.getElementById('btnAvancarProposta');
+    const btnGerar   = document.getElementById('btnGerarDocumentoProposta');
+
+    if (btnTexto)  btnTexto.innerText = avancarTextos[step];
+
+    if (btnAvancar) {
+        if (!propostaAtual.propostaId) {
+            btnAvancar.disabled      = true;
+            btnAvancar.style.opacity = '0.5';
+            btnAvancar.style.cursor  = 'default';
+            btnAvancar.title         = 'Salve a proposta primeiro';
+        } else {
+            btnAvancar.disabled      = step >= 2;
+            btnAvancar.style.opacity = step >= 2 ? '0.5' : '1';
+            btnAvancar.style.cursor  = step >= 2 ? 'default' : 'pointer';
+            btnAvancar.title         = '';
+        }
+    }
+
+    if (btnGerar) {
+        if (!propostaAtual.propostaId) {
+            btnGerar.disabled      = true;
+            btnGerar.style.opacity = '0.5';
+            btnGerar.style.cursor  = 'default';
+            btnGerar.title         = 'Salve a proposta primeiro';
+        } else {
+            btnGerar.disabled      = false;
+            btnGerar.style.opacity = '1';
+            btnGerar.style.cursor  = 'pointer';
+            btnGerar.title         = '';
+        }
+    }
+
+    for (let i = 0; i <= 2; i++) {
+        const el = document.getElementById(`tlStep${i}`);
+        if (!el) continue;
+        el.classList.remove('active', 'done');
+        if (i < step)       el.classList.add('done');
+        else if (i === step) el.classList.add('active');
+    }
+
+    for (let i = 0; i <= 1; i++) {
+        const conn = document.getElementById(`tlConn${i}`);
+        if (conn) conn.classList.toggle('done', i < step);
+    }
+
+    // Preenche datas nas etapas a partir do histórico
+    propostaAtual.historico.forEach(h => {
+        const el = document.getElementById(`tlDate${h.step}`);
+        if (el) el.innerText = fmtDataBR(h.data);
+    });
+
+    const manualContainer = document.getElementById('propostaManualHistoricoContainer');
+    const manualFallback = document.getElementById('propostaManualHistoricoFallback');
+    if (manualContainer && manualFallback) {
+        if (propostaAtual.contratoId || editId) {
+            manualContainer.style.display = 'flex';
+            manualFallback.style.display = 'none';
+        } else {
+            manualContainer.style.display = 'none';
+            manualFallback.style.display = 'block';
+        }
+    }
+
+    const secaoContrato = document.getElementById('secaoDadosContrato');
+    if (secaoContrato) {
+        secaoContrato.style.display = (step === 2) ? '' : 'none';
+    }
+
+    if (window.lucide) lucide.createIcons();
+}
+
+function renderHistoricoProposta() {
+    const container = document.getElementById('propostaHistoricoList');
+    if (!container) return;
+
+    if (propostaAtual.historico.length === 0) {
+        container.innerHTML = `<div style="font-size:0.68rem;color:var(--text-muted);font-style:italic;">Nenhum registro ainda.</div>`;
+        return;
+    }
+
+    container.innerHTML = propostaAtual.historico.map(h => `
+        <div class="history-entry">
+            <div class="history-dot"></div>
+            <div class="history-text"><strong>${h.label}</strong><br>${fmtDataBR(h.data)}</div>
+        </div>
+    `).join('');
+}
+
+window.adicionarHistoricoManual = async () => {
+    const txtEl = document.getElementById('manual_historico_texto');
+    if (!txtEl) return;
+    const txt = txtEl.value.trim();
+    if (!txt) {
+        alert('Digite uma observação para registrar no histórico.');
+        return;
+    }
+    const contratoId = propostaAtual.contratoId || editId;
+    if (!contratoId) {
+        alert('Salve a proposta antes de adicionar observações manuais.');
+        return;
+    }
+
+    try {
+        const { data: inserted, error } = await supabaseClient
+            .from('com_proposta_historico')
+            .insert([{
+                contrato_id: contratoId,
+                step: propostaAtual.step,
+                label: txt,
+                data: dataAtualISO()
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        propostaAtual.historico.unshift(inserted);
+        txtEl.value = '';
+        renderHistoricoProposta();
+    } catch (err) {
+        console.error('Erro ao adicionar histórico manual:', err);
+        alert('Erro ao registrar no histórico: ' + err.message);
+    }
+};
+
+// -------------------------------------------------------------------
+// SALVAR PROPOSTA (Supabase) — "Salvar Rascunho"
+// -------------------------------------------------------------------
+
+window.salvarPropostaLocal = async (silencioso = false) => {
+    if (!propostaAtual.propostaId) return;
+
+    const btn = silencioso ? null : document.getElementById('btnSalvarProposta');
+    if (btn) {
+        btn.disabled = true;
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i data-lucide="loader" style="width:14px;"></i> Salvando...';
+        if (window.lucide) lucide.createIcons();
+
+        try {
+            await _persistirProposta();
+            btn.innerHTML = '<i data-lucide="check" style="width:14px;"></i> Salvo!';
+            btn.style.color = '#10b981';
+            if (window.lucide) lucide.createIcons();
+            setTimeout(() => {
+                btn.innerHTML = orig;
+                btn.style.color = '';
+                btn.disabled = false;
+                if (window.lucide) lucide.createIcons();
+            }, 1800);
+        } catch (err) {
+            alert('Erro ao salvar: ' + err.message);
+            btn.innerHTML = orig;
+            btn.disabled = false;
+        }
+    } else {
+        // Silencioso (chamado internamente ao avançar etapa)
+        await _persistirProposta();
+    }
+};
+
+// Persiste proposta + itens no Supabase
+async function _persistirProposta() {
+    const contratoId = propostaAtual.contratoId;
+    if (!contratoId) return;
+
+    // Atualiza campos de proposta diretamente em com_contratos
+    const payload = {
+        proposta_step:        propostaAtual.step,
+        objeto_proposta:      document.getElementById('objeto_proposta')?.value      || '',
+        endereco_proposta:    document.getElementById('endereco_proposta')?.value    || '',
+        cep_proposta:         document.getElementById('cep_proposta')?.value         || '',
+        contato_proposta:     document.getElementById('contato_proposta')?.value     || '',
+        assinatura_proposta:  document.getElementById('assinatura_proposta')?.value  || '',
+        data_proposta:        document.getElementById('prop_data_proposta')?.value   || null,
+        validade_dias:        parseInt(document.getElementById('prop_validade_dias')?.value) || 30,
+        data_validade:        document.getElementById('prop_data_validade')?.value   || null,
+        periodo_medicao:      document.getElementById('prop_periodo_medicao')?.value || '',
+        forma_pagamento:      document.getElementById('prop_forma_pagamento')?.value || '',
+        observacoes_proposta: document.getElementById('prop_observacoes')?.value     || ''
+    };
+
+    const { error: errUpdate } = await supabaseClient
+        .from('com_contratos')
+        .update(payload)
+        .eq('id', contratoId);
+
+    if (errUpdate) throw errUpdate;
+
+    // Deleta itens antigos e re-insere
+    await supabaseClient.from('com_proposta_itens').delete().eq('contrato_id', contratoId);
+
+    if (propostaAtual.itens.length > 0) {
+        const itensPayload = propostaAtual.itens.map((it, idx) => ({
+            contrato_id: contratoId,
+            ordem:       idx + 1,
+            descricao:   it.descricao  || '',
+            unidade:     it.unidade    || '',
+            quantidade:  it.quantidade || 0,
+            preco_unit:  it.preco_unit || 0
+        }));
+
+        const { error: errItens } = await supabaseClient
+            .from('com_proposta_itens')
+            .insert(itensPayload);
+
+        if (errItens) throw errItens;
+    }
+}
+
+window.avancarEtapaProposta = async () => {
+    if (propostaAtual.step >= 2 || !propostaAtual.propostaId) return;
+
+    const labels   = ['Proposta Aberta', 'Em Análise', 'Aprovada / Contrato'];
+    const novoStep = propostaAtual.step + 1;
+
+    const btnAvancar = document.getElementById('btnAvancarProposta');
+    if (btnAvancar) { btnAvancar.disabled = true; btnAvancar.style.opacity = '0.5'; }
+
+    try {
+        // Salva dados atuais primeiro
+        propostaAtual.step = novoStep;
+        await _persistirProposta();
+
+        // Registra no histórico
+        const { data: novoHist, error: errHist } = await supabaseClient
+            .from('com_proposta_historico')
+            .insert([{
+                contrato_id: propostaAtual.contratoId,
+                step:        novoStep,
+                label:       labels[novoStep],
+                data:        dataAtualISO()
+            }])
+            .select()
+            .single();
+
+        if (errHist) throw errHist;
+        propostaAtual.historico.unshift(novoHist);
+
+        // Atualiza status do contrato no Supabase conforme o step avançado
+        let statusTarget = null;
+        const norm = (str) => (str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+        if (novoStep === 1) {
+            statusTarget = config.status.find(s => norm(s.nome).includes('ANALISE'));
+        } else if (novoStep === 2) {
+            statusTarget = config.status.find(s => {
+                const n = norm(s.nome);
+                return n.includes('ATIVO') || n.includes('APROVAD') || n.includes('CONTRATO');
+            });
+        }
+
+        if (statusTarget) {
+            await supabaseClient
+                .from('com_contratos')
+                .update({ status_id: statusTarget.id })
+                .eq('id', propostaAtual.contratoId);
+
+            // Sincroniza o select de status no DOM para que o "SALVAR" subsequente não o reverta
+            const selectStatus = document.getElementById('status_id');
+            if (selectStatus) {
+                selectStatus.value = statusTarget.id;
+            }
+
+            await loadContratos();
+        }
+
+        updateTimelineUI(propostaAtual.step);
+        renderHistoricoProposta();
+        if (window.lucide) lucide.createIcons();
+
+    } catch (err) {
+        console.error('Erro ao avançar etapa:', err);
+        alert('Erro ao avançar etapa: ' + err.message);
+        propostaAtual.step = novoStep - 1; // rollback local
+    } finally {
+        updateTimelineUI(propostaAtual.step);
+    }
+};
+
+// -------------------------------------------------------------------
+// GERAR DOCUMENTO DA PROPOSTA
+// -------------------------------------------------------------------
+
+window.gerarDocumentoProposta = () => {
+    const clienteNome    = document.getElementById('cliente_nome')?.value         || '';
+    const clienteCnpj    = document.getElementById('cliente_cnpj_cpf')?.value     || '';
+    const endereco       = document.getElementById('endereco_proposta')?.value    || '';
+    const cep            = document.getElementById('cep_proposta')?.value         || '';
+    const contatoNome    = document.getElementById('contato_proposta')?.value     || '';
+    const objeto         = document.getElementById('objeto_proposta')?.value      || '';
+    const dataProposta   = document.getElementById('prop_data_proposta')?.value   || dataAtualISO();
+    const validadeDias   = document.getElementById('prop_validade_dias')?.value   || 30;
+    const dataValidade   = document.getElementById('prop_data_validade')?.value   || '';
+    const periodoMedicao = document.getElementById('prop_periodo_medicao')?.value || '';
+    const formaPagamento = document.getElementById('prop_forma_pagamento')?.value || '';
+    const observacoes    = document.getElementById('prop_observacoes')?.value     || '';
+    const assinatura     = document.getElementById('prop_assinatura')?.value      || '';
+
+    const totalGlobal = propostaAtual.itens.reduce(
+        (a, it) => a + ((it.quantidade || 0) * (it.preco_unit || 0)), 0
+    );
+
+    const itensRows = propostaAtual.itens.map((it, idx) => {
+        const total = (it.quantidade || 0) * (it.preco_unit || 0);
+        return `<tr>
+            <td style="text-align:center;">${idx + 1}</td>
+            <td>${it.descricao || '-'}</td>
+            <td style="text-align:center;">${it.unidade || '-'}</td>
+            <td style="text-align:center;">${(it.quantidade || 0).toLocaleString('pt-BR')}</td>
+            <td>
+                <div style="display:flex; justify-content:space-between; width:100%; font-family:monospace; font-size:10pt;">
+                    <span>R$</span>
+                    <span>${(it.preco_unit || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+            </td>
+            <td>
+                <div style="display:flex; justify-content:space-between; width:100%; font-family:monospace; font-size:10pt;">
+                    <span>R$</span>
+                    <span>${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+
+    const bullets = [];
+    if (periodoMedicao) bullets.push(`Período de medição: ${periodoMedicao};`);
+    if (formaPagamento) bullets.push(`Condição de pagamento: ${formaPagamento}.`);
+    const bulletsHtml = bullets.length > 0
+        ? `<ul>${bullets.map(b => `<li>${b}</li>`).join('')}</ul>` : '';
+
+    // Localidade + data por extenso
+    let localidadeData = formatarDataExtenso(dataProposta);
+    if (endereco && endereco.includes(',')) {
+        const partes = endereco.split(',');
+        localidadeData = `${partes[partes.length - 1].trim()}, ${localidadeData}`;
+    } else {
+        localidadeData = `Resende/RJ, ${localidadeData}`;
+    }
+
+    const addressLines = [
+        clienteNome ? `<p><strong>${clienteNome}</strong></p>` : '',
+        endereco    ? `<p>${endereco}</p>` : '',
+        cep         ? `<p>CEP: ${cep}</p>` : ''
+    ].filter(Boolean).join('');
+
+    const saudacao   = contatoNome ? `Prezado ${contatoNome},` : 'Prezado(a) Senhor(a),';
+    const fixedIntro = 'A New Cargo Transporte e Logística Ltda. tem o prazer de apresentar a presente proposta comercial para a prestação de serviços de transporte executivo, conforme as condições e especificações descritas no Termo de Referência.';
+    const objetoTexto = objeto ? `<p class="doc-intro" style="margin-top: 10px;"><strong>Objetivo / Escopo:</strong> ${objeto}</p>` : '';
+    const validadeTexto = dataValidade
+        ? `${validadeDias} dias`
+        : `${validadeDias} dias`;
+
+    const html = `
+        <div class="doc-header-top">
+            <div class="doc-logo-area">
+                <div class="doc-logo-text" style="font-size:24pt; font-weight:bold; color:#107c41; font-style:italic; font-family: 'Times New Roman', Times, serif;">New Cargo</div>
+                <div class="doc-logo-sub" style="font-size:9pt; color:#666; font-style:italic; font-family: Arial, sans-serif;">Transporte &amp; Logística</div>
+            </div>
+        </div>
+
+        <div class="doc-title-block">
+            <h2>Proposta de Prestação de Serviços</h2>
+            <h3>Transporte Executivo de Passageiros</h3>
+        </div>
+
+        <div class="doc-destinatario">
+            <p><strong>${localidadeData}</strong></p>
+            ${addressLines}
+        </div>
+
+        <p class="doc-greeting">${saudacao}</p>
+        <p class="doc-intro">${fixedIntro}</p>
+        ${objetoTexto}
+
+        <table class="doc-itens-table">
+            <thead>
+                <tr>
+                    <th style="width:50px; text-align:center;">ITEM</th>
+                    <th>DESCRIÇÃO DO OBJETO</th>
+                    <th style="width:90px; text-align:center;">UNIDADE</th>
+                    <th style="width:100px; text-align:center;">QUANTIDADE</th>
+                    <th style="width:130px; text-align:center;">PREÇO<br>UNITÁRIO (R$)</th>
+                    <th style="width:130px; text-align:center;">TOTAL (R$)</th>
+                </tr>
+            </thead>
+            <tbody>${itensRows}</tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="4" style="text-align:right; font-weight:bold; font-size:10.5pt; text-transform:uppercase; border-right:none !important;">GLOBAL</td>
+                    <td colspan="2" style="font-weight:bold; font-size:10.5pt; border-left:none !important;">
+                        <div style="display:flex; justify-content:space-between; width:100%; font-family:monospace;">
+                            <span>R$</span>
+                            <span>${totalGlobal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <div class="doc-validade">
+            <strong>Validade da proposta: ${validadeTexto}</strong>
+        </div>
+
+        ${bullets.length > 0 ? `<div class="doc-pagamento"><strong>Condições de pagamento:</strong>${bulletsHtml}</div>` : ''}
+        ${observacoes ? `<p class="doc-closing" style="text-align:justify;">${observacoes}</p>` : ''}
+
+        <p class="doc-closing" style="margin-top:35px;">Atenciosamente,</p>
+        <p class="doc-closing" style="font-weight:bold; margin-top:5px;">${assinatura}</p>
+
+        <div class="doc-footer-bar">
+            Rua São Domingos da Calçada, 157, Paraíso, Resende/RJ, 27535-020 | (24) 3381-8000 | @veritas.locacao | CNPJ: 19.737.004/0004-85
+        </div>
+        <div class="doc-page-num">Página 01 de 01</div>
+    `;
+
+    document.getElementById('docPropostaPaper').innerHTML = html;
+    document.getElementById('documentoPropostaOverlay').classList.add('active');
+    if (window.lucide) lucide.createIcons();
+};
+
+window.fecharDocumentoProposta = () => {
+    document.getElementById('documentoPropostaOverlay').classList.remove('active');
+};
+
+window.imprimirProposta = () => {
+    const overlay = document.getElementById('documentoPropostaOverlay');
+    const toolbar = overlay.querySelector('.doc-toolbar');
+    toolbar.style.display = 'none';
+    window.print();
+    setTimeout(() => { toolbar.style.display = ''; }, 500);
+};
+
+window.openHistoricoModal = async (id) => {
+    const c = contratos.find(x => x.id === id);
+    if (!c) return;
+
+    document.getElementById('historicoModalSubtitle').innerText = `${c.cliente_nome || 'Contrato'} — ${c.descricao_contrato || 'Sem descrição'}`;
+    const listEl = document.getElementById('historicoModalList');
+    listEl.innerHTML = `<div style="font-size:0.8rem;color:var(--text-muted);font-style:italic;text-align:center;padding:1.5rem 0;">Carregando histórico...</div>`;
+    
+    document.getElementById('historicoModal').classList.add('active');
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('com_proposta_historico')
+            .select('*')
+            .eq('contrato_id', id)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+            listEl.innerHTML = `<div style="font-size:0.8rem;color:var(--text-muted);font-style:italic;text-align:center;padding:1.5rem 0;">Nenhum registro encontrado no histórico.</div>`;
+            return;
+        }
+
+        listEl.innerHTML = data.map(h => `
+            <div style="display:flex; gap:0.8rem; align-items:flex-start; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:1rem; border-radius:12px;">
+                <div style="width:8px; height:8px; border-radius:50%; background:var(--primary); flex-shrink:0; margin-top:5px;"></div>
+                <div style="flex:1;">
+                    <div style="font-size:0.8rem; font-weight:800; color:#fff; line-height:1.4;">${h.label}</div>
+                    <div style="font-size:0.68rem; color:var(--text-muted); margin-top:0.4rem; font-weight:600;">${fmtDataBR(h.data)}</div>
+                </div>
+            </div>
+        `).join('');
+    } catch (err) {
+        console.error('Erro ao carregar histórico:', err);
+        listEl.innerHTML = `<div style="font-size:0.8rem;color:#ef4444;text-align:center;padding:1.5rem 0;">Erro ao carregar: ${err.message}</div>`;
+    }
+
+    if (window.lucide) lucide.createIcons();
+};
+
+window.closeHistoricoModal = () => {
+    document.getElementById('historicoModal').classList.remove('active');
+};
 
