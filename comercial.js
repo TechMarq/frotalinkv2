@@ -507,18 +507,31 @@ function updateDashboard() {
     const in30Days = new Date();
     in30Days.setDate(today.getDate() + 30);
 
-    const ativos = contratos.filter(c => c.status?.nome === 'ATIVO');
-    const vencidos = contratos.filter(c => c.data_vencimento && new Date(c.data_vencimento) < today);
+    const propAbertas = contratos.filter(c => c.proposta_step === 0 || c.proposta_step === null || c.proposta_step === undefined);
+    const propAnalise = contratos.filter(c => c.proposta_step === 1);
+    const ativos = contratos.filter(c => c.proposta_step === 2 && c.status?.nome?.toUpperCase() === 'ATIVO');
+    
+    const vencidos = contratos.filter(c => c.proposta_step === 2 && c.data_vencimento && new Date(c.data_vencimento) < today);
     const vencendo = contratos.filter(c => {
-        if (!c.data_vencimento) return false;
+        if (c.proposta_step !== 2 || !c.data_vencimento) return false;
         const d = new Date(c.data_vencimento);
         return d >= today && d <= in30Days;
     });
 
-    document.getElementById('dash_total_contratos').innerText = contratos.length;
-    document.getElementById('dash_ativos').innerText = ativos.length;
-    document.getElementById('dash_vencendo').innerText = vencendo.length;
-    document.getElementById('dash_vencidos').innerText = vencidos.length;
+    const elAbertas = document.getElementById('dash_prop_abertas');
+    if (elAbertas) elAbertas.innerText = propAbertas.length;
+
+    const elAnalise = document.getElementById('dash_prop_analise');
+    if (elAnalise) elAnalise.innerText = propAnalise.length;
+
+    const elAtivos = document.getElementById('dash_contratos_ativos');
+    if (elAtivos) elAtivos.innerText = ativos.length;
+
+    const elVencendo = document.getElementById('dash_vencendo');
+    if (elVencendo) elVencendo.innerText = vencendo.length;
+
+    const elVencidos = document.getElementById('dash_vencidos');
+    if (elVencidos) elVencidos.innerText = vencidos.length;
 
     renderCharts();
 }
