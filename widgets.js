@@ -805,10 +805,31 @@
 
     // --- 5. News Widget Logic ---
     const NEWS_FEEDS = {
-        veiculos: 'https://g1.globo.com/rss/g1/carros/',
-        financas: 'https://g1.globo.com/rss/g1/economia/',
-        tecnologia: 'https://g1.globo.com/rss/g1/tecnologia/',
-        geral: 'https://g1.globo.com/rss/g1/'
+        veiculos: [
+            'https://g1.globo.com/rss/g1/carros/',
+            'https://rss.uol.com.br/feed/carros.xml',
+            'https://noticias.r7.com/carros/feed.xml'
+        ],
+        financas: [
+            'https://g1.globo.com/rss/g1/economia/',
+            'https://rss.uol.com.br/feed/economia.xml',
+            'https://noticias.r7.com/economia/feed.xml'
+        ],
+        negocios: [
+            'https://g1.globo.com/rss/g1/economia/negocios/',
+            'https://valor.globo.com/rss/valor/',
+            'https://rss.uol.com.br/feed/empreendedorismo.xml'
+        ],
+        tecnologia: [
+            'https://g1.globo.com/rss/g1/tecnologia/',
+            'https://rss.uol.com.br/feed/tecnologia.xml',
+            'https://noticias.r7.com/tecnologia-e-ciencia/feed.xml'
+        ],
+        geral: [
+            'https://g1.globo.com/rss/g1/',
+            'https://rss.uol.com.br/feed/noticias.xml',
+            'https://noticias.r7.com/feed.xml'
+        ]
     };
 
     function initNewsWidget(body) {
@@ -820,6 +841,7 @@
                 <div class="widget-news-chips" id="news-chips-container">
                     <span class="widget-news-chip" data-topic="veiculos">🚗 Carros</span>
                     <span class="widget-news-chip" data-topic="financas">💰 Finanças</span>
+                    <span class="widget-news-chip" data-topic="negocios">📈 Negócios</span>
                     <span class="widget-news-chip" data-topic="tecnologia">💻 Tech</span>
                     <span class="widget-news-chip" data-topic="geral">📰 Geral</span>
                 </div>
@@ -861,15 +883,32 @@
             listContainer.innerHTML = '<div class="widget-news-loading">Carregando notícias...</div>';
 
             try {
+                // Collect active feeds with their source names
+                const activeFeeds = [];
+                activeTopics.forEach(topic => {
+                    const feeds = NEWS_FEEDS[topic];
+                    if (Array.isArray(feeds)) {
+                        feeds.forEach(url => {
+                            let source = "G1";
+                            if (url.includes("uol.com.br")) source = "UOL";
+                            else if (url.includes("r7.com")) source = "R7";
+                            else if (url.includes("valor.globo.com")) source = "Valor";
+                            activeFeeds.push({ url, source, topic });
+                        });
+                    }
+                });
+
                 // Fetch active feeds in parallel
-                const fetchPromises = activeTopics.map(async (topic) => {
+                const fetchPromises = activeFeeds.map(async (feed) => {
                     try {
-                        const feedUrl = NEWS_FEEDS[topic];
-                        const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}`);
+                        const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}`);
                         const data = await res.json();
-                        return data.status === 'ok' ? (data.items || []) : [];
+                        if (data.status === 'ok' && data.items) {
+                            return data.items.map(item => ({ ...item, source: feed.source, topic: feed.topic }));
+                        }
+                        return [];
                     } catch (e) {
-                        console.warn(`Erro ao carregar feed do tópico ${topic}:`, e);
+                        console.warn(`Erro ao carregar feed ${feed.url}:`, e);
                         return [];
                     }
                 });
@@ -886,7 +925,19 @@
                 });
 
                 // Sort chronologically (newest first)
-                mergedItems.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+                mergedItems.sort((a, b) => {
+                    const dateA = a.pubDate ? new Date(a.pubDate) : new Date(0);
+                    const dateB = b.pubDate ? new Date(b.pubDate) : new Date(0);
+                    return dateB - dateA;
+                });
+
+                const topicNames = {
+                    veiculos: 'Carros',
+                    financas: 'Finanças',
+                    negocios: 'Negócios',
+                    tecnologia: 'Tech',
+                    geral: 'Geral'
+                };
 
                 if (mergedItems.length > 0) {
                     let html = '';
@@ -899,6 +950,9 @@
                             minute: '2-digit'
                         });
                         const thumb = item.thumbnail || '';
+                        const sourceClass = (item.source || 'G1').toLowerCase();
+                        const topicClass = (item.topic || 'geral');
+                        const topicLabel = topicNames[item.topic] || 'Geral';
 
                         html += `
                             <a href="${item.link}" target="_blank" class="widget-news-item">
@@ -907,6 +961,10 @@
                                     <h4 class="widget-news-title">${item.title}</h4>
                                     <div class="widget-news-meta">
                                         <span>${date}</span>
+                                        <div style="display: flex; gap: 0.35rem; align-items: center;">
+                                            <span class="widget-news-category-tag topic-${topicClass}">${topicLabel}</span>
+                                            <span class="widget-news-source-tag source-${sourceClass}">${item.source || 'G1'}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </a>

@@ -825,6 +825,86 @@
 .widget-news-meta {
     font-size: 0.7rem;
     color: var(--widget-muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-top: 0.25rem;
+}
+
+.widget-news-source-tag {
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.6rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.widget-news-source-tag.source-g1 {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.widget-news-source-tag.source-uol {
+    background: rgba(249, 115, 22, 0.15);
+    color: #fb923c;
+    border: 1px solid rgba(249, 115, 22, 0.25);
+}
+
+.widget-news-source-tag.source-r7 {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.widget-news-source-tag.source-valor {
+    background: rgba(20, 184, 166, 0.15);
+    color: #2dd4bf;
+    border: 1px solid rgba(20, 184, 166, 0.25);
+}
+
+.widget-news-category-tag {
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--widget-muted);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.widget-news-category-tag.topic-veiculos {
+    background: rgba(99, 102, 241, 0.12);
+    color: #a5b4fc;
+    border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.widget-news-category-tag.topic-financas {
+    background: rgba(16, 185, 129, 0.12);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.widget-news-category-tag.topic-negocios {
+    background: rgba(245, 158, 11, 0.12);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.widget-news-category-tag.topic-tecnologia {
+    background: rgba(192, 132, 252, 0.12);
+    color: #e9d5ff;
+    border: 1px solid rgba(192, 132, 252, 0.25);
+}
+
+.widget-news-category-tag.topic-geral {
+    background: rgba(148, 163, 184, 0.12);
+    color: #cbd5e1;
+    border: 1px solid rgba(148, 163, 184, 0.25);
 }
 
 .widget-news-loading, .widget-news-error {
@@ -836,6 +916,33 @@
     color: var(--widget-muted);
     font-style: italic;
     text-align: center;
+}
+
+/* Custom Scrollbar for Widgets */
+.widget-body::-webkit-scrollbar,
+.widget-news-list::-webkit-scrollbar,
+.widget-notepad-textarea::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.widget-body::-webkit-scrollbar-track,
+.widget-news-list::-webkit-scrollbar-track,
+.widget-notepad-textarea::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.widget-body::-webkit-scrollbar-thumb,
+.widget-news-list::-webkit-scrollbar-thumb,
+.widget-notepad-textarea::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+}
+
+.widget-body::-webkit-scrollbar-thumb:hover,
+.widget-news-list::-webkit-scrollbar-thumb:hover,
+.widget-notepad-textarea::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
 }
 
 
