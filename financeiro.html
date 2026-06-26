@@ -370,7 +370,8 @@
                 <div class="conciliacao-layout">
                     <div class="conc-bank-list">
                         <h3>Extrato Bancário</h3>
-                        <div class="conc-actions">
+                        <div class="conc-actions" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
+                            <select id="concContaSelect" class="financeiro-input" style="max-width: 220px;"></select>
                             <input type="file" id="ofdImport" accept=".ofx,.csv" style="display:none"
                                 onchange="handleOFXUpload(this)">
                             <button class="btn-outline" onclick="document.getElementById('ofdImport').click()"><i

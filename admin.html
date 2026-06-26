@@ -1156,6 +1156,22 @@
                     ? new Date(u.created_at).toLocaleDateString('pt-BR')
                     : '--';
 
+                const actionButtons = u.role === 'admin' 
+                    ? `<span style="color: var(--text-muted); font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
+                         🔒 Acesso Protegido
+                       </span>`
+                    : `<div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+                           <button class="action-btn action-btn-edit" onclick="openEditModal('${u.email}')">
+                               ✍️ Editar
+                           </button>
+                           <button class="action-btn action-btn-toggle" onclick="toggleUserAccess('${u.email}', ${u.active})">
+                               ${u.active ? '🚫 Revogar' : '✅ Ativar'}
+                           </button>
+                           <button class="action-btn action-btn-delete" onclick="deleteUser('${u.email}')">
+                               🗑️
+                           </button>
+                       </div>`;
+
                 return `
                     <tr>
                         <td style="font-weight:600; color:var(--text-main);">${u.nome_completo || '--'}</td>
@@ -1164,19 +1180,7 @@
                         <td style="max-width:320px;">${moduleTags}</td>
                         <td>${statusBadge}</td>
                         <td style="color:var(--text-muted); font-size:0.8rem;">${createdAt}</td>
-                        <td>
-                            <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
-                                <button class="action-btn action-btn-edit" onclick="openEditModal('${u.email}')">
-                                    ✍️ Editar
-                                </button>
-                                <button class="action-btn action-btn-toggle" onclick="toggleUserAccess('${u.email}', ${u.active})">
-                                    ${u.active ? '🚫 Revogar' : '✅ Ativar'}
-                                </button>
-                                <button class="action-btn action-btn-delete" onclick="deleteUser('${u.email}')">
-                                    🗑️
-                                </button>
-                            </div>
-                        </td>
+                        <td>${actionButtons}</td>
                     </tr>`;
             }).join('');
 
@@ -1294,6 +1298,10 @@
                                 </span>
                             </h4>
                             <div class="group-actions-wrap" onclick="event.stopPropagation()">
+                                <label style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: var(--text-muted); cursor: pointer; font-weight: 600; margin-right: 0.50rem; user-select: none;">
+                                    <input type="checkbox" id="${prefix}-${groupKey}-auditoria" style="accent-color: var(--primary); cursor: pointer; width: 14px; height: 14px;">
+                                    Auditoria
+                                </label>
                                 <button type="button" class="btn-batch-action btn-batch-enable" onclick="toggleGroupBatch('${prefix}', '${groupKey}', true)">Habilitar Módulo</button>
                                 <button type="button" class="btn-batch-action btn-batch-clear" onclick="toggleGroupBatch('${prefix}', '${groupKey}', false)">Bloquear</button>
                                 <i data-lucide="chevron-down" class="group-chevron" id="chevron-${prefix}-${groupKey}"></i>
@@ -1344,6 +1352,17 @@
                     delete: view ? document.getElementById(`${prefix}-${m.key}-delete`).checked : false
                 };
             });
+            
+            // Collect auditoria checkboxes
+            Object.keys(GROUP_NAMES).forEach(groupKey => {
+                const audCb = document.getElementById(`${prefix}-${groupKey}-auditoria`);
+                if (audCb) {
+                    perms[groupKey + '_auditoria'] = {
+                        view: audCb.checked
+                    };
+                }
+            });
+
             return perms;
         }
 
@@ -1361,6 +1380,15 @@
                     const cb = document.getElementById(`${prefix}-${m.key}-${action}`);
                     if (cb) cb.checked = !!p[action];
                 });
+            });
+
+            // Set auditoria checkboxes
+            Object.keys(GROUP_NAMES).forEach(groupKey => {
+                const audCb = document.getElementById(`${prefix}-${groupKey}-auditoria`);
+                if (audCb) {
+                    const pAud = perms[groupKey + '_auditoria'] || { view: false };
+                    audCb.checked = !!pAud.view;
+                }
             });
         }
 
@@ -1434,6 +1462,10 @@
         function openEditModal(email) {
             const user = allUsers.find(u => u.email === email);
             if (!user) return;
+            if (user.role === 'admin') {
+                alert('Erro: Contas administradoras são protegidas e só podem ser alteradas diretamente no banco de dados.');
+                return;
+            }
 
             document.getElementById('edit-email').value = user.email;
             document.getElementById('edit-email-display').value = user.email;
@@ -1528,6 +1560,7 @@
                         active, 
                         modules, 
                         permissions,
+                        empresa_id: window.currentEmpresaId,
                         updated_at: new Date().toISOString() 
                     })
                     .eq('email', email);
@@ -1554,6 +1587,11 @@
         // ============================================================
 
         async function toggleUserAccess(email, currentActive) {
+            const user = allUsers.find(u => u.email === email);
+            if (user && user.role === 'admin') {
+                alert('Erro: Contas administradoras são protegidas e só podem ser alteradas diretamente no banco de dados.');
+                return;
+            }
             const action = currentActive ? 'revogar acesso de' : 'ativar acesso de';
             if (!confirm(`Tem certeza que deseja ${action} "${email}"?`)) return;
 
@@ -1571,6 +1609,11 @@
         }
 
         async function deleteUser(email) {
+            const user = allUsers.find(u => u.email === email);
+            if (user && user.role === 'admin') {
+                alert('Erro: Contas administradoras são protegidas e só podem ser alteradas diretamente no banco de dados.');
+                return;
+            }
             if (!confirm(`⚠️ ATENÇÃO: Isso removerá permanentemente o acesso de "${email}" do sistema.\n\nO usuário não conseguirá mais fazer login.\n\nDeseja continuar?`)) return;
 
             try {

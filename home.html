@@ -437,6 +437,15 @@
                     <p>Controle de acesso e permissões por usuário.</p>
                 </div>
             </a>
+            <!-- Auditoria card: only visible for role=admin -->
+            <a href="auditoria.html" class="module-card" id="auditoriaModuleCard" style="display:none; border-color: rgba(99,102,241,0.3); background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(192,132,252,0.04));">
+                <div class="status-pill" style="background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.2);">Admin</div>
+                <div class="module-icon" style="background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(192,132,252,0.1)); color: #818cf8;"><i data-lucide="activity"></i></div>
+                <div>
+                    <h3 style="background: linear-gradient(to right, #818cf8, #c084fc); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">Histórico de Auditoria</h3>
+                    <p>Log de ações de usuários e alterações do sistema.</p>
+                </div>
+            </a>
         </div>
 
     </div>
@@ -505,6 +514,12 @@ let supabaseClient = null;
                 const adminCard = document.getElementById('adminModuleCard');
                 if (adminCard) {
                     adminCard.style.display = window.currentUserRole === 'admin' ? 'flex' : 'none';
+                }
+                const auditoriaCard = document.getElementById('auditoriaModuleCard');
+                if (auditoriaCard) {
+                    const hasAudAccess = window.currentUserRole === 'admin' || 
+                        (window.currentUserPermissions && Object.keys(window.currentUserPermissions).some(key => key.endsWith('_auditoria') && window.currentUserPermissions[key].view));
+                    auditoriaCard.style.display = hasAudAccess ? 'flex' : 'none';
                 }
 
                 lucide.createIcons();

@@ -1,4 +1,4 @@
-﻿// Configuration
+// Configuration
 let supabaseClient = null;
 
 // State management
@@ -1220,6 +1220,10 @@ window.handleFuelImport = (event) => {
         showToast(`Sucesso! ${toProcess.length} registros importados sob ID ${displayId}`, 'success');
         event.target.value = ''; // Reset input
         
+        if (window.registrarLog) {
+            window.registrarLog('abastecimento', 'IMPORTAÇÃO', `Importou ${toProcess.length} registros sob o lote ${displayId}`);
+        }
+
         // Redirecionar para a aba de importações para mostrar o registro
         switchMainTab('imports');
     };
@@ -1308,12 +1312,23 @@ window.deleteImportBatch = async (importId, displayId) => {
         return;
     }
 
+    const motivo = prompt("Por favor, informe o motivo da exclusão deste lote de importação:");
+    if (motivo === null) return; // Cancelado
+    if (motivo.trim() === "") {
+        alert("O motivo da exclusão é obrigatório para auditoria!");
+        return;
+    }
+    const motivoTxt = motivo.trim();
+
     if (supabaseClient) {
         const { error } = await supabaseClient.from('importacoes_abastecimento').delete().eq('id', importId);
         if (error) {
             showToast('Erro ao excluir lote: ' + error.message, 'error');
         } else {
             showToast(`Lote ${displayId} e seus registros excluídos!`, 'success');
+            if (window.registrarLog) {
+                window.registrarLog('abastecimento', 'EXCLUSÃO', `Excluiu lote de importação ${displayId}. Motivo: ${motivoTxt}`);
+            }
             await loadInitialData();
             renderImportsTable();
         }
@@ -1325,6 +1340,9 @@ window.deleteImportBatch = async (importId, displayId) => {
         refreshUI();
         renderImportsTable();
         showToast(`Lote ${displayId} excluído localmente`, 'success');
+        if (window.registrarLog) {
+            window.registrarLog('abastecimento', 'EXCLUSÃO', `Excluiu lote de importação ${displayId} (Modo Local). Motivo: ${motivoTxt}`);
+        }
     }
 };
 
@@ -1931,6 +1949,8 @@ function renderFuelTable() {
     const tbody = document.getElementById('fuelList');
     if (!tbody) return;
 
+    const activeAlerts = checkFuelAlerts(false);
+
     const searchTerm = document.getElementById('fuelSearch')?.value.toLowerCase() || '';
     
     // Toggle clear button visibility
@@ -2041,6 +2061,30 @@ function renderFuelTable() {
         }
 
         const isOutlier = avgValue > 0 && (avgValue < 8 || avgValue > 18);
+        
+        const unitVal = parseFloat(f.valor_unitario) || (f.litros > 0 ? (parseFloat(f.valor_total) / parseFloat(f.litros)) : 0);
+
+        const recordAlerts = activeAlerts.filter(a => a.id === f.id);
+        let alertIconHtml = '';
+        if (recordAlerts.length > 0) {
+            let severityColor = '#3b82f6';
+            let iconName = 'info';
+            let tooltipText = recordAlerts.map(a => a.title.replace(/[^\w\s\(\)\[\]\u00C0-\u00FF]/g, '').trim()).join(', ');
+            
+            if (recordAlerts.some(a => a.type === 'danger')) {
+                severityColor = '#ef4444';
+                iconName = 'alert-triangle';
+            } else if (recordAlerts.some(a => a.type === 'warning')) {
+                severityColor = '#f59e0b';
+                iconName = 'alert-circle';
+            }
+            
+            alertIconHtml = `
+                <span class="row-alert-icon" title="${tooltipText}" style="color: ${severityColor}; display: inline-flex; align-items: center; margin-right: 0.35rem; cursor: help;" onclick="event.stopPropagation(); toggleFuelNotiPanel();">
+                    <i data-lucide="${iconName}" style="width: 15px; height: 15px; stroke-width: 2.5;"></i>
+                </span>
+            `;
+        }
 
         return `
             <tr>
@@ -2048,7 +2092,10 @@ function renderFuelTable() {
                     <input type="checkbox" class="fuel-checkbox" value="${f.id}" onchange="updateSelectedUI()">
                 </td>
                 <td data-label="Data / Hora" data-column="data">
-                    <div style="font-weight: 600;">${fDate.toLocaleDateString('pt-BR')}</div>
+                    <div style="font-weight: 600; display: flex; align-items: center; gap: 0.25rem;">
+                        ${alertIconHtml}
+                        ${fDate.toLocaleDateString('pt-BR')}
+                    </div>
                     <div style="font-size: 0.75rem; color: var(--text-muted);">${formatTime24h(f.data, f.horario)}</div>
                 </td>
                 <td data-label="Veículo / Cat." data-column="veiculo">
@@ -2069,7 +2116,12 @@ function renderFuelTable() {
                 <td data-label="Quantidade" data-column="litros">${f.litros.toLocaleString('pt-BR')} ${getFuelUnit(f.tipo_combustivel)}</td>
                 <td data-label="Combustível" data-column="combustivel"><div style="font-size: 0.8rem; font-weight: 600;">${f.tipo_combustivel || '---'}</div></td>
                 <td data-label="Média" data-column="media" style="color: ${isOutlier ? '#f59e0b' : 'var(--primary)'}; font-weight: 700;" class="${state.highlightId === f.id && state.highlightField === 'media' ? 'highlight-alert' : ''}">${avg}</td>
-                <td data-label="Valor Total" data-column="valor" style="font-weight: 600;" class="${state.highlightId === f.id && state.highlightField === 'valor' ? 'highlight-alert' : ''}">${f.valor_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                <td data-label="Valor Total" data-column="valor" style="font-weight: 600;" class="${state.highlightId === f.id && state.highlightField === 'valor' ? 'highlight-alert' : ''}">
+                    <div>${f.valor_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; font-weight: normal;">
+                        ${unitVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 3 })} / ${getFuelUnit(f.tipo_combustivel)}
+                    </div>
+                </td>
                 <td data-label="Posto / Local" data-column="posto">
                     <div style="font-weight: 600; font-size: 0.85rem;">${f.postos?.nome || 'Não inf.' }</div>
                     <div style="font-size: 0.7rem; color: var(--text-muted);">${f.cidade_posto || ''} ${f.estado_posto ? '- '+f.estado_posto : ''}</div>
@@ -2101,7 +2153,6 @@ function renderFuelTable() {
     
     if (window.lucide) lucide.createIcons();
     calculateStats(filteredRecords);
-    checkFuelAlerts();
 }
 
 function calculateStats(filteredRecords = null) {
@@ -2185,6 +2236,17 @@ function setupFormListeners() {
             }
             const existing = isEditing ? state.fuelingRecords.find(r => r.id === state.editingId) : null;
             
+            let motivoAlteracao = "";
+            if (isEditing) {
+                const motivo = prompt("Por favor, informe o motivo da alteração deste registro de abastecimento:");
+                if (motivo === null) return; // Cancelado
+                if (motivo.trim() === "") {
+                    alert("O motivo da alteração é obrigatório para auditoria!");
+                    return;
+                }
+                motivoAlteracao = motivo.trim();
+            }
+            
             const data = {
                 id: isEditing ? state.editingId : crypto.randomUUID ? crypto.randomUUID() : generateUUID(),
                 veiculo_id: document.getElementById('fuel_veiculo').value,
@@ -2265,6 +2327,71 @@ function setupFormListeners() {
             }
 
             showToast(isEditing ? 'Abastecimento atualizado!' : 'Abastecimento registrado!', 'success');
+            
+            if (window.registrarLog) {
+                const vObj = state.vehicles.find(v => v.id === data.veiculo_id);
+                const placaStr = vObj ? vObj.placa : (data.veiculo_id || '');
+                const acao = isEditing ? 'ALTERAÇÃO' : 'INCLUSÃO';
+                
+                let changes = [];
+                if (isEditing && existing) {
+                    if (existing.veiculo_id !== data.veiculo_id) {
+                        const oldV = state.vehicles.find(v => v.id === existing.veiculo_id)?.placa || existing.veiculo_id;
+                        const newV = state.vehicles.find(v => v.id === data.veiculo_id)?.placa || data.veiculo_id;
+                        changes.push(`Veículo de "${oldV}" para "${newV}"`);
+                    }
+                    if (existing.data !== data.data) {
+                        changes.push(`Data de "${existing.data}" para "${data.data}"`);
+                    }
+                    if (existing.horario !== data.horario) {
+                        changes.push(`Horário de "${existing.horario}" para "${data.horario}"`);
+                    }
+                    if (existing.motorista_id !== data.motorista_id) {
+                        const oldM = state.drivers.find(d => d.id === existing.motorista_id)?.nome_completo || 'Nenhum';
+                        const newM = state.drivers.find(d => d.id === data.motorista_id)?.nome_completo || 'Nenhum';
+                        changes.push(`Motorista de "${oldM}" para "${newM}"`);
+                    }
+                    if (cleanNumber(existing.km_atual) !== cleanNumber(data.km_atual)) {
+                        changes.push(`KM de ${existing.km_atual} para ${data.km_atual}`);
+                    }
+                    if (cleanNumber(existing.litros) !== cleanNumber(data.litros)) {
+                        changes.push(`Litros de ${existing.litros} para ${data.litros}`);
+                    }
+                    if (cleanNumber(existing.valor_unitario) !== cleanNumber(data.valor_unitario)) {
+                        changes.push(`Valor Unitário de R$ ${existing.valor_unitario} para R$ ${data.valor_unitario}`);
+                    }
+                    if (cleanNumber(existing.valor_total) !== cleanNumber(data.valor_total)) {
+                        changes.push(`Valor Total de R$ ${existing.valor_total} para R$ ${data.valor_total}`);
+                    }
+                    if (existing.posto_id !== data.posto_id) {
+                        const oldP = state.posts.find(p => p.id === existing.posto_id)?.nome || 'Nenhum';
+                        const newP = state.posts.find(p => p.id === data.posto_id)?.nome || 'Nenhum';
+                        changes.push(`Posto de "${oldP}" para "${newP}"`);
+                    }
+                    if (existing.tipo_combustivel !== data.tipo_combustivel) {
+                        changes.push(`Combustível de "${existing.tipo_combustivel}" para "${data.tipo_combustivel}"`);
+                    }
+                }
+
+                const formatarDataBR = (d) => {
+                    if (!d) return '';
+                    const pts = d.split('-');
+                    return pts.length === 3 ? `${pts[2]}/${pts[1]}/${pts[0]}` : d;
+                };
+                const dataBR = formatarDataBR(data.data);
+                const horarioBR = data.horario || '';
+
+                let descricao = '';
+                if (isEditing) {
+                    const changesStr = changes.length > 0 ? `Alterações: ${changes.join(', ')}` : 'Sem alterações.';
+                    descricao = `DETALHE: Alterou abastecimento do veículo ${placaStr} na data ${dataBR} às ${horarioBR} no valor de R$ ${data.valor_total} | ALTERACAO: ${changesStr} | MOTIVO: ${motivoAlteracao}`;
+                } else {
+                    descricao = `DETALHE: Registrou novo abastecimento do veículo ${placaStr} na data ${dataBR} às ${horarioBR} no valor de R$ ${data.valor_total}`;
+                }
+
+                window.registrarLog('abastecimento', acao, descricao);
+            }
+
             fuelForm.reset();
             document.getElementById('modalFuel').classList.remove('active');
             state.editingId = null;
@@ -2571,14 +2698,39 @@ window.deleteRecord = async (table, id) => {
         alert('Você não tem permissão para excluir abastecimentos.');
         return;
     }
-    if (!confirm('Deseja realmente excluir este registro?')) return;
+    const motivo = prompt("Deseja realmente excluir este registro? Por favor, informe o motivo para a exclusão:");
+    if (motivo === null) return; // Cancelado
+    if (motivo.trim() === "") {
+        alert("O motivo da exclusão é obrigatório para auditoria!");
+        return;
+    }
+    const motivoTxt = motivo.trim();
     
+    const formatarDataBR = (d) => {
+        if (!d) return '';
+        const pts = d.split('-');
+        return pts.length === 3 ? `${pts[2]}/${pts[1]}/${pts[0]}` : d;
+    };
+    
+    const rec = state.fuelingRecords.find(r => r.id === id);
+    const dataBR = rec ? formatarDataBR(rec.data) : '';
+    const horarioBR = rec ? (rec.horario || '') : '';
+    const placaStr = rec ? (rec.veiculos?.placa || rec.veiculo_id || '') : '';
+    const valorStr = rec ? (rec.valor_total || 0) : '';
+
+    const descLog = rec 
+        ? `DETALHE: Excluiu abastecimento do veículo ${placaStr} na data ${dataBR} às ${horarioBR} no valor de R$ ${valorStr} | MOTIVO: ${motivoTxt}`
+        : `DETALHE: Excluiu abastecimento ID: ${id} | MOTIVO: ${motivoTxt}`;
+
     if (supabaseClient) {
         const { error } = await supabaseClient.from(table).delete().eq('id', id);
         if (error) {
             showToast('Erro ao excluir do Supabase: ' + error.message, 'error');
         } else {
             showToast('Registro excluído com sucesso', 'success');
+            if (window.registrarLog) {
+                window.registrarLog('abastecimento', 'EXCLUSÃO', descLog);
+            }
             await loadInitialData();
         }
     } else {
@@ -2586,6 +2738,9 @@ window.deleteRecord = async (table, id) => {
         saveLocalData();
         refreshUI();
         showToast('Registro excluído localmente', 'success');
+        if (window.registrarLog) {
+            window.registrarLog('abastecimento', 'EXCLUSÃO', descLog + ' (Modo Local)');
+        }
     }
 };
 
@@ -2638,6 +2793,13 @@ window.deleteSelectedRecords = async () => {
     }
 
     if (!confirm(`Deseja realmente excluir os ${selected.length} registros selecionados?`)) return;
+    const motivo = prompt("Por favor, informe o motivo para a exclusão em lote dos registros selecionados:");
+    if (motivo === null) return; // Cancelado
+    if (motivo.trim() === "") {
+        alert("O motivo da exclusão é obrigatório para auditoria!");
+        return;
+    }
+    const motivoTxt = motivo.trim();
 
     try {
         if (supabaseClient) {
@@ -2665,12 +2827,18 @@ window.deleteSelectedRecords = async () => {
 
                 if (successCount > 0) {
                     showToast(`${successCount} registros excluídos. ${failCount} falharam.`, 'success');
+                    if (window.registrarLog) {
+                        window.registrarLog('abastecimento', 'EXCLUSÃO EM LOTE', `Excluiu ${successCount} de ${selected.length} abastecimentos em lote. Motivo: ${motivoTxt}`);
+                    }
                     await loadInitialData();
                 } else {
                     throw new Error('Não foi possível excluir nenhum dos registros selecionados.');
                 }
             } else {
                 showToast(`${selected.length} registros excluídos com sucesso!`, 'success');
+                if (window.registrarLog) {
+                    window.registrarLog('abastecimento', 'EXCLUSÃO EM LOTE', `Excluiu ${selected.length} abastecimentos em lote. Motivo: ${motivoTxt}`);
+                }
                 await loadInitialData();
             }
         } else {
@@ -2679,6 +2847,9 @@ window.deleteSelectedRecords = async () => {
             saveLocalData();
             refreshUI();
             showToast(`${selected.length} registros excluídos localmente!`, 'success');
+            if (window.registrarLog) {
+                window.registrarLog('abastecimento', 'EXCLUSÃO EM LOTE', `Excluiu ${selected.length} abastecimentos em lote (Modo Local). Motivo: ${motivoTxt}`);
+            }
         }
     } catch (err) {
         console.error('Erro crítico na operação:', err);
@@ -2744,7 +2915,7 @@ window.checkFuelAlerts = (includeDismissed = false) => {
                     const avg = kmDiff / f.litros;
                     if (avg < 8 && !isIgnored) {
                         alerts.push({
-                            type: 'danger',
+                            type: 'warning',
                             title: 'Média Baixa 📉',
                             desc: `${plate}: ${avg.toFixed(2)} km/l (Abaixo de 8)`,
                             date: smartParseDate(f.data, f.horario).toLocaleDateString('pt-BR'),
@@ -2753,7 +2924,7 @@ window.checkFuelAlerts = (includeDismissed = false) => {
                         });
                     } else if (avg > 18 && !isIgnored) {
                         alerts.push({
-                            type: 'warning',
+                            type: 'info',
                             title: 'Média Atípica (Alta) 📈',
                             desc: `${plate}: ${avg.toFixed(2)} km/l (Acima de 18)`,
                             date: smartParseDate(f.data, f.horario).toLocaleDateString('pt-BR'),
@@ -2783,7 +2954,7 @@ window.checkFuelAlerts = (includeDismissed = false) => {
             );
             if (duplicates.length > 0) {
                 alerts.push({
-                    type: 'danger',
+                    type: 'warning',
                     title: 'Registro Duplicado 📑',
                     desc: `${plate}: Mesmo Horário e KM detectados`,
                     date: smartParseDate(f.data, f.horario).toLocaleDateString('pt-BR'),
@@ -2794,12 +2965,23 @@ window.checkFuelAlerts = (includeDismissed = false) => {
 
             if (f.valor_total > 1500) {
                 alerts.push({
-                    type: 'warning',
+                    type: 'info',
                     title: 'Abastecimento Elevado 💰',
                     desc: `${plate}: Gasto de R$ ${f.valor_total.toLocaleString('pt-BR')}`,
                     date: smartParseDate(f.data, f.horario).toLocaleDateString('pt-BR'),
                     id: f.id,
                     field: 'valor'
+                });
+            }
+
+            if (f.valor_unitario && f.valor_unitario > 0 && f.valor_unitario < 3) {
+                alerts.push({
+                    type: 'danger',
+                    title: 'Valor Unitário Baixo ⚠️',
+                    desc: `${plate}: Preço unitário de R$ ${f.valor_unitario.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 3})}`,
+                    date: smartParseDate(f.data, f.horario).toLocaleDateString('pt-BR'),
+                    id: f.id,
+                    field: 'unitario'
                 });
             }
         });
@@ -2849,6 +3031,7 @@ window.renderAlertFilterBar = (alerts) => {
         else if (a.title.includes('Regressão')) icons[a.title] = 'chevrons-down';
         else if (a.title.includes('Duplicado')) icons[a.title] = 'copy';
         else if (a.title.includes('Elevado')) icons[a.title] = 'dollar-sign';
+        else if (a.title.includes('Unitário Baixo')) icons[a.title] = 'alert-triangle';
         else icons[a.title] = 'alert-circle';
     });
 
@@ -2865,7 +3048,7 @@ window.renderAlertFilterBar = (alerts) => {
         html += `
             <div class="alert-chip ${types[title]} ${isActive ? 'active' : ''}" onclick="setAlertFilter('${title}')">
                 <i data-lucide="${icons[title]}"></i>
-                <span>${title.replace(/[^\w\s\(\)\[\]]/g, '').trim()}</span>
+                <span>${title.replace(/[^\w\s\(\)\[\]\u00C0-\u00FF]/g, '').trim()}</span>
                 <span class="count">${counts[title]}</span>
             </div>
         `;
@@ -2897,7 +3080,22 @@ function updateFuelNotiUI(alerts) {
         badge.innerText = alerts.length;
         badge.style.display = 'flex';
 
-        list.innerHTML = alerts.map(a => `
+        let headerHtml = '';
+        if (state.activeAlertFilter) {
+            const filteredCount = alerts.filter(a => a.title === state.activeAlertFilter).length;
+            if (filteredCount > 0) {
+                headerHtml = `
+                    <div style="padding: 0.6rem 1rem; border-bottom: 1px solid var(--border-card); display: flex; justify-content: space-between; align-items: center; background: rgba(239, 68, 68, 0.08); border-radius: 8px; margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.75rem; color: #f87171; font-weight: 700;">Lote: ${state.activeAlertFilter.replace(/[^\w\s\(\)\[\]\u00C0-\u00FF]/g, '').trim()}</span>
+                        <button onclick="dismissAllVisibleAlerts()" style="padding: 0.3rem 0.6rem; font-size: 0.7rem; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 0.25rem;">
+                            Limpar Histórico
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        list.innerHTML = headerHtml + alerts.map(a => `
             <div class="noti-item noti-type-${a.type}" onclick="focusFuelItem('${a.id}', '${a.field}')">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                     <div class="noti-item-title">${a.title}</div>
@@ -2914,6 +3112,11 @@ function updateFuelNotiUI(alerts) {
 }
 
 window.dismissAlert = async (id, title) => {
+    if (state.activeAlertFilter === title) {
+        await window.dismissAllVisibleAlerts();
+        return;
+    }
+
     if (!confirm('Deseja realmente remover este alerta? (Ele não aparecerá novamente para este registro)')) return;
     
     const key = `${id}_${title}`;
@@ -2922,6 +3125,9 @@ window.dismissAlert = async (id, title) => {
     
     await saveDismissedAlerts();
     if (!supabaseClient) saveLocalData(); // Persistir a exclusão no mock se necessário
+    if (window.registrarLog) {
+        window.registrarLog('abastecimento', 'LIMPEZA ALERTA', `Removeu alerta "${title}" do abastecimento ID ${id}`);
+    }
     checkFuelAlerts(); // Atualizar a lista
     renderFuelTable(); // Forçar re-render para remover o estilo de alerta da linha na tabela
 };
@@ -2956,6 +3162,10 @@ window.dismissAllVisibleAlerts = async () => {
 
     await saveDismissedAlerts();
     if (!supabaseClient) saveLocalData();
+    if (window.registrarLog) {
+        const filterStr = state.activeAlertFilter ? ` do tipo "${state.activeAlertFilter}"` : '';
+        window.registrarLog('abastecimento', 'LIMPEZA ALERTA EMLOTE', `Limpou ${toDismiss.length} alertas${filterStr}`);
+    }
     checkFuelAlerts();
     renderFuelTable(); // Atualizar a tabela
     showToast(`${toDismiss.length} alertas removidos!`, 'success');

@@ -131,6 +131,7 @@ function switchMainTab(tabId) {
 
     if (tabId === 'fluxo') renderFluxo();
     if (tabId === 'dre') renderDRE();
+    if (tabId === 'conciliacao') renderConciliacao();
 }
 
 function toggleAdminMode(tipo) {
@@ -302,7 +303,8 @@ function renderDashboard() {
     const currentYear = now.getFullYear();
 
     const monthEntries = state.lancamentos.filter(l => {
-        const d = new Date(l.data_vencimento);
+        if (!l.data_vencimento) return false;
+        const d = new Date(l.data_vencimento + 'T12:00:00');
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     });
 
@@ -310,74 +312,226 @@ function renderDashboard() {
     const totalReceber = monthEntries.filter(l => l.tipo === 'RECEBER' && l.status !== 'CANCELADO').reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
     const saldoTotal = state.contas.reduce((acc, c) => acc + (parseFloat(c.saldo_atual) || 0), 0);
 
+    // Previsto 30 dias: saldo atual + a receber (próximos 30 dias) - a pagar (próximos 30 dias) em aberto
+    const trintaDias = new Date();
+    trintaDias.setDate(now.getDate() + 30);
+    const entries30d = state.lancamentos.filter(l => {
+        if (!l.data_vencimento || l.status === 'PAGO' || l.status === 'CANCELADO') return false;
+        const d = new Date(l.data_vencimento + 'T12:00:00');
+        return d >= now && d <= trintaDias;
+    });
+    const receber30d = entries30d.filter(l => l.tipo === 'RECEBER').reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
+    const pagar30d = entries30d.filter(l => l.tipo === 'PAGAR').reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
+    const kpiPrevistoVal = saldoTotal + receber30d - pagar30d;
+
     document.getElementById('kpi-pagar').innerText = formatCurrency(totalPagar);
     document.getElementById('kpi-receber').innerText = formatCurrency(totalReceber);
     document.getElementById('kpi-saldo').innerText = formatCurrency(saldoTotal);
+    document.getElementById('kpi-previsto').innerText = formatCurrency(kpiPrevistoVal);
 
     initCharts();
 }
 
 let cashflowChart = null;
+let categoryChart = null;
+
 function initCharts() {
+    // 1. Chart: Cashflow (Entradas vs Saídas últimos 12 meses)
     const ctx = document.getElementById('cashflowChart');
-    if (!ctx) return;
+    if (ctx) {
+        if (cashflowChart) cashflowChart.destroy();
 
-    if (cashflowChart) cashflowChart.destroy();
+        // Calcular últimos 12 meses
+        const labels = [];
+        const dataIn = [];
+        const dataOut = [];
+        const now = new Date();
 
-    // Mock data for last 6 months
-    const labels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
-    const dataIn = [45000, 52000, 48000, 61000, 55000, 68000];
-    const dataOut = [38000, 41000, 42000, 45000, 49000, 51000];
+        for (let i = 11; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            labels.push(getMonthName(d.getMonth()) + '/' + d.getFullYear().toString().substring(2));
+            
+            const entries = state.lancamentos.filter(l => {
+                if (!l.data_vencimento || l.status === 'CANCELADO') return false;
+                const entryDate = new Date(l.data_vencimento + 'T12:00:00');
+                return entryDate.getMonth() === d.getMonth() && entryDate.getFullYear() === d.getFullYear();
+            });
 
-    cashflowChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels,
-            datasets: [
-                { label: 'Entradas', data: dataIn, backgroundColor: '#10b981' },
-                { label: 'Saídas', data: dataOut, backgroundColor: '#ef4444' }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: { grid: { color: 'rgba(255,255,255,0.05)' } },
-                x: { grid: { display: false } }
-            },
-            plugins: {
-                legend: { labels: { color: '#94a3b8' } }
-            }
+            const totalIn = entries.filter(l => l.tipo === 'RECEBER').reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
+            const totalOut = entries.filter(l => l.tipo === 'PAGAR').reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
+            
+            dataIn.push(totalIn);
+            dataOut.push(totalOut);
         }
-    });
+
+        cashflowChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'Entradas', data: dataIn, backgroundColor: '#10b981', borderRadius: 6 },
+                    { label: 'Saídas', data: dataOut, backgroundColor: '#ef4444', borderRadius: 6 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                },
+                plugins: {
+                    legend: { labels: { color: '#94a3b8', font: { family: 'Inter' } } }
+                }
+            }
+        });
+    }
+
+    // 2. Chart: Despesas por Categoria (Doughnut)
+    const ctxCat = document.getElementById('categoryChart');
+    if (ctxCat) {
+        if (categoryChart) categoryChart.destroy();
+
+        // Filtrar despesas pagar ativas do ano corrente
+        const currentYear = new Date().getFullYear();
+        const despesasAno = state.lancamentos.filter(l => {
+            if (l.tipo !== 'PAGAR' || l.status === 'CANCELADO' || !l.data_vencimento) return false;
+            return new Date(l.data_vencimento + 'T12:00:00').getFullYear() === currentYear;
+        });
+
+        // Agrupar por categoria
+        const categoryTotals = {};
+        despesasAno.forEach(l => {
+            const cat = state.categorias.find(c => c.id === l.categoria_id);
+            const catName = cat ? cat.nome : 'Outras / Geral';
+            categoryTotals[catName] = (categoryTotals[catName] || 0) + (parseFloat(l.valor_total) || 0);
+        });
+
+        const labels = Object.keys(categoryTotals);
+        const data = Object.values(categoryTotals);
+
+        // Palette harmoniosa e premium
+        const colors = [
+            '#6366f1', '#10b981', '#f59e0b', '#ec4899', 
+            '#3b82f6', '#ef4444', '#8b5cf6', '#06b6d4', 
+            '#84cc16', '#14b8a6', '#f43f5e', '#a855f7'
+        ];
+
+        categoryChart = new Chart(ctxCat, {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: [{
+                    data,
+                    backgroundColor: colors.slice(0, labels.length),
+                    borderWidth: 1,
+                    borderColor: 'rgba(30, 41, 59, 0.8)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { color: '#94a3b8', font: { family: 'Inter', size: 11 } }
+                    }
+                },
+                cutout: '70%'
+            }
+        });
+    }
 }
 
 // --- Fluxo de Caixa ---
+window.changeFluxoPeriod = function(dir) {
+    state.periodoFluxo.setMonth(state.periodoFluxo.getMonth() + dir);
+    const span = document.getElementById('fluxo-current-period');
+    if (span) {
+        const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        span.innerText = `${months[state.periodoFluxo.getMonth()]} ${state.periodoFluxo.getFullYear()}`;
+    }
+    renderFluxo();
+};
+
 function renderFluxo() {
     const grid = document.getElementById('fluxoGrid');
     if (!grid) return;
 
-    const daysInMonth = new Date(state.periodoFluxo.getFullYear(), state.periodoFluxo.getMonth() + 1, 0).getDate();
-    const firstDay = new Date(state.periodoFluxo.getFullYear(), state.periodoFluxo.getMonth(), 1).getDay();
+    const currentYear = state.periodoFluxo.getFullYear();
+    const currentMonth = state.periodoFluxo.getMonth();
+
+    const firstOfMonth = new Date(currentYear, currentMonth, 1);
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const firstDay = firstOfMonth.getDay();
+
+    // 1. Calcular Saldo Anterior (Realizado até antes do mês de referência + saldo inicial das contas)
+    const saldoContasInicial = state.contas.reduce((acc, c) => acc + (parseFloat(c.saldo_inicial) || 0), 0);
+    const lancamentosAntes = state.lancamentos.filter(l => {
+        if (l.status !== 'PAGO' || !l.data_pagamento) return false;
+        const pagDate = new Date(l.data_pagamento + 'T12:00:00');
+        return pagDate < firstOfMonth;
+    });
+    
+    const entradasAntes = lancamentosAntes.filter(l => l.tipo === 'RECEBER').reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
+    const saidasAntes = lancamentosAntes.filter(l => l.tipo === 'PAGAR').reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
+    const saldoAnterior = saldoContasInicial + entradasAntes - saidasAntes;
+
+    // Lógica de Lançamentos do Mês
+    const monthEntries = state.lancamentos.filter(l => {
+        if (l.status === 'CANCELADO') return false;
+        const dateStr = l.status === 'PAGO' ? l.data_pagamento : (l.data_vencimento || l.previsao_pagamento);
+        if (!dateStr) return false;
+        const d = new Date(dateStr + 'T12:00:00');
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+
+    const totalEntradasMes = monthEntries.filter(l => l.tipo === 'RECEBER').reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
+    const totalSaidasMes = monthEntries.filter(l => l.tipo === 'PAGAR').reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
+    const saldoFinal = saldoAnterior + totalEntradasMes - totalSaidasMes;
+
+    // Atualizar HTML de resumo
+    document.getElementById('fluxo-saldo-ant').innerText = formatCurrency(saldoAnterior);
+    document.getElementById('fluxo-entradas').innerText = formatCurrency(totalEntradasMes);
+    document.getElementById('fluxo-saidas').innerText = formatCurrency(totalSaidasMes);
+    document.getElementById('fluxo-saldo-fin').innerText = formatCurrency(saldoFinal);
+
+    // Mapear entradas/saídas por dia
+    const dailyValues = {};
+    for (let d = 1; d <= daysInMonth; d++) {
+        dailyValues[d] = { E: 0, S: 0 };
+    }
+
+    monthEntries.forEach(l => {
+        const dateStr = l.status === 'PAGO' ? l.data_pagamento : (l.data_vencimento || l.previsao_pagamento);
+        const day = new Date(dateStr + 'T12:00:00').getDate();
+        if (dailyValues[day]) {
+            if (l.tipo === 'RECEBER') dailyValues[day].E += parseFloat(l.valor_total) || 0;
+            else if (l.tipo === 'PAGAR') dailyValues[day].S += parseFloat(l.valor_total) || 0;
+        }
+    });
 
     grid.innerHTML = '';
 
-    // Add placeholders for previous month days
+    // Placeholders dias do mês anterior
     for (let i = 0; i < firstDay; i++) {
         grid.innerHTML += '<div class="day-card empty"></div>';
     }
 
+    // Dias do mês
     for (let d = 1; d <= daysInMonth; d++) {
-        const isToday = d === new Date().getDate() && state.periodoFluxo.getMonth() === new Date().getMonth();
+        const dateObj = new Date(currentYear, currentMonth, d);
+        const isToday = d === new Date().getDate() && currentMonth === new Date().getMonth() && currentYear === new Date().getFullYear();
+        
         grid.innerHTML += `
             <div class="day-card ${isToday ? 'today' : ''}">
                 <div class="day-header">
                     <span class="number">${d}</span>
-                    <span class="weekday">${getWeekday(new Date(state.periodoFluxo.getFullYear(), state.periodoFluxo.getMonth(), d))}</span>
+                    <span class="weekday">${getWeekday(dateObj)}</span>
                 </div>
                 <div class="day-values">
-                    <div class="day-val text-success"><span>E:</span> 0.00</div>
-                    <div class="day-val text-danger"><span>S:</span> 0.00</div>
+                    <div class="day-val text-success"><span>E:</span> ${dailyValues[d].E.toFixed(2)}</div>
+                    <div class="day-val text-danger"><span>S:</span> ${dailyValues[d].S.toFixed(2)}</div>
                 </div>
             </div>
         `;
@@ -387,35 +541,244 @@ function renderFluxo() {
 // --- DRE ---
 function renderDRE() {
     const container = document.getElementById('dreContent');
-    if (!container) return;
+    const selectYear = document.getElementById('dre-year');
+    if (!container || !selectYear) return;
 
-    const rows = [
-        { label: '(=) RECEITA BRUTA', class: 'total', value: 150000 },
-        { label: 'Descontos / Devoluções', value: -2000 },
-        { label: '(=) RECEITA LÍQUIDA', class: 'total', value: 148000 },
-        { label: '(-) CUSTOS OPERACIONAIS (CPV)', value: -65000 },
-        { label: '(=) LUCRO BRUTO', class: 'total', value: 83000 },
-        { label: '(-) DESPESAS ADMINISTRATIVAS', value: -25000 },
-        { label: '(-) DESPESAS FINANCEIRAS', value: -3000 },
-        { label: '(=) EBITDA / LAJIDA', class: 'total', value: 55000 }
-    ];
+    // Popula dropdown de anos se vazio
+    if (selectYear.options.length === 0) {
+        const years = new Set([new Date().getFullYear()]);
+        state.lancamentos.forEach(l => {
+            if (l.data_competencia) {
+                years.add(new Date(l.data_competencia + 'T12:00:00').getFullYear());
+            } else if (l.data_emissao) {
+                years.add(new Date(l.data_emissao + 'T12:00:00').getFullYear());
+            }
+        });
+        const sortedYears = Array.from(years).sort((a,b) => b - a);
+        selectYear.innerHTML = sortedYears.map(y => `<option value="${y}">${y}</option>`).join('');
+        selectYear.addEventListener('change', renderDRE);
+    }
 
-    container.innerHTML = `
-        <div class="dre-table">
-            <div class="dre-row header">
-                <div class="dre-cell name">Descrição</div>
-                ${Array.from({ length: 12 }, (_, i) => `<div class="dre-cell month">${getMonthName(i)}</div>`).join('')}
-                <div class="dre-cell month">Acumulado</div>
+    const selectedYear = parseInt(selectYear.value) || new Date().getFullYear();
+
+    // Filtra lançamentos do ano de competência selecionado
+    const yearEntries = state.lancamentos.filter(l => {
+        if (l.status === 'CANCELADO') return false;
+        const dateStr = l.data_competencia || l.data_emissao || l.data_vencimento;
+        if (!dateStr) return false;
+        return new Date(dateStr + 'T12:00:00').getFullYear() === selectedYear;
+    });
+
+    // Função para acumular por nível ou estrutura do plano de contas
+    const getMonthlyValuesForStructure = (parentCode, tipoFilter) => {
+        const values = Array(12).fill(0);
+        
+        yearEntries.forEach(l => {
+            const cat = state.categorias.find(c => c.id === l.categoria_id);
+            if (!cat || cat.tipo !== tipoFilter) return;
+
+            // Verifica se a categoria pertence a este grupo (ex: 1.1 pertence a 1)
+            if (cat.codigo === parentCode || cat.codigo.startsWith(parentCode + '.')) {
+                const dateStr = l.data_competencia || l.data_emissao || l.data_vencimento;
+                const month = new Date(dateStr + 'T12:00:00').getMonth();
+                values[month] += parseFloat(l.valor_total) || 0;
+            }
+        });
+
+        return values;
+    };
+
+    // Monta a estrutura da DRE baseada no Plano de Contas cadastrado
+    const rootCategories = state.categorias.filter(c => !c.parent_id);
+
+    let html = `
+        <div class="dre-table" style="overflow-x: auto; width: 100%;">
+            <div class="dre-row header" style="min-width: 1000px; display: grid; grid-template-columns: 220px repeat(12, 1fr) 100px; border-bottom: 2px solid rgba(255,255,255,0.1); padding: 0.8rem; font-weight:800;">
+                <div class="dre-cell name">Estrutura DRE</div>
+                ${Array.from({ length: 12 }, (_, i) => `<div class="dre-cell month" style="text-align:right">${getMonthName(i)}</div>`).join('')}
+                <div class="dre-cell month" style="text-align:right">Acumulado</div>
             </div>
-            ${rows.map(r => `
-                <div class="dre-row ${r.class || ''}">
-                    <div class="dre-cell name">${r.label}</div>
-                    ${Array.from({ length: 13 }, () => `<div class="dre-cell month">${formatCurrency(r.value / 12)}</div>`).join('')}
-                </div>
-            `).join('')}
+    `;
+
+    // Receitas não classificadas (ex: sem categoria_id ou sem categoria correspondente)
+    const getUncategorizedMonthlyValues = (tipoFilter) => {
+        const values = Array(12).fill(0);
+        yearEntries.forEach(l => {
+            if (l.tipo !== tipoFilter) return;
+            const cat = state.categorias.find(c => c.id === l.categoria_id);
+            if (!l.categoria_id || !cat) {
+                const dateStr = l.data_competencia || l.data_emissao || l.data_vencimento;
+                if (dateStr) {
+                    const month = new Date(dateStr + 'T12:00:00').getMonth();
+                    values[month] += parseFloat(l.valor_total) || 0;
+                }
+            }
+        });
+        return values;
+    };
+
+    // 1. Receitas
+    const receitaRows = [];
+    const receitasIniciais = rootCategories.filter(c => c.tipo === 'RECEITA');
+    let totalReceitasMes = Array(12).fill(0);
+
+    receitasIniciais.forEach(cat => {
+        const monthly = getMonthlyValuesForStructure(cat.codigo, 'RECEITA');
+        const accum = monthly.reduce((sum, v) => sum + v, 0);
+        for(let i=0; i<12; i++) totalReceitasMes[i] += monthly[i];
+
+        receitaRows.push({
+            name: `${cat.codigo} - ${cat.nome}`,
+            monthly,
+            accum,
+            class: 'level-1'
+        });
+
+        // Filhos Grau 2
+        state.categorias.filter(child => child.parent_id === cat.id).forEach(c => {
+            const cMonthly = getMonthlyValuesForStructure(c.codigo, 'RECEITA');
+            const cAccum = cMonthly.reduce((sum, v) => sum + v, 0);
+            receitaRows.push({
+                name: `${c.codigo} - ${c.nome}`,
+                monthly: cMonthly,
+                accum: cAccum,
+                class: 'level-2'
+            });
+        });
+    });
+
+    const monthlyUncatRec = getUncategorizedMonthlyValues('RECEBER');
+    const accumUncatRec = monthlyUncatRec.reduce((sum, v) => sum + v, 0);
+    if (accumUncatRec > 0) {
+        for(let i=0; i<12; i++) totalReceitasMes[i] += monthlyUncatRec[i];
+        receitaRows.push({
+            name: 'Receitas Não Classificadas',
+            monthly: monthlyUncatRec,
+            accum: accumUncatRec,
+            class: 'level-2'
+        });
+    }
+
+    // 2. Despesas
+    const despesaRows = [];
+    const despesasIniciais = rootCategories.filter(c => c.tipo === 'DESPESA');
+    let totalDespesasMes = Array(12).fill(0);
+
+    despesasIniciais.forEach(cat => {
+        const monthly = getMonthlyValuesForStructure(cat.codigo, 'DESPESA');
+        const accum = monthly.reduce((sum, v) => sum + v, 0);
+        for(let i=0; i<12; i++) totalDespesasMes[i] += monthly[i];
+
+        despesaRows.push({
+            name: `${cat.codigo} - ${cat.nome}`,
+            monthly,
+            accum,
+            class: 'level-1'
+        });
+
+        // Filhos Grau 2
+        state.categorias.filter(child => child.parent_id === cat.id).forEach(c => {
+            const cMonthly = getMonthlyValuesForStructure(c.codigo, 'DESPESA');
+            const cAccum = cMonthly.reduce((sum, v) => sum + v, 0);
+            despesaRows.push({
+                name: `${c.codigo} - ${c.nome}`,
+                monthly: cMonthly,
+                accum: cAccum,
+                class: 'level-2'
+            });
+        });
+    });
+
+    const monthlyUncatDesp = getUncategorizedMonthlyValues('PAGAR');
+    const accumUncatDesp = monthlyUncatDesp.reduce((sum, v) => sum + v, 0);
+    if (accumUncatDesp > 0) {
+        for(let i=0; i<12; i++) totalDespesasMes[i] += monthlyUncatDesp[i];
+        despesaRows.push({
+            name: 'Despesas Não Classificadas',
+            monthly: monthlyUncatDesp,
+            accum: accumUncatDesp,
+            class: 'level-2'
+        });
+    }
+
+    // Renderizar Receitas
+    html += `<div class="dre-section-title" style="padding: 0.6rem; background: rgba(16,185,129,0.05); color:#10b981; font-weight:800; font-size:0.8rem; text-transform:uppercase;">Receitas Operacionais</div>`;
+    receitaRows.forEach(r => {
+        html += renderDRERow(r.name, r.monthly, r.accum, r.class);
+    });
+
+    html += renderDRERow('(=) TOTAL RECEITAS BRUTAS', totalReceitasMes, totalReceitasMes.reduce((s,v)=>s+v, 0), 'total-receitas');
+
+    // Renderizar Despesas
+    html += `<div class="dre-section-title" style="padding: 0.6rem; background: rgba(239,68,68,0.05); color:#ef4444; font-weight:800; font-size:0.8rem; text-transform:uppercase; margin-top: 1rem;">Custos e Despesas</div>`;
+    despesaRows.forEach(r => {
+        html += renderDRERow(r.name, r.monthly.map(v => -v), -r.accum, r.class);
+    });
+
+    html += renderDRERow('(-) TOTAL DEDUÇÕES E DESPESAS', totalDespesasMes.map(v => -v), -totalDespesasMes.reduce((s,v)=>s+v, 0), 'total-despesas');
+
+    // Resultado Líquido
+    const resultadoMes = Array(12).fill(0);
+    for(let i=0; i<12; i++) resultadoMes[i] = totalReceitasMes[i] - totalDespesasMes[i];
+    const resultadoAcum = resultadoMes.reduce((s,v)=>s+v, 0);
+
+    html += `<div style="margin-top: 1rem;"></div>`;
+    html += renderDRERow('(=) RESULTADO LÍQUIDO DO EXERCÍCIO', resultadoMes, resultadoAcum, 'result-final');
+
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+function renderDRERow(name, monthly, accum, rowClass) {
+    let fontStyle = '';
+    let bgColor = '';
+    if (rowClass === 'total-receitas') { fontStyle = 'font-weight: 800; color: #10b981;'; bgColor = 'background: rgba(16,185,129,0.08);'; }
+    else if (rowClass === 'total-despesas') { fontStyle = 'font-weight: 800; color: #ef4444;'; bgColor = 'background: rgba(239,68,68,0.08);'; }
+    else if (rowClass === 'result-final') { fontStyle = 'font-weight: 900; color: #818cf8; font-size: 0.95rem;'; bgColor = 'background: rgba(129,140,248,0.15); border-top: 2px solid #818cf8; border-bottom: 2px solid #818cf8;'; }
+    else if (rowClass === 'level-1') { fontStyle = 'font-weight: 700; color: #ffffff;'; }
+    else { fontStyle = 'color: #94a3b8; padding-left: 20px;'; }
+
+    return `
+        <div class="dre-row" style="min-width: 1000px; display: grid; grid-template-columns: 220px repeat(12, 1fr) 100px; border-bottom: 1px solid rgba(255,255,255,0.03); padding: 0.6rem; align-items: center; ${bgColor} ${fontStyle}">
+            <div class="dre-cell name" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${name}</div>
+            ${monthly.map(v => `<div class="dre-cell val" style="text-align:right">${formatCurrency(v)}</div>`).join('')}
+            <div class="dre-cell val" style="text-align:right; font-weight:800;">${formatCurrency(accum)}</div>
         </div>
     `;
 }
+
+window.exportDRE = function() {
+    const selectYear = document.getElementById('dre-year');
+    const selectedYear = selectYear ? selectYear.value : new Date().getFullYear();
+    
+    // Obter dados da tabela DRE para exportar como Excel
+    const rows = [];
+    rows.push(['FrotaLink - Demonstrativo de Resultados (DRE) - Ano: ' + selectedYear]);
+    rows.push([]);
+    rows.push(['Descrição', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez', 'Acumulado']);
+
+    const dreRowsHTML = document.querySelectorAll('.dre-row');
+    dreRowsHTML.forEach(row => {
+        const name = row.querySelector('.name').innerText;
+        const vals = Array.from(row.querySelectorAll('.val')).map(cell => {
+            // Converte formato de moeda "R$ 1.200,00" para número float puro
+            const clean = cell.innerText.replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+            return parseFloat(clean) || 0;
+        });
+        rows.push([name, ...vals]);
+    });
+
+    try {
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "DRE " + selectedYear);
+        XLSX.writeFile(wb, `DRE_${selectedYear}.xlsx`);
+        showToast("DRE exportado com sucesso!", "success");
+    } catch(e) {
+        showToast("Falha ao exportar excel: " + e.message, "error");
+    }
+};
+
 
 // --- CRUD Operations ---
 async function openEntryModal(tipo, id = null) {
@@ -1226,7 +1589,7 @@ function getMonthName(i) { return ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Ju
 function getWeekday(d) { return ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d.getDay()]; }
 
 function updateDropdowns() {
-    const selects = ['entryCategoriaName', 'entryConta', 'entryCentroCusto', 'payConta', 'planoParentId', 'custoParentId', 'entryForma', 'filterFornecedorPagar', 'filterCCPagar'];
+    const selects = ['entryCategoriaName', 'entryConta', 'entryCentroCusto', 'payConta', 'planoParentId', 'custoParentId', 'entryForma', 'filterFornecedorPagar', 'filterCCPagar', 'concContaSelect'];
 
     // Função auxiliar para identificar se um item é folha (não tem filhos)
     const isLeaf = (item, list) => !list.some(other => other.parent_id === item.id);
@@ -1253,7 +1616,7 @@ function updateDropdowns() {
             }
         }
 
-        if (id === 'entryConta' || id === 'payConta') {
+        if (id === 'entryConta' || id === 'payConta' || id === 'concContaSelect') {
             el.innerHTML = state.contas.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
         }
 
@@ -1297,7 +1660,7 @@ function updateDropdowns() {
 
     const clientesDatalist = document.getElementById('clientesDatalist');
     if (clientesDatalist) {
-        clientesDatalist.innerHTML = state.clientes.map(f => `<option value="${f.nome}">`).join('');
+        datalist.innerHTML = state.clientes.map(f => `<option value="${f.nome}">`).join('');
     }
 }
 
@@ -2004,7 +2367,17 @@ function generatePlanoCode() {
     const parentCode = parent ? parent.codigo : '';
 
     // Filtra filhos diretos para achar o próximo número
-    const children = state.categorias.filter(c => c.parent_id === (parentId || null));
+    let children = [];
+    if (parentCode) {
+        const parentDotsCount = parentCode.split('.').length;
+        children = state.categorias.filter(c => {
+            if (!c.codigo || !c.codigo.startsWith(parentCode + '.')) return false;
+            return c.codigo.split('.').length === parentDotsCount + 1;
+        });
+    } else {
+        children = state.categorias.filter(c => !c.parent_id && c.codigo && !c.codigo.includes('.'));
+    }
+
     let nextNum = 1;
     if (children.length > 0) {
         const codes = children.map(c => {
@@ -2466,4 +2839,327 @@ window.deleteBulkSelected = async () => {
         }
     });
 };
+
+
+// ==========================================
+// CONCILIAÇÃO BANCÁRIA (OFX / CSV)
+// ==========================================
+state.extratoParsed = [];
+state.selectedExtratoItem = null;
+
+window.handleOFXUpload = function(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const text = e.target.result;
+            
+            // Parser Simples de OFX (SGML/XML)
+            const transactions = [];
+            const regex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/g;
+            let match;
+            
+            while ((match = regex.exec(text)) !== null) {
+                const content = match[1];
+                
+                const trntype = getValue(content, 'TRNTYPE');
+                const dtposted = getValue(content, 'DTPOSTED');
+                const trnamt = getValue(content, 'TRNAMT');
+                const fitid = getValue(content, 'FITID');
+                const memo = getValue(content, 'MEMO') || getValue(content, 'NAME') || 'Transação Bancária';
+                
+                if (trnamt && dtposted) {
+                    const amount = parseFloat(trnamt);
+                    const rawDate = dtposted.substring(0, 8); // YYYYMMDD
+                    const formattedDate = `${rawDate.substring(0, 4)}-${rawDate.substring(4, 6)}-${rawDate.substring(6, 8)}`;
+                    
+                    transactions.push({
+                        id: fitid || 'fit-' + Math.random().toString(36).substr(2, 9),
+                        tipo: amount < 0 ? 'DEBIT' : 'CREDIT',
+                        data: formattedDate,
+                        valor: amount,
+                        descricao: memo
+                    });
+                }
+            }
+            
+            if (transactions.length === 0) {
+                // Tenta parser CSV simples se não for OFX
+                const lines = text.split('\n');
+                lines.forEach((line, idx) => {
+                    if (idx === 0 || !line.trim()) return;
+                    const cols = line.split(/[;,]/);
+                    if (cols.length >= 3) {
+                        const rawDate = cols[0].replace(/\D/g, ''); // tentar DDMMAAAA ou AAAAMMDD
+                        let date = new Date().toISOString().split('T')[0];
+                        if (rawDate.length === 8) {
+                            date = `${rawDate.substring(4, 8)}-${rawDate.substring(2, 4)}-${rawDate.substring(0, 2)}`;
+                        }
+                        const memo = cols[1].replace(/["']/g, '').trim();
+                        const amount = parseFloat(cols[2].replace(',', '.'));
+                        if (!isNaN(amount)) {
+                            transactions.push({
+                                id: 'csv-' + idx + '-' + Math.random().toString(36).substr(2, 5),
+                                tipo: amount < 0 ? 'DEBIT' : 'CREDIT',
+                                data: date,
+                                valor: amount,
+                                descricao: memo
+                            });
+                        }
+                    }
+                });
+            }
+            
+            function getValue(source, tag) {
+                const regexTag = new RegExp(`<${tag}>([^<\\r\\n]*)`, 'i');
+                const m = source.match(regexTag);
+                return m ? m[1].trim() : null;
+            }
+            
+            if (transactions.length > 0) {
+                state.extratoParsed = transactions;
+                state.selectedExtratoItem = transactions[0]; // seleciona o primeiro por padrão
+                showToast(`${transactions.length} transações importadas!`, 'success');
+                renderConciliacao();
+            } else {
+                showToast("Nenhuma transação encontrada no arquivo.", "error");
+            }
+        } catch (err) {
+            console.error("Erro OFX:", err);
+            showToast("Falha ao ler arquivo: " + err.message, "error");
+        }
+    };
+    reader.readAsText(file);
+    input.value = '';
+};
+
+window.renderConciliacao = function() {
+    const extratoList = document.getElementById('extratoList');
+    const matchList = document.getElementById('matchList');
+    if (!extratoList || !matchList) return;
+
+    if (state.extratoParsed.length === 0) {
+        extratoList.innerHTML = `
+            <div class="empty-state" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                <i data-lucide="info" style="width: 48px; height: 48px; margin-bottom: 1rem; opacity: 0.5;"></i>
+                <p>Importe um extrato bancário para começar a conciliação.</p>
+            </div>
+        `;
+        matchList.innerHTML = `
+            <div class="empty-state" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                <p>Selecione uma transação do extrato para ver as sugestões de vínculo.</p>
+            </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+
+    // Renderizar Extrato Bancário
+    extratoList.innerHTML = state.extratoParsed.map(item => {
+        const isSelected = state.selectedExtratoItem && state.selectedExtratoItem.id === item.id;
+        const color = item.valor < 0 ? 'var(--expense)' : 'var(--income)';
+        const sign = item.valor < 0 ? '' : '+';
+        
+        return `
+            <div class="conc-item ${isSelected ? 'active' : ''}" 
+                 onclick="selectExtratoItem('${item.id}')"
+                 style="padding: 1rem; border: 1px solid ${isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.05)'}; 
+                        background: ${isSelected ? 'rgba(99, 102, 241, 0.1)' : 'rgba(255,255,255,0.01)'}; 
+                        border-radius: 12px; margin-bottom: 0.8rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+                <div>
+                    <div style="font-weight: 700; font-size: 0.9rem; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.descricao}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">${formatDate(item.data)}</div>
+                </div>
+                <div style="font-weight: 800; color: ${color}; font-size: 1.1rem; text-align: right;">
+                    ${sign}${formatCurrency(item.valor)}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Renderizar Sugestões para o Item Selecionado
+    const selected = state.selectedExtratoItem;
+    if (!selected) {
+        matchList.innerHTML = `
+            <div class="empty-state" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                <p>Selecione uma transação do extrato.</p>
+            </div>
+        `;
+        return;
+    }
+
+    const valorAbs = Math.abs(selected.valor);
+    const targetTipo = selected.valor < 0 ? 'PAGAR' : 'RECEBER';
+
+    // Algoritmo de Busca Inteligente de Matches
+    const suggestions = state.lancamentos.filter(l => {
+        if (l.status === 'PAGO' || l.status === 'CANCELADO') return false;
+        if (l.tipo !== targetTipo) return false;
+        
+        const valDiff = Math.abs(parseFloat(l.valor_total) - valorAbs);
+        if (valDiff > 1.5) return false; // Diferença máxima de 1.50 R$
+
+        // Margem de data de até 15 dias
+        const lDate = new Date(l.data_vencimento + 'T12:00:00');
+        const extDate = new Date(selected.data + 'T12:00:00');
+        const dayDiff = Math.abs(lDate - extDate) / (1000 * 60 * 60 * 24);
+        
+        return dayDiff <= 15;
+    });
+
+    // Ordena por maior relevância (diferença de valor e data)
+    suggestions.sort((a, b) => {
+        const valDiffA = Math.abs(parseFloat(a.valor_total) - valorAbs);
+        const valDiffB = Math.abs(parseFloat(b.valor_total) - valorAbs);
+        if (valDiffA !== valDiffB) return valDiffA - valDiffB;
+
+        const dateDiffA = Math.abs(new Date(a.data_vencimento + 'T12:00:00') - new Date(selected.data + 'T12:00:00'));
+        const dateDiffB = Math.abs(new Date(b.data_vencimento + 'T12:00:00') - new Date(selected.data + 'T12:00:00'));
+        return dateDiffA - dateDiffB;
+    });
+
+    if (suggestions.length === 0) {
+        matchList.innerHTML = `
+            <div style="background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1); border-radius: 16px; padding: 2.5rem; text-align: center;">
+                <i data-lucide="search-code" style="width: 36px; height: 36px; color: var(--text-muted); margin-bottom: 1rem; opacity: 0.5;"></i>
+                <p style="font-weight: 700; color: #cbd5e1; margin-bottom: 0.5rem;">Nenhuma correspondência exata encontrada</p>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.5rem;">Não encontramos nenhum lançamento com vencimento próximo e valor de ${formatCurrency(valorAbs)}.</p>
+                <button class="btn-primary-new" onclick="lancarConciliacaoRapida()" style="margin: 0 auto; font-size: 0.85rem; padding: 0.6rem 1.2rem;">
+                    <i data-lucide="plus-circle"></i> Criar Lançamento Rápido
+                </button>
+            </div>
+        `;
+    } else {
+        matchList.innerHTML = suggestions.map((s, idx) => {
+            const isPerfect = Math.abs(parseFloat(s.valor_total) - valorAbs) < 0.01;
+            
+            return `
+                <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 1.2rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 0.6rem;">
+                            <span style="font-weight: 800; font-family: 'JetBrains Mono'; color: var(--primary); font-size: 0.85rem;">#${s.codigo_sequencial || s.id.substring(0,8)}</span>
+                            ${isPerfect ? '<span class="status-badge status-pago" style="font-size: 0.65rem; padding: 2px 6px; background: rgba(16, 185, 129, 0.15); color: #10b981;">Sugestão Ideal</span>' : ''}
+                        </div>
+                        <div style="font-weight: 700; font-size: 1rem; color: white; margin-top: 6px;">${s.entidade_nome || 'Lançamento Geral'}</div>
+                        <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 4px;">${s.descricao || ''}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">Vencimento: ${formatDate(s.data_vencimento)} | Valor: ${formatCurrency(s.valor_total)}</div>
+                    </div>
+                    <button class="btn-primary" onclick="vincularConciliacao('${s.id}')" style="background: #10b981; border: none; border-radius: 8px; padding: 0.6rem 1.2rem; font-weight: 800; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                        <i data-lucide="link"></i> Conciliar
+                    </button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    if (window.lucide) lucide.createIcons();
+};
+
+window.selectExtratoItem = function(id) {
+    const item = state.extratoParsed.find(x => x.id === id);
+    if (item) {
+        state.selectedExtratoItem = item;
+        renderConciliacao();
+    }
+};
+
+window.vincularConciliacao = async function(lancamentoId) {
+    const selected = state.selectedExtratoItem;
+    const contaId = document.getElementById('concContaSelect').value;
+    
+    if (!selected || !contaId) {
+        showToast("Por favor, selecione uma conta bancária.", "error");
+        return;
+    }
+
+    try {
+        const l = state.lancamentos.find(item => item.id === lancamentoId);
+        const conta = state.contas.find(c => c.id === contaId);
+        
+        if (!l || !conta) throw new Error("Lançamento ou conta não encontrada.");
+
+        // Atualizar lançamento para PAGO
+        const { error: errL } = await supabaseClient.from('fin_lancamentos').update({
+            status: 'PAGO',
+            valor_pago: l.valor_total,
+            data_pagamento: selected.data,
+            conta_bancaria_id: contaId,
+            forma_pagamento: 'TRANSFERENCIA'
+        }).eq('id', lancamentoId);
+
+        if (errL) throw errL;
+
+        // Atualizar saldo da conta
+        const fator = l.tipo === 'PAGAR' ? -1 : 1;
+        const novoSaldo = parseFloat(conta.saldo_atual) + (parseFloat(l.valor_total) * fator);
+        const { error: errC } = await supabaseClient.from('fin_contas_bancarias').update({
+            saldo_atual: novoSaldo
+        }).eq('id', contaId);
+
+        if (errC) throw errC;
+
+        // Remover do extrato temporário local
+        state.extratoParsed = state.extratoParsed.filter(x => x.id !== selected.id);
+        state.selectedExtratoItem = state.extratoParsed[0] || null;
+
+        showToast("Conciliação efetuada com sucesso!", "success");
+        await loadInitialData();
+        renderAll();
+        renderConciliacao();
+    } catch (err) {
+        showToast("Erro ao conciliar: " + err.message, "error");
+    }
+};
+
+window.lancarConciliacaoRapida = async function() {
+    const selected = state.selectedExtratoItem;
+    const contaId = document.getElementById('concContaSelect').value;
+    
+    if (!selected || !contaId) return;
+
+    try {
+        const conta = state.contas.find(c => c.id === contaId);
+        if (!conta) throw new Error("Conta bancária inválida.");
+
+        const valorAbs = Math.abs(selected.valor);
+        const record = {
+            tipo: selected.valor < 0 ? 'PAGAR' : 'RECEBER',
+            data_emissao: selected.data,
+            data_vencimento: selected.data,
+            data_pagamento: selected.data,
+            entidade_nome: 'Transação Extrato',
+            valor_total: valorAbs,
+            valor_pago: valorAbs,
+            status: 'PAGO',
+            descricao: selected.descricao,
+            conta_bancaria_id: contaId,
+            forma_pagamento: 'TRANSFERENCIA'
+        };
+
+        const { error: inErr } = await supabaseClient.from('fin_lancamentos').insert([record]);
+        if (inErr) throw inErr;
+
+        // Atualizar saldo
+        const fator = selected.valor < 0 ? -1 : 1;
+        const novoSaldo = parseFloat(conta.saldo_atual) + (valorAbs * fator);
+        const { error: errC } = await supabaseClient.from('fin_contas_bancarias').update({
+            saldo_atual: novoSaldo
+        }).eq('id', contaId);
+
+        if (errC) throw errC;
+
+        state.extratoParsed = state.extratoParsed.filter(x => x.id !== selected.id);
+        state.selectedExtratoItem = state.extratoParsed[0] || null;
+
+        showToast("Lançamento rápido criado e conciliado!", "success");
+        await loadInitialData();
+        renderAll();
+        renderConciliacao();
+    } catch (err) {
+        showToast("Erro ao criar lançamento: " + err.message, "error");
+    }
+};
+
 

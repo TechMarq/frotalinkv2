@@ -1253,12 +1253,17 @@ tr:hover td {
     font-size: 0.85rem;
 }
 
-.noti-type-expired {
+.noti-type-expired,
+.noti-type-danger {
     border-left: 3px solid var(--danger);
 }
 
 .noti-type-warning {
     border-left: 3px solid #f59e0b;
+}
+
+.noti-type-info {
+    border-left: 3px solid #3b82f6;
 }
 
 /* ========================================

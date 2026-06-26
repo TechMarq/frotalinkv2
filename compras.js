@@ -11,7 +11,8 @@ let config = {
     fornecedores: [],
     tiposPgto: [],
     centrosCusto: [],
-    especiesNota: []
+    especiesNota: [],
+    categorias: []
 };
 
 let isAdmin = true;
@@ -83,6 +84,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('custoForm').addEventListener('submit', handleSaveCusto);
     document.getElementById('genericForm').addEventListener('submit', handleSaveGeneric);
     
+    // Vencimento automático para pagamento FATURADO (dia 10 do mês seguinte)
+    const updateVencimentoFaturado = () => {
+        const selectedPgtoId = document.getElementById('tipoPgtoId').value;
+        const pgto = (config.tiposPgto || []).find(p => p.id == selectedPgtoId);
+        if (pgto && pgto.nome && pgto.nome.toUpperCase().includes('FATURADO')) {
+            const dataCompraValue = document.getElementById('dataCompra').value;
+            if (dataCompraValue) {
+                const parts = dataCompraValue.split('-');
+                const year = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10);
+                
+                let nextMonth = month + 1;
+                let nextYear = year;
+                if (nextMonth > 12) {
+                    nextMonth = 1;
+                    nextYear++;
+                }
+                
+                const monthStr = String(nextMonth).padStart(2, '0');
+                document.getElementById('vencimentoNota').value = `${nextYear}-${monthStr}-10`;
+            }
+        }
+    };
+    document.getElementById('tipoPgtoId').addEventListener('change', updateVencimentoFaturado);
+    document.getElementById('dataCompra').addEventListener('change', updateVencimentoFaturado);
+    
     // Aplicar máscaras de CPF/CNPJ e Telefone no Fornecedor
     applyMask(document.getElementById('fDoc'), maskCnpjCpf);
     applyMask(document.getElementById('fTel'), maskTelefone);
@@ -95,6 +122,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Atalhos de Teclado Globais
     window.addEventListener('keydown', (e) => {
+        // F2: Lançar Compra
+        if (e.key === 'F2') {
+            e.preventDefault();
+            const modal = document.getElementById('compraModal');
+            if (modal && !modal.classList.contains('active')) {
+                openCompraModal();
+            }
+            return;
+        }
+
         const activeModal = document.querySelector('.modal-overlay.active');
         if (!activeModal) return;
 
@@ -129,7 +166,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
-            if (!hasData) {
+            if (!hasData || confirm("Há dados preenchidos no formulário. Tem certeza de que deseja sair e perder as alterações não salvas?")) {
                 if (activeModal.id === 'compraModal') closeCompraModal();
                 else if (activeModal.id === 'fornecedorModal') closeFornecedorModal();
                 else if (activeModal.id === 'custoModal') closeCustoModal();
@@ -137,15 +174,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // ENTER: Salvar (Se não estiver navegando no autocomplete)
-        if (e.key === 'Enter' && !e.shiftKey) {
-            const isAutocompleteOpen = document.querySelector('.autocomplete-results[style*="block"]');
-            if (isAutocompleteOpen) return; // Deixa o Enter para o autocomplete
-
+        // CTRL + ENTER: Salvar
+        if (e.key === 'Enter' && e.ctrlKey) {
             const saveBtn = activeModal.querySelector('.btn-save');
             if (saveBtn && !saveBtn.disabled && activeModal.id !== 'viewCompraModal') {
                 e.preventDefault();
                 saveBtn.click();
+            }
+        } else if (e.key === 'Enter') {
+            // Impedir envio do formulário com Enter simples, permitindo apenas se autocomplete estiver aberto para seleção
+            const isAutocompleteOpen = document.querySelector('.autocomplete-results[style*="block"]');
+            if (!isAutocompleteOpen) {
+                e.preventDefault();
             }
         }
     });
@@ -240,12 +280,21 @@ async function loadMaintenanceConfigs() {
 }
 
 async function loadConfigFromSupabase() {
-    if (!supabaseClient) return;
+    const client = window.authClient || supabaseClient;
+    if (!client) return;
     try {
-        const { data: forns } = await supabaseClient.from('fornecedores').select('*').order('nome');
-        const { data: pgtos } = await supabaseClient.from('formas_pagamento').select('*').order('nome');
-        const { data: custos } = await supabaseClient.from('centros_custo').select('*').order('codigo');
-        const { data: esps } = await supabaseClient.from('especies_nota').select('*').order('nome');
+        console.log("⚙️ Sincronizando configurações com o banco...");
+        const { data: forns } = await client.from('fornecedores').select('*').order('nome');
+        const { data: pgtos } = await client.from('formas_pagamento').select('*').order('nome');
+        const { data: custos } = await client.from('centros_custo').select('*').order('codigo');
+        const { data: esps } = await client.from('especies_nota').select('*').order('nome');
+        const { data: cats, error: catsErr } = await client.from('fin_plano_contas').select('*').order('codigo');
+
+        if (catsErr) {
+            console.error("❌ Erro ao buscar fin_plano_contas:", catsErr);
+        } else {
+            console.log(`✅ ${cats ? cats.length : 0} categorias de despesas carregadas do Plano de Contas.`);
+        }
 
         if (forns) config.fornecedores = forns;
         if (pgtos) config.tiposPgto = pgtos;
@@ -258,6 +307,7 @@ async function loadConfigFromSupabase() {
             }));
         }
         if (esps) config.especiesNota = esps;
+        if (cats) config.categorias = cats;
         
         console.log("⚙️ Configurações sincronizadas com Supabase.");
     } catch (err) {
@@ -266,18 +316,19 @@ async function loadConfigFromSupabase() {
 }
 
 async function loadCompras() {
-    if (!supabaseClient) return;
+    const client = window.authClient || supabaseClient;
+    if (!client) return;
     console.log("📡 Carregando compras do Supabase...");
     
     try {
         // 1. Fetch main records
-        const { data: cloudCompras, error: cErr } = await supabaseClient.from('compras').select('*');
+        const { data: cloudCompras, error: cErr } = await client.from('compras').select('*');
         if (cErr) throw cErr;
 
         // 2. Fetch children
-        const { data: cloudItens } = await supabaseClient.from('compra_itens').select('*');
-        const { data: cloudAdds } = await supabaseClient.from('compra_adicionais').select('*');
-        const { data: cloudParcs } = await supabaseClient.from('compra_parcelas').select('*');
+        const { data: cloudItens } = await client.from('compra_itens').select('*');
+        const { data: cloudAdds } = await client.from('compra_adicionais').select('*');
+        const { data: cloudParcs } = await client.from('compra_parcelas').select('*');
 
         // 3. Map to internal format
         const mappedCompras = (cloudCompras || []).map(c => {
@@ -289,6 +340,7 @@ async function loadCompras() {
                 especieId: c.especie_id,
                 fornecedorId: c.fornecedor_id,
                 formaPgtoId: c.forma_pagamento_id,
+                categoriaId: c.categoria_id,
                 vencimento: c.data_vencimento,
                 valorTotal: parseFloat(c.valor_total),
                 qtdParcelas: c.qtd_parcelas,
@@ -330,7 +382,7 @@ async function loadCompras() {
         });
 
         // 4. RECOVERY LOGIC: Check for "orphaned" maintenance records that have a Purchase ID
-        const { data: maintItems, error: mErr } = await supabaseClient.from('manutencao_itens').select('*, manutencoes(*)').filter('descricao', 'ilike', '%[ID:%');
+        const { data: maintItems, error: mErr } = await client.from('manutencao_itens').select('*, manutencoes(*)').filter('descricao', 'ilike', '%[ID:%');
         
         if (mErr) console.warn("⚠️ Erro ao buscar manutenções para recuperação:", mErr);
 
@@ -956,6 +1008,10 @@ window.openCompraModal = async (id = null) => {
     const fSearch = document.getElementById('fornecedorSearch');
     if (fId) fId.value = '';
     if (fSearch) fSearch.value = '';
+    const catId = document.getElementById('categoriaId');
+    const catSearch = document.getElementById('categoriaSearch');
+    if (catId) catId.value = '';
+    if (catSearch) catSearch.value = '';
     document.getElementById('itemsContainer').innerHTML = '';
     document.getElementById('additionalContainer').innerHTML = '';
     document.getElementById('parcelasContainer').innerHTML = '';
@@ -1113,6 +1169,9 @@ function populateModal(c) {
     document.getElementById('dataCompra').value = c.data;
     document.getElementById('numNota').value = c.numeroNota;
     document.getElementById('especieId').value = c.especieId || '';
+    document.getElementById('categoriaId').value = c.categoriaId || '';
+    const cat = (config.categorias || []).find(x => x.id == c.categoriaId);
+    document.getElementById('categoriaSearch').value = cat ? ((cat.codigo ? `${cat.codigo} - ` : '') + cat.nome) : '';
     document.getElementById('fornecedorId').value = c.fornecedorId;
     const forn = (config.fornecedores || []).find(f => f.id == c.fornecedorId);
     document.getElementById('fornecedorSearch').value = forn ? forn.nome : '';
@@ -1120,8 +1179,8 @@ function populateModal(c) {
     document.getElementById('vencimentoNota').value = c.vencimento || '';
 
     const itns = c.items || c.itens || [];
-    if (itns.length > 0) itns.forEach(it => addItemRow(it));
-    else addItemRow();
+    if (itns.length > 0) itns.forEach(it => addItemRow(it, false));
+    else addItemRow(null, false);
 
     if (c.adicionais?.length > 0) c.adicionais.forEach(ad => addAdditionalRow(ad));
 
@@ -1150,7 +1209,8 @@ function populateModal(c) {
     }
 }
 
-function addItemRow(data = {}) {
+function addItemRow(data = {}, shouldFocus = true) {
+    if (!data) data = {};
     const container = document.getElementById('itemsContainer');
     const rowId = 'row_' + Date.now() + Math.random().toString(36).substr(2, 5);
     
@@ -1175,13 +1235,13 @@ function addItemRow(data = {}) {
                 <!-- Peça View -->
                 <div class="autocomplete-wrapper peca-input-group" style="flex:1; display:${data.tipo === 'servico' ? 'none' : 'block'}">
                     <i data-lucide="search" class="search-icon-inside"></i>
-                    <input type="text" class="item-produto-search compra-input" placeholder="Buscar peça no estoque..." value="${prodDisplay}" oninput="handleProductSearch(this)" onfocus="handleProductSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)">
+                    <input type="text" class="item-produto-search compra-input" placeholder="Buscar peça no estoque..." value="${prodDisplay}" oninput="handleProductSearch(this)" onfocus="handleProductSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)" autocomplete="off">
                     <input type="hidden" class="item-produto" value="${data.produtoId || ''}">
                     <div class="autocomplete-results"></div>
                 </div>
                 <!-- Serviço View -->
                 <div class="servico-input-group" style="flex:1; display:${data.tipo === 'servico' ? 'block' : 'none'}">
-                    <input type="text" class="item-servico-desc compra-input" placeholder="Descrição do serviço ou despesa..." style="width:100%" value="${data.produto || ''}">
+                    <input type="text" class="item-servico-desc compra-input" placeholder="Descrição do serviço ou despesa..." style="width:100%" value="${data.produto || ''}" autocomplete="off">
                 </div>
                 
                 <div class="product-actions-group" style="display:${data.tipo === 'servico' ? 'none' : 'flex'}; gap:0.3rem;">
@@ -1200,7 +1260,7 @@ function addItemRow(data = {}) {
             <div class="input-group estoque-toggle-wrapper" style="flex-direction:row; align-items:center; gap:1rem; display:${data.tipo === 'servico' ? 'none' : 'flex'}">
                 <label style="font-size:0.7rem; color:var(--text-muted);">Estoque?</label>
                 <div class="switch-wrap">
-                    <div class="stock-toggle ${data.estoque ? 'active' : ''}" onclick="toggleRowStock(this)"></div>
+                    <div class="stock-toggle ${data.estoque ? 'active' : ''}" tabindex="0" onclick="toggleRowStock(this)" onkeydown="if(event.key === ' ' || event.key === 'Enter') { event.preventDefault(); toggleRowStock(this); }"></div>
                     <span style="font-size:0.6rem; font-weight:700; color:var(--text-muted);">${data.estoque ? 'SIM' : 'NÃO'}</span>
                 </div>
             </div>
@@ -1227,12 +1287,12 @@ function addItemRow(data = {}) {
                     <button type="button" class="btn-vinculo ${isPessoa ? '' : 'inactive'}" style="background:${isPessoa ? '#4f46e5' : '#1e293b'}" onclick="setLinkType(this, 'pessoa')"><i data-lucide="user-plus" style="width:14px;"></i></button>
                 </div>
                 <div class="autocomplete-wrapper item-veiculo-wrapper" style="flex:1; ${isPessoa ? 'display:none' : ''}">
-                    <input type="text" class="item-veiculo-search compra-input" placeholder="Buscar placa..." value="${vehDisplay}" oninput="handleVehicleSearch(this)" onfocus="handleVehicleSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)">
+                    <input type="text" class="item-veiculo-search compra-input" placeholder="Buscar placa..." value="${vehDisplay}" oninput="handleVehicleSearch(this)" onfocus="handleVehicleSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)" autocomplete="off">
                     <input type="hidden" class="item-veiculo" value="${data.veiculoId || ''}">
                     <div class="autocomplete-results"></div>
                 </div>
                 <div class="autocomplete-wrapper item-pessoa-wrapper" style="flex:1; ${isPessoa ? '' : 'display:none'}">
-                    <input type="text" class="item-pessoa compra-input" placeholder="Nome da Pessoa" value="${data.pessoa || ''}" oninput="handleDriverSearch(this)" onfocus="handleDriverSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)">
+                    <input type="text" class="item-pessoa compra-input" placeholder="Nome da Pessoa" value="${data.pessoa || ''}" oninput="handleDriverSearch(this)" onfocus="handleDriverSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)" autocomplete="off">
                     <div class="autocomplete-results"></div>
                 </div>
             </div>
@@ -1240,7 +1300,7 @@ function addItemRow(data = {}) {
             <div class="maint-toggle-wrapper" style="display:${(data.tipo === 'servico' || (data.tipo !== 'servico' && !data.estoque)) ? 'flex' : 'none'}; align-items:center; gap:0.8rem;">
                 <label style="font-size:0.7rem; color:var(--text-muted);">Controlar Manutenção?</label>
                 <div class="switch-wrap">
-                    <div class="stock-toggle maint-control-toggle ${data.maintControl ? 'active' : ''}" onclick="toggleMaintControl(this)"></div>
+                    <div class="stock-toggle maint-control-toggle ${data.maintControl ? 'active' : ''}" tabindex="0" onclick="toggleMaintControl(this)" onkeydown="if(event.key === ' ' || event.key === 'Enter') { event.preventDefault(); toggleMaintControl(this); }"></div>
                     <span style="font-size:0.6rem; font-weight:700; color:var(--text-muted);">${data.maintControl ? 'SIM' : 'NÃO'}</span>
                 </div>
             </div>
@@ -1303,6 +1363,15 @@ function addItemRow(data = {}) {
     if (window.lucide) lucide.createIcons();
     window.updateVinculoDisplay(row);
     calculateTotal();
+
+    if (shouldFocus) {
+        setTimeout(() => {
+            const activeBtn = row.querySelector('.type-btn.active') || row.querySelector('.type-btn');
+            if (activeBtn) {
+                activeBtn.focus();
+            }
+        }, 50);
+    }
 }
 
 window.toggleRowStock = (el) => {
@@ -1488,13 +1557,15 @@ window.handleAutocompleteKeydown = (e, inputEl) => {
         currentAutocompleteIndex--;
         if (currentAutocompleteIndex < 0) currentAutocompleteIndex = items.length - 1;
         updateAutocompleteHighlight(items);
-    } else if (e.key === 'Enter' || (e.key === ' ' && inputEl.classList.contains('item-veiculo-search'))) {
+    } else if (e.key === 'Enter' || (e.key === ' ' && currentAutocompleteIndex >= 0)) {
         if (currentAutocompleteIndex >= 0) {
             e.preventDefault();
             items[currentAutocompleteIndex].click();
             currentAutocompleteIndex = -1;
         }
     } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
         resultsDiv.style.display = 'none';
         currentAutocompleteIndex = -1;
     }
@@ -1633,6 +1704,64 @@ window.selectFornecedor = (id, nome, itemEl) => {
     
     // Trigger duplicate check
     if (window.checkDuplicateNota) window.checkDuplicateNota();
+};
+
+window.handleCategoriaSearch = (el) => {
+    currentAutocompleteIndex = -1;
+    const query = el.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const resultsDiv = el.parentElement.querySelector('.autocomplete-results');
+    const hiddenId = el.parentElement.querySelector('#categoriaId');
+    
+    if (el.value.trim() === '') {
+        if (hiddenId) hiddenId.value = '';
+    }
+
+    let matches = [];
+    if (query.length === 0) {
+        matches = (config.categorias || []).slice(0, 200);
+    } else {
+        // 1. Encontrar correspondências diretas
+        const directMatches = (config.categorias || []).filter(c => {
+            const nameNorm = (c.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const cod = (c.codigo || '').toLowerCase();
+            return nameNorm.includes(query) || cod.includes(query);
+        });
+
+        // 2. Incluir as subcategorias associadas a essas correspondências
+        matches = (config.categorias || []).filter(c => {
+            return directMatches.some(dm => {
+                return c.id === dm.id || (c.codigo && dm.codigo && c.codigo.startsWith(dm.codigo + '.'));
+            });
+        }).slice(0, 200);
+    }
+
+    if (matches.length === 0) {
+        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.75rem;">Nenhuma categoria encontrada...</div>';
+    } else {
+        resultsDiv.innerHTML = matches.map(c => {
+            const label = (c.codigo ? `${c.codigo} - ` : '') + c.nome;
+            return `
+                <div class="autocomplete-item" onclick="selectCategoria('${c.id}', '${label.replace(/'/g, "\\'")}', this)">
+                    <span class="prod-name">${label}</span>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    positionDropdown(el, resultsDiv);
+    resultsDiv.style.display = 'block';
+};
+
+window.selectCategoria = (id, label, itemEl) => {
+    const wrapper = itemEl.closest('.autocomplete-wrapper');
+    const searchInput = wrapper.querySelector('#categoriaSearch');
+    const hiddenId = wrapper.querySelector('#categoriaId');
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
+
+    searchInput.value = label;
+    hiddenId.value = id;
+    resultsDiv.style.display = 'none';
+    resultsDiv.innerHTML = '';
 };
 
 window.handleProductSearch = (el) => {
@@ -2023,6 +2152,8 @@ async function handleSaveCompra(e) {
         const labelText = labelEl.innerText || "";
         const codUnico = labelText.includes(': ') ? labelText.split(': ')[1] : labelText;
 
+        const categoriaId = document.getElementById('categoriaId').value;
+
         const compraData = {
             id: editId || codUnico, 
             codUnico,
@@ -2031,6 +2162,7 @@ async function handleSaveCompra(e) {
             especieId,
             fornecedorId,
             formaPgtoId,
+            categoriaId,
             vencimento,
             itens: items,
             parcelasData,
@@ -2099,6 +2231,7 @@ async function handleSaveCompra(e) {
                     especie_id: isUuid(compraData.especieId) ? compraData.especieId : null,
                     fornecedor_id: isUuid(compraData.fornecedorId) ? compraData.fornecedorId : null,
                     forma_pagamento_id: isUuid(compraData.formaPgtoId) ? compraData.formaPgtoId : null,
+                    categoria_id: isUuid(compraData.categoriaId) ? compraData.categoriaId : null,
                     data_vencimento: compraData.vencimento || null,
                     valor_total: compraData.valorTotal,
                     financeiro_parcelado: compraData.financeiro,
@@ -3706,7 +3839,8 @@ window.integrarAoFinanceiro = async () => {
                             status_aprovacao: 'PENDENTE',
                             compra_id: comp.id,
                             forma_pagamento: comp.forma_pagamento_id,
-                            centro_custo_id: comp.centro_custo_id
+                            centro_custo_id: comp.centro_custo_id,
+                            categoria_id: comp.categoria_id
                         });
                         idx++;
                     }
@@ -3735,7 +3869,8 @@ window.integrarAoFinanceiro = async () => {
                             status_aprovacao: 'PENDENTE',
                             compra_id: comp.id,
                             forma_pagamento: comp.forma_pagamento_id,
-                            centro_custo_id: comp.centro_custo_id
+                            centro_custo_id: comp.centro_custo_id,
+                            categoria_id: comp.categoria_id
                         });
                     }
                 } else {
@@ -3749,7 +3884,8 @@ window.integrarAoFinanceiro = async () => {
                         status_aprovacao: 'PENDENTE',
                         compra_id: comp.id,
                         forma_pagamento: comp.forma_pagamento_id,
-                        centro_custo_id: comp.centro_custo_id
+                        centro_custo_id: comp.centro_custo_id,
+                        categoria_id: comp.categoria_id
                      });
                 }
             } else {
@@ -3764,7 +3900,8 @@ window.integrarAoFinanceiro = async () => {
                     status_aprovacao: 'PENDENTE',
                     compra_id: comp.id,
                     forma_pagamento: comp.forma_pagamento_id,
-                    centro_custo_id: comp.centro_custo_id
+                    centro_custo_id: comp.centro_custo_id,
+                    categoria_id: comp.categoria_id
                 });
             }
             

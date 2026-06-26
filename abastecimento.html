@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-br">
 
 <head>
@@ -1139,6 +1139,39 @@
             color: white;
         }
 
+        .alert-chip.danger {
+            background: rgba(239, 68, 68, 0.06);
+            border-color: rgba(239, 68, 68, 0.5);
+            color: rgba(248, 113, 113, 0.9);
+        }
+        .alert-chip.danger:hover {
+            background: rgba(239, 68, 68, 0.12);
+            border-color: rgba(239, 68, 68, 0.8);
+            color: #fff;
+        }
+
+        .alert-chip.warning {
+            background: rgba(245, 158, 11, 0.06);
+            border-color: rgba(245, 158, 11, 0.5);
+            color: rgba(251, 191, 36, 0.9);
+        }
+        .alert-chip.warning:hover {
+            background: rgba(245, 158, 11, 0.12);
+            border-color: rgba(245, 158, 11, 0.8);
+            color: #fff;
+        }
+
+        .alert-chip.info {
+            background: rgba(59, 130, 246, 0.06);
+            border-color: rgba(59, 130, 246, 0.5);
+            color: rgba(96, 165, 250, 0.9);
+        }
+        .alert-chip.info:hover {
+            background: rgba(59, 130, 246, 0.12);
+            border-color: rgba(59, 130, 246, 0.8);
+            color: #fff;
+        }
+
         .alert-chip.active {
             background: var(--primary);
             color: white;
@@ -1156,6 +1189,12 @@
             background: #f59e0b;
             border-color: #fbbf24;
             box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+        }
+
+        .alert-chip.info.active {
+            background: #3b82f6;
+            border-color: #60a5fa;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
         }
 
         .alert-chip .count {
@@ -1229,7 +1268,7 @@
                         <i data-lucide="calendar" style="color: var(--primary);"></i>
                         <input type="date" id="dash_start" class="input-modern" style="width: 150px;"
                             onchange="updateDashboard(true)">
-                        <span style="color: var(--text-muted);">atÃ©</span>
+                        <span style="color: var(--text-muted);">até</span>
                         <input type="date" id="dash_end" class="input-modern" style="width: 150px;"
                             onchange="updateDashboard(true)">
                     </div>
@@ -1245,10 +1284,10 @@
                             style="background: rgba(255,255,255,0.05); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.75rem; border: 1px solid var(--border-card);">30
                             Dias</button>
                         <button id="preset_prev" class="btn-icon" onclick="setDashPreviousMonth()"
-                            style="background: rgba(255,255,255,0.05); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.75rem; border: 1px solid var(--border-card);">MÃªs
+                            style="background: rgba(255,255,255,0.05); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.75rem; border: 1px solid var(--border-card);">Mês
                             Anterior</button>
                         <button id="preset_curr" class="btn-icon" onclick="setDashCurrentMonth()"
-                            style="background: rgba(255,255,255,0.05); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.75rem; border: 1px solid var(--border-card);">MÃªs
+                            style="background: rgba(255,255,255,0.05); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.75rem; border: 1px solid var(--border-card);">Mês
                             Atual</button>
                     </div>
 
@@ -1271,11 +1310,11 @@
                         </select>
                     </div>
                     <div class="form-group" style="margin: 0;">
-                        <label style="font-size: 0.7rem; color: var(--text-muted);">ClassificaÃ§Ã£o</label>
+                        <label style="font-size: 0.7rem; color: var(--text-muted);">Classificação</label>
                         <select id="dash_filter_classificacao" class="input-modern"
                             style="width: 100%; border-radius: 8px;" onchange="updateDashboard()">
                             <option value="">Todas</option>
-                            <option value="PROPRIO">PRÃ“PRIO</option>
+                            <option value="PROPRIO">PRÓPRIO</option>
                             <option value="TERCEIRO">TERCEIRO</option>
                             <option value="AGREGADO">AGREGADO</option>
                         </select>
@@ -1288,7 +1327,7 @@
                         </select>
                     </div>
                     <div class="form-group" style="margin: 0;">
-                        <label style="font-size: 0.7rem; color: var(--text-muted);">CombustÃ­vel</label>
+                        <label style="font-size: 0.7rem; color: var(--text-muted);">Combustível</label>
                         <select id="dash_filter_combustivel" class="input-modern"
                             style="width: 100%; border-radius: 8px;" onchange="updateDashboard()">
                             <option value="">Todos os Tipos</option>
@@ -1296,7 +1335,7 @@
                             <option value="GASOLINA COMUM">GASOLINA COMUM</option>
                             <option value="GASOLINA ADITIVADA">GASOLINA ADITIVADA</option>
                             <option value="ETANOL">ETANOL</option>
-                            <option value="GAS NATURAL">GÃS NATURAL</option>
+                            <option value="GAS NATURAL">GÁS NATURAL</option>
                             <option value="ARLA 32">ARLA 32</option>
                         </select>
                     </div>
@@ -1334,26 +1373,26 @@
                     <div class="value" id="kpi_total_litros">0,00 L</div>
                 </div>
                 <div class="kpi-card">
-                    <div class="label"><i data-lucide="wind" style="width: 14px;"></i> Qtd. GÃ¡s (mÂ³)</div>
-                    <div class="value" id="kpi_total_m3">0,00 mÂ³</div>
+                    <div class="label"><i data-lucide="wind" style="width: 14px;"></i> Qtd. Gás (m³)</div>
+                    <div class="value" id="kpi_total_m3">0,00 m³</div>
                 </div>
                 <div class="kpi-card">
                     <div class="label"><i data-lucide="map" style="width: 14px;"></i> KM Rodado</div>
                     <div class="value" id="kpi_total_km">0 km</div>
                 </div>
                 <div class="kpi-card" style="border-left: 3px solid var(--primary);">
-                    <div class="label"><i data-lucide="gauge" style="width: 14px;"></i> MÃ©dia Consumo</div>
+                    <div class="label"><i data-lucide="gauge" style="width: 14px;"></i> Média Consumo</div>
                     <div class="value" id="dash_avg_consumption">--- km/l</div>
                 </div>
                 <div class="kpi-card">
-                    <div class="label"><i data-lucide="trending-up" style="width: 14px;"></i> Custo MÃ©dio / KM</div>
+                    <div class="label"><i data-lucide="trending-up" style="width: 14px;"></i> Custo Médio / KM</div>
                     <div class="value" id="kpi_avg_cost_km">R$ 0,00</div>
                 </div>
             </div>
 
             <div class="charts-row" style="grid-template-columns: 1fr;">
                 <div class="chart-card">
-                    <h3><i data-lucide="bar-chart-3" style="color: var(--primary);"></i> EvoluÃ§Ã£o de Consumo e Custos
+                    <h3><i data-lucide="bar-chart-3" style="color: var(--primary);"></i> Evolução de Consumo e Custos
                     </h3>
                     <canvas id="mainFuelChart" height="300"></canvas>
                 </div>
@@ -1364,7 +1403,7 @@
                 <div class="chart-card">
                     <div
                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                        <h3><i data-lucide="bar-chart-2" style="color: #6366f1;"></i> Comparativo de PreÃ§os</h3>
+                        <h3><i data-lucide="bar-chart-2" style="color: #6366f1;"></i> Comparativo de Preços</h3>
                         <span style="font-size: 0.7rem; color: var(--text-muted);">Melhor x Pior</span>
                     </div>
                     <div id="postoAnalystContainer">
@@ -1376,7 +1415,7 @@
                     <div
                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                         <h3><i data-lucide="star" style="color: #fbbf24;"></i> Posto Recomendado</h3>
-                        <span style="font-size: 0.7rem; color: var(--text-muted);">EstratÃ©gia de GestÃ£o</span>
+                        <span style="font-size: 0.7rem; color: var(--text-muted);">Estratégia de Gestão</span>
                     </div>
                     <div id="postoRecommendationContainer" style="display: flex; flex-direction: column; gap: 1rem;">
                         <!-- Recommendation will be injected here -->
@@ -1387,11 +1426,11 @@
             <div class="charts-row"
                 style="grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); margin-top: 1.5rem;">
                 <div class="chart-card">
-                    <h3><i data-lucide="pie-chart" style="color: var(--primary);"></i> Gastos por CombustÃ­vel</h3>
+                    <h3><i data-lucide="pie-chart" style="color: var(--primary);"></i> Gastos por Combustível</h3>
                     <canvas id="fuelTypeChart" height="250"></canvas>
                 </div>
                 <div class="chart-card">
-                    <h3><i data-lucide="award" style="color: var(--primary);"></i> Top 10 VeÃ­culos (Maior Gasto)</h3>
+                    <h3><i data-lucide="award" style="color: var(--primary);"></i> Top 10 Veículos (Maior Gasto)</h3>
                     <canvas id="rankingVehiclesChart" height="250"></canvas>
                 </div>
             </div>
@@ -1404,8 +1443,8 @@
                 </div>
                 <div class="chart-card"
                     style="background: rgba(30, 41, 59, 0.3); border-style: dashed; padding: 1.5rem;">
-                    <h3><i data-lucide="trending-down" style="color: var(--success);"></i> EficiÃªncia por Placa (Melhor
-                        MÃ©dia)</h3>
+                    <h3><i data-lucide="trending-down" style="color: var(--success);"></i> Eficiência por Placa (Melhor
+                        Média)</h3>
                     <div id="efficiencyRankContainer" style="font-size: 0.9rem;">
                         <!-- JS Content -->
                     </div>
@@ -1420,14 +1459,13 @@
                     </div>
                     <div>
                         <h2 style="margin-bottom: 0.5rem; font-size: 1.5rem;">Analista FrotaLink IA</h2>
-                        <p style="opacity: 0.9;">A inteligÃªncia artificial estÃ¡ processando seus dados. Em breve,
-                            vocÃª
-                            terÃ¡ insights automÃ¡ticos sobre:</p>
+                        <p style="opacity: 0.9;">A inteligência artificial está processando seus dados. Em breve, você
+                            terá
+                            insights automáticos sobre:</p>
                         <ul style="margin-top: 1rem; columns: 2; font-size: 0.9rem; opacity: 0.8;">
                             <li>âœ“ Oportunidades de economia</li>
-
-                            <li>âœ“ Comportamento atÃ­pico de veÃ­culos</li>
-                            <li>âœ“ SugestÃ£o de substituiÃ§Ã£o de frota</li>
+                            <li>âœ“ Comportamento atípico de veiculos</li>
+                            <li>âœ“ Sugestão de substituição de frota</li>
                         </ul>
                     </div>
                 </div>
@@ -1449,7 +1487,7 @@
                 <div>
                     <div
                         style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">
-                        Gasto (SeleÃ§Ã£o)</div>
+                        Gasto (Seleção)</div>
                     <div id="selectionFuelCost" style="font-size: 1.5rem; font-weight: 800; color: white;">R$ 0,00</div>
                 </div>
             </div>
@@ -1463,7 +1501,7 @@
                 <div>
                     <div
                         style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">
-                        MÃ©dia (SeleÃ§Ã£o)</div>
+                        Média (Seleção)</div>
                     <div id="selectionAverage" style="font-size: 1.5rem; font-weight: 800; color: #10b981;">0.0 km/l
                     </div>
                 </div>
@@ -1488,14 +1526,14 @@
             <div class="data-header">
                 <h2>Custos e Comparativos</h2>
                 <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">Analise o custo total ou
-                    compare indicadores entre veÃ­culos, modelos ou condutores.</p>
+                    compare indicadores entre veículos, modelos ou condutores.</p>
             </div>
 
             <div class="intelligent-filter-bar"
                 style="margin-bottom: 1.5rem; padding: 0.8rem 1rem; background: rgba(30, 41, 59, 0.5); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); display: flex; gap: 0.8rem; flex-wrap: nowrap; align-items: center; overflow-x: auto;">
                 <div
                     style="display: flex; align-items: center; gap: 0.5rem; color: var(--primary); font-weight: 700; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; flex-shrink: 0;">
-                    <i data-lucide="filter" style="width: 14px;"></i> PerÃ­odo
+                    <i data-lucide="filter" style="width: 14px;"></i> Período
                 </div>
                 <div
                     style="height: 20px; width: 1px; background: rgba(255,255,255,0.1); margin: 0 0.2rem; flex-shrink: 0;">
@@ -1506,14 +1544,14 @@
                         style="width: 100%; height: 38px; font-size: 0.8rem; background: rgba(15, 23, 42, 0.6); border-radius: 8px; padding: 0 0.6rem;"
                         onchange="handleCompPeriodChange(this.value)">
                         <option value="all">Tudo</option>
-                        <option value="7">Ãšltimos 7 dias</option>
-                        <option value="15">Ãšltimos 15 dias</option>
-                        <option value="30" selected>Ãšltimos 30 dias</option>
-                        <option value="current_month">MÃªs Atual</option>
-                        <option value="last_month">MÃªs Anterior</option>
-                        <option value="km_2500">Ãšltimos 2.500 km</option>
-                        <option value="km_5000">Ãšltimos 5.000 km</option>
-                        <option value="km_10000">Ãšltimos 10.000 km</option>
+                        <option value="7">Últimos 7 dias</option>
+                        <option value="15">Últimos 15 dias</option>
+                        <option value="30" selected>Últimos 30 dias</option>
+                        <option value="current_month">Mês Atual</option>
+                        <option value="last_month">Mês Anterior</option>
+                        <option value="km_2500">Últimos 2.500 km</option>
+                        <option value="km_5000">Últimos 5.000 km</option>
+                        <option value="km_10000">Últimos 10.000 km</option>
                         <option value="custom">Personalizado</option>
                     </select>
                 </div>
@@ -1585,12 +1623,12 @@
                     style="display: flex; gap: 1.2rem; align-items: center; margin-bottom: 1.5rem; background: rgba(15, 23, 42, 0.4); padding: 0.8rem 1rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05);">
                     <div
                         style="font-size: 0.75rem; color: var(--primary); text-transform: uppercase; font-weight: 700; display: flex; align-items: center; gap: 0.4rem;">
-                        <i data-lucide="filter" style="width: 14px;"></i> ClassificaÃ§Ã£o:
+                        <i data-lucide="filter" style="width: 14px;"></i> Classificação:
                     </div>
                     <label
                         style="display: flex; align-items: center; gap: 0.4rem; color: #e2e8f0; font-size: 0.85rem; cursor: pointer;">
                         <input type="checkbox" value="PROPRIO" class="filter-classificacao-ct" checked
-                            onchange="updateComparativo()" style="cursor: pointer;"> PrÃ³prio
+                            onchange="updateComparativo()" style="cursor: pointer;"> Próprio
                     </label>
                     <label
                         style="display: flex; align-items: center; gap: 0.4rem; color: #e2e8f0; font-size: 0.85rem; cursor: pointer;">
@@ -1667,7 +1705,7 @@
             <!-- Abastecimentos Tab Content -->
             <div id="tab-abastecimentos" class="tab-content active">
                 <div class="data-header">
-                    <h2>HistÃ³rico de Abastecimentos</h2>
+                    <h2>Histórico de Abastecimentos</h2>
                     <div
                         style="display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: center; flex: 1; justify-content: flex-end; margin-left: 1.5rem;">
 
@@ -1680,7 +1718,7 @@
                                 oninput="renderFuelTable()">
                         </div>
 
-                        <!-- BotÃµes Compactos (Mobile Row 2) -->
+                        <!-- Botões Compactos (Mobile Row 2) -->
                         <div class="compact-row-mobile" style="display: flex; gap: 0.4rem; align-items: center;">
                             <div class="notification-wrapper" style="position: relative;">
                                 <button id="fuelNotiBtn" class="noti-btn" onclick="toggleFuelNotiPanel()"
@@ -1755,7 +1793,7 @@
                         </select>
                     </div>
                     <div class="form-group" style="margin: 0; min-width: 130px; flex: 1;">
-                        <label style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">VeÃ­culo</label>
+                        <label style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">Veículo</label>
                         <select id="fuel_filter_veiculo" class="input-modern"
                             style="width: 100%; height: 34px; font-size: 0.75rem; background: rgba(15, 23, 42, 0.6); border-radius: 6px; padding: 0 0.5rem;"
                             onchange="handleIntelligentFilter('veiculo')">
@@ -1766,15 +1804,15 @@
                         style="height: 20px; width: 1px; background: rgba(255,255,255,0.1); margin: 0 0.2rem; flex-shrink: 0;">
                     </div>
                     <div class="form-group" style="margin: 0; min-width: 130px; flex: 1;">
-                        <label style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">PerÃ­odo</label>
+                        <label style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">Período</label>
                         <select id="fuel_filter_periodo" class="input-modern"
                             style="width: 100%; height: 34px; font-size: 0.75rem; background: rgba(15, 23, 42, 0.6); border-radius: 6px; padding: 0 0.5rem;"
                             onchange="handlePeriodChange(this.value)">
                             <option value="all">Tudo</option>
-                            <option value="7">Ãšltimos 7 dias</option>
-                            <option value="15">Ãšltimos 15 dias</option>
-                            <option value="30">Ãšltimos 30 dias</option>
-                            <option value="last_month">MÃªs Anterior</option>
+                            <option value="7">Últimos 7 dias</option>
+                            <option value="15">Últimos 15 dias</option>
+                            <option value="30">Últimos 30 dias</option>
+                            <option value="last_month">Mês Anterior</option>
                             <option value="custom">Personalizado</option>
                         </select>
                     </div>
@@ -1782,7 +1820,7 @@
                         style="display: none; gap: 0.4rem; align-items: center; flex-shrink: 0;">
                         <div class="form-group" style="margin: 0; min-width: 110px;">
                             <label
-                                style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">InÃ­cio</label>
+                                style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">Início</label>
                             <input type="date" id="fuel_filter_start" class="input-modern"
                                 style="width: 100%; height: 34px; font-size: 0.75rem; background: rgba(15, 23, 42, 0.6); border-radius: 6px; padding: 0 0.4rem;"
                                 onchange="handleDateChange()">
@@ -1813,7 +1851,7 @@
                                         class="sort-icon"><i data-lucide="chevrons-up-down"
                                             style="width: 14px;"></i></span></th>
                                 <th onclick="handleSort('fuel', 'veiculo')" data-column="veiculo" data-col="veiculo">
-                                    VeÃ­culo / Cat. <span class="sort-icon"><i data-lucide="chevrons-up-down"
+                                    Veículo / Cat. <span class="sort-icon"><i data-lucide="chevrons-up-down"
                                             style="width: 14px;"></i></span></th>
                                 <th onclick="handleSort('fuel', 'km')" data-column="km" data-col="km">KM Atual <span
                                         class="sort-icon"><i data-lucide="chevrons-up-down"
@@ -1825,9 +1863,9 @@
                                     Quantidade <span class="sort-icon"><i data-lucide="chevrons-up-down"
                                             style="width: 14px;"></i></span></th>
                                 <th onclick="handleSort('fuel', 'combustivel')" data-column="combustivel"
-                                    data-col="combustivel">CombustÃ­vel <span class="sort-icon"><i
+                                    data-col="combustivel">Combustível <span class="sort-icon"><i
                                             data-lucide="chevrons-up-down" style="width: 14px;"></i></span></th>
-                                <th onclick="handleSort('fuel', 'media')" data-column="media" data-col="media">MÃ©dia
+                                <th onclick="handleSort('fuel', 'media')" data-column="media" data-col="media">Média
                                     <span class="sort-icon"><i data-lucide="chevrons-up-down"
                                             style="width: 14px;"></i></span>
                                 </th>
@@ -1838,7 +1876,7 @@
                                 <th onclick="handleSort('fuel', 'posto')" data-column="posto" data-col="col-posto">Posto
                                     / Local <span class="sort-icon"><i data-lucide="chevrons-up-down"
                                             style="width: 14px;"></i></span></th>
-                                <th style="text-align: center;">AÃ§Ãµes</th>
+                                <th style="text-align: center;">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="fuelList">
@@ -1858,7 +1896,7 @@
                             style="padding: 0.4rem 0.8rem; border-radius: 6px; background: rgba(255,255,255,0.05); font-size: 0.8rem;">Anterior</button>
                         <div id="pageNumbers" style="display: flex; gap: 0.3rem;"></div>
                         <button onclick="changePage(1)" class="btn-icon"
-                            style="padding: 0.4rem 0.8rem; border-radius: 6px; background: rgba(255,255,255,0.05); font-size: 0.8rem;">PrÃ³xima</button>
+                            style="padding: 0.4rem 0.8rem; border-radius: 6px; background: rgba(255,255,255,0.05); font-size: 0.8rem;">Próxima</button>
                     </div>
                 </div>
             </div>
@@ -1873,31 +1911,31 @@
                 </div>
                 <form id="fuelForm">
                     <div class="form-grid">
-                        <!-- Section: VeÃ­culo e Condutor -->
+                        <!-- Section: Veiculo e Condutor -->
                         <div class="form-group full" style="margin-bottom: 0.5rem;">
                             <label style="color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
-                                <i data-lucide="car" style="width: 16px;"></i> IdentificaÃ§Ã£o
+                                <i data-lucide="car" style="width: 16px;"></i> Identificação
                             </label>
                             <div style="height: 1px; background: var(--border-card); width: 100%; margin-top: 5px;">
                             </div>
                         </div>
 
                         <div class="form-group">
-                            <label>VeÃ­culo (Placa)</label>
+                            <label>Veículo (Placa)</label>
                             <select id="fuel_veiculo" required onchange="handleFuelVehicleChange()">
-                                <option value="">Selecione o veÃ­culo...</option>
+                                <option value="">Selecione o veiculo...</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>ClassificaÃ§Ã£o / Categoria</label>
-                            <input type="text" id="fuel_veiculo_categoria" disabled placeholder="Puxar automÃ¡tico">
+                            <label>Classificação / Categoria</label>
+                            <input type="text" id="fuel_veiculo_categoria" disabled placeholder="Puxar automático">
                         </div>
                         <div class="form-group">
                             <label>Data</label>
                             <input type="date" id="fuel_data" required>
                         </div>
                         <div class="form-group">
-                            <label>HorÃ¡rio</label>
+                            <label>Horário</label>
                             <input type="time" id="fuel_horario" required>
                         </div>
                         <div class="form-group full">
@@ -1910,7 +1948,7 @@
                         <!-- Section: Estabelecimento -->
                         <div class="form-group full" style="margin-top: 1rem; margin-bottom: 0.5rem;">
                             <label style="color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
-                                <i data-lucide="map-pin" style="width: 16px;"></i> Estabelecimento e LocalizaÃ§Ã£o
+                                <i data-lucide="map-pin" style="width: 16px;"></i> Estabelecimento e Localização
                             </label>
                             <div style="height: 1px; background: var(--border-card); width: 100%; margin-top: 5px;">
                             </div>
@@ -1937,7 +1975,7 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Tipo de CombustÃ­vel</label>
+                            <label>Tipo de Combustível</label>
                             <select id="fuel_combustivel" required>
                                 <option value="">Selecione...</option>
                             </select>
@@ -1953,7 +1991,7 @@
                         </div>
 
                         <div class="form-group">
-                            <label>Quantidade (L / mÂ³)</label>
+                            <label>Quantidade (L / m³)</label>
                             <input type="number" id="fuel_litros" step="0.01" required placeholder="0,00"
                                 oninput="calculateFuelPrices()">
                         </div>
@@ -1964,7 +2002,7 @@
                                 oninput="calculateFuelPrices()">
                         </div>
                         <div class="form-group">
-                            <label>Valor UnitÃ¡rio (Calculado)</label>
+                            <label>Valor Unitário (Calculado)</label>
                             <input type="number" id="fuel_unitario" disabled placeholder="0,000">
                         </div>
                         <!-- Hidden auxiliary fields to maintain compatibility -->
@@ -1976,13 +2014,13 @@
                                 oninput="calculateFuelMedia()">
                         </div>
                         <div class="form-group full">
-                            <label id="fuel_media_label" style="color: var(--success);">MÃ©dia Calculada (KM/L)</label>
+                            <label id="fuel_media_label" style="color: var(--success);">Média Calculada (KM/L)</label>
                             <input type="text" id="fuel_media" disabled placeholder="Aguardando dados de KM..."
                                 style="border-color: var(--success); color: var(--success); font-weight: 800;">
                         </div>
 
                         <div class="form-group full">
-                            <label>ObservaÃ§Ãµes</label>
+                            <label>Observações</label>
                             <textarea id="fuel_obs" rows="2"></textarea>
                         </div>
                     </div>
@@ -1999,7 +2037,7 @@
         <!-- Imports Section -->
         <div id="importsSection" class="dashboard-container">
             <div class="data-header">
-                <h2>HistÃ³rico de ImportaÃ§Ãµes</h2>
+                <h2>Histórico de Importações</h2>
                 <div style="display: flex; gap: 0.8rem; align-items: center;">
                     <div class="search-box" style="width: 300px;">
                         <i data-lucide="search"
@@ -2009,7 +2047,7 @@
                     </div>
                     <button class="btn-import" onclick="triggerFuelImport()" data-perm="abastecimento_importacoes:add"
                         style="padding: 0.6rem 1.2rem; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                        <i data-lucide="plus"></i> Nova ImportaÃ§Ã£o
+                        <i data-lucide="plus"></i> Nova Importação
                     </button>
                 </div>
             </div>
@@ -2018,7 +2056,7 @@
                 <table id="importsTable">
                     <thead>
                         <tr>
-                            <th onclick="handleSort('imports', 'display_id')" data-col="display_id">ID ImportaÃ§Ã£o
+                            <th onclick="handleSort('imports', 'display_id')" data-col="display_id">ID Importação
                                 <span class="sort-icon"><i data-lucide="chevrons-up-down"
                                         style="width: 14px;"></i></span>
                             </th>
@@ -2028,7 +2066,7 @@
                             <th>Nome do Arquivo</th>
                             <th style="text-align: center;">Registros</th>
                             <th style="text-align: center;">Valor Total</th>
-                            <th style="text-align: center;">AÃ§Ãµes</th>
+                            <th style="text-align: center;">Ações</th>
                         </tr>
                     </thead>
                     <tbody id="importsList">
@@ -2043,7 +2081,7 @@
             <div class="tabs-header" style="margin-bottom: 2rem;">
                 <div class="tab-item active" onclick="switchSetupTab('posts')">Postos</div>
                 <div class="tab-item" onclick="switchSetupTab('categories')">Categorias</div>
-                <div class="tab-item" onclick="switchSetupTab('fuelTypes')">Tipos de CombustÃ­vel</div>
+                <div class="tab-item" onclick="switchSetupTab('fuelTypes')">Tipos de Combustível</div>
             </div>
 
             <!-- Posts List -->
@@ -2061,7 +2099,7 @@
                                 <th>Nome do Posto</th>
                                 <th>Cidade</th>
                                 <th>Estado</th>
-                                <th style="text-align: right;">AÃ§Ãµes</th>
+                                <th style="text-align: right;">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="setup_posts_list"></tbody>
@@ -2081,8 +2119,8 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>DescriÃ§Ã£o</th>
-                                <th style="text-align: right;">AÃ§Ãµes</th>
+                                <th>Descrição</th>
+                                <th style="text-align: right;">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="setup_categories_list"></tbody>
@@ -2093,7 +2131,7 @@
             <!-- Fuel Types List -->
             <div id="setup_fuelTypes" class="setup-content">
                 <div class="data-header">
-                    <h2>Tipos de CombustÃ­vel</h2>
+                    <h2>Tipos de Combustível</h2>
                     <button class="btn-plus" onclick="openFuelTypeModal()" data-perm="abastecimento_postos:add">
                         <i data-lucide="plus"></i> Novo Tipo
                     </button>
@@ -2102,9 +2140,9 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>DescriÃ§Ã£o</th>
+                                <th>Descrição</th>
                                 <th>Unidade</th>
-                                <th style="text-align: right;">AÃ§Ãµes</th>
+                                <th style="text-align: right;">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="setup_fuelTypes_list"></tbody>
@@ -2150,7 +2188,7 @@
                 <form id="categoryForm">
                     <input type="hidden" id="category_id" name="id">
                     <div class="form-group">
-                        <label>DescriÃ§Ã£o da Categoria</label>
+                        <label>Descrição da Categoria</label>
                         <input type="text" id="category_desc" class="input-modern" required
                             placeholder="Ex: EXTERNO, INTERNO">
                     </div>
@@ -2162,13 +2200,13 @@
         <div id="modalFuelType" class="modal">
             <div class="modal-content" style="max-width: 400px;">
                 <div class="modal-header">
-                    <h2 id="fuelTypeModalTitle">Cadastrar Tipo de CombustÃ­vel</h2>
+                    <h2 id="fuelTypeModalTitle">Cadastrar Tipo de Combustível</h2>
                     <button class="close-btn" onclick="closeModal('modalFuelType')"><i data-lucide="x"></i></button>
                 </div>
                 <form id="fuelTypeForm">
                     <input type="hidden" id="fuelType_id" name="id">
                     <div class="form-group">
-                        <label>DescriÃ§Ã£o</label>
+                        <label>Descrição</label>
                         <input type="text" id="fuelType_desc" class="input-modern" required
                             placeholder="Ex: Diesel S10">
                     </div>
@@ -2176,7 +2214,7 @@
                         <label>Unidade de Medida</label>
                         <select id="fuelType_unit" class="input-modern">
                             <option value="L">Litros (L)</option>
-                            <option value="mÂ³">Metros CÃºbicos (mÂ³)</option>
+                            <option value="m³">Metros Cúbicos (m³)</option>
                         </select>
                     </div>
                     <button type="submit" class="btn-submit" style="margin-top: 2rem;">SALVAR TIPO</button>
@@ -2189,7 +2227,7 @@
             <span id="toastMsg">Mensagem</span>
         </div>
 
-        <!-- BotÃ£o Flutuante Mobile -->
+        <!-- Botão Flutuante Mobile -->
         <div class="fab-button" onclick="openFuelModal()">
             <i data-lucide="plus" style="width: 30px; height: 30px; stroke-width: 3;"></i>
         </div>

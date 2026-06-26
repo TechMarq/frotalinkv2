@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-br">
 
 <head>
@@ -1171,7 +1171,7 @@
                     </button>
 
                     <button class="btn btn-primary" onclick="openCompraModal()" style="background:#5c60f5;">
-                        <i data-lucide="plus-circle"></i> Lan&ccedil;ar Compra
+                        <i data-lucide="plus-circle"></i> Lan&ccedil;ar Compra (F2)
                     </button>
                 </div>
             </div>
@@ -1479,7 +1479,7 @@
                 <!-- SEÇÃO FIXA SUPERIOR -->
                 <div class="modal-fixed-top"
                     style="padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 1rem;">
-                    <div class="form-row grid-header-1">
+                    <div class="form-row grid-header-1" style="grid-template-columns: 1fr 1fr 1.2fr 1.8fr;">
                         <div class="input-group">
                             <label>Data Emissão</label>
                             <input type="date" id="dataCompra" class="compra-input" required>
@@ -1496,6 +1496,18 @@
                                         data-lucide="plus"></i></button>
                             </div>
                         </div>
+                        <div class="input-group">
+                            <label>Plano de Contas / Categoria</label>
+                            <div class="autocomplete-wrapper" style="flex: 1;">
+                                <input type="text" id="categoriaSearch" class="compra-input"
+                                    placeholder="Buscar categoria..." required autocomplete="off"
+                                    oninput="handleCategoriaSearch(this)" onfocus="handleCategoriaSearch(this)"
+                                    onkeydown="handleAutocompleteKeydown(event, this)"
+                                    style="width: 100%; box-sizing: border-box;">
+                                <input type="hidden" id="categoriaId" required>
+                                <div class="autocomplete-results"></div>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-row grid-header-2">
                         <div class="input-group">
@@ -1503,7 +1515,7 @@
                             <div class="input-with-btn">
                                 <div class="autocomplete-wrapper" style="flex: 1;">
                                     <input type="text" id="fornecedorSearch" class="compra-input"
-                                        placeholder="Buscar fornecedor..." required
+                                        placeholder="Buscar fornecedor..." required autocomplete="off"
                                         oninput="handleFornecedorSearch(this)" onfocus="handleFornecedorSearch(this)"
                                         onkeydown="handleAutocompleteKeydown(event, this)"
                                         style="width: 100%; box-sizing: border-box;">
@@ -1567,7 +1579,7 @@
                             <div class="input-group"
                                 style="flex-direction:row; align-items:center; gap:0.8rem; height:42px;">
                                 <label style="margin-bottom:0;">Deseja Parcelar?</label>
-                                <div class="stock-toggle" id="toggleParcelas" onclick="toggleParcelasSection(this)">
+                                <div class="stock-toggle" id="toggleParcelas" tabindex="0" onclick="toggleParcelasSection(this)" onkeydown="if(event.key === ' ' || event.key === 'Enter') { event.preventDefault(); toggleParcelasSection(this); }">
                                 </div>
                                 <span style="font-size:0.6rem; font-weight:800; color:#4f46e5;">HABILITAR
                                     PARCELAS</span>
@@ -1613,8 +1625,8 @@
                 </div>
 
                 <div class="modal-footer">
-                    <a href="#" class="btn-cancel" onclick="closeCompraModal()">Cancelar</a>
-                    <button type="submit" id="btnSaveCompra" class="btn-save">SALVAR COMPRA</button>
+                    <a href="#" class="btn-cancel" onclick="closeCompraModal()">Cancelar (ESC)</a>
+                    <button type="submit" id="btnSaveCompra" class="btn-save">SALVAR COMPRA (Ctrl+Enter)</button>
                 </div>
             </form>
         </div>

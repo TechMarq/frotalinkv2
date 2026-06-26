@@ -1,4 +1,4 @@
-﻿/**
+/**
  * auth.js — Módulo de Autenticação Compartilhado
  * FrotaLink / FrotaLink
  *
@@ -32,7 +32,8 @@ const AUTH_CONFIG = {
         'financeiro.html': 'financeiro',
         'comercial.html': 'comercial',
         'home.html': null,    // Home sempre acessível a autenticados
-        'admin.html': 'admin' // Apenas role=admin
+        'admin.html': 'admin', // Apenas role=admin
+        'auditoria.html': 'admin'
     }
 };
 
@@ -146,8 +147,17 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
         const requiredModule = AUTH_CONFIG.moduleMap[currentPage];
 
         if (requiredModule === 'admin' && accessData.role !== 'admin') {
-            redirectToLogin('Acesso restrito ao administrador.');
-            return;
+            if (currentPage.endsWith('auditoria.html')) {
+                const perms = accessData.permissions || {};
+                const hasAuditoriaAccess = Object.keys(perms).some(key => key.endsWith('_auditoria') && perms[key].view);
+                if (!hasAuditoriaAccess) {
+                    redirectToLogin('Acesso restrito ao administrador ou usuários autorizados.');
+                    return;
+                }
+            } else {
+                redirectToLogin('Acesso restrito ao administrador.');
+                return;
+            }
         }
 
         if (requiredModule && requiredModule !== 'admin') {
@@ -982,4 +992,52 @@ function toggleAuthDropdown() {
     if (!menu) return;
     menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
 }
+
+async function registrarLog(modulo, acao, descricao) {
+    const userEmail = window.currentUser?.email || 'sistema@frotalink.com.br';
+    const empresaId = window.currentEmpresaId || null;
+
+    console.log(`[AuditLog] Log registrado: [${modulo}] ${acao} - ${descricao} (${userEmail})`);
+
+    // 1. Se estiver usando o Supabase
+    if (window.authClient) {
+        try {
+            const { error } = await window.authClient
+                .from('logs_atividade')
+                .insert({
+                    empresa_id: empresaId,
+                    usuario_email: userEmail,
+                    modulo: modulo,
+                    acao: acao,
+                    descricao: descricao
+                });
+            if (error) {
+                console.warn('[AuditLog] Erro ao salvar log no Supabase:', error.message);
+            }
+        } catch (e) {
+            console.warn('[AuditLog] Erro de conexão ao salvar log no Supabase:', e);
+        }
+    }
+
+    // 2. Fallback no LocalStorage (Mock / Modo Local)
+    try {
+        const localLogs = JSON.parse(localStorage.getItem('frotalink_audit_logs') || '[]');
+        localLogs.push({
+            id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+            empresa_id: empresaId,
+            usuario_email: userEmail,
+            modulo: modulo,
+            acao: acao,
+            descricao: descricao,
+            data_hora: new Date().toISOString()
+        });
+        if (localLogs.length > 500) {
+            localLogs.shift();
+        }
+        localStorage.setItem('frotalink_audit_logs', JSON.stringify(localLogs));
+    } catch (e) {
+        console.error('[AuditLog] Falha ao gravar log no localStorage:', e);
+    }
+}
+window.registrarLog = registrarLog;
 
