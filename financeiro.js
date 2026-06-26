@@ -2277,6 +2277,7 @@ function openFornecedorModal(id = null) {
         if (forn) {
             title.innerText = 'Editar Fornecedor';
             document.getElementById('fNome').value = forn.nome;
+            document.getElementById('fNomeFantasia').value = forn.nome_fantasia || '';
             document.getElementById('fDoc').value = maskCnpjCpf(forn.cnpj || forn.doc || forn.cnpj_cpf || '');
             document.getElementById('fIE').value = forn.inscricao_estadual || '';
             document.getElementById('fRua').value = forn.endereco || '';
@@ -3159,6 +3160,92 @@ window.lancarConciliacaoRapida = async function() {
         renderConciliacao();
     } catch (err) {
         showToast("Erro ao criar lançamento: " + err.message, "error");
+    }
+};
+
+window.toggleExportPlanoDropdown = function() {
+    const dropdown = document.getElementById('exportPlanoDropdown');
+    if (!dropdown) return;
+    if (dropdown.style.display === 'none' || !dropdown.style.display) {
+        dropdown.style.display = 'block';
+    } else {
+        dropdown.style.display = 'none';
+    }
+};
+
+// Fechar dropdown de exportação ao clicar fora
+document.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('exportPlanoDropdown');
+    const btn = document.getElementById('btn-export-plano');
+    if (dropdown && btn && !btn.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
+});
+
+window.exportPlano = function(format) {
+    const dropdown = document.getElementById('exportPlanoDropdown');
+    if (dropdown) dropdown.style.display = 'none';
+
+    if (!state.categorias || state.categorias.length === 0) {
+        showToast('Nenhum plano de contas para exportar.', 'warning');
+        return;
+    }
+
+    if (format === 'excel') {
+        const rows = [
+            ['FrotaLink - Plano de Contas'],
+            [],
+            ['Código', 'Descrição', 'Nível']
+        ];
+        state.categorias.forEach(c => {
+            const level = c.codigo.split('.').length;
+            rows.push([c.codigo, c.nome, 'G' + level]);
+        });
+
+        try {
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Plano de Contas");
+            XLSX.writeFile(wb, "Plano_de_Contas.xlsx");
+            showToast("Plano de contas exportado em Excel!", "success");
+        } catch(e) {
+            showToast("Falha ao exportar excel: " + e.message, "error");
+        }
+    } else if (format === 'pdf') {
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            
+            // Title
+            doc.setFontSize(16);
+            doc.setTextColor(30, 41, 59); // Slate 800
+            doc.text("Plano de Contas", 14, 20);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(100, 116, 139); // Slate 500
+            doc.text("Relatório de categorias cadastradas no sistema", 14, 26);
+            
+            // Build table rows
+            const body = state.categorias.map(c => {
+                const level = c.codigo.split('.').length;
+                return [c.codigo, c.nome, 'G' + level];
+            });
+            
+            doc.autoTable({
+                startY: 32,
+                head: [['Código', 'Descrição', 'Nível']],
+                body: body,
+                theme: 'striped',
+                headStyles: { fillColor: [92, 96, 245] }, // primary color
+                styles: { fontSize: 9 }
+            });
+            
+            doc.save("Plano_de_Contas.pdf");
+            showToast("Plano de contas exportado em PDF!", "success");
+        } catch(e) {
+            console.error(e);
+            showToast("Falha ao exportar PDF: " + e.message, "error");
+        }
     }
 };
 

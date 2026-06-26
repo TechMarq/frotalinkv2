@@ -173,6 +173,7 @@
     font-size: 0.85rem;
     outline: none;
     transition: 0.2s;
+    width: 100%;
 }
 
 .financeiro-input:focus,
@@ -1121,7 +1122,7 @@
     background: rgba(0, 0, 0, 0.2);
     border-radius: 12px;
     padding: 1rem;
-    max-height: 400px;
+    max-height: 650px;
     overflow-y: auto;
 }
 

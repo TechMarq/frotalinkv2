@@ -256,7 +256,7 @@ function formatLogDescription(desc) {
     // Check if it contains structured tokens
     const hasDetail = desc.includes('DETALHE:');
     const hasAlteracao = desc.includes('ALTERACAO:');
-    const hasMotivo = desc.includes('MOTIVO:');
+    const hasMotivo = desc.toUpperCase().includes('MOTIVO:');
     
     if (!hasDetail && !hasAlteracao && !hasMotivo) {
         return desc; // Fallback
@@ -264,25 +264,46 @@ function formatLogDescription(desc) {
     
     let html = '';
     
-    // Parse DETALHE
+    // Parse DETALHE/Description prefix
     if (hasDetail) {
         const start = desc.indexOf('DETALHE:') + 8;
-        const end = hasAlteracao ? desc.indexOf('| ALTERACAO:') : (hasMotivo ? desc.indexOf('| MOTIVO:') : desc.length);
+        let end = desc.length;
+        if (hasAlteracao) {
+            end = desc.indexOf('ALTERACAO:') - 2; // to skip "| "
+        } else if (hasMotivo) {
+            const idx = desc.toUpperCase().indexOf('MOTIVO:');
+            end = idx - 2; // to skip "| "
+        }
         const detailPart = desc.substring(start, end).trim();
         html += `<div style="color: #cbd5e1; margin-bottom: 5px; line-height: 1.4;"><strong>Registro:</strong> ${detailPart}</div>`;
+    } else if (hasMotivo) {
+        // If there is no DETALHE: but there is a Motivo:, treat the prefix as the main action/description
+        const idx = desc.toUpperCase().indexOf('MOTIVO:');
+        let prefix = desc.substring(0, idx).trim();
+        if (prefix.endsWith('.') || prefix.endsWith('|')) {
+            prefix = prefix.slice(0, -1).trim();
+        }
+        if (prefix) {
+            html += `<div style="color: #cbd5e1; margin-bottom: 5px; line-height: 1.4;">${prefix}</div>`;
+        }
     }
     
     // Parse ALTERACAO
     if (hasAlteracao) {
         const start = desc.indexOf('ALTERACAO:') + 10;
-        const end = hasMotivo ? desc.indexOf('| MOTIVO:') : desc.length;
+        let end = desc.length;
+        if (hasMotivo) {
+            const idx = desc.toUpperCase().indexOf('MOTIVO:');
+            end = idx - 2; // to skip "| "
+        }
         const alteracaoPart = desc.substring(start, end).trim();
         html += `<div style="color: #fbbf24; margin-bottom: 5px; font-weight: 500; line-height: 1.4;"><strong>Modificações:</strong> ${alteracaoPart}</div>`;
     }
     
     // Parse MOTIVO
     if (hasMotivo) {
-        const start = desc.indexOf('MOTIVO:') + 7;
+        const idx = desc.toUpperCase().indexOf('MOTIVO:');
+        const start = idx + 7;
         const motivoPart = desc.substring(start).trim();
         html += `<div style="color: #38bdf8; font-weight: 500; line-height: 1.4;"><strong>Motivo:</strong> ${motivoPart}</div>`;
     }

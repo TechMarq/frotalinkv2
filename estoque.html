@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-br">
 
 <head>
@@ -130,6 +130,14 @@
 
         .mini-stat-card.alert .mini-stat-label {
             color: var(--accent);
+        }
+
+        .mini-stat-card.success {
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .mini-stat-card.success .mini-stat-label {
+            color: #10b981;
         }
 
         /* Inventory Control Section */
@@ -1124,6 +1132,10 @@
         </div>
 
         <div class="top-stats-grid">
+            <div class="mini-stat-card success">
+                <span class="mini-stat-label">Valor em Estoque</span>
+                <span id="stat_total_value" class="mini-stat-value">R$ 0,00</span>
+            </div>
             <div class="mini-stat-card">
                 <span class="mini-stat-label">Total SKU</span>
                 <span id="stat_total_sku" class="mini-stat-value">0</span>
@@ -1196,16 +1208,7 @@
             </div>
 
             <div class="bottom-stats-grid">
-                <div class="bottom-stat-card">
-                    <div class="icon-box" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">
-                        <i data-lucide="wallet"></i>
-                    </div>
-                    <div class="stat-content">
-                        <span class="stat-label">Valor em Estoque</span>
-                        <span id="stat_total_value" class="stat-value">R$ 0,00</span>
-                    </div>
-                </div>
-                <div class="bottom-stat-card alert-card">
+                <div class="bottom-stat-card alert-card" style="width: 100%;">
                     <div class="icon-box" style="background: rgba(99, 102, 241, 0.1); color: var(--primary);">
                         <i data-lucide="bell"></i>
                     </div>

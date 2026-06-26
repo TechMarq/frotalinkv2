@@ -429,10 +429,21 @@
                     </div>
 
                     <div id="subtab-plano" class="subtab-content">
-                        <div class="subtab-header">
+                        <div class="subtab-header" style="position: relative;">
                             <h3>Plano de Contas (Tipo de Despesa)</h3>
-                            <button class="btn-primary btn-sm" onclick="openPlanoModal()"><i data-lucide="plus"></i>
-                                Novo Nível</button>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <div style="position: relative; display: inline-block;">
+                                    <button class="btn-secondary btn-sm" onclick="toggleExportPlanoDropdown()" id="btn-export-plano">
+                                        <i data-lucide="download"></i> Exportar
+                                    </button>
+                                    <div id="exportPlanoDropdown" class="export-dropdown" style="display: none; position: absolute; right: 0; top: 100%; background: #1a202c; border: 1px solid var(--border-card); border-radius: 6px; padding: 0.5rem 0; z-index: 100; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); min-width: 120px; margin-top: 5px;">
+                                        <button onclick="exportPlano('excel')" class="dropdown-item" style="display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.5rem 1rem; background: none; border: none; color: var(--text-main); text-align: left; cursor: pointer; font-size: 0.85rem;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='none'"><i data-lucide="file-spreadsheet" style="width: 14px; height: 14px;"></i> Excel</button>
+                                        <button onclick="exportPlano('pdf')" class="dropdown-item" style="display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.5rem 1rem; background: none; border: none; color: var(--text-main); text-align: left; cursor: pointer; font-size: 0.85rem;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='none'"><i data-lucide="file-text" style="width: 14px; height: 14px;"></i> PDF</button>
+                                    </div>
+                                </div>
+                                <button class="btn-primary btn-sm" onclick="openPlanoModal()"><i data-lucide="plus"></i>
+                                    Novo Nível</button>
+                            </div>
                         </div>
                         <div id="planoContasTree" class="config-tree"></div>
                     </div>
@@ -847,10 +858,15 @@
             <form id="fornecedorForm">
                 <input type="hidden" id="fornecedorId" name="id">
                 <div class="form-row" style="grid-template-columns: 1fr 1fr;">
-                    <div class="input-group" style="grid-column: 1 / -1;">
-                        <label>Razão Social / Nome Fantasia</label>
+                    <div class="input-group">
+                        <label>Razão Social</label>
                         <input type="text" id="fNome" name="nome" class="compra-input" required
-                            placeholder="Nome do Fornecedor">
+                            placeholder="Razão Social">
+                    </div>
+                    <div class="input-group">
+                        <label>Nome Fantasia</label>
+                        <input type="text" id="fNomeFantasia" name="nome_fantasia" class="compra-input"
+                            placeholder="Nome Fantasia">
                     </div>
                     <div class="input-group">
                         <label>CNPJ / CPF</label>

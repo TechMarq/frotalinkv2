@@ -750,6 +750,13 @@ function renderVehicles() {
         if (currentStatusFilter) {
             let currentStatus = (v.status_alocacao || 'DISPONIVEL').toUpperCase();
             if (currentStatus === 'DISPONÍVEL') currentStatus = 'DISPONIVEL';
+            
+            // Se possuir motorista alocado, não está disponível
+            const hasDriver = !!v.motorista_alocado_id;
+            if (currentStatus === 'DISPONIVEL' && hasDriver) {
+                currentStatus = 'ALOCADO';
+            }
+            
             let filterVal = currentStatusFilter.toUpperCase();
             if (filterVal === 'DISPONÍVEL') filterVal = 'DISPONIVEL';
             if (currentStatus !== filterVal) return false;
@@ -1007,6 +1014,13 @@ function updateStatusCounts() {
     activeVehicles.forEach(v => {
         let status = (v.status_alocacao || 'DISPONIVEL').toUpperCase();
         if (status === 'DISPONÍVEL') status = 'DISPONIVEL';
+        
+        // Se possuir motorista alocado, não está disponível
+        const hasDriver = !!v.motorista_alocado_id;
+        if (status === 'DISPONIVEL' && hasDriver) {
+            status = 'ALOCADO';
+        }
+
         if (counts.hasOwnProperty(status)) {
             counts[status]++;
         }

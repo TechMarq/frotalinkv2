@@ -494,6 +494,7 @@ window.openFornecedorModal = (id = null) => {
         if (f) {
             document.getElementById('editFornecedorId').value = f.id;
             document.getElementById('fNome').value = f.nome || '';
+            document.getElementById('fNomeFantasia').value = f.nome_fantasia || '';
             document.getElementById('fDoc').value = maskCnpjCpf(f.cnpj || f.doc || f.cnpj_cpf || '');
             document.getElementById('fIE').value = f.ie || '';
             document.getElementById('fRua').value = f.rua || f.endereco || '';
@@ -519,6 +520,7 @@ async function handleSaveFornecedor(e) {
     }
     const data = {
         nome: document.getElementById('fNome').value,
+        nome_fantasia: document.getElementById('fNomeFantasia').value,
         cnpj_cpf: document.getElementById('fDoc').value,
         endereco: document.getElementById('fRua').value,
         cidade: document.getElementById('fCidade').value,
@@ -1671,20 +1673,24 @@ window.handleFornecedorSearch = (el) => {
         ? (config.fornecedores || []).slice(0, 30)
         : (config.fornecedores || []).filter(f => {
             const nameNorm = (f.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const fantasiaNorm = (f.nome_fantasia || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             const doc = (f.cnpj_cpf || f.cnpj || f.doc || '').replace(/\D/g, '');
             const cleanQuery = query.replace(/\D/g, '');
-            return nameNorm.includes(query) || (cleanQuery.length > 0 && doc.includes(cleanQuery));
+            return nameNorm.includes(query) || fantasiaNorm.includes(query) || (cleanQuery.length > 0 && doc.includes(cleanQuery));
           }).slice(0, 30);
 
     if (matches.length === 0) {
         resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.75rem;">Nenhum fornecedor encontrado...</div>';
     } else {
-        resultsDiv.innerHTML = matches.map(f => `
-            <div class="autocomplete-item" onclick="selectFornecedor('${f.id}', '${f.nome.replace(/'/g, "\\'")}', this)">
-                <span class="prod-name">${f.nome}</span>
-                ${(f.cnpj_cpf || f.cnpj || f.doc) ? `<span class="prod-meta">Doc: ${f.cnpj_cpf || f.cnpj || f.doc}</span>` : ''}
-            </div>
-        `).join('');
+        resultsDiv.innerHTML = matches.map(f => {
+            const displayName = f.nome_fantasia ? `${f.nome} (${f.nome_fantasia})` : f.nome;
+            return `
+                <div class="autocomplete-item" onclick="selectFornecedor('${f.id}', '${f.nome.replace(/'/g, "\\'")}', this)">
+                    <span class="prod-name">${displayName}</span>
+                    ${(f.cnpj_cpf || f.cnpj || f.doc) ? `<span class="prod-meta">Doc: ${f.cnpj_cpf || f.cnpj || f.doc}</span>` : ''}
+                </div>
+            `;
+        }).join('');
     }
     
     positionDropdown(el, resultsDiv);
@@ -1719,6 +1725,11 @@ window.handleCategoriaSearch = (el) => {
     let matches = [];
     if (query.length === 0) {
         matches = (config.categorias || []).slice(0, 200);
+        matches.sort((a, b) => {
+            const aCod = a.codigo || '';
+            const bCod = b.codigo || '';
+            return aCod.localeCompare(bCod, undefined, { numeric: true, sensitivity: 'base' });
+        });
     } else {
         // 1. Encontrar correspondências diretas
         const directMatches = (config.categorias || []).filter(c => {
@@ -1727,12 +1738,41 @@ window.handleCategoriaSearch = (el) => {
             return nameNorm.includes(query) || cod.includes(query);
         });
 
-        // 2. Incluir as subcategorias associadas a essas correspondências
-        matches = (config.categorias || []).filter(c => {
-            return directMatches.some(dm => {
-                return c.id === dm.id || (c.codigo && dm.codigo && c.codigo.startsWith(dm.codigo + '.'));
-            });
-        }).slice(0, 200);
+        // 2. Coletar IDs de correspondências diretas, seus descendentes E todos os seus ancestrais (pais/grupos)
+        const matchedIds = new Set();
+        directMatches.forEach(dm => {
+            matchedIds.add(dm.id);
+
+            // Adiciona ancestrais (ex: se dm.codigo = "1.1.03.001", adiciona "1", "1.1", "1.1.03")
+            if (dm.codigo) {
+                const parts = dm.codigo.split('.');
+                for (let i = 1; i < parts.length; i++) {
+                    const parentCode = parts.slice(0, i).join('.');
+                    const parentCat = (config.categorias || []).find(cat => cat.codigo === parentCode);
+                    if (parentCat) {
+                        matchedIds.add(parentCat.id);
+                    }
+                }
+            }
+
+            // Adiciona subcategorias descendentes
+            if (dm.codigo) {
+                (config.categorias || []).forEach(cat => {
+                    if (cat.codigo && cat.codigo.startsWith(dm.codigo + '.')) {
+                        matchedIds.add(cat.id);
+                    }
+                });
+            }
+        });
+
+        matches = (config.categorias || []).filter(c => matchedIds.has(c.id));
+        
+        // Ordena hierarquicamente por código
+        matches.sort((a, b) => {
+            const aCod = a.codigo || '';
+            const bCod = b.codigo || '';
+            return aCod.localeCompare(bCod, undefined, { numeric: true, sensitivity: 'base' });
+        });
     }
 
     if (matches.length === 0) {
@@ -1740,11 +1780,25 @@ window.handleCategoriaSearch = (el) => {
     } else {
         resultsDiv.innerHTML = matches.map(c => {
             const label = (c.codigo ? `${c.codigo} - ` : '') + c.nome;
-            return `
-                <div class="autocomplete-item" onclick="selectCategoria('${c.id}', '${label.replace(/'/g, "\\'")}', this)">
-                    <span class="prod-name">${label}</span>
-                </div>
-            `;
+            const level = c.codigo ? c.codigo.split('.').length - 1 : 0;
+            const indentStyle = `padding-left: ${1 + level * 1.2}rem;`;
+            
+            // Check if this category has children (is parent)
+            const isParent = (config.categorias || []).some(cat => cat.parent_id === c.id || (cat.codigo && c.codigo && cat.codigo.startsWith(c.codigo + '.')));
+            
+            if (isParent) {
+                return `
+                    <div class="autocomplete-item" style="opacity: 0.6; cursor: not-allowed; background: rgba(255,255,255,0.02); font-weight: bold; border-left: 3px solid rgba(255,255,255,0.1); ${indentStyle}" onclick="event.stopPropagation();">
+                        <span class="prod-name" style="color: var(--text-muted);">${label} (Grupo)</span>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="autocomplete-item" style="${indentStyle}" onclick="selectCategoria('${c.id}', '${label.replace(/'/g, "\\'")}', this)">
+                        <span class="prod-name">${label}</span>
+                    </div>
+                `;
+            }
         }).join('');
     }
     

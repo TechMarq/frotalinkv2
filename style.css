@@ -1412,6 +1412,98 @@ tr:hover td {
     transform: translateY(-1px);
 }
 
+/* Inactive states with 50% opacity of active colors */
+.filter-chip.filter-maint {
+    background: rgba(248, 113, 113, 0.08);
+    color: rgba(248, 113, 113, 0.5);
+    border-color: rgba(248, 113, 113, 0.2);
+}
+.filter-chip.filter-maint .filter-count {
+    background: rgba(248, 113, 113, 0.1);
+    color: rgba(248, 113, 113, 0.7);
+}
+
+.filter-chip.filter-garage {
+    background: rgba(96, 165, 250, 0.08);
+    color: rgba(96, 165, 250, 0.5);
+    border-color: rgba(96, 165, 250, 0.2);
+}
+.filter-chip.filter-garage .filter-count {
+    background: rgba(96, 165, 250, 0.1);
+    color: rgba(96, 165, 250, 0.7);
+}
+
+.filter-chip.filter-avail {
+    background: rgba(74, 222, 128, 0.08);
+    color: rgba(74, 222, 128, 0.5);
+    border-color: rgba(74, 222, 128, 0.2);
+}
+.filter-chip.filter-avail .filter-count {
+    background: rgba(74, 222, 128, 0.1);
+    color: rgba(74, 222, 128, 0.7);
+}
+
+.filter-chip.filter-proprio {
+    background: rgba(16, 185, 129, 0.08);
+    color: rgba(16, 185, 129, 0.5);
+    border-color: rgba(16, 185, 129, 0.2);
+}
+.filter-chip.filter-proprio .filter-count {
+    background: rgba(16, 185, 129, 0.1);
+    color: rgba(16, 185, 129, 0.7);
+}
+
+.filter-chip.filter-terceiro {
+    background: rgba(245, 158, 11, 0.08);
+    color: rgba(245, 158, 11, 0.5);
+    border-color: rgba(245, 158, 11, 0.2);
+}
+.filter-chip.filter-terceiro .filter-count {
+    background: rgba(245, 158, 11, 0.1);
+    color: rgba(245, 158, 11, 0.7);
+}
+
+.filter-chip.filter-alugado {
+    background: rgba(59, 130, 246, 0.08);
+    color: rgba(59, 130, 246, 0.5);
+    border-color: rgba(59, 130, 246, 0.2);
+}
+.filter-chip.filter-alugado .filter-count {
+    background: rgba(59, 130, 246, 0.1);
+    color: rgba(59, 130, 246, 0.7);
+}
+
+.filter-chip.filter-diretoria {
+    background: rgba(139, 92, 246, 0.08);
+    color: rgba(139, 92, 246, 0.5);
+    border-color: rgba(139, 92, 246, 0.2);
+}
+.filter-chip.filter-diretoria .filter-count {
+    background: rgba(139, 92, 246, 0.1);
+    color: rgba(139, 92, 246, 0.7);
+}
+
+.filter-chip.filter-especial {
+    background: rgba(236, 72, 153, 0.08);
+    color: rgba(236, 72, 153, 0.5);
+    border-color: rgba(236, 72, 153, 0.2);
+}
+.filter-chip.filter-especial .filter-count {
+    background: rgba(236, 72, 153, 0.1);
+    color: rgba(236, 72, 153, 0.7);
+}
+
+.filter-chip.filter-outro {
+    background: rgba(148, 163, 184, 0.08);
+    color: rgba(148, 163, 184, 0.5);
+    border-color: rgba(148, 163, 184, 0.2);
+}
+.filter-chip.filter-outro .filter-count {
+    background: rgba(148, 163, 184, 0.1);
+    color: rgba(148, 163, 184, 0.7);
+}
+
+/* Active states with full colors */
 .filter-chip.active.filter-maint {
     background: rgba(248, 113, 113, 0.15);
     color: #f87171;
@@ -1433,7 +1525,7 @@ tr:hover td {
     box-shadow: 0 0 10px rgba(74, 222, 128, 0.2);
 }
 
-/* Classification Filters */
+/* Classification Filters Active States */
 .filter-chip.active.filter-proprio {
     background: rgba(16, 185, 129, 0.15);
     color: #10b981;
