@@ -18,6 +18,7 @@ ALTER TABLE public.com_contratos ADD COLUMN IF NOT EXISTS cep_proposta TEXT;
 ALTER TABLE public.com_contratos ADD COLUMN IF NOT EXISTS contato_proposta TEXT;
 ALTER TABLE public.com_contratos ADD COLUMN IF NOT EXISTS assinatura_proposta TEXT;
 ALTER TABLE public.com_contratos ADD COLUMN IF NOT EXISTS observacoes_proposta TEXT;
+ALTER TABLE public.com_contratos ADD COLUMN IF NOT EXISTS proposta_versao INTEGER DEFAULT 1;
 
 -- 2. INSERE OS NOVOS STATUS SE NÃO EXISTIREM
 INSERT INTO public.com_status (nome) VALUES 
@@ -33,14 +34,21 @@ DROP TABLE IF EXISTS public.com_propostas CASCADE;
 
 -- 4. CRIA A TABELA DE ITENS DA PROPOSTA VINCULADA AO CONTRATO
 CREATE TABLE public.com_proposta_itens (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    contrato_id  UUID NOT NULL REFERENCES public.com_contratos(id) ON DELETE CASCADE,
-    ordem        INTEGER NOT NULL DEFAULT 1,
-    descricao    TEXT NOT NULL DEFAULT '',
-    unidade      TEXT DEFAULT '',
-    quantidade   NUMERIC(15, 3) DEFAULT 0,
-    preco_unit   NUMERIC(15, 2) DEFAULT 0,
-    created_at   TIMESTAMPTZ DEFAULT now()
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    contrato_id      UUID NOT NULL REFERENCES public.com_contratos(id) ON DELETE CASCADE,
+    ordem            INTEGER NOT NULL DEFAULT 1,
+    descricao        TEXT NOT NULL DEFAULT '',
+    unidade          TEXT DEFAULT '',
+    quantidade       NUMERIC(15, 3) DEFAULT 0,
+    preco_unit       NUMERIC(15, 2) DEFAULT 0,
+    origem           TEXT,
+    destino          TEXT,
+    qtd_veiculos     NUMERIC(15, 3) DEFAULT 1,
+    total_km         NUMERIC(15, 3) DEFAULT 0,
+    valor_km         NUMERIC(15, 2) DEFAULT 0,
+    valor_veiculo    NUMERIC(15, 2) DEFAULT 0,
+    habilitar_volta  BOOLEAN DEFAULT false,
+    created_at       TIMESTAMPTZ DEFAULT now()
 );
 
 -- RLS para com_proposta_itens
