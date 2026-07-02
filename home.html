@@ -352,6 +352,30 @@
                 <span class="kpi-value" id="kpi-maint">0</span>
                 <span class="kpi-trend danger">Ações Mecânicas</span>
             </a>
+            <a href="estoque.html" class="kpi-card" id="kpi-card-estoque-alerts" style="display: none;">
+                <i data-lucide="package" class="kpi-icon" style="color: var(--warning);"></i>
+                <span class="kpi-label">Alertas Estoque</span>
+                <span class="kpi-value" id="kpi-estoque-alerts">0</span>
+                <span class="kpi-trend warn" id="kpi-estoque-alerts-sub">Itens com estoque baixo</span>
+            </a>
+            <a href="financeiro.html#pagar" class="kpi-card" id="kpi-card-finance-alerts" style="display: none;">
+                <i data-lucide="dollar-sign" class="kpi-icon" style="color: var(--danger);"></i>
+                <span class="kpi-label">Contas a Pagar</span>
+                <span class="kpi-value" id="kpi-finance-alerts">0</span>
+                <span class="kpi-trend danger" id="kpi-finance-alerts-sub">Contas em atraso</span>
+            </a>
+            <a href="financeiro.html#receber" class="kpi-card" id="kpi-card-finance-receber-alerts" style="display: none;">
+                <i data-lucide="trending-up" class="kpi-icon" style="color: var(--success);"></i>
+                <span class="kpi-label">Contas a Receber</span>
+                <span class="kpi-value" id="kpi-finance-receber-alerts">0</span>
+                <span class="kpi-trend warn" id="kpi-finance-receber-alerts-sub">Contas vencidas</span>
+            </a>
+            <a href="comercial.html" class="kpi-card" id="kpi-card-comercial-alerts" style="display: none;">
+                <i data-lucide="briefcase" class="kpi-icon" style="color: #c084fc;"></i>
+                <span class="kpi-label">Alertas Comercial</span>
+                <span class="kpi-value" id="kpi-comercial-alerts">0</span>
+                <span class="kpi-trend warn" id="kpi-comercial-alerts-sub">Contas vencendo</span>
+            </a>
         </section>
 
         <section class="section-title"><i data-lucide="grid" style="color: var(--primary);"></i>Módulos do Sistema
@@ -470,6 +494,12 @@ let supabaseClient = null;
                 }
 
                 const hasAccess = (moduleKey) => {
+                    // Garantir que o módulo está habilitado no plano/empresa do usuário
+                    if (window.currentUserModules && 
+                        !window.currentUserModules.some(m => m === moduleKey || m.startsWith(moduleKey + '_'))) {
+                        return false;
+                    }
+
                     if (window.currentUserRole === 'admin') return true;
                     if (!window.currentUserPermissions) return false;
                     if (window.currentUserPermissions[moduleKey] && window.currentUserPermissions[moduleKey].view) return true;
@@ -483,7 +513,11 @@ let supabaseClient = null;
                     'kpi-card-frota-total': 'frota',
                     'kpi-card-frota-alerts': 'frota',
                     'kpi-card-fuel-alerts': 'abastecimento',
-                    'kpi-card-maint-alerts': 'manutencao'
+                    'kpi-card-maint-alerts': 'manutencao',
+                    'kpi-card-estoque-alerts': 'estoque',
+                    'kpi-card-finance-alerts': 'financeiro',
+                    'kpi-card-finance-receber-alerts': 'financeiro',
+                    'kpi-card-comercial-alerts': 'comercial'
                 };
                 Object.entries(kpis).forEach(([id, mod]) => {
                     const el = document.getElementById(id);
@@ -576,11 +610,14 @@ let supabaseClient = null;
                     return all;
                 };
 
-                const [vehicles, drivers, maints, fuelData] = await Promise.all([
+                const [vehicles, drivers, maints, fuelData, inventory, finLancamentos, comContratos] = await Promise.all([
                     fetchAll('veiculos', '*'),
                     fetchAll('motoristas', '*'),
                     fetchAll('manutencoes', '*, manutencao_itens(*), manutencao_tipos(descricao)'),
-                    fetchAll('abastecimentos', '*, veiculos(placa, ignorar_media, tipo_combustivel)')
+                    fetchAll('abastecimentos', '*, veiculos(placa, ignorar_media, tipo_combustivel)'),
+                    fetchAll('estoque', '*'),
+                    fetchAll('fin_lancamentos', '*'),
+                    fetchAll('com_contratos', '*')
                 ]);
 
                 // Sort by date/time to ensure correct chronological sequence
@@ -695,6 +732,79 @@ let supabaseClient = null;
                     });
                 }
                 document.getElementById('kpi-fuel-alerts').innerText = fuelAlertsCount;
+
+                // Alertas Estoque
+                const lowStockCount = inventory.filter(item => item.estoque_atual <= item.estoque_minimo).length;
+                document.getElementById('kpi-estoque-alerts').innerText = lowStockCount;
+                const subTextEl = document.getElementById('kpi-estoque-alerts-sub');
+                if (lowStockCount > 0) {
+                    subTextEl.innerText = `${lowStockCount} itens com estoque baixo`;
+                    subTextEl.className = "kpi-trend danger";
+                } else {
+                    subTextEl.innerText = "Estoque abastecido";
+                    subTextEl.className = "kpi-trend up";
+                }
+
+                // Alertas Financeiro (Contas a Pagar Atrasadas)
+                const hoje = new Date();
+                hoje.setHours(0, 0, 0, 0);
+                const overdueFin = finLancamentos.filter(l => {
+                    if (l.tipo !== 'PAGAR' || l.status !== 'ABERTO') return false;
+                    const dataVenc = new Date((l.data_vencimento || l.previsao_pagamento || l.data_emissao) + 'T00:00:00');
+                    return dataVenc < hoje;
+                });
+                const overdueCount = overdueFin.length;
+                document.getElementById('kpi-finance-alerts').innerText = overdueCount;
+                const finSubTextEl = document.getElementById('kpi-finance-alerts-sub');
+                if (overdueCount > 0) {
+                    const totalOverdueVal = overdueFin.reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
+                    finSubTextEl.innerText = `${overdueCount} contas em atraso (R$ ${totalOverdueVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`;
+                    finSubTextEl.className = "kpi-trend danger";
+                } else {
+                    finSubTextEl.innerText = "Sem contas atrasadas";
+                    finSubTextEl.className = "kpi-trend up";
+                }
+
+                // Alertas Financeiro (Contas a Receber Atrasadas)
+                const overdueReceber = finLancamentos.filter(l => {
+                    if (l.tipo !== 'RECEBER' || l.status !== 'ABERTO') return false;
+                    const dataVenc = new Date((l.data_vencimento || l.previsao_pagamento || l.data_emissao) + 'T00:00:00');
+                    return dataVenc < hoje;
+                });
+                const overdueReceberCount = overdueReceber.length;
+                document.getElementById('kpi-finance-receber-alerts').innerText = overdueReceberCount;
+                const receberSubTextEl = document.getElementById('kpi-finance-receber-alerts-sub');
+                if (overdueReceberCount > 0) {
+                    const totalOverdueReceberVal = overdueReceber.reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
+                    receberSubTextEl.innerText = `${overdueReceberCount} contas vencidas (R$ ${totalOverdueReceberVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`;
+                    receberSubTextEl.className = "kpi-trend danger";
+                } else {
+                    receberSubTextEl.innerText = "Sem contas vencidas";
+                    receberSubTextEl.className = "kpi-trend up";
+                }
+
+                // Alertas Comercial (Contratos Vencidos e A Vencer em 30 dias)
+                const in30Days = new Date(hoje);
+                in30Days.setDate(hoje.getDate() + 30);
+                
+                const comVencidos = comContratos.filter(c => c.data_vencimento && new Date(c.data_vencimento + 'T00:00:00') < hoje);
+                const comAVencer = comContratos.filter(c => {
+                    if (!c.data_vencimento) return false;
+                    const d = new Date(c.data_vencimento + 'T00:00:00');
+                    return d >= hoje && d <= in30Days;
+                });
+                
+                const totalComAlerts = comVencidos.length + comAVencer.length;
+                document.getElementById('kpi-comercial-alerts').innerText = totalComAlerts;
+                const comSubTextEl = document.getElementById('kpi-comercial-alerts-sub');
+                
+                if (totalComAlerts > 0) {
+                    comSubTextEl.innerText = `${comVencidos.length} vencidos, ${comAVencer.length} a vencer`;
+                    comSubTextEl.className = comVencidos.length > 0 ? "kpi-trend danger" : "kpi-trend warn";
+                } else {
+                    comSubTextEl.innerText = "Contratos vigentes em dia";
+                    comSubTextEl.className = "kpi-trend up";
+                }
 
                 lucide.createIcons();
             } catch (err) { console.error(err); }

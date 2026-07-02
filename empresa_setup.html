@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-br">
 
 <head>
@@ -26,7 +26,12 @@
             --radius: 16px;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', system-ui, sans-serif;
+        }
 
         body {
             background: var(--bg-main);
@@ -40,157 +45,291 @@
 
         /* Background grid */
         .bg-grid {
-            position: fixed; inset: 0; z-index: 0; opacity: 0.04; pointer-events: none;
-            background-image: linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px),
-                              linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px);
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            opacity: 0.04;
+            pointer-events: none;
+            background-image: linear-gradient(rgba(255, 255, 255, 0.5) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.5) 1px, transparent 1px);
             background-size: 40px 40px;
         }
 
         /* Glowing orbs */
-        .orb { position: fixed; border-radius: 50%; filter: blur(80px); pointer-events: none; z-index: 0; }
-        .orb-1 { width: 500px; height: 500px; background: rgba(99,102,241,0.12); top: -150px; left: -100px; }
-        .orb-2 { width: 400px; height: 400px; background: rgba(192,132,252,0.08); bottom: -100px; right: -100px; }
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .orb-1 {
+            width: 500px;
+            height: 500px;
+            background: rgba(99, 102, 241, 0.12);
+            top: -150px;
+            left: -100px;
+        }
+
+        .orb-2 {
+            width: 400px;
+            height: 400px;
+            background: rgba(192, 132, 252, 0.08);
+            bottom: -100px;
+            right: -100px;
+        }
 
         /* Layout */
         .page-wrapper {
-            position: relative; z-index: 1;
+            position: relative;
+            z-index: 1;
             min-height: 100vh;
-            display: flex; flex-direction: column;
+            display: flex;
+            flex-direction: column;
             align-items: center;
             padding: 2rem 1rem 4rem;
         }
 
         /* Progress header */
         .progress-header {
-            width: 100%; max-width: 760px;
-            display: flex; align-items: center; justify-content: space-between;
+            width: 100%;
+            max-width: 760px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             margin-bottom: 3rem;
-            flex-wrap: wrap; gap: 1rem;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
 
         .brand-mini {
-            display: flex; align-items: center; gap: 0.6rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
         }
+
         .brand-mini-icon {
-            width: 36px; height: 36px;
-            background: linear-gradient(135deg, rgba(99,102,241,0.3), rgba(192,132,252,0.2));
-            border: 1px solid rgba(99,102,241,0.3);
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(192, 132, 252, 0.2));
+            border: 1px solid rgba(99, 102, 241, 0.3);
             border-radius: 10px;
-            display: flex; align-items: center; justify-content: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 1rem;
         }
+
         .brand-mini-text {
-            font-size: 1rem; font-weight: 800;
+            font-size: 1rem;
+            font-weight: 800;
             background: linear-gradient(to right, #818cf8, #c084fc);
-            -webkit-background-clip: text; background-clip: text;
+            -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
         .steps-indicator {
-            display: flex; align-items: center; gap: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
+
         .step-dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            background: rgba(255,255,255,0.1);
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
             transition: all 0.3s;
         }
-        .step-dot.active { background: #6366f1; width: 24px; border-radius: 4px; }
-        .step-dot.done { background: #10b981; }
+
+        .step-dot.active {
+            background: #6366f1;
+            width: 24px;
+            border-radius: 4px;
+        }
+
+        .step-dot.done {
+            background: #10b981;
+        }
 
         /* Hero */
         .hero {
-            text-align: center; margin-bottom: 2.5rem;
+            text-align: center;
+            margin-bottom: 2.5rem;
         }
+
         .hero-badge {
-            display: inline-flex; align-items: center; gap: 0.5rem;
-            background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.25);
-            border-radius: 50px; padding: 0.4rem 1rem;
-            font-size: 0.78rem; font-weight: 600; color: #a5b4fc;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            border-radius: 50px;
+            padding: 0.4rem 1rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #a5b4fc;
             margin-bottom: 1.2rem;
         }
+
         .hero h1 {
-            font-size: 2rem; font-weight: 800; margin-bottom: 0.75rem;
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 0.75rem;
             background: linear-gradient(to right, #f8fafc, #94a3b8);
-            -webkit-background-clip: text; background-clip: text;
+            -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        .hero p { color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; max-width: 480px; margin: 0 auto; }
+
+        .hero p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            max-width: 480px;
+            margin: 0 auto;
+        }
 
         /* Card form */
         .form-card {
-            width: 100%; max-width: 760px;
+            width: 100%;
+            max-width: 760px;
             background: var(--bg-card);
             border: 1px solid var(--border-card);
             border-radius: var(--radius);
             backdrop-filter: blur(20px);
-            box-shadow: 0 25px 60px rgba(0,0,0,0.4);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
             overflow: hidden;
             animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         @keyframes slideUp {
-            from { transform: translateY(24px); opacity: 0; }
-            to   { transform: translateY(0); opacity: 1; }
+            from {
+                transform: translateY(24px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
 
         /* Section tabs inside form */
         .form-sections-nav {
             display: flex;
             border-bottom: 1px solid var(--border-card);
-            background: rgba(0,0,0,0.2);
+            background: rgba(0, 0, 0, 0.2);
             overflow-x: auto;
         }
+
         .section-tab {
             padding: 1rem 1.5rem;
-            font-size: 0.82rem; font-weight: 600;
+            font-size: 0.82rem;
+            font-weight: 600;
             color: var(--text-muted);
-            background: none; border: none; cursor: pointer;
+            background: none;
+            border: none;
+            cursor: pointer;
             white-space: nowrap;
             border-bottom: 2px solid transparent;
-            display: flex; align-items: center; gap: 0.4rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
             transition: all 0.2s;
         }
-        .section-tab.active { color: #818cf8; border-bottom-color: #6366f1; }
-        .section-tab:hover:not(.active) { color: var(--text-main); }
 
-        .form-body { padding: 2rem; }
+        .section-tab.active {
+            color: #818cf8;
+            border-bottom-color: #6366f1;
+        }
 
-        .form-section { display: none; }
-        .form-section.active { display: block; animation: fadeSection 0.25s ease; }
-        @keyframes fadeSection { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+        .section-tab:hover:not(.active) {
+            color: var(--text-main);
+        }
+
+        .form-body {
+            padding: 2rem;
+        }
+
+        .form-section {
+            display: none;
+        }
+
+        .form-section.active {
+            display: block;
+            animation: fadeSection 0.25s ease;
+        }
+
+        @keyframes fadeSection {
+            from {
+                opacity: 0;
+                transform: translateX(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
 
         .section-title-inner {
-            font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
-            letter-spacing: 0.08em; color: #6366f1;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #6366f1;
             margin-bottom: 1.5rem;
-            display: flex; align-items: center; gap: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
+
         .section-title-inner::after {
-            content: ''; flex: 1; height: 1px; background: rgba(99,102,241,0.2);
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: rgba(99, 102, 241, 0.2);
         }
 
         .form-grid {
-            display: grid; grid-template-columns: repeat(2, 1fr);
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
             gap: 1.25rem;
         }
 
         .form-group {
-            display: flex; flex-direction: column; gap: 0.45rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
         }
-        .form-group.full { grid-column: 1 / -1; }
+
+        .form-group.full {
+            grid-column: 1 / -1;
+        }
 
         .form-group label {
-            font-size: 0.8rem; font-weight: 600; color: var(--text-muted);
-            display: flex; align-items: center; gap: 0.3rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
         }
-        .label-required { color: #f87171; font-size: 0.7rem; }
+
+        .label-required {
+            color: #f87171;
+            font-size: 0.7rem;
+        }
 
         .form-group input,
         .form-group select,
         .form-group textarea {
             padding: 0.75rem 1rem;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 10px;
             color: var(--text-main);
             font-size: 0.9rem;
@@ -198,125 +337,241 @@
             transition: all 0.2s;
             outline: none;
         }
+
         .form-group input:focus,
         .form-group select:focus,
         .form-group textarea:focus {
             border-color: var(--primary);
-            background: rgba(79,70,229,0.06);
-            box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
+            background: rgba(79, 70, 229, 0.06);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
         }
+
         .form-group input::placeholder,
-        .form-group textarea::placeholder { color: rgba(148,163,184,0.4); }
-        .form-group select option { background: #1e293b; }
-        .form-group textarea { resize: vertical; min-height: 90px; }
+        .form-group textarea::placeholder {
+            color: rgba(148, 163, 184, 0.4);
+        }
+
+        .form-group select option {
+            background: #1e293b;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 90px;
+        }
 
         /* Logo preview */
         .logo-preview-area {
             grid-column: 1 / -1;
-            display: flex; align-items: center; gap: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
             padding: 1.25rem;
-            background: rgba(255,255,255,0.02);
-            border: 1px dashed rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px dashed rgba(255, 255, 255, 0.1);
             border-radius: 12px;
         }
+
         .logo-preview {
-            width: 72px; height: 72px; border-radius: 14px;
-            background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(192,132,252,0.1));
-            border: 1px solid rgba(99,102,241,0.2);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 2rem; flex-shrink: 0;
+            width: 72px;
+            height: 72px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(192, 132, 252, 0.1));
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            flex-shrink: 0;
             overflow: hidden;
         }
-        .logo-preview img { width: 100%; height: 100%; object-fit: contain; }
-        .logo-preview-info { flex: 1; }
-        .logo-preview-info p { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; }
+
+        .logo-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .logo-preview-info {
+            flex: 1;
+        }
+
+        .logo-preview-info p {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
 
         /* Cor primÃ¡ria */
         .color-options {
-            display: flex; gap: 0.6rem; flex-wrap: wrap;
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
         }
+
         .color-option {
-            width: 32px; height: 32px; border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
             border: 2px solid transparent;
-            cursor: pointer; transition: all 0.2s;
+            cursor: pointer;
+            transition: all 0.2s;
         }
-        .color-option.selected { border-color: white; transform: scale(1.15); }
+
+        .color-option.selected {
+            border-color: white;
+            transform: scale(1.15);
+        }
 
         /* Alert feedback */
         .alert-box {
-            padding: 0.85rem 1rem; border-radius: 10px;
-            font-size: 0.85rem; font-weight: 500;
+            padding: 0.85rem 1rem;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 500;
             margin-bottom: 1.5rem;
-            display: none; align-items: center; gap: 0.5rem;
+            display: none;
+            align-items: center;
+            gap: 0.5rem;
         }
-        .alert-box.show { display: flex; }
-        .alert-success { background: rgba(16,185,129,0.08); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.2); }
-        .alert-error   { background: rgba(239,68,68,0.08);  color: #fca5a5; border: 1px solid rgba(239,68,68,0.2);  }
+
+        .alert-box.show {
+            display: flex;
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.08);
+            color: #6ee7b7;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.08);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
 
         /* Form footer */
         .form-footer {
-            display: flex; align-items: center; justify-content: space-between;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             padding: 1.5rem 2rem;
             border-top: 1px solid var(--border-card);
-            background: rgba(0,0,0,0.1);
-            gap: 1rem; flex-wrap: wrap;
+            background: rgba(0, 0, 0, 0.1);
+            gap: 1rem;
+            flex-wrap: wrap;
         }
 
         .btn {
-            padding: 0.75rem 1.5rem; border-radius: 10px; border: none;
-            font-weight: 700; font-family: inherit; font-size: 0.9rem;
-            cursor: pointer; transition: all 0.2s;
-            display: flex; align-items: center; gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            border: none;
+            font-weight: 700;
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
+
         .btn-primary {
-            background: var(--primary); color: white;
+            background: var(--primary);
+            color: white;
         }
+
         .btn-primary:hover:not(:disabled) {
             background: var(--primary-hover);
             transform: translateY(-1px);
-            box-shadow: 0 8px 24px rgba(79,70,229,0.35);
+            box-shadow: 0 8px 24px rgba(79, 70, 229, 0.35);
         }
-        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         .btn-secondary {
-            background: rgba(255,255,255,0.05);
+            background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border-card);
             color: var(--text-muted);
         }
-        .btn-secondary:hover { background: rgba(255,255,255,0.08); color: var(--text-main); }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+        }
 
         .btn .spinner {
-            display: none; width: 18px; height: 18px;
-            border: 2.5px solid rgba(255,255,255,0.3);
-            border-top-color: white; border-radius: 50%;
+            display: none;
+            width: 18px;
+            height: 18px;
+            border: 2.5px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
             animation: spin 0.7s linear infinite;
         }
-        .btn.loading .spinner { display: block; }
-        .btn.loading .btn-text { display: none; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .btn.loading .spinner {
+            display: block;
+        }
+
+        .btn.loading .btn-text {
+            display: none;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
 
         .skip-link {
-            color: var(--text-muted); font-size: 0.82rem;
-            background: none; border: none; cursor: pointer;
-            font-family: inherit; text-decoration: underline;
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            text-decoration: underline;
             transition: color 0.2s;
         }
-        .skip-link:hover { color: var(--text-main); }
+
+        .skip-link:hover {
+            color: var(--text-main);
+        }
 
         /* Info callout */
         .info-callout {
-            padding: 0.85rem 1rem; border-radius: 10px;
-            background: rgba(99,102,241,0.06);
-            border: 1px solid rgba(99,102,241,0.15);
-            color: #a5b4fc; font-size: 0.82rem; line-height: 1.5;
+            padding: 0.85rem 1rem;
+            border-radius: 10px;
+            background: rgba(99, 102, 241, 0.06);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+            color: #a5b4fc;
+            font-size: 0.82rem;
+            line-height: 1.5;
             margin-bottom: 1.5rem;
         }
 
         /* Responsive */
         @media (max-width: 640px) {
-            .form-grid { grid-template-columns: 1fr; }
-            .form-group.full { grid-column: 1; }
-            .hero h1 { font-size: 1.5rem; }
-            .form-body { padding: 1.5rem; }
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-group.full {
+                grid-column: 1;
+            }
+
+            .hero h1 {
+                font-size: 1.5rem;
+            }
+
+            .form-body {
+                padding: 1.5rem;
+            }
         }
     </style>
     <script src="config.js"></script>
@@ -347,11 +602,13 @@
             <div class="hero-badge">
                 âš™ï¸ ConfiguraÃ§Ã£o Inicial
             </div>
-            <a href="home.html" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin: 1rem 0; justify-content: center; transition: color 0.3s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+            <a href="home.html"
+                style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin: 1rem 0; justify-content: center; transition: color 0.3s;"
+                onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
                 <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
             </a>
             <h1>Configure sua Empresa</h1>
-            <p>Preencha os dados da sua empresa para personalizar o sistema e emitir relatÃ³rios corretamente.</p>
+            <p>Preencha os dados da sua empresa para personalizar o sistema e emitir relatórios corretamente.</p>
         </div>
 
         <!-- Form Card -->
@@ -359,41 +616,43 @@
             <!-- Section Tabs -->
             <div class="form-sections-nav">
                 <button class="section-tab active" onclick="goToSection(0)" id="tab-0">
-                    ðŸ¢ Dados Gerais
+                    Dados Gerais
                 </button>
                 <button class="section-tab" onclick="goToSection(1)" id="tab-1">
-                    ðŸ“ EndereÃ§o
+                    Endereço
                 </button>
                 <button class="section-tab" onclick="goToSection(2)" id="tab-2">
-                    ðŸŽ¨ Identidade Visual
+                    Identidade Visual
                 </button>
             </div>
 
             <div class="form-body">
                 <div class="alert-box alert-success" id="alertSuccess">
-                    âœ… Empresa configurada com sucesso! Redirecionando...
+                    Empresa configurada com sucesso! Redirecionando...
                 </div>
                 <div class="alert-box alert-error" id="alertError">
-                    âŒ <span id="alertErrorMsg">Erro ao salvar dados.</span>
+                    <span id="alertErrorMsg">Erro ao salvar dados.</span>
                 </div>
 
                 <form id="empresaForm" onsubmit="handleSaveEmpresa(event)">
 
-                    <!-- SEÃ‡ÃƒO 0: DADOS GERAIS -->
+                    <!-- SEÇÃO 0: DADOS GERAIS -->
                     <div class="form-section active" id="section-0">
                         <div class="section-title-inner">
                             <i data-lucide="building-2" style="width:14px; height:14px;"></i>
-                            IdentificaÃ§Ã£o da Empresa
+                            Identificação da Empresa
                         </div>
 
                         <div class="info-callout">
-                            <strong>ðŸ’¡ Dica:</strong> Esses dados aparecem nos relatÃ³rios gerados pelo sistema. Preencha com as informaÃ§Ãµes da sua empresa ou filial.
+                            <strong>Dica:</strong> Esses dados aparecem nos relatórios gerados pelo sistema. Preencha
+                            com as informações da sua empresa ou filial.
                         </div>
 
                         <div class="form-grid">
                             <div class="form-group full">
-                                <label for="razao_social">RazÃ£o Social <span class="label-required">*</span></label>
-                                <input type="text" id="razao_social" placeholder="Ex: Transportadora Veritas Ltda." required>
+                                <label for="razao_social">Razão Social <span class="label-required">*</span></label>
+                                <input type="text" id="razao_social" placeholder="Ex: Transportadora Veritas Ltda."
+                                    required>
                             </div>
 
                             <div class="form-group">
@@ -407,19 +666,19 @@
                             </div>
 
                             <div class="form-group">
-                                <label for="inscricao_estadual">InscriÃ§Ã£o Estadual</label>
+                                <label for="inscricao_estadual">Inscrição Estadual</label>
                                 <input type="text" id="inscricao_estadual" placeholder="000.000.000.000">
                             </div>
 
                             <div class="form-group">
                                 <label for="setor">Ramo de Atividade</label>
                                 <select id="setor">
-                                    <option value="Transportes e LogÃ­stica">Transportes e LogÃ­stica</option>
-                                    <option value="DistribuiÃ§Ã£o">DistribuiÃ§Ã£o</option>
-                                    <option value="AgropecuÃ¡ria">AgropecuÃ¡ria</option>
-                                    <option value="ConstruÃ§Ã£o Civil">ConstruÃ§Ã£o Civil</option>
-                                    <option value="MineraÃ§Ã£o">MineraÃ§Ã£o</option>
-                                    <option value="ServiÃ§os Gerais">ServiÃ§os Gerais</option>
+                                    <option value="Transportes e Logística">Transportes e Logística</option>
+                                    <option value="Distribuição">Distribuição</option>
+                                    <option value="Agropecuária">Agropecuária</option>
+                                    <option value="Construção Civil">Construção Civil</option>
+                                    <option value="Mineração">Mineração</option>
+                                    <option value="Serviços Gerais">Serviços Gerais</option>
                                     <option value="Outro">Outro</option>
                                 </select>
                             </div>
@@ -441,35 +700,56 @@
                         </div>
                     </div>
 
-                    <!-- SEÃ‡ÃƒO 1: ENDEREÃ‡O -->
+                    <!-- SEÇÃO 1: ENDEREÇO -->
                     <div class="form-section" id="section-1">
                         <div class="section-title-inner">
                             <i data-lucide="map-pin" style="width:14px; height:14px;"></i>
-                            LocalizaÃ§Ã£o
+                            Localização
                         </div>
                         <div class="form-grid">
                             <div class="form-group">
                                 <label for="cep">CEP</label>
-                                <input type="text" id="cep" placeholder="00000-000" maxlength="9" oninput="maskCep(this)" onblur="buscarCep(this.value)">
+                                <input type="text" id="cep" placeholder="00000-000" maxlength="9"
+                                    oninput="maskCep(this)" onblur="buscarCep(this.value)">
                             </div>
 
                             <div class="form-group">
                                 <label for="estado">Estado</label>
                                 <select id="estado">
                                     <option value="">Selecione</option>
-                                    <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
-                                    <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
-                                    <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
-                                    <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
-                                    <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
-                                    <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
-                                    <option>SP</option><option>SE</option><option>TO</option>
+                                    <option>AC</option>
+                                    <option>AL</option>
+                                    <option>AP</option>
+                                    <option>AM</option>
+                                    <option>BA</option>
+                                    <option>CE</option>
+                                    <option>DF</option>
+                                    <option>ES</option>
+                                    <option>GO</option>
+                                    <option>MA</option>
+                                    <option>MT</option>
+                                    <option>MS</option>
+                                    <option>MG</option>
+                                    <option>PA</option>
+                                    <option>PB</option>
+                                    <option>PR</option>
+                                    <option>PE</option>
+                                    <option>PI</option>
+                                    <option>RJ</option>
+                                    <option>RN</option>
+                                    <option>RS</option>
+                                    <option>RO</option>
+                                    <option>RR</option>
+                                    <option>SC</option>
+                                    <option>SP</option>
+                                    <option>SE</option>
+                                    <option>TO</option>
                                 </select>
                             </div>
 
                             <div class="form-group">
                                 <label for="cidade">Cidade</label>
-                                <input type="text" id="cidade" placeholder="SÃ£o Paulo">
+                                <input type="text" id="cidade" placeholder="São Paulo">
                             </div>
 
                             <div class="form-group">
@@ -483,7 +763,7 @@
                             </div>
 
                             <div class="form-group">
-                                <label for="numero">NÃºmero</label>
+                                <label for="numero">Número</label>
                                 <input type="text" id="numero" placeholder="123">
                             </div>
 
@@ -494,7 +774,7 @@
                         </div>
                     </div>
 
-                    <!-- SEÃ‡ÃƒO 2: IDENTIDADE VISUAL -->
+                    <!-- SEÇÃO 2: IDENTIDADE VISUAL -->
                     <div class="form-section" id="section-2">
                         <div class="section-title-inner">
                             <i data-lucide="palette" style="width:14px; height:14px;"></i>
@@ -502,26 +782,49 @@
                         </div>
                         <div class="form-grid">
                             <div class="logo-preview-area">
-                                <div class="logo-preview" id="logoPreview">ðŸ¢</div>
+                                <div class="logo-preview" id="logoPreview">🏢</div>
                                 <div class="logo-preview-info">
                                     <p><strong style="color: var(--text-main);">Logo da Empresa</strong><br>
-                                    Cole a URL de uma imagem (PNG, JPG, SVG) ou deixe em branco para usar o Ã­cone padrÃ£o.</p>
-                                    <input type="text" id="logo_url" placeholder="https://..." style="margin-top: 0.75rem; width: 100%;" oninput="updateLogoPreview(this.value)">
+                                        Cole a URL de uma imagem (PNG, JPG, SVG) ou deixe em branco para usar o ícone
+                                        padrão.</p>
+                                    <input type="text" id="logo_url" placeholder="https://..."
+                                        style="margin-top: 0.75rem; width: 100%;"
+                                        oninput="updateLogoPreview(this.value)">
+                                </div>
+                            </div>
+
+                            <div class="logo-preview-area">
+                                <div class="logo-preview" id="pdfBgPreview" style="font-size: 1.5rem;">📄</div>
+                                <div class="logo-preview-info">
+                                    <p><strong style="color: var(--text-main);">Imagem de Fundo para Relatórios/PDF (Formato A4)</strong><br>
+                                        Cole a URL de uma imagem no formato A4 (PNG, JPG) para usar como plano de fundo nos arquivos PDF gerados.</p>
+                                    <input type="text" id="pdf_bg_url" placeholder="https://..."
+                                        style="margin-top: 0.75rem; width: 100%;"
+                                        oninput="updatePdfBgPreview(this.value)">
                                 </div>
                             </div>
 
                             <div class="form-group full">
                                 <label>Cor Principal do Sistema</label>
                                 <div class="color-options" id="colorOptions">
-                                    <div class="color-option selected" style="background:#4f46e5;" data-color="#4f46e5" onclick="selectColor(this)" title="Ãndigo"></div>
-                                    <div class="color-option" style="background:#7c3aed;" data-color="#7c3aed" onclick="selectColor(this)" title="Violeta"></div>
-                                    <div class="color-option" style="background:#db2777;" data-color="#db2777" onclick="selectColor(this)" title="Rosa"></div>
-                                    <div class="color-option" style="background:#dc2626;" data-color="#dc2626" onclick="selectColor(this)" title="Vermelho"></div>
-                                    <div class="color-option" style="background:#d97706;" data-color="#d97706" onclick="selectColor(this)" title="Ã‚mbar"></div>
-                                    <div class="color-option" style="background:#059669;" data-color="#059669" onclick="selectColor(this)" title="Esmeralda"></div>
-                                    <div class="color-option" style="background:#0284c7;" data-color="#0284c7" onclick="selectColor(this)" title="Azul"></div>
-                                    <div class="color-option" style="background:#0f766e;" data-color="#0f766e" onclick="selectColor(this)" title="Teal"></div>
-                                    <div class="color-option" style="background:#374151;" data-color="#374151" onclick="selectColor(this)" title="Cinza"></div>
+                                    <div class="color-option selected" style="background:#4f46e5;" data-color="#4f46e5"
+                                        onclick="selectColor(this)" title="Índigo"></div>
+                                    <div class="color-option" style="background:#7c3aed;" data-color="#7c3aed"
+                                        onclick="selectColor(this)" title="Violeta"></div>
+                                    <div class="color-option" style="background:#db2777;" data-color="#db2777"
+                                        onclick="selectColor(this)" title="Rosa"></div>
+                                    <div class="color-option" style="background:#dc2626;" data-color="#dc2626"
+                                        onclick="selectColor(this)" title="Vermelho"></div>
+                                    <div class="color-option" style="background:#d97706;" data-color="#d97706"
+                                        onclick="selectColor(this)" title="Âmbar"></div>
+                                    <div class="color-option" style="background:#059669;" data-color="#059669"
+                                        onclick="selectColor(this)" title="Esmeralda"></div>
+                                    <div class="color-option" style="background:#0284c7;" data-color="#0284c7"
+                                        onclick="selectColor(this)" title="Azul"></div>
+                                    <div class="color-option" style="background:#0f766e;" data-color="#0f766e"
+                                        onclick="selectColor(this)" title="Teal"></div>
+                                    <div class="color-option" style="background:#374151;" data-color="#374151"
+                                        onclick="selectColor(this)" title="Cinza"></div>
                                 </div>
                                 <input type="hidden" id="cor_primaria" value="#4f46e5">
                             </div>
@@ -537,11 +840,12 @@
                     Pular por enquanto
                 </button>
                 <div style="display: flex; gap: 0.75rem; align-items: center;">
-                    <button type="button" class="btn btn-secondary" id="prevBtn" onclick="prevSection()" style="display: none;">
-                        â† Anterior
+                    <button type="button" class="btn btn-secondary" id="prevBtn" onclick="prevSection()"
+                        style="display: none;">
+                        Anterior
                     </button>
                     <button type="button" class="btn btn-primary" id="nextBtn" onclick="nextSection()">
-                        <span class="btn-text">PrÃ³ximo â†’</span>
+                        <span class="btn-text">Próximo →</span>
                         <span class="spinner"></span>
                     </button>
                 </div>
@@ -550,27 +854,27 @@
     </div>
 
     <script>
-let client = null;
+        let client = null;
         let currentSection = 0;
         const totalSections = 3;
         let empresaId = null;
         let selectedColor = '#4f46e5';
 
         // ============================================================
-        // INICIALIZAÃ‡ÃƒO
+        // INICIALIZAÇÃO
         // ============================================================
         window.addEventListener('load', async () => {
             lucide.createIcons();
             client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-            // Verificar sessÃ£o
+            // Verificar sessão
             const { data: { session } } = await client.auth.getSession();
             if (!session) {
                 window.location.href = 'login.html';
                 return;
             }
 
-            // Buscar empresa_id do usuÃ¡rio
+            // Buscar empresa_id do usuário
             const { data: access } = await client
                 .from('user_access')
                 .select('empresa_id, role')
@@ -590,7 +894,7 @@ let client = null;
 
             empresaId = access.empresa_id;
 
-            // PrÃ©-carregar dados existentes da empresa
+            // Pré-carregar dados existentes da empresa
             if (empresaId) {
                 const { data: empresa } = await client
                     .from('empresas')
@@ -599,7 +903,7 @@ let client = null;
                     .single();
 
                 if (empresa) {
-                    // Preencher formulÃ¡rio com dados existentes
+                    // Preencher formulário com dados existentes
                     fillForm(empresa);
                 }
             }
@@ -609,12 +913,15 @@ let client = null;
             const fields = [
                 'razao_social', 'nome_fantasia', 'cnpj', 'inscricao_estadual',
                 'setor', 'telefone', 'site', 'cep', 'estado', 'cidade',
-                'bairro', 'endereco', 'numero', 'complemento', 'logo_url'
+                'bairro', 'endereco', 'numero', 'complemento', 'logo_url', 'pdf_bg_url'
             ];
             fields.forEach(f => {
                 const el = document.getElementById(f);
                 if (el && empresa[f]) el.value = empresa[f];
             });
+
+            // PDF Background preview
+            if (empresa.pdf_bg_url) updatePdfBgPreview(empresa.pdf_bg_url);
 
             // Email
             if (empresa.email) {
@@ -622,7 +929,7 @@ let client = null;
                 if (el) el.value = empresa.email;
             }
 
-            // Cor primÃ¡ria
+            // Cor primária
             if (empresa.cor_primaria) {
                 selectedColor = empresa.cor_primaria;
                 document.getElementById('cor_primaria').value = selectedColor;
@@ -636,7 +943,7 @@ let client = null;
         }
 
         // ============================================================
-        // NAVEGAÃ‡ÃƒO ENTRE SEÃ‡Ã•ES
+        // NAVEGAÇÃO ENTRE SEÇÕES
         // ============================================================
         function goToSection(idx) {
             // Desativar tudo
@@ -652,14 +959,14 @@ let client = null;
             document.getElementById(`tab-${idx}`).classList.add('active');
             currentSection = idx;
 
-            // BotÃµes navegaÃ§Ã£o
+            // Botões navegação
             document.getElementById('prevBtn').style.display = idx > 0 ? 'flex' : 'none';
             const nextBtn = document.getElementById('nextBtn');
             if (idx === totalSections - 1) {
-                nextBtn.querySelector('.btn-text').textContent = 'âœ… Salvar e Entrar';
+                nextBtn.querySelector('.btn-text').textContent = '✅ Salvar e Entrar';
                 nextBtn.onclick = () => document.getElementById('empresaForm').dispatchEvent(new Event('submit'));
             } else {
-                nextBtn.querySelector('.btn-text').textContent = 'PrÃ³ximo â†’';
+                nextBtn.querySelector('.btn-text').textContent = 'Próximo →';
                 nextBtn.onclick = nextSection;
             }
         }
@@ -687,10 +994,10 @@ let client = null;
 
             hideAlerts();
 
-            // ValidaÃ§Ã£o mÃ­nima
+            // Validação mínima
             const razaoSocial = document.getElementById('razao_social').value.trim();
             if (!razaoSocial) {
-                showError('A RazÃ£o Social Ã© obrigatÃ³ria.');
+                showError('A Razão Social é obrigatória.');
                 goToSection(0);
                 btn.disabled = false;
                 btn.classList.remove('loading');
@@ -698,25 +1005,26 @@ let client = null;
             }
 
             const payload = {
-                razao_social:      razaoSocial,
-                nome_fantasia:     document.getElementById('nome_fantasia').value.trim() || null,
-                cnpj:              document.getElementById('cnpj').value.trim() || null,
+                razao_social: razaoSocial,
+                nome_fantasia: document.getElementById('nome_fantasia').value.trim() || null,
+                cnpj: document.getElementById('cnpj').value.trim() || null,
                 inscricao_estadual: document.getElementById('inscricao_estadual').value.trim() || null,
-                setor:             document.getElementById('setor').value || 'Transportes e LogÃ­stica',
-                telefone:          document.getElementById('telefone').value.trim() || null,
-                email:             document.getElementById('email_empresa').value.trim() || null,
-                site:              document.getElementById('site').value.trim() || null,
-                cep:               document.getElementById('cep').value.trim() || null,
-                estado:            document.getElementById('estado').value || null,
-                cidade:            document.getElementById('cidade').value.trim() || null,
-                bairro:            document.getElementById('bairro').value.trim() || null,
-                endereco:          document.getElementById('endereco').value.trim() || null,
-                numero:            document.getElementById('numero').value.trim() || null,
-                complemento:       document.getElementById('complemento').value.trim() || null,
-                logo_url:          document.getElementById('logo_url').value.trim() || null,
-                cor_primaria:      selectedColor,
-                setup_completo:    true,
-                updated_at:        new Date().toISOString()
+                setor: document.getElementById('setor').value || 'Transportes e Logística',
+                telefone: document.getElementById('telefone').value.trim() || null,
+                email: document.getElementById('email_empresa').value.trim() || null,
+                site: document.getElementById('site').value.trim() || null,
+                cep: document.getElementById('cep').value.trim() || null,
+                estado: document.getElementById('estado').value || null,
+                cidade: document.getElementById('cidade').value.trim() || null,
+                bairro: document.getElementById('bairro').value.trim() || null,
+                endereco: document.getElementById('endereco').value.trim() || null,
+                numero: document.getElementById('numero').value.trim() || null,
+                complemento: document.getElementById('complemento').value.trim() || null,
+                logo_url: document.getElementById('logo_url').value.trim() || null,
+                pdf_bg_url: document.getElementById('pdf_bg_url').value.trim() || null,
+                cor_primaria: selectedColor,
+                setup_completo: true,
+                updated_at: new Date().toISOString()
             };
 
             try {
@@ -730,7 +1038,7 @@ let client = null;
                         .eq('id', empresaId);
                     error = result.error;
                 } else {
-                    // Criar nova empresa e vincular ao usuÃ¡rio
+                    // Criar nova empresa e vincular ao usuário
                     const { data: session } = await client.auth.getSession();
                     const result = await client
                         .from('empresas')
@@ -740,7 +1048,7 @@ let client = null;
                     error = result.error;
 
                     if (!error && result.data) {
-                        // Vincular usuÃ¡rio
+                        // Vincular usuário
                         await client
                             .from('user_access')
                             .update({ empresa_id: result.data.id })
@@ -761,7 +1069,7 @@ let client = null;
         }
 
         async function skipSetup() {
-            // Marcar como setup pulado (setup_completo = true para nÃ£o pedir de novo)
+            // Marcar como setup pulado (setup_completo = true para não pedir de novo)
             try {
                 if (empresaId) {
                     await client
@@ -769,7 +1077,7 @@ let client = null;
                         .update({ setup_completo: true })
                         .eq('id', empresaId);
                 }
-            } catch(e) {}
+            } catch (e) { }
             window.location.href = 'home.html';
         }
 
@@ -779,9 +1087,20 @@ let client = null;
         function updateLogoPreview(url) {
             const el = document.getElementById('logoPreview');
             if (url && url.startsWith('http')) {
-                el.innerHTML = `<img src="${url}" onerror="this.parentElement.innerHTML='ðŸ¢'">`;
+                el.innerHTML = `<img src="${url}" onerror="this.parentElement.innerHTML='🏢'">`;
             } else {
-                el.innerHTML = 'ðŸ¢';
+                el.innerHTML = '🏢';
+            }
+        }
+
+        function updatePdfBgPreview(url) {
+            const el = document.getElementById('pdfBgPreview');
+            if (el) {
+                if (url && url.startsWith('http')) {
+                    el.innerHTML = `<img src="${url}" onerror="this.parentElement.innerHTML='📄'">`;
+                } else {
+                    el.innerHTML = '📄';
+                }
             }
         }
 
@@ -794,7 +1113,7 @@ let client = null;
 
         function maskCep(input) {
             let v = input.value.replace(/\D/g, '');
-            if (v.length > 5) v = v.substring(0,5) + '-' + v.substring(5,8);
+            if (v.length > 5) v = v.substring(0, 5) + '-' + v.substring(5, 8);
             input.value = v;
         }
 
@@ -806,11 +1125,11 @@ let client = null;
                 const data = await resp.json();
                 if (!data.erro) {
                     if (data.logradouro) document.getElementById('endereco').value = data.logradouro;
-                    if (data.bairro)     document.getElementById('bairro').value    = data.bairro;
-                    if (data.localidade) document.getElementById('cidade').value    = data.localidade;
-                    if (data.uf)         document.getElementById('estado').value    = data.uf;
+                    if (data.bairro) document.getElementById('bairro').value = data.bairro;
+                    if (data.localidade) document.getElementById('cidade').value = data.localidade;
+                    if (data.uf) document.getElementById('estado').value = data.uf;
                 }
-            } catch(e) {}
+            } catch (e) { }
         }
 
         function showSuccess() {
@@ -832,6 +1151,3 @@ let client = null;
 </body>
 
 </html>
-
-
-

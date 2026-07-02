@@ -35,6 +35,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderAll();
     setupEventListeners();
     setupSearchableInputs();
+    
+    // Abrir aba específica pelo hash da URL (ex: financeiro.html#pagar)
+    const hash = window.location.hash.replace('#', '');
+    if (hash && ['dashboard', 'pagar', 'receber', 'fluxo', 'dre', 'conciliacao', 'config'].includes(hash)) {
+        switchMainTab(hash);
+    }
+    
     if (window.lucide) lucide.createIcons();
 });
 
@@ -126,8 +133,21 @@ function switchMainTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
 
-    document.getElementById(`tab-${tabId}`).classList.add('active');
-    event.currentTarget.classList.add('active');
+    const tabEl = document.getElementById(`tab-${tabId}`);
+    if (tabEl) tabEl.classList.add('active');
+    
+    if (window.event && window.event.currentTarget && window.event.currentTarget.classList) {
+        window.event.currentTarget.classList.add('active');
+    } else {
+        // Encontra o botão correspondente se chamado programaticamente
+        const buttons = document.querySelectorAll('.tab-item');
+        buttons.forEach(btn => {
+            const attr = btn.getAttribute('onclick');
+            if (attr && attr.includes(`'${tabId}'`)) {
+                btn.classList.add('active');
+            }
+        });
+    }
 
     if (tabId === 'fluxo') renderFluxo();
     if (tabId === 'dre') renderDRE();
@@ -2153,7 +2173,13 @@ function renderConfig() {
     // 3. Plano de Contas (Hierárquico)
     const planoList = document.getElementById('planoContasTree');
     if (planoList) {
-        planoList.innerHTML = state.categorias.map(c => {
+        const query = (document.getElementById('planoSearch')?.value || '').toLowerCase().trim();
+        const filteredCategorias = state.categorias.filter(c => {
+            if (!query) return true;
+            return c.codigo.toLowerCase().includes(query) || c.nome.toLowerCase().includes(query);
+        });
+        
+        planoList.innerHTML = filteredCategorias.map(c => {
             const level = c.codigo.split('.').length;
             const indent = (level - 1) * 20;
             return `
@@ -2439,7 +2465,19 @@ async function deletePlanoItem(id) {
         renderConfig();
         updateDropdowns();
         showToast('Conta excluída!', 'success');
-    } catch (e) { showToast('Erro: ' + e.message, 'error'); }
+    } catch (e) { 
+        let errMsg = e.message || String(e);
+        if (errMsg.includes('violates foreign key constraint')) {
+            if (errMsg.includes('on table "compras"')) {
+                errMsg = 'Esta conta não pode ser excluída porque já está vinculada a um ou mais lançamentos no módulo de Compras.';
+            } else if (errMsg.includes('on table "fin_lancamentos"')) {
+                errMsg = 'Esta conta não pode ser excluída porque já possui lançamentos financeiros vinculados a ela.';
+            } else {
+                errMsg = 'Esta conta não pode ser excluída porque está sendo usada em outros registros do sistema.';
+            }
+        }
+        showToast('Erro: ' + errMsg, 'error'); 
+    }
 }
 
 // === CRUD CENTROS DE CUSTO ===

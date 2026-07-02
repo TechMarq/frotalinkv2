@@ -78,6 +78,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     document.getElementById('compraForm').addEventListener('submit', handleSaveCompra);
+    
+    // Centralized listener for immediate check of similar recent items
+    const triggerCheckAllRecent = () => {
+        setTimeout(() => {
+            document.querySelectorAll('.item-row').forEach(row => {
+                if (window.checkSimilarRecentItem) window.checkSimilarRecentItem(row);
+            });
+        }, 150);
+    };
+    document.getElementById('compraForm').addEventListener('input', triggerCheckAllRecent);
+    document.getElementById('compraForm').addEventListener('change', triggerCheckAllRecent);
+    document.getElementById('compraForm').addEventListener('click', triggerCheckAllRecent);
+
     document.getElementById('compraSearch').addEventListener('input', renderCompras);
     document.getElementById('genericSearch').addEventListener('input', () => renderGenericTab(currentSubTab));
     document.getElementById('fornecedorForm').addEventListener('submit', handleSaveFornecedor);
@@ -108,7 +121,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
     document.getElementById('tipoPgtoId').addEventListener('change', updateVencimentoFaturado);
-    document.getElementById('dataCompra').addEventListener('change', updateVencimentoFaturado);
+    document.getElementById('dataCompra').addEventListener('change', () => {
+        updateVencimentoFaturado();
+        document.querySelectorAll('.item-row').forEach(row => {
+            if (window.checkSimilarRecentItem) window.checkSimilarRecentItem(row);
+        });
+    });
     
     // Aplicar máscaras de CPF/CNPJ e Telefone no Fornecedor
     applyMask(document.getElementById('fDoc'), maskCnpjCpf);
@@ -347,6 +365,8 @@ async function loadCompras() {
                 financeiro: c.financeiro_parcelado,
                 integradoFinanceiro: c.integrado_financeiro,
                 dataIntegracao: c.data_integracao,
+                parentFaturamentoId: c.parent_faturamento_id,
+                consolidadoVales: c.consolidado_vales || false,
                 itens: (cloudItens || []).filter(it => it.compra_id === c.id).map(it => ({
                     tipo: it.tipo,
                     produto: it.produto,
@@ -786,6 +806,9 @@ window.switchTab = (tabName) => {
     } else if (tabName === 'integracao') {
         document.getElementById('view-integracao').classList.add('active');
         if (window.renderIntegracao) window.renderIntegracao();
+    } else if (tabName === 'vales') {
+        document.getElementById('view-vales').classList.add('active');
+        if (window.renderVales) window.renderVales();
     }
 };
 
@@ -999,6 +1022,7 @@ window.openCompraModal = async (id = null) => {
             return;
         }
     }
+    await loadConfigFromSupabase();
     await loadInventoryProducts();
     await loadVehicles();
     await loadDrivers();
@@ -1109,6 +1133,55 @@ window.openViewModal = (id) => {
             </div>
         `;
     }).join('');
+
+    // Vales Vinculados (Fechamento)
+    const valesVinculadosSection = document.getElementById('viewValesVinculadosSection');
+    const valesVinculadosList = document.getElementById('viewValesVinculadosList');
+    if (valesVinculadosSection && valesVinculadosList) {
+        const valesVinculados = (compras || []).filter(item => item.parentFaturamentoId == c.id);
+        if (valesVinculados.length > 0) {
+            valesVinculadosSection.style.display = 'block';
+            valesVinculadosList.innerHTML = valesVinculados.map(v => {
+                const dateStr = v.data ? new Date(v.data + 'T12:00:00').toLocaleDateString('pt-BR') : '-';
+                const valStr = parseFloat(v.valorTotal).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+                
+                let linkInfo = '';
+                const firstItem = v.itens?.[0] || v.items?.[0];
+                if (firstItem) {
+                    if (firstItem.veiculoId) {
+                        const veh = (vehicles || []).find(veh => veh.id == firstItem.veiculoId);
+                        if (veh) linkInfo += `<span style="background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; font-size:0.6rem; color: #94a3b8;">🚗 ${veh.placa}</span>`;
+                    }
+                    if (firstItem.pessoa) {
+                        linkInfo += `<span style="background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; font-size:0.6rem; color: #94a3b8; margin-left: 4px;">👤 ${firstItem.pessoa}</span>`;
+                    }
+                    if (firstItem.produto) {
+                        linkInfo += `<span style="background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; font-size:0.6rem; color: #a78bfa; margin-left: 4px;">📦 ${firstItem.produto}</span>`;
+                    }
+                }
+
+                return `
+                    <div class="view-item-card" style="cursor: pointer;" onclick="openViewModal('${v.id}')" title="Clique para ver detalhes do vale">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <span style="color:#fbbf24; font-weight:900; font-size:0.65rem; border:1px solid #fbbf2444; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:5px; background:#fbbf2411;">V</span>
+                            <div>
+                                <p style="font-weight:700; font-size:0.85rem; color:#fff;">Vale #${v.numeroNota || 'S/N'}</p>
+                                <div style="display:flex; gap:8px; align-items:center; margin-top:2px;">
+                                    <p style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase;">📅 ${dateStr}</p>
+                                    ${linkInfo}
+                                </div>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <p style="font-weight:800; color:#fbbf24;">R$ ${valStr}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            valesVinculadosSection.style.display = 'none';
+        }
+    }
 
     // Adicionais
     const adSection = document.getElementById('viewAdicionaisSection');
@@ -1237,13 +1310,13 @@ function addItemRow(data = {}, shouldFocus = true) {
                 <!-- Peça View -->
                 <div class="autocomplete-wrapper peca-input-group" style="flex:1; display:${data.tipo === 'servico' ? 'none' : 'block'}">
                     <i data-lucide="search" class="search-icon-inside"></i>
-                    <input type="text" class="item-produto-search compra-input" placeholder="Buscar peça no estoque..." value="${prodDisplay}" oninput="handleProductSearch(this)" onfocus="handleProductSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)" autocomplete="off">
+                    <input type="text" class="item-produto-search compra-input" placeholder="Buscar peça no estoque..." value="${prodDisplay}" oninput="handleProductSearch(this); window.checkSimilarRecentItem(this.closest('.item-row'))" onfocus="handleProductSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)" autocomplete="off">
                     <input type="hidden" class="item-produto" value="${data.produtoId || ''}">
                     <div class="autocomplete-results"></div>
                 </div>
                 <!-- Serviço View -->
                 <div class="servico-input-group" style="flex:1; display:${data.tipo === 'servico' ? 'block' : 'none'}">
-                    <input type="text" class="item-servico-desc compra-input" placeholder="Descrição do serviço ou despesa..." style="width:100%" value="${data.produto || ''}" autocomplete="off">
+                    <input type="text" class="item-servico-desc compra-input" placeholder="Descrição do serviço ou despesa..." style="width:100%" value="${data.produto || ''}" autocomplete="off" oninput="window.checkSimilarRecentItem(this.closest('.item-row'))">
                 </div>
                 
                 <div class="product-actions-group" style="display:${data.tipo === 'servico' ? 'none' : 'flex'}; gap:0.3rem;">
@@ -1272,7 +1345,7 @@ function addItemRow(data = {}, shouldFocus = true) {
             </div>
             <div class="input-group" style="flex:1; min-width:180px;">
                 <div class="input-with-btn">
-                    <select class="item-cc compra-input" style="font-size:0.7rem; height:36px; width:100%;">
+                    <select class="item-cc compra-input" style="font-size:0.75rem; height:36px; width:100%;">
                         <option value="">Centro de Custo...</option>
                         ${config.centrosCusto.filter(cc => !!cc.parentId).sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR')).map(cc => `<option value="${cc.id}" ${data.centroCustoId === cc.id ? 'selected' : ''}>${cc.nome}</option>`).join('')}
                     </select>
@@ -1289,7 +1362,7 @@ function addItemRow(data = {}, shouldFocus = true) {
                     <button type="button" class="btn-vinculo ${isPessoa ? '' : 'inactive'}" style="background:${isPessoa ? '#4f46e5' : '#1e293b'}" onclick="setLinkType(this, 'pessoa')"><i data-lucide="user-plus" style="width:14px;"></i></button>
                 </div>
                 <div class="autocomplete-wrapper item-veiculo-wrapper" style="flex:1; ${isPessoa ? 'display:none' : ''}">
-                    <input type="text" class="item-veiculo-search compra-input" placeholder="Buscar placa..." value="${vehDisplay}" oninput="handleVehicleSearch(this)" onfocus="handleVehicleSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)" autocomplete="off">
+                    <input type="text" class="item-veiculo-search compra-input" placeholder="Buscar placa..." value="${vehDisplay}" oninput="handleVehicleSearch(this); window.checkSimilarRecentItem(this.closest('.item-row'))" onfocus="handleVehicleSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)" autocomplete="off">
                     <input type="hidden" class="item-veiculo" value="${data.veiculoId || ''}">
                     <div class="autocomplete-results"></div>
                 </div>
@@ -1359,11 +1432,19 @@ function addItemRow(data = {}, shouldFocus = true) {
                 <input type="number" class="maint-meses-garantia compra-input" placeholder="Ex: 3" value="${data.maintMesesGarantia || ''}" style="font-size:0.75rem;">
             </div>
         </div>
+        <div class="item-warning-alert" style="display:none; color:#f59e0b; font-size:0.75rem; font-weight:700; margin-top:0.8rem; padding: 0.8rem; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.15); border-radius: 10px; align-items: center; gap: 0.5rem;">
+            <i data-lucide="alert-triangle" style="width:16px; height:16px; flex-shrink: 0;"></i>
+            <span class="warning-text"></span>
+        </div>
     `;
     container.appendChild(row);
     updateRowTotal(row.querySelector('.item-qtd'));
     if (window.lucide) lucide.createIcons();
     window.updateVinculoDisplay(row);
+    
+    // Check populated data initially
+    checkSimilarRecentItem(row);
+    
     calculateTotal();
 
     if (shouldFocus) {
@@ -1463,6 +1544,9 @@ window.setItemType = (btn, type) => {
         window.updateVinculoDisplay(row);
     }
     calculateTotal();
+    if (row && typeof window.checkSimilarRecentItem === 'function') {
+        window.checkSimilarRecentItem(row);
+    }
 };
 
 window.toggleMaintControl = (el) => {
@@ -1530,6 +1614,9 @@ window.setLinkType = (btn, type) => {
     }
     
     window.updateVinculoDisplay(row);
+    if (row && typeof window.checkSimilarRecentItem === 'function') {
+        window.checkSimilarRecentItem(row);
+    }
 };
 
 let currentAutocompleteIndex = -1;
@@ -1618,6 +1705,9 @@ window.selectVehicle = (id, placa, itemEl) => {
     hiddenId.value = id;
     resultsDiv.style.display = 'none';
     resultsDiv.innerHTML = '';
+
+    const row = itemEl.closest('.item-row');
+    if (row) window.checkSimilarRecentItem(row);
 };
 
 window.handleDriverSearch = (el) => {
@@ -1864,6 +1954,9 @@ window.selectProduct = (id, nome, marca, itemEl) => {
     hiddenId.value = id;
     resultsDiv.style.display = 'none';
     resultsDiv.innerHTML = '';
+
+    const row = itemEl.closest('.item-row');
+    if (row) window.checkSimilarRecentItem(row);
 };
 
 // Close autocomplete when clicking outside
@@ -2771,7 +2864,25 @@ function renderCompras() {
 
         const cells = activeCols.map(col => {
             if (col.key === 'data') return `<td data-label="Data">${new Date(c.data + 'T12:00:00').toLocaleDateString('pt-BR')}</td>`;
-            if (col.key === 'numeroNota') return `<td data-label="Nota"><span style="font-family:'JetBrains Mono'; font-weight:800; color:var(--primary); cursor:pointer; text-decoration:underline; text-underline-offset:4px; text-decoration-color:rgba(92,96,245,0.3);" onclick="openViewModal('${c.id}')">#${c.numeroNota}</span></td>`;
+            if (col.key === 'numeroNota') {
+                let badge = '';
+                if (c.consolidadoVales || c.consolidado_vales) {
+                    badge = `<span style="background: rgba(16,185,129,0.15); color:#10b981; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.6rem; font-weight:800; border: 1px solid rgba(16,185,129,0.3); margin-left: 5px;">FECHAMENTO</span>`;
+                } else if (c.parentFaturamentoId || c.parent_faturamento_id) {
+                    const parentId = c.parentFaturamentoId || c.parent_faturamento_id;
+                    let parentText = '';
+                    if (parentId === 'MANUAL' || (parentId && parentId.toString().startsWith('MANUAL-'))) {
+                        parentText = ' (MANUAL)';
+                    } else {
+                        const parentNf = compras.find(p => p.id == parentId);
+                        if (parentNf) {
+                            parentText = ` (NF #${parentNf.numeroNota})`;
+                        }
+                    }
+                    badge = `<span style="background: rgba(245,158,11,0.15); color:#f59e0b; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.6rem; font-weight:800; border: 1px solid rgba(245,158,11,0.3); margin-left: 5px;">FATURADO${parentText}</span>`;
+                }
+                return `<td data-label="Nota"><span style="font-family:'JetBrains Mono'; font-weight:800; color:var(--primary); cursor:pointer; text-decoration:underline; text-underline-offset:4px; text-decoration-color:rgba(92,96,245,0.3);" onclick="openViewModal('${c.id}')">#${c.numeroNota}</span>${badge}</td>`;
+            }
             
             if (col.key === 'especie') {
                 const esp = (config.especiesNota || []).find(e => e.id == c.especieId);
@@ -2885,7 +2996,7 @@ function updateDropdowns() {
 }
 
 function updateDashboard(records = null) {
-    const dataToUse = records || compras;
+    const dataToUse = (records || compras).filter(c => !c.consolidadoVales && !c.consolidado_vales);
     const total = dataToUse.reduce((acc, curr) => acc + (parseFloat(curr.valorTotal) || 0), 0);
     const count = dataToUse.length;
     const avg = count > 0 ? total / count : 0;
@@ -2932,8 +3043,9 @@ function updateDashboard(records = null) {
 }
 
 function updateSelectionKPIs(records) {
-    const total = records.reduce((acc, curr) => acc + (parseFloat(curr.valorTotal) || 0), 0);
-    const count = records.length;
+    const filteredRecords = records.filter(c => !c.consolidadoVales && !c.consolidado_vales);
+    const total = filteredRecords.reduce((acc, curr) => acc + (parseFloat(curr.valorTotal) || 0), 0);
+    const count = filteredRecords.length;
 
     const totalEl = document.getElementById('sel_total_valor');
     const countEl = document.getElementById('sel_total_notas');
@@ -3703,32 +3815,32 @@ window.deleteCompra = async (id) => {
         return;
     }
 
-    if (!confirm(`Deseja realmente excluir a Nota #${compra.numeroNota}? Isso afetará o financeiro e o estoque vinculado.`)) return;
+    window.openPinModal(async () => {
+        const success = await rollbackInventory(compra);
+        if (!success) return;
+        
+        // NOVIDADE: Limpar vínculos de manutenção ao excluir a nota
+        await rollbackMaintenance(compra);
+        
+        const idx = compras.findIndex(c => c.id == id);
+        if (idx !== -1) {
+            compras.splice(idx, 1);
 
-    const success = await rollbackInventory(compra);
-    if (!success) return;
-    
-    // NOVIDADE: Limpar vínculos de manutenção ao excluir a nota
-    await rollbackMaintenance(compra);
-    
-    const idx = compras.findIndex(c => c.id == id);
-    if (idx !== -1) {
-        compras.splice(idx, 1);
-
-        if (supabaseClient) {
-            try {
-                const sId = String(id);
-                // Cascading delete is set in SQL for items, additions and installments
-                await supabaseClient.from('compras').delete().eq('id', sId);
-            } catch (err) {
-                console.error("❌ Erro ao deletar no Supabase:", err);
+            if (supabaseClient) {
+                try {
+                    const sId = String(id);
+                    // Cascading delete is set in SQL for items, additions and installments
+                    await supabaseClient.from('compras').delete().eq('id', sId);
+                } catch (err) {
+                    console.error("❌ Erro ao deletar no Supabase:", err);
+                }
             }
-        }
 
-        renderCompras();
-        updateDashboard();
-        alert('Nota excluída com sucesso e estoque revertido.');
-    }
+            renderCompras();
+            updateDashboard();
+            alert('Nota excluída com sucesso e estoque revertido.');
+        }
+    });
 };
 
 window.handleDatePresetChange = (el) => {
@@ -3802,7 +3914,13 @@ async function renderIntegracao() {
         if (error) throw error;
         
         console.log(`🔍 Notas não integradas carregadas: ${data ? data.length : 0} registros`);
-        comprasParaIntegracao = data || [];
+        
+        // Filter out individual Vales because they are integrated via the consolidated NF
+        comprasParaIntegracao = (data || []).filter(comp => {
+            const esp = config.especiesNota.find(e => e.id === comp.especie_id);
+            const especieNome = esp ? esp.nome.toUpperCase() : '';
+            return especieNome !== 'VALE';
+        });
         
         if (comprasParaIntegracao.length === 0) {
             tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">Nenhuma nota pendente de integração.</td></tr>';
@@ -4058,3 +4176,879 @@ function gerarTermoIntegracaoPDF(notas) {
     
     doc.save(`Termo_Integracao_Financeiro_${new Date().getTime()}.pdf`);
 }
+
+// === CHECK SIMILAR RECENT ITEM (30 DAYS RULE) ===
+function normalizeStr(str) {
+    if (!str) return '';
+    return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w\s]/g, '');
+}
+
+function areDescriptionsSimilar(desc1, desc2) {
+    const d1 = normalizeStr(desc1);
+    const d2 = normalizeStr(desc2);
+    if (!d1 || !d2) return false;
+    
+    // Direct substring check
+    if (d1.includes(d2) || d2.includes(d1)) return true;
+    
+    // Word share check (words of length >= 4)
+    const words1 = d1.split(/\s+/).filter(w => w.length >= 4);
+    const words2 = d2.split(/\s+/).filter(w => w.length >= 4);
+    return words1.some(w => words2.includes(w));
+}
+
+function parseDateRobust(dateStr) {
+    if (!dateStr) return new Date();
+    if (dateStr instanceof Date) return dateStr;
+    
+    const cleanStr = String(dateStr).trim();
+    if (!cleanStr) return new Date();
+    
+    // If it contains T, parse directly
+    if (cleanStr.includes('T')) return new Date(cleanStr);
+    
+    // YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}/.test(cleanStr)) {
+        return new Date(cleanStr.substring(0, 10) + 'T12:00:00');
+    }
+    
+    // DD/MM/YYYY format
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(cleanStr)) {
+        const parts = cleanStr.split('/');
+        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00`);
+    }
+    
+    return new Date(cleanStr);
+}
+
+function checkSimilarRecentItem(row) {
+    if (!row) return;
+    
+    const typeBtn = row.querySelector('.type-btn.active');
+    const isServico = typeBtn?.innerText.trim().toUpperCase() === 'SERVIÇO';
+    
+    const prodDesc = isServico 
+        ? (row.querySelector('.item-servico-desc')?.value || '').trim() 
+        : (row.querySelector('.item-produto-search')?.value || '').trim();
+        
+    const vehicleId = (row.querySelector('.item-veiculo')?.value || '').trim();
+    const vehiclePlate = (row.querySelector('.item-veiculo-search')?.value || '').trim().toUpperCase();
+    const alertDiv = row.querySelector('.item-warning-alert');
+    
+    if (!alertDiv) return;
+    
+    // If we don't have enough info, hide the alert
+    if (!prodDesc || (!vehicleId && !vehiclePlate)) {
+        alertDiv.style.display = 'none';
+        return;
+    }
+    
+    // Date of the purchase being filled
+    const dateInputVal = document.getElementById('dataCompra')?.value;
+    const currentDate = parseDateRobust(dateInputVal);
+    
+    let foundPastItem = null;
+    
+    for (const c of compras) {
+        if (c.id && editId && String(c.id) === String(editId)) continue; // Skip current purchase if editing
+        
+        const pastDate = parseDateRobust(c.data);
+        if (isNaN(pastDate.getTime())) continue;
+        
+        const diffTime = currentDate.getTime() - pastDate.getTime();
+        const diffDays = diffTime / (1000 * 60 * 60 * 24);
+        
+        // Match items within last 30 days (0 to 30 days in the past)
+        if (diffDays >= 0 && diffDays <= 30) {
+            const pastItems = c.itens || c.items || [];
+            for (const item of pastItems) {
+                // Determine past vehicle plate
+                const pastVeh = vehicles.find(v => String(v.id) === String(item.veiculoId));
+                const pastVehPlate = pastVeh ? pastVeh.placa.trim().toUpperCase() : '';
+                
+                // Match vehicle by id or plate text
+                const sameVehicle = (item.veiculoId && vehicleId && String(item.veiculoId) === String(vehicleId)) || 
+                                    (pastVehPlate && vehiclePlate && pastVehPlate === vehiclePlate);
+                
+                if (sameVehicle) {
+                    if (areDescriptionsSimilar(prodDesc, item.produto)) {
+                        const pastForn = (config.fornecedores || []).find(f => String(f.id) === String(c.fornecedorId));
+                        const pastFornName = pastForn ? pastForn.nome : 'Não identificado';
+                        
+                        foundPastItem = {
+                            data: c.data,
+                            produto: item.produto,
+                            nota: c.numeroNota,
+                            dias: Math.round(diffDays),
+                            fornecedor: pastFornName
+                        };
+                        break;
+                    }
+                }
+            }
+        }
+        if (foundPastItem) break;
+    }
+    
+    if (foundPastItem) {
+        const textSpan = alertDiv.querySelector('.warning-text');
+        if (textSpan) {
+            textSpan.innerText = `Aviso: Peça/Serviço similar ("${foundPastItem.produto}") já executado para este veículo em ${parseDateRobust(foundPastItem.data).toLocaleDateString('pt-BR')} (há ${foundPastItem.dias} dias, Fornecedor: ${foundPastItem.fornecedor}, Nota #${foundPastItem.nota}).`;
+        }
+        alertDiv.style.display = 'flex';
+        if (window.lucide) lucide.createIcons();
+    } else {
+        alertDiv.style.display = 'none';
+    }
+}
+window.checkSimilarRecentItem = checkSimilarRecentItem;
+
+let pinCallback = null;
+let currentPinChallenge = "";
+
+window.openPinModal = function(callback) {
+    pinCallback = callback;
+    const modal = document.getElementById('pinModal');
+    if (!modal) return;
+    
+    // Reset fields
+    document.querySelectorAll('.pin-field').forEach(input => {
+        input.value = '';
+        input.classList.remove('error');
+    });
+    
+    // Gerar novo desafio de 6 dígitos
+    currentPinChallenge = Math.floor(100000 + Math.random() * 900000).toString();
+    const display = document.getElementById('pinChallengeValue');
+    if (display) display.innerText = currentPinChallenge;
+
+    modal.classList.add('active');
+    setTimeout(() => {
+        const first = document.querySelector('.pin-field[data-index="0"]');
+        if (first) first.focus();
+    }, 100);
+};
+
+window.movePinFocus = function(input) {
+    if (input.value.length === 1) {
+        const next = input.nextElementSibling;
+        if (next && next.classList.contains('pin-field')) {
+            next.focus();
+        }
+    }
+};
+
+window.confirmPin = function() {
+    let pin = "";
+    document.querySelectorAll('.pin-field').forEach(input => pin += input.value);
+    
+    if (pin === currentPinChallenge) {
+        window.closeModal('pinModal');
+        if (typeof pinCallback === 'function') pinCallback();
+        pinCallback = null;
+    } else {
+        document.querySelectorAll('.pin-field').forEach(input => {
+            input.classList.add('error');
+            input.value = '';
+        });
+        const first = document.querySelector('.pin-field[data-index="0"]');
+        if (first) first.focus();
+        alert('Código Incorreto! Tente novamente.');
+    }
+};
+
+window.closeModal = function(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active');
+};
+
+// ==========================================
+// MÓDULO DE VALES E CONSOLIDAÇÃO DE FECHAMENTO
+// ==========================================
+
+let valesSelecionados = new Set();
+let valesSort = { key: 'data', dir: 'desc' };
+
+function renderValesThead() {
+    const thead = document.querySelector('#view-vales table thead');
+    if (!thead) return;
+
+    const cols = [
+        { key: 'chk', label: `<input type="checkbox" id="chkAllVales" onclick="toggleSelectAllVales(this)">`, canSort: false, width: '40px' },
+        { key: 'data', label: 'Data', canSort: true },
+        { key: 'numeroNota', label: 'Nº Nota / Vale', canSort: true },
+        { key: 'fornecedor', label: 'Fornecedor', canSort: true },
+        { key: 'placa', label: 'Placa', canSort: true },
+        { key: 'valorTotal', label: 'Valor Vale', canSort: true },
+        { key: 'situacao', label: 'Faturamento / Situação', canSort: false }
+    ];
+
+    thead.innerHTML = `<tr>${cols.map(c => {
+        const isCurrent = valesSort.key === c.key;
+        let icon = '';
+        if (c.canSort) {
+            if (isCurrent) {
+                icon = valesSort.dir === 'asc'
+                    ? '<i data-lucide="chevron-up" style="width:14px; color:var(--primary);"></i>'
+                    : '<i data-lucide="chevron-down" style="width:14px; color:var(--primary);"></i>';
+            } else {
+                icon = '<i data-lucide="chevrons-up-down" style="width:12px; opacity:0.2;"></i>';
+            }
+        }
+
+        const widthAttr = c.width ? `style="width:${c.width}; text-align:center;"` : '';
+        const sortAttr = c.canSort ? `onclick="handleValesSort('${c.key}')" style="cursor:pointer; user-select:none;"` : '';
+        const classAttr = isCurrent ? 'class="active-sort"' : '';
+
+        return `<th ${widthAttr || sortAttr} ${classAttr}>
+            <div style="display:flex; align-items:center; gap:0.5rem; justify-content: ${c.key === 'chk' ? 'center' : 'flex-start'}">
+                ${c.label}
+                ${icon ? `<span class="sort-icon-wrapper" style="display:flex; align-items:center;">${icon}</span>` : ''}
+            </div>
+        </th>`;
+    }).join('')}</tr>`;
+
+    if (window.lucide) lucide.createIcons();
+}
+
+window.handleValesSort = (key) => {
+    if (valesSort.key === key) {
+        valesSort.dir = valesSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        valesSort.key = key;
+        valesSort.dir = 'asc';
+    }
+    renderVales();
+};
+
+async function renderVales() {
+    const tbody = document.getElementById('tbodyVales');
+    if (!tbody) return;
+
+    renderValesThead();
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem;">Carregando vales...</td></tr>';
+
+    try {
+        const queryValesVal = document.getElementById('valesSearch')?.value.toLowerCase() || '';
+        const statusFilter = document.getElementById('filterValesStatus')?.value || 'PENDENTE';
+
+        // Get Vales. Species name = "VALE"
+        const valeSpecies = config.especiesNota.find(e => e.nome.toUpperCase() === 'VALE');
+        if (!valeSpecies) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #ef4444;">Espécie "Vale" não cadastrada no sistema. Cadastre-a na aba Cadastro.</td></tr>';
+            return;
+        }
+
+        // 1. Populate supplier filter dynamically (only show suppliers with vales matching active status filter)
+        const supplierSelect = document.getElementById('filterValesFornecedor');
+        let selectedFornecedor = '';
+        if (supplierSelect) {
+            const currentSelected = supplierSelect.value;
+            let valesForFilter = compras.filter(c => c.especieId === valeSpecies.id);
+            if (statusFilter === 'PENDENTE') {
+                valesForFilter = valesForFilter.filter(c => !c.parentFaturamentoId && !c.parent_faturamento_id);
+            } else if (statusFilter === 'FATURADO') {
+                valesForFilter = valesForFilter.filter(c => !!c.parentFaturamentoId || !!c.parent_faturamento_id);
+            }
+            const supplierIdsWithVales = new Set(
+                valesForFilter.map(c => c.fornecedorId)
+            );
+            const suppliersWithVales = config.fornecedores.filter(f => supplierIdsWithVales.has(f.id));
+            
+            supplierSelect.innerHTML = '<option value="">Todos os Fornecedores</option>' +
+                suppliersWithVales.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+            
+            if (currentSelected && suppliersWithVales.some(f => f.id === currentSelected)) {
+                supplierSelect.value = currentSelected;
+                selectedFornecedor = currentSelected;
+            }
+        }
+
+        // Filter purchases locally
+        let list = compras.filter(c => c.especieId === valeSpecies.id);
+
+        // Filter by supplier
+        if (selectedFornecedor) {
+            list = list.filter(c => c.fornecedorId === selectedFornecedor);
+        }
+
+        // Filter by status (Faturado has parentFaturamentoId NOT null)
+        if (statusFilter === 'PENDENTE') {
+            list = list.filter(c => !c.parentFaturamentoId);
+        } else if (statusFilter === 'FATURADO') {
+            list = list.filter(c => !!c.parentFaturamentoId);
+        }
+
+        // Filter by text search
+        if (queryValesVal) {
+            list = list.filter(c => {
+                const fornName = (config.fornecedores.find(f => f.id === c.fornecedorId)?.nome || '').toLowerCase();
+                const noteNum = (c.numeroNota || '').toLowerCase();
+                const hasItemMatch = c.itens?.some(it => {
+                    const veicName = vehicles.find(v => v.id === it.veiculoId)?.placa || '';
+                    return (it.produto || '').toLowerCase().includes(queryValesVal) || veicName.toLowerCase().includes(queryValesVal);
+                });
+                return noteNum.includes(queryValesVal) || fornName.includes(queryValesVal) || hasItemMatch;
+            });
+        }
+
+        if (list.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">Nenhum vale encontrado com os filtros selecionados.</td></tr>';
+            updateValesKPIs();
+            return;
+        }
+
+        // --- APLICAR ORDENAÇÃO NOS VALES ---
+        list.sort((a, b) => {
+            let valA, valB;
+            switch (valesSort.key) {
+                case 'data':
+                    valA = new Date(a.data + 'T12:00:00');
+                    valB = new Date(b.data + 'T12:00:00');
+                    break;
+                case 'valorTotal':
+                    valA = parseFloat(a.valorTotal) || 0;
+                    valB = parseFloat(b.valorTotal) || 0;
+                    break;
+                case 'numeroNota':
+                    valA = (a.numeroNota || '').toString();
+                    valB = (b.numeroNota || '').toString();
+                    return valesSort.dir === 'asc' 
+                        ? valA.localeCompare(valB, undefined, {numeric: true}) 
+                        : valB.localeCompare(valA, undefined, {numeric: true});
+                case 'fornecedor':
+                    valA = (config.fornecedores.find(f => f.id == a.fornecedorId)?.nome || '').toLowerCase();
+                    valB = (config.fornecedores.find(f => f.id == b.fornecedorId)?.nome || '').toLowerCase();
+                    break;
+                case 'placa':
+                    valA = a.itens?.[0]?.veiculoId ? (vehicles.find(v => v.id === a.itens[0].veiculoId)?.placa || '').toLowerCase() : '';
+                    valB = b.itens?.[0]?.veiculoId ? (vehicles.find(v => v.id === b.itens[0].veiculoId)?.placa || '').toLowerCase() : '';
+                    break;
+                default:
+                    valA = (a[valesSort.key] || '').toString().toLowerCase();
+                    valB = (b[valesSort.key] || '').toString().toLowerCase();
+            }
+
+            if (valA < valB) return valesSort.dir === 'asc' ? -1 : 1;
+            if (valA > valB) return valesSort.dir === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        tbody.innerHTML = '';
+        list.forEach(c => {
+            const forn = config.fornecedores.find(f => f.id === c.fornecedorId);
+            const fornNome = forn ? forn.nome : 'Sem Fornecedor';
+            const placa = c.itens?.[0]?.veiculoId ? (vehicles.find(v => v.id === c.itens[0].veiculoId)?.placa || 'N/A') : 'N/A';
+            const checked = valesSelecionados.has(c.id) ? 'checked' : '';
+            
+            // Se já faturado, mostra o link/badge da NF final
+            let statusHtml = '';
+            if (c.parentFaturamentoId) {
+                if (c.parentFaturamentoId === 'MANUAL' || (c.parentFaturamentoId && c.parentFaturamentoId.toString().startsWith('MANUAL-'))) {
+                    statusHtml = `<span class="badge" style="background: rgba(148,163,184,0.15); color: #94a3b8; border: 1px solid rgba(148,163,184,0.3);">Faturado Manual (Legado)</span>`;
+                } else {
+                    const parentNf = compras.find(p => p.id === c.parentFaturamentoId);
+                    const parentNum = parentNf ? parentNf.numeroNota : 'NF';
+                    statusHtml = `<span class="badge" style="background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3);">Faturado (NF #${parentNum})</span>`;
+                }
+            } else {
+                statusHtml = `<span class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3);">Em Aberto (Pendente)</span>`;
+            }
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="text-align: center;">
+                    ${c.parentFaturamentoId ? '' : `<input type="checkbox" class="chk-vale" value="${c.id}" ${checked} onchange="handleSelectVale('${c.id}', this)">`}
+                </td>
+                <td>${formatDateBR(c.data)}</td>
+                <td style="font-weight: 700;">${c.numeroNota || 'S/N'}</td>
+                <td>${fornNome}</td>
+                <td><span class="badge" style="background: rgba(255,255,255,0.05);">${placa}</span></td>
+                <td style="font-weight: 700; color: #818cf8;">${formatCurrency(c.valorTotal)}</td>
+                <td>${statusHtml}</td>
+            `;
+            if (!c.parentFaturamentoId) {
+                tr.style.cursor = 'pointer';
+                tr.onclick = (e) => {
+                    if (e.target.type === 'checkbox') return;
+                    const chk = tr.querySelector('.chk-vale');
+                    if (chk) {
+                        chk.checked = !chk.checked;
+                        window.handleSelectVale(c.id, chk);
+                    }
+                };
+            }
+            tbody.appendChild(tr);
+        });
+
+        updateValesKPIs();
+    } catch (err) {
+        console.error('Erro ao renderizar vales:', err);
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #ef4444;">Erro ao renderizar: ${err.message}</td></tr>`;
+    }
+}
+window.renderVales = renderVales;
+
+window.handleSelectVale = (id, el) => {
+    if (el.checked) {
+        valesSelecionados.add(id);
+    } else {
+        valesSelecionados.delete(id);
+    }
+    updateValesKPIs();
+};
+
+window.toggleSelectAllVales = (el) => {
+    const isChecked = el.checked;
+    const checkboxes = document.querySelectorAll('#tbodyVales .chk-vale');
+    checkboxes.forEach(chk => {
+        chk.checked = isChecked;
+        if (isChecked) {
+            valesSelecionados.add(chk.value);
+        } else {
+            valesSelecionados.delete(chk.value);
+        }
+    });
+    updateValesKPIs();
+};
+
+function updateValesKPIs() {
+    const totalEl = document.getElementById('vales_sel_total_valor');
+    const countEl = document.getElementById('vales_sel_total_count');
+    const btnFaturar = document.getElementById('btnFaturarVales');
+    if (!totalEl || !countEl) return;
+
+    let total = 0;
+    let fornecedorUnico = null;
+    let fornecedoresMultiplos = false;
+
+    valesSelecionados.forEach(id => {
+        const c = compras.find(x => x.id === id);
+        if (c) {
+            total += parseFloat(c.valorTotal) || 0;
+            if (fornecedorUnico === null) {
+                fornecedorUnico = c.fornecedorId;
+            } else if (fornecedorUnico !== c.fornecedorId) {
+                fornecedoresMultiplos = true;
+            }
+        }
+    });
+
+    totalEl.innerText = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    countEl.innerText = valesSelecionados.size;
+
+    const btnMarcar = document.getElementById('btnMarcarFaturado');
+
+    if (valesSelecionados.size > 0 && !fornecedoresMultiplos) {
+        btnFaturar.style.display = 'flex';
+        btnFaturar.title = "";
+        if (btnMarcar) btnMarcar.style.display = 'flex';
+    } else {
+        btnFaturar.style.display = 'none';
+        if (btnMarcar) btnMarcar.style.display = 'none';
+        if (fornecedoresMultiplos) {
+            alert('Atenção: Selecione apenas vales do mesmo fornecedor para faturar consolidado.');
+            valesSelecionados.clear();
+            const chkAll = document.getElementById('chkAllVales');
+            if (chkAll) chkAll.checked = false;
+            document.querySelectorAll('#tbodyVales .chk-vale').forEach(chk => chk.checked = false);
+            updateValesKPIs();
+        }
+    }
+}
+
+window.openFaturamentoValesModal = async () => {
+    if (valesSelecionados.size === 0) return;
+    
+    const firstId = Array.from(valesSelecionados)[0];
+    const firstVale = compras.find(x => x.id === firstId);
+    if (!firstVale) return;
+
+    const fornId = firstVale.fornecedorId;
+    const forn = config.fornecedores.find(f => f.id === fornId);
+    const fornNome = forn ? forn.nome : 'Sem Fornecedor';
+
+    let total = 0;
+    valesSelecionados.forEach(id => {
+        const c = compras.find(x => x.id === id);
+        if (c) total += parseFloat(c.valorTotal) || 0;
+    });
+
+    document.getElementById('fatValesFornecedorNome').value = fornNome;
+    document.getElementById('fatValesFornecedorId').value = fornId;
+    document.getElementById('fatValesValorTotal').value = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    document.getElementById('fatValesValorTotal').dataset.rawTotal = total;
+    // Limpar containers de adicionais e descontos
+    document.getElementById('fatValesAdditionalContainer').innerHTML = '';
+    document.getElementById('fatValesDescontoContainer').innerHTML = '';
+    document.getElementById('fatValesValorTotalFinal').value = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    const espSelect = document.getElementById('fatValesEspecieId');
+    if (espSelect) {
+        espSelect.innerHTML = config.especiesNota
+            .filter(e => e.nome.toUpperCase() !== 'VALE')
+            .map(e => `<option value="${e.id}">${e.nome}</option>`).join('');
+    }
+
+    const pgtoSelect = document.getElementById('fatValesFormaPgtoId');
+    if (pgtoSelect) {
+        pgtoSelect.innerHTML = config.tiposPgto
+            .map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+    }
+
+    document.getElementById('fatValesNumeroNota').value = '';
+    document.getElementById('fatValesDataEmissao').valueAsDate = new Date();
+    document.getElementById('fatValesVencimento').valueAsDate = new Date();
+    document.getElementById('fatValesParcelado').checked = false;
+    document.getElementById('fatValesQtdParcelas').value = 1;
+    document.getElementById('fatValesObservacoes').value = '';
+    
+    toggleFatValesParcelado(document.getElementById('fatValesParcelado'));
+
+    document.getElementById('faturamentoValesModal').classList.add('active');
+};
+
+window.atualizarValorTotalFinalFaturamento = () => {
+    const rawTotal = parseFloat(document.getElementById('fatValesValorTotal').dataset.rawTotal) || 0;
+    let totalAdicionais = 0;
+    document.querySelectorAll('#fatValesAdditionalContainer .fat-add-val').forEach(inp => {
+        totalAdicionais += parseFloat(inp.value) || 0;
+    });
+    let totalDescontos = 0;
+    document.querySelectorAll('#fatValesDescontoContainer .fat-desc-val').forEach(inp => {
+        totalDescontos += parseFloat(inp.value) || 0;
+    });
+    const totalFinal = rawTotal + totalAdicionais - totalDescontos;
+    document.getElementById('fatValesValorTotalFinal').value = totalFinal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    if (document.getElementById('fatValesParcelado').checked) {
+        window.gerarParcelasFaturamento();
+    }
+};
+
+window.addFatValesAdditionalRow = () => {
+    const container = document.getElementById('fatValesAdditionalContainer');
+    const rowId = 'fat_add_' + Date.now() + Math.random().toString(36).slice(2, 6);
+    const row = document.createElement('div');
+    row.id = rowId;
+    row.style.cssText = 'display: grid; grid-template-columns: 2fr 1fr auto; gap: 0.6rem; align-items: center; background: rgba(255,255,255,0.03); padding: 0.6rem 0.8rem; border-radius: 8px;';
+    row.innerHTML = `
+        <input type="text" class="compra-input fat-add-desc" placeholder="Ex: Frete, Seguro, Imposto..." style="padding: 0.4rem 0.7rem; font-size: 0.82rem;">
+        <input type="number" step="0.01" min="0" class="compra-input fat-add-val" value="0.00" style="padding: 0.4rem 0.7rem; font-size: 0.82rem; text-align: right;" oninput="atualizarValorTotalFinalFaturamento()">
+        <button type="button" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.2rem; display: flex; align-items: center;" onclick="document.getElementById('${rowId}').remove(); atualizarValorTotalFinalFaturamento();">
+            <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+        </button>
+    `;
+    container.appendChild(row);
+    if (window.lucide) lucide.createIcons();
+};
+
+window.addFatValesDescontoRow = () => {
+    const container = document.getElementById('fatValesDescontoContainer');
+    const rowId = 'fat_desc_' + Date.now() + Math.random().toString(36).slice(2, 6);
+    const row = document.createElement('div');
+    row.id = rowId;
+    row.style.cssText = 'display: grid; grid-template-columns: 2fr 1fr auto; gap: 0.6rem; align-items: center; background: rgba(239,68,68,0.05); padding: 0.6rem 0.8rem; border-radius: 8px;';
+    row.innerHTML = `
+        <input type="text" class="compra-input fat-desc-desc" placeholder="Ex: Desconto Comercial, Abatimento..." style="padding: 0.4rem 0.7rem; font-size: 0.82rem;">
+        <input type="number" step="0.01" min="0" class="compra-input fat-desc-val" value="0.00" style="padding: 0.4rem 0.7rem; font-size: 0.82rem; text-align: right; color: #ef4444;" oninput="atualizarValorTotalFinalFaturamento()">
+        <button type="button" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.2rem; display: flex; align-items: center;" onclick="document.getElementById('${rowId}').remove(); atualizarValorTotalFinalFaturamento();">
+            <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+        </button>
+    `;
+    container.appendChild(row);
+    if (window.lucide) lucide.createIcons();
+};
+
+window.closeFaturamentoValesModal = () => {
+    const modal = document.getElementById('faturamentoValesModal');
+    if (modal) modal.classList.remove('active');
+};
+
+window.toggleFatValesParcelado = (el) => {
+    const parcelado = el.checked;
+    const qtdWrapper = document.getElementById('fatValesQtdParcWrapper');
+    const vencWrapper = document.getElementById('fatValesVencimentoWrapper');
+    const section = document.getElementById('fatValesParcelasSection');
+
+    if (parcelado) {
+        qtdWrapper.style.opacity = '1';
+        qtdWrapper.style.pointerEvents = 'auto';
+        vencWrapper.style.opacity = '0.5';
+        vencWrapper.style.pointerEvents = 'none';
+        section.style.display = 'block';
+        gerarParcelasFaturamento();
+    } else {
+        qtdWrapper.style.opacity = '0.5';
+        qtdWrapper.style.pointerEvents = 'none';
+        vencWrapper.style.opacity = '1';
+        vencWrapper.style.pointerEvents = 'auto';
+        section.style.display = 'none';
+    }
+};
+
+window.gerarParcelasFaturamento = () => {
+    const rawTotal = parseFloat(document.getElementById('fatValesValorTotal').dataset.rawTotal) || 0;
+    let custosAdicionais = 0;
+    document.querySelectorAll('#fatValesAdditionalContainer .fat-add-val').forEach(inp => {
+        custosAdicionais += parseFloat(inp.value) || 0;
+    });
+    let totalDescontos = 0;
+    document.querySelectorAll('#fatValesDescontoContainer .fat-desc-val').forEach(inp => {
+        totalDescontos += parseFloat(inp.value) || 0;
+    });
+    const rawTotalFinal = rawTotal + custosAdicionais - totalDescontos;
+    const qtd = parseInt(document.getElementById('fatValesQtdParcelas').value) || 1;
+    const container = document.getElementById('fatValesParcelasContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+    const baseVal = Math.floor((rawTotalFinal / qtd) * 100) / 100;
+    let diff = Math.round((rawTotalFinal - (baseVal * qtd)) * 100) / 100;
+
+    let dt = new Date();
+
+    for (let i = 1; i <= qtd; i++) {
+        let val = baseVal;
+        if (i === qtd) {
+            val = Math.round((baseVal + diff) * 100) / 100;
+        }
+
+        dt.setMonth(dt.getMonth() + 1);
+        dt.setDate(10);
+        const yyyy = dt.getFullYear();
+        const mm = String(dt.getMonth() + 1).padStart(2, '0');
+        const dd = String(dt.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+
+        const row = document.createElement('div');
+        row.style.display = 'grid';
+        row.style.gridTemplateColumns = '0.5fr 1fr 1fr';
+        row.style.gap = '0.5rem';
+        row.style.alignItems = 'center';
+        row.innerHTML = `
+            <span style="font-size:0.75rem; font-weight:700; color:var(--text-muted);">#${i}</span>
+            <input type="date" class="compra-input fat-parc-date" value="${dateStr}" style="padding:0.4rem 0.6rem; font-size:0.8rem;">
+            <input type="number" step="0.01" class="compra-input fat-parc-val" value="${val}" style="padding:0.4rem 0.6rem; font-size:0.8rem;">
+        `;
+        container.appendChild(row);
+    }
+};
+
+window.handleConfirmarFaturamentoVales = async (e) => {
+    e.preventDefault();
+    const client = window.authClient || supabaseClient;
+    if (!client) return;
+
+    const btnSubmit = document.querySelector('#faturamentoValesForm button[type="submit"]');
+    const origText = btnSubmit.innerHTML;
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = 'Processando...';
+
+    try {
+        const uniqueId = 'NC-FAT-' + Date.now().toString().slice(-6);
+        const fornecedorId = document.getElementById('fatValesFornecedorId').value;
+        const valorTotalConsolidado = parseFloat(document.getElementById('fatValesValorTotal').dataset.rawTotal) || 0;
+
+        // Coletar todas as linhas de custos adicionais do container
+        const adicionaisRows = [];
+        document.querySelectorAll('#fatValesAdditionalContainer > div').forEach(row => {
+            const desc = row.querySelector('.fat-add-desc')?.value?.trim() || 'Custo Adicional';
+            const val = parseFloat(row.querySelector('.fat-add-val')?.value) || 0;
+            if (val > 0) adicionaisRows.push({ descricao: desc, valor: val });
+        });
+        const totalAdicionais = adicionaisRows.reduce((s, a) => s + a.valor, 0);
+
+        // Coletar todas as linhas de descontos do container
+        const descontosRows = [];
+        document.querySelectorAll('#fatValesDescontoContainer > div').forEach(row => {
+            const desc = row.querySelector('.fat-desc-desc')?.value?.trim() || 'Desconto';
+            const val = parseFloat(row.querySelector('.fat-desc-val')?.value) || 0;
+            if (val > 0) descontosRows.push({ descricao: desc, valor: val });
+        });
+        const totalDescontos = descontosRows.reduce((s, d) => s + d.valor, 0);
+
+        const valorTotalFinal = valorTotalConsolidado + totalAdicionais - totalDescontos;
+
+        const especieId = document.getElementById('fatValesEspecieId').value;
+        const numeroNota = document.getElementById('fatValesNumeroNota').value;
+        const dataEmissao = document.getElementById('fatValesDataEmissao').value;
+        const formaPgtoId = document.getElementById('fatValesFormaPgtoId').value;
+        const parcelado = document.getElementById('fatValesParcelado').checked;
+        const qtdParcelas = parseInt(document.getElementById('fatValesQtdParcelas').value) || 1;
+        const observacoes = document.getElementById('fatValesObservacoes').value;
+
+        let dataVencimento = null;
+        if (!parcelado) {
+            dataVencimento = document.getElementById('fatValesVencimento').value;
+        }
+
+        // 1. Inserir a Nota Fiscal de Fechamento Consolidada
+        const adicionaisDesc = adicionaisRows.length > 0
+            ? ` Adicionais: ${adicionaisRows.map(a => a.descricao + ' R$' + a.valor.toFixed(2)).join(', ')}.` : '';
+        const descontosDesc = descontosRows.length > 0
+            ? ` Descontos: ${descontosRows.map(d => d.descricao + ' -R$' + d.valor.toFixed(2)).join(', ')}.` : '';
+        const payloadFat = {
+            id: uniqueId,
+            data_emissao: dataEmissao,
+            numero_nota: numeroNota,
+            especie_id: especieId,
+            fornecedor_id: fornecedorId,
+            forma_pagamento_id: formaPgtoId,
+            data_vencimento: dataVencimento || null,
+            valor_total: valorTotalFinal,
+            financeiro_parcelado: parcelado,
+            qtd_parcelas: qtdParcelas,
+            observacoes: (observacoes ? observacoes + ' | ' : '') + `[CONSOLIDADO FECHAMENTO VALES]${adicionaisDesc}${descontosDesc}`,
+            consolidado_vales: true,
+            integrado_financeiro: false
+        };
+
+        const { error: insertErr } = await client.from('compras').insert([payloadFat]);
+        if (insertErr) throw insertErr;
+
+        // 2. Inserir itens da NF consolidada (apenas descritivo de fechamento)
+        const itemPayload = {
+            compra_id: uniqueId,
+            tipo: 'servico',
+            produto: `FECHAMENTO CONSOLIDADO DE VALES (NF #${numeroNota})`,
+            quantidade: 1,
+            valor_unitario: valorTotalConsolidado,
+            estoque: false
+        };
+        const { error: itemErr } = await client.from('compra_itens').insert([itemPayload]);
+        if (itemErr) throw itemErr;
+
+        // 2.5 Inserir cada custo adicional individualmente em compra_adicionais
+        if (adicionaisRows.length > 0) {
+            const addsPayload = adicionaisRows.map(a => ({
+                compra_id: uniqueId,
+                descricao: a.descricao,
+                valor: a.valor
+            }));
+            const { error: addErr } = await client.from('compra_adicionais').insert(addsPayload);
+            if (addErr) throw addErr;
+        }
+
+        // 2.6 Inserir cada desconto individualmente em compra_adicionais (valor negativo)
+        if (descontosRows.length > 0) {
+            const descsPayload = descontosRows.map(d => ({
+                compra_id: uniqueId,
+                descricao: `[DESCONTO] ${d.descricao}`,
+                valor: -Math.abs(d.valor)
+            }));
+            const { error: descErr } = await client.from('compra_adicionais').insert(descsPayload);
+            if (descErr) throw descErr;
+        }
+
+        // 3. Atualizar os vales originais com o parent_faturamento_id
+        const valesIdsArray = Array.from(valesSelecionados);
+        const { error: updateErr } = await client
+            .from('compras')
+            .update({ parent_faturamento_id: uniqueId })
+            .in('id', valesIdsArray);
+        if (updateErr) throw updateErr;
+
+        // 4. Se for parcelado, inserir parcelas
+        if (parcelado) {
+            const rowsParc = document.querySelectorAll('#fatValesParcelasContainer > div');
+            const parcsPayload = [];
+            rowsParc.forEach((row, idx) => {
+                const dt = row.querySelector('.fat-parc-date').value;
+                const val = parseFloat(row.querySelector('.fat-parc-val').value) || 0;
+                parcsPayload.push({
+                    compra_id: uniqueId,
+                    numero_parcela: idx + 1,
+                    data_vencimento: dt,
+                    valor: val
+                });
+            });
+            
+            const { error: parcErr } = await client.from('compra_parcelas').insert(parcsPayload);
+            if (parcErr) throw parcErr;
+        }
+
+        alert('Faturamento de vales concluído com sucesso!');
+        valesSelecionados.clear();
+        closeFaturamentoValesModal();
+
+        // Recarrega compras e atualiza dashboards
+        await loadCompras();
+        renderCompras();
+        updateDashboard();
+        
+        // Vai para a aba normal de compras para o usuário ver a nota fiscal
+        switchTab('compras');
+    } catch (err) {
+        console.error('Erro ao faturar vales:', err);
+        alert('Erro ao realizar faturamento: ' + err.message);
+    } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = origText;
+    }
+};
+
+window.handleMarcarValesComoFaturados = async () => {
+    if (valesSelecionados.size === 0) return;
+
+    const confirmacao = confirm(`Deseja realmente marcar os ${valesSelecionados.size} vales selecionados como faturados (sem gerar uma nova Nota Fiscal)?\nEsta ação serve para conciliar e arquivar vales de meses anteriores.`);
+    if (!confirmacao) return;
+
+    const client = window.authClient || supabaseClient;
+    if (!client) return;
+
+    const btnMarcar = document.getElementById('btnMarcarFaturado');
+    if (!btnMarcar) return;
+    const origText = btnMarcar.innerHTML;
+    btnMarcar.disabled = true;
+    btnMarcar.innerHTML = 'Processando...';
+
+    try {
+        const firstId = Array.from(valesSelecionados)[0];
+        const firstVale = compras.find(x => x.id === firstId);
+        if (!firstVale) return;
+        const supplierId = firstVale.fornecedorId;
+        const dummyId = `MANUAL-${supplierId}`;
+
+        // Garantir que a nota dummy MANUAL para o fornecedor específico existe no banco
+        const { data: dummyTest } = await client
+            .from('compras')
+            .select('id')
+            .eq('id', dummyId)
+            .maybeSingle();
+
+        if (!dummyTest) {
+            const defaultEsp = config.especiesNota?.[0]?.id || null;
+            await client.from('compras').insert([{
+                id: dummyId,
+                numero_nota: 'MANUAL',
+                valor_total: 0,
+                consolidado_vales: true,
+                especie_id: defaultEsp,
+                fornecedor_id: supplierId,
+                observacoes: 'Registro para fechamentos manuais ou legados.'
+            }]);
+        }
+
+        const valesIdsArray = Array.from(valesSelecionados);
+        const { error } = await client
+            .from('compras')
+            .update({ parent_faturamento_id: dummyId })
+            .in('id', valesIdsArray);
+
+        if (error) throw error;
+
+        alert('Vales arquivados com sucesso!');
+        valesSelecionados.clear();
+
+        // Recarrega e renderiza
+        await loadCompras();
+        renderVales();
+    } catch (err) {
+        console.error('Erro ao arquivar vales:', err);
+        alert('Erro ao arquivar: ' + err.message);
+    } finally {
+        btnMarcar.disabled = false;
+        btnMarcar.innerHTML = origText;
+    }
+};

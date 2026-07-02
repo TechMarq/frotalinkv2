@@ -1,4 +1,4 @@
-﻿const ADMIN_PASSWORD = "M@nu2398";
+const ADMIN_PASSWORD = "M@nu2398";
 
 // --- Configuração Supabase ---
 let supabaseClient = null;
@@ -64,26 +64,70 @@ async function loadInitialData() {
         const { data: a } = await supabaseClient.from('manutencao_acoes').select('*').order('descricao');
         const { data: t } = await supabaseClient.from('manutencao_tipos').select('*').order('descricao');
 
-        const { data: m, error: mError } = await supabaseClient
+        let mData = null;
+        let mError = null;
+
+        // Tenta buscar usando o novo esquema (tipo_id nos itens)
+        const resNew = await supabaseClient
             .from('manutencoes')
             .select(`
                 *,
                 veiculos:veiculo_id (placa, modelo),
                 fornecedores:oficina_id (nome),
-                manutencao_tipos:tipo_id (descricao),
                 manutencao_itens (
                     *,
-                    manutencao_acoes:acao_id (descricao)
+                    manutencao_acoes:acao_id (descricao),
+                    manutencao_tipos:tipo_id (descricao)
                 )
             `)
             .order('data', { ascending: false });
 
-        if (mError) {
+        if (resNew.error) {
+            console.warn('[Manutenção] Falha ao buscar no novo esquema (migração pendente?):', resNew.error.message);
+            // Fallback para o esquema antigo (tipo_id no cabeçalho)
+            const resOld = await supabaseClient
+                .from('manutencoes')
+                .select(`
+                    *,
+                    veiculos:veiculo_id (placa, modelo),
+                    fornecedores:oficina_id (nome),
+                    manutencao_tipos:tipo_id (descricao),
+                    manutencao_itens (
+                        *,
+                        manutencao_acoes:acao_id (descricao)
+                    )
+                `)
+                .order('data', { ascending: false });
+
+            if (resOld.error) {
+                mError = resOld.error;
+            } else {
+                mData = resOld.data;
+                // Mapeia o tipo do cabeçalho para os itens temporariamente para exibição
+                mData.forEach(m => {
+                    if (m.manutencao_itens) {
+                        m.manutencao_itens.forEach(i => {
+                            if (!i.manutencao_tipos && m.manutencao_tipos) {
+                                i.manutencao_tipos = { descricao: m.manutencao_tipos.descricao };
+                            }
+                            // Também popula tipo_id no item temporariamente para edição se necessário
+                            if (!i.tipo_id && m.tipo_id) {
+                                i.tipo_id = m.tipo_id;
+                            }
+                        });
+                    }
+                });
+            }
+        } else {
+            mData = resNew.data;
+        }
+
+        if (mError || !mData) {
             console.error('Erro na busca de manutenções:', mError);
             const { data: pureM } = await supabaseClient.from('manutencoes').select('*').order('data', { ascending: false });
             state.manutencoes = pureM || [];
         } else {
-            state.manutencoes = m || [];
+            state.manutencoes = mData || [];
         }
 
         state.vehicles = v || [];
@@ -194,19 +238,9 @@ function renderSetupTables() {
 }
 
 function populateDropdowns() {
-    const vSel = document.getElementById('maint_veiculo');
-    const oSel = document.getElementById('maint_oficina');
     const tSel = document.getElementById('maint_tipo');
     const filterPlaca = document.getElementById('maintFilterPlaca');
 
-    if (vSel) {
-        vSel.innerHTML = '<option value="">Selecione o veículo...</option>' +
-            state.vehicles.map(v => `<option value="${v.id}">${v.placa} - ${v.modelo}</option>`).join('');
-    }
-    if (oSel) {
-        oSel.innerHTML = '<option value="">Selecione a oficina...</option>' +
-            state.oficinas.map(o => `<option value="${o.id}">${o.nome}</option>`).join('');
-    }
     if (tSel) {
         tSel.innerHTML = '<option value="">Selecione o tipo...</option>' +
             state.tipos.map(t => `<option value="${t.id}">${t.descricao}</option>`).join('');
@@ -323,12 +357,15 @@ function renderMaintTable() {
         }
 
         // Formatação dos itens agrupados para caber na tabela
-        const servicosHtml = items.map(i => `
-            <div style="margin-bottom: 4px; line-height: 1.2;">
-                <span style="color: var(--primary); font-weight: 700; font-size: 0.7rem; text-transform: uppercase;">${i.manutencao_acoes?.descricao || 'S/A'}</span><br>
-                <span style="font-size: 0.75rem; color: #cbd5e1;">${i.descricao || 'S/D'}</span>
-            </div>
-        `).join('');
+        const servicosHtml = items.map(i => {
+            const tipoLabel = i.manutencao_tipos?.descricao ? ` [${i.manutencao_tipos.descricao}]` : '';
+            return `
+                <div style="margin-bottom: 4px; line-height: 1.2;">
+                    <span style="color: var(--primary); font-weight: 700; font-size: 0.7rem; text-transform: uppercase;">${i.manutencao_acoes?.descricao || 'S/A'}${tipoLabel}</span><br>
+                    <span style="font-size: 0.75rem; color: #cbd5e1;">${i.descricao || 'S/D'}</span>
+                </div>
+            `;
+        }).join('');
 
         const proxKmText = items.map(i => i.proxima_troca_km ? parseFloat(i.proxima_troca_km).toLocaleString('pt-BR') : '---').join('<br>');
         
@@ -443,19 +480,28 @@ function renderMaintTable() {
 
 function calculateMaintStats() {
     const totalCount = state.manutencoes.length;
-    const preventive = state.manutencoes.filter(m => (m.manutencao_tipos?.descricao || '').toUpperCase() === 'PREVENTIVA').length;
-    const corrective = state.manutencoes.filter(m => (m.manutencao_tipos?.descricao || '').toUpperCase() === 'CORRETIVA').length;
+    let preventive = 0;
+    let corrective = 0;
+    
+    state.manutencoes.forEach(m => {
+        (m.manutencao_itens || []).forEach(i => {
+            const desc = (i.manutencao_tipos?.descricao || '').toUpperCase();
+            if (desc === 'PREVENTIVA') preventive++;
+            else if (desc === 'CORRETIVA') corrective++;
+        });
+    });
 
     // 1: Total Serviços
     const totalCountEl = document.getElementById('totalMaintCount');
     if (totalCountEl) totalCountEl.innerText = totalCount;
 
     // 2 & 3: Percentuais
+    const totalItems = preventive + corrective;
     const preventiveEl = document.getElementById('preventivePerc');
-    if (preventiveEl) preventiveEl.innerText = totalCount > 0 ? ((preventive / totalCount) * 100).toFixed(0) + '%' : '0%';
+    if (preventiveEl) preventiveEl.innerText = totalItems > 0 ? ((preventive / totalItems) * 100).toFixed(0) + '%' : '0%';
 
     const correctiveEl = document.getElementById('correctivePerc');
-    if (correctiveEl) correctiveEl.innerText = totalCount > 0 ? ((corrective / totalCount) * 100).toFixed(0) + '%' : '0%';
+    if (correctiveEl) correctiveEl.innerText = totalItems > 0 ? ((corrective / totalItems) * 100).toFixed(0) + '%' : '0%';
 
     // 4: Alertas Ativos
     let activeAlerts = 0;
@@ -514,8 +560,10 @@ function initDashboard() {
     // --- 2. Distribuição por Tipo ---
     const types = {};
     state.manutencoes.forEach(m => {
-        const type = m.manutencao_tipos?.descricao || 'OUTRO';
-        types[type] = (types[type] || 0) + 1;
+        (m.manutencao_itens || []).forEach(i => {
+            const type = i.manutencao_tipos?.descricao || 'OUTRO';
+            types[type] = (types[type] || 0) + 1;
+        });
     });
 
     const ctxType = document.getElementById('maintTypeChart')?.getContext('2d');
@@ -801,10 +849,16 @@ window.openMaintModal = async (id = null) => {
         title.innerText = 'Editar Manutenção';
         const m = state.manutencoes.find(x => x.id === id);
         if (m) {
+            const veh = state.vehicles.find(v => v.id === m.veiculo_id);
             document.getElementById('maint_veiculo').value = m.veiculo_id;
+            document.getElementById('maint_veiculo_search').value = veh ? `${veh.placa} - ${veh.modelo}` : '';
+
             document.getElementById('maint_data').value = m.data;
-            document.getElementById('maint_tipo').value = m.tipo_id || '';
+
+            const forn = state.oficinas.find(o => o.id === m.oficina_id);
             document.getElementById('maint_oficina').value = m.oficina_id;
+            document.getElementById('maint_oficina_search').value = forn ? forn.nome : '';
+
             document.getElementById('maint_km').value = m.km_atual;
             state.editingStatus = m.status;
 
@@ -813,18 +867,28 @@ window.openMaintModal = async (id = null) => {
         }
     } else {
         title.innerText = 'Registrar Manutenção';
+        document.getElementById('maint_veiculo_search').value = '';
+        document.getElementById('maint_veiculo').value = '';
+        document.getElementById('maint_oficina_search').value = '';
+        document.getElementById('maint_oficina').value = '';
         document.getElementById('maint_data').value = new Date().toISOString().split('T')[0];
         addMaintItem();
     }
 
     renderMaintItems();
     document.getElementById('modalMaint').classList.add('active');
+    setTimeout(() => {
+        const input = document.getElementById('maint_veiculo_search');
+        if (input) input.focus();
+    }, 150);
 };
 
 window.addMaintItem = () => {
+    const newId = 'temp_' + Date.now();
     state.currentMaintItems.push({
-        id: 'temp_' + Date.now(),
+        id: newId,
         descricao: '',
+        tipo_id: '',
         acao_id: '',
         valor_pecas: 0,
         valor_servicos: 0,
@@ -837,6 +901,12 @@ window.addMaintItem = () => {
         origem_garantia_fornecedor_id: null
     });
     renderMaintItems();
+    
+    // Foca na descrição do novo item adicionado
+    setTimeout(() => {
+        const input = document.getElementById(`maint_desc_${newId}`);
+        if (input) input.focus();
+    }, 50);
 };
 
 window.removeMaintItem = (id) => {
@@ -848,46 +918,52 @@ function renderMaintItems() {
     const container = document.getElementById('maint_items_container');
     if (!container) return;
 
+    // Salva o elemento ativo antes de renderizar para manter o foco
+    const activeId = document.activeElement ? document.activeElement.id : null;
+    let cursorPosition = null;
+
+    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+        try {
+            cursorPosition = {
+                start: document.activeElement.selectionStart,
+                end: document.activeElement.selectionEnd
+            };
+        } catch (e) {
+            // Alguns tipos de input (ex: number) não suportam selectionStart
+        }
+    }
+
     container.innerHTML = state.currentMaintItems.map((item, index) => `
-        <div class="item-card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-card); border-radius: 12px; padding: 1.2rem; position: relative; animation: fadeIn 0.3s ease-out;">
-            <button type="button" onclick="removeMaintItem('${item.id}')" style="position: absolute; top: 1rem; right: 1rem; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+        <div class="item-card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-card); border-radius: 12px; padding: 0.8rem; position: relative; animation: fadeIn 0.3s ease-out;">
+            <button type="button" onclick="removeMaintItem('${item.id}')" style="position: absolute; top: 0.5rem; right: 0.5rem; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                 <i data-lucide="x" style="width: 14px;"></i>
             </button>
 
-            <div class="form-grid" style="grid-template-columns: 2fr 1.5fr;">
+            <div class="form-grid" style="grid-template-columns: 2fr 1fr 1fr; gap: 0.6rem;">
                 <div class="form-group">
                     <label>Descrição do Item / Serviço</label>
-                    <input type="text" value="${item.descricao}" oninput="updateItemField('${item.id}', 'descricao', this.value)" placeholder="Ex: Óleo 5W30">
+                    <input type="text" id="maint_desc_${item.id}" value="${item.descricao || ''}" oninput="updateItemField('${item.id}', 'descricao', this.value)" placeholder="Ex: Óleo 5W30">
+                </div>
+                <div class="form-group">
+                    <label>Tipo de Manutenção</label>
+                    <select id="maint_tipo_${item.id}" onchange="updateItemField('${item.id}', 'tipo_id', this.value)">
+                        <option value="">Selecione...</option>
+                        ${state.tipos.map(t => `<option value="${t.id}" ${item.tipo_id === t.id ? 'selected' : ''}>${t.descricao}</option>`).join('')}
+                    </select>
                 </div>
                 <div class="form-group">
                     <label>Ação</label>
-                    <select onchange="updateItemField('${item.id}', 'acao_id', this.value)">
+                    <select id="maint_acao_${item.id}" onchange="updateItemField('${item.id}', 'acao_id', this.value)">
                         <option value="">Selecione...</option>
                         ${state.acoes.map(a => `<option value="${a.id}" ${item.acao_id === a.id ? 'selected' : ''}>${a.descricao}</option>`).join('')}
                     </select>
                 </div>
             </div>
 
-            <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top: 1rem;">
-                <div class="form-group">
-                    <label>Valor Peças (R$)</label>
-                    <input type="number" step="0.01" value="${item.valor_pecas || 0}" oninput="updateItemField('${item.id}', 'valor_pecas', parseFloat(this.value) || 0); document.getElementById('total_${item.id}').innerText = 'Total: ' + ((${item.valor_servicos || 0} + (parseFloat(this.value) || 0))).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})" placeholder="0,00">
-                </div>
-                <div class="form-group">
-                    <label>Valor Serviço (R$)</label>
-                    <input type="number" step="0.01" value="${item.valor_servicos || 0}" oninput="updateItemField('${item.id}', 'valor_servicos', parseFloat(this.value) || 0); document.getElementById('total_${item.id}').innerText = 'Total: ' + ((${item.valor_pecas || 0} + (parseFloat(this.value) || 0))).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})" placeholder="0,00">
-                </div>
-                <div class="form-group" style="display: flex; align-items: flex-end; padding-bottom: 0.8rem;">
-                    <div id="total_${item.id}" style="font-weight: 800; color: #10b981; font-size: 1rem;">
-                        Total: ${((parseFloat(item.valor_pecas) || 0) + (parseFloat(item.valor_servicos) || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </div>
-                </div>
-            </div>
-
-            <div class="form-grid" style="grid-template-columns: repeat(4, 1fr); margin-top: 1rem; gap: 1rem; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px;">
+            <div class="form-grid" style="grid-template-columns: repeat(4, 1fr); margin-top: 0.6rem; gap: 0.6rem; background: rgba(0,0,0,0.2); padding: 0.6rem; border-radius: 8px;">
                 <div class="form-group">
                     <label style="font-size: 0.7rem;">Controle de Troca</label>
-                    <select style="font-size: 0.75rem; height: 35px;" onchange="updateItemField('${item.id}', 'controle_proxima_troca', this.value); renderMaintItems();">
+                    <select id="maint_control_${item.id}" style="font-size: 0.75rem; height: 35px;" onchange="updateItemField('${item.id}', 'controle_proxima_troca', this.value); renderMaintItems();">
                         <option value="NENHUMA" ${item.controle_proxima_troca === 'NENHUMA' ? 'selected' : ''}>NÃO</option>
                         <option value="KM" ${item.controle_proxima_troca === 'KM' ? 'selected' : ''}>KM</option>
                         <option value="DATA" ${item.controle_proxima_troca === 'DATA' ? 'selected' : ''}>DATA</option>
@@ -897,22 +973,22 @@ function renderMaintItems() {
                 ${item.controle_proxima_troca === 'KM' ? `
                     <div class="form-group">
                         <label style="font-size: 0.7rem;">Intervalo KM / Prev.</label>
-                        <input type="number" value="${item.intervalo_km || ''}" oninput="updateItemField('${item.id}', 'intervalo_km', this.value)" onblur="renderMaintItems()" style="height: 35px; margin-bottom: 5px;">
-                        <div style="font-size: 0.75rem; font-weight: bold; color: var(--primary);">${calculateItemPrediction(item, 'KM')}</div>
+                        <input type="number" id="maint_km_${item.id}" value="${item.intervalo_km || ''}" oninput="updateItemField('${item.id}', 'intervalo_km', this.value)" style="height: 35px; margin-bottom: 5px;">
+                        <div id="prediction_km_${item.id}" style="font-size: 0.75rem; font-weight: bold; color: var(--primary);">${calculateItemPrediction(item, 'KM')}</div>
                     </div>
                 ` : ''}
 
                 ${item.controle_proxima_troca === 'DATA' ? `
                     <div class="form-group">
                         <label style="font-size: 0.7rem;">Meses / Prev.</label>
-                        <input type="number" value="${item.intervalo_meses || ''}" oninput="updateItemField('${item.id}', 'intervalo_meses', this.value)" onblur="renderMaintItems()" style="height: 35px; margin-bottom: 5px;">
-                        <div style="font-size: 0.75rem; font-weight: bold; color: var(--primary);">${calculateItemPrediction(item, 'DATA')}</div>
+                        <input type="number" id="maint_months_${item.id}" value="${item.intervalo_meses || ''}" oninput="updateItemField('${item.id}', 'intervalo_meses', this.value)" style="height: 35px; margin-bottom: 5px;">
+                        <div id="prediction_date_${item.id}" style="font-size: 0.75rem; font-weight: bold; color: var(--primary);">${calculateItemPrediction(item, 'DATA')}</div>
                     </div>
                 ` : ''}
 
                 <div class="form-group">
                     <label style="font-size: 0.7rem;">Garantia?</label>
-                    <select style="font-size: 0.75rem; height: 35px;" onchange="updateItemField('${item.id}', 'possui_garantia', this.value === 'true'); renderMaintItems();">
+                    <select id="maint_warranty_${item.id}" style="font-size: 0.75rem; height: 35px;" onchange="updateItemField('${item.id}', 'possui_garantia', this.value === 'true'); renderMaintItems();">
                         <option value="false" ${!item.possui_garantia ? 'selected' : ''}>NÃO</option>
                         <option value="true" ${item.possui_garantia ? 'selected' : ''}>SIM</option>
                     </select>
@@ -921,12 +997,12 @@ function renderMaintItems() {
                 ${item.possui_garantia ? `
                     <div class="form-group">
                         <label style="font-size: 0.7rem;">Meses / Vence em</label>
-                        <input type="number" value="${item.meses_garantia || ''}" oninput="updateItemField('${item.id}', 'meses_garantia', this.value)" onblur="renderMaintItems()" style="height: 35px; margin-bottom: 5px;">
-                        <div style="font-size: 0.75rem; font-weight: bold; color: var(--accent);">${calculateItemPrediction(item, 'GARANTIA')}</div>
+                        <input type="number" id="maint_w_months_${item.id}" value="${item.meses_garantia || ''}" oninput="updateItemField('${item.id}', 'meses_garantia', this.value)" style="height: 35px; margin-bottom: 5px;">
+                        <div id="prediction_warranty_${item.id}" style="font-size: 0.75rem; font-weight: bold; color: var(--accent);">${calculateItemPrediction(item, 'GARANTIA')}</div>
                     </div>
                     <div class="form-group" style="grid-column: span 2;">
                         <label style="font-size: 0.7rem;">Origem da Garantia</label>
-                        <select style="font-size: 0.75rem; height: 35px;" onchange="handleWarrantyOriginChange('${item.id}', this.value); renderMaintItems();">
+                        <select id="maint_w_origin_${item.id}" style="font-size: 0.75rem; height: 35px;" onchange="handleWarrantyOriginChange('${item.id}', this.value); renderMaintItems();">
                             <option value="">Selecione a origem...</option>
                             <option value="ESTOQUE" ${item.origem_garantia === 'ESTOQUE' ? 'selected' : ''}>Estoque</option>
                             <option value="OFICINA" ${item.origem_garantia === 'OFICINA' ? 'selected' : ''}>Própria Oficina</option>
@@ -939,7 +1015,21 @@ function renderMaintItems() {
             </div>
         </div>
     `).join('');
+
     if (window.lucide) lucide.createIcons();
+
+    // Restaura o foco do cursor no elemento que estava ativo
+    if (activeId) {
+        const activeEl = document.getElementById(activeId);
+        if (activeEl) {
+            activeEl.focus();
+            if (cursorPosition && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+                try {
+                    activeEl.setSelectionRange(cursorPosition.start, cursorPosition.end);
+                } catch (e) {}
+            }
+        }
+    }
 }
 
 function calculateItemPrediction(item, type) {
@@ -966,7 +1056,20 @@ function calculateItemPrediction(item, type) {
 
 window.updateItemField = (id, field, value) => {
     const item = state.currentMaintItems.find(i => i.id === id);
-    if (item) item[field] = value;
+    if (item) {
+        item[field] = value;
+        // Atualiza a previsão dinamicamente sem forçar re-render total do DOM (evita travar o tab)
+        if (field === 'intervalo_km') {
+            const el = document.getElementById(`prediction_km_${id}`);
+            if (el) el.innerText = calculateItemPrediction(item, 'KM');
+        } else if (field === 'intervalo_meses') {
+            const el = document.getElementById(`prediction_date_${id}`);
+            if (el) el.innerText = calculateItemPrediction(item, 'DATA');
+        } else if (field === 'meses_garantia') {
+            const el = document.getElementById(`prediction_warranty_${id}`);
+            if (el) el.innerText = calculateItemPrediction(item, 'GARANTIA');
+        }
+    }
 };
 
 window.handleWarrantyOriginChange = (id, value) => {
@@ -1044,7 +1147,6 @@ function setupFormListeners() {
             const header = {
                 veiculo_id: document.getElementById('maint_veiculo').value || null,
                 data: currentDate,
-                tipo_id: document.getElementById('maint_tipo').value || null,
                 oficina_id: document.getElementById('maint_oficina').value || null,
                 km_atual: currentKm,
                 status: state.editingStatus || 'PENDENTE'
@@ -1090,9 +1192,10 @@ function setupFormListeners() {
                     return {
                         manutencao_id: savedHeader.id,
                         descricao: item.descricao,
+                        tipo_id: item.tipo_id && item.tipo_id !== '' ? item.tipo_id : null,
                         acao_id: item.acao_id && item.acao_id !== '' ? item.acao_id : null,
-                        valor_pecas: parseFloat(item.valor_pecas) || 0,
-                        valor_servicos: parseFloat(item.valor_servicos) || 0,
+                        valor_pecas: 0,
+                        valor_servicos: 0,
                         controle_proxima_troca: item.controle_proxima_troca,
                         intervalo_km: parseFloat(item.intervalo_km) || null,
                         intervalo_meses: parseInt(item.intervalo_meses) || null,
@@ -1106,11 +1209,32 @@ function setupFormListeners() {
                     };
                 });
 
-                const { error: iError } = await supabaseClient.from('manutencao_itens').insert(itemsToSave);
-                if (iError) throw iError;
+                let { error: iError } = await supabaseClient.from('manutencao_itens').insert(itemsToSave);
+                
+                // Se falhar porque a coluna tipo_id não existe na tabela do banco ainda (migração pendente)
+                if (iError && (iError.message.includes('tipo_id') || iError.message.includes('schema cache'))) {
+                    console.warn('[Manutenção] Novo esquema de itens falhou no insert (coluna tipo_id ausente). Tentando fallback para esquema antigo...');
+                    
+                    const itemsFallback = itemsToSave.map(item => {
+                        const copy = { ...item };
+                        delete copy.tipo_id;
+                        return copy;
+                    });
+                    
+                    const fallbackRes = await supabaseClient.from('manutencao_itens').insert(itemsFallback);
+                    if (fallbackRes.error) throw fallbackRes.error;
+                    
+                    // Salva o tipo do primeiro item no cabeçalho antigo
+                    const firstItemTipoId = state.currentMaintItems.find(item => item.tipo_id && item.tipo_id !== '')?.tipo_id || null;
+                    if (firstItemTipoId) {
+                        await supabaseClient.from('manutencoes').update({ tipo_id: firstItemTipoId }).eq('id', savedHeader.id);
+                    }
+                } else if (iError) {
+                    throw iError;
+                }
 
                 showToast('Manutenção salva com sucesso!');
-                document.getElementById('modalMaint').classList.remove('active');
+                closeMaintModal(true);
                 await loadInitialData();
             } catch (err) {
                 showToast('Erro ao salvar: ' + err.message, 'error');
@@ -1138,6 +1262,56 @@ function setupFormListeners() {
 
     const fornecedorForm = document.getElementById('fornecedorForm');
     if (fornecedorForm) fornecedorForm.onsubmit = (e) => handleSetupSubmit(e, 'fornecedores', 'modalFornecedor');
+
+    // Keyboard shortcuts & Enter key prevention on inputs
+    window.addEventListener('keydown', (e) => {
+        // Esc -> Fecha todas as modais
+        if (e.key === 'Escape') {
+            const maintModal = document.getElementById('modalMaint');
+            if (maintModal && maintModal.classList.contains('active')) {
+                closeMaintModal(false);
+            } else {
+                closeModal('modalAcao');
+                closeModal('modalTipo');
+                closeModal('modalFornecedor');
+                closeModal('modalAuth');
+            }
+        }
+
+        // F2 -> Registrar Manutenção
+        if (e.key === 'F2') {
+            e.preventDefault();
+            const modal = document.getElementById('modalMaint');
+            if (modal && !modal.classList.contains('active')) {
+                openMaintModal(null);
+            }
+        }
+
+        // Ctrl + Enter -> Salvar Manutenção (se modal ativo)
+        if (e.ctrlKey && e.key === 'Enter') {
+            const modal = document.getElementById('modalMaint');
+            if (modal && modal.classList.contains('active')) {
+                e.preventDefault();
+                const form = document.getElementById('maintForm');
+                if (form) {
+                    if (typeof form.requestSubmit === 'function') {
+                        form.requestSubmit();
+                    } else {
+                        form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                    }
+                }
+            }
+        }
+    });
+
+    const maintFormElement = document.getElementById('maintForm');
+    if (maintFormElement) {
+        maintFormElement.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.ctrlKey && e.target.tagName !== 'TEXTAREA') {
+                e.preventDefault();
+            }
+        });
+    }
 }
 
 async function handleSetupSubmit(e, table, modalId) {
@@ -1270,4 +1444,146 @@ function exportMaintToExcel() {
     console.log('Exportando manutenções para Excel...');
     alert('Função de exportação será implementada em breve.');
 }
+
+let currentAutocompleteIndex = -1;
+
+window.handleMaintVehicleSearch = (el) => {
+    currentAutocompleteIndex = -1;
+    const query = el.value.toLowerCase().trim();
+    const resultsDiv = document.getElementById('maint_veiculo_results');
+    if (!resultsDiv) return;
+
+    const filtered = state.vehicles.filter(v => 
+        (v.placa || '').toLowerCase().includes(query) || 
+        (v.modelo || '').toLowerCase().includes(query)
+    );
+
+    if (filtered.length === 0) {
+        resultsDiv.innerHTML = '<div style="padding: 0.8rem; color: var(--text-muted); font-size: 0.85rem;">Nenhum veículo encontrado</div>';
+    } else {
+        resultsDiv.innerHTML = filtered.map(v => `
+            <div class="autocomplete-item" style="padding: 0.6rem 0.8rem; cursor: pointer; border-bottom: 1px solid rgba(255, 255, 255, 0.03); transition: background 0.2s;" 
+                 onclick="selectMaintVehicle('${v.id}', '${v.placa} - ${v.modelo}')">
+                <span style="font-weight: 700; color: white; display: block; font-size: 0.85rem;">${v.placa}</span>
+                <span style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">${v.modelo}</span>
+            </div>
+        `).join('');
+    }
+
+    resultsDiv.style.display = 'block';
+};
+
+window.selectMaintVehicle = (id, label) => {
+    const inputSearch = document.getElementById('maint_veiculo_search');
+    const inputHidden = document.getElementById('maint_veiculo');
+    const resultsDiv = document.getElementById('maint_veiculo_results');
+    if (inputSearch && inputHidden) {
+        inputSearch.value = label;
+        inputHidden.value = id;
+    }
+    if (resultsDiv) resultsDiv.style.display = 'none';
+    currentAutocompleteIndex = -1;
+};
+
+window.handleMaintOficinaSearch = (el) => {
+    currentAutocompleteIndex = -1;
+    const query = el.value.toLowerCase().trim();
+    const resultsDiv = document.getElementById('maint_oficina_results');
+    if (!resultsDiv) return;
+
+    const filtered = state.oficinas.filter(o => 
+        (o.nome || '').toLowerCase().includes(query) ||
+        (o.nome_fantasia || '').toLowerCase().includes(query)
+    );
+
+    if (filtered.length === 0) {
+        resultsDiv.innerHTML = '<div style="padding: 0.8rem; color: var(--text-muted); font-size: 0.85rem;">Nenhuma oficina encontrada</div>';
+    } else {
+        resultsDiv.innerHTML = filtered.map(o => {
+            const hasFantasia = o.nome_fantasia && o.nome_fantasia.toLowerCase() !== o.nome.toLowerCase();
+            const subtitle = hasFantasia ? `<span style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; display: block; margin-top: 2px;">Fantasia: ${o.nome_fantasia}</span>` : '';
+            return `
+                <div class="autocomplete-item" style="padding: 0.6rem 0.8rem; cursor: pointer; border-bottom: 1px solid rgba(255, 255, 255, 0.03); transition: background 0.2s;" 
+                     onclick="selectMaintOficina('${o.id}', '${o.nome}')">
+                    <span style="font-weight: 700; color: white; display: block; font-size: 0.85rem;">${o.nome}</span>
+                    ${subtitle}
+                </div>
+            `;
+        }).join('');
+    }
+
+    resultsDiv.style.display = 'block';
+};
+
+window.selectMaintOficina = (id, label) => {
+    const inputSearch = document.getElementById('maint_oficina_search');
+    const inputHidden = document.getElementById('maint_oficina');
+    const resultsDiv = document.getElementById('maint_oficina_results');
+    if (inputSearch && inputHidden) {
+        inputSearch.value = label;
+        inputHidden.value = id;
+    }
+    if (resultsDiv) resultsDiv.style.display = 'none';
+    currentAutocompleteIndex = -1;
+};
+
+window.handleMaintAutocompleteKeydown = (e, inputEl) => {
+    const resultsDiv = inputEl.parentElement.querySelector('.autocomplete-results');
+    if (!resultsDiv || resultsDiv.style.display === 'none') return;
+
+    const items = resultsDiv.querySelectorAll('.autocomplete-item');
+    if (items.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        currentAutocompleteIndex++;
+        if (currentAutocompleteIndex >= items.length) currentAutocompleteIndex = 0;
+        updateMaintAutocompleteHighlight(items);
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        currentAutocompleteIndex--;
+        if (currentAutocompleteIndex < 0) currentAutocompleteIndex = items.length - 1;
+        updateMaintAutocompleteHighlight(items);
+    } else if (e.key === 'Enter' || (e.key === ' ' && currentAutocompleteIndex >= 0)) {
+        if (currentAutocompleteIndex >= 0) {
+            e.preventDefault();
+            items[currentAutocompleteIndex].click();
+            currentAutocompleteIndex = -1;
+        }
+    } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        resultsDiv.style.display = 'none';
+        currentAutocompleteIndex = -1;
+    }
+};
+
+function updateMaintAutocompleteHighlight(items) {
+    items.forEach((item, idx) => {
+        if (idx === currentAutocompleteIndex) {
+            item.style.background = 'rgba(99, 102, 241, 0.2)';
+            item.scrollIntoView({ block: 'nearest' });
+        } else {
+            item.style.background = 'transparent';
+        }
+    });
+}
+
+// Global click handler to close autocompletes when clicking outside
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.autocomplete-wrapper')) {
+        const divs = document.querySelectorAll('.autocomplete-results');
+        divs.forEach(div => div.style.display = 'none');
+    }
+});
+
+window.closeMaintModal = (force = false) => {
+    const modal = document.getElementById('modalMaint');
+    if (!modal || !modal.classList.contains('active')) return;
+
+    if (!force && !confirm('Deseja realmente fechar a manutenção? Quaisquer dados preenchidos e não salvos serão perdidos.')) {
+        return;
+    }
+    modal.classList.remove('active');
+};
 

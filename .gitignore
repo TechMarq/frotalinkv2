@@ -1,0 +1,9 @@
+# Ignorar pastas de rascunhos e temporários
+scratch/
+
+# Ignorar configurações do VS Code
+.vscode/
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-br">
 
 <head>
@@ -238,18 +238,97 @@
         }
 
         .modal-content {
-            background: #1e293b;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #0f172a;
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 24px;
             width: 95%;
-            max-width: 1350px;
-            max-height: 90vh;
+            max-width: 1200px;
+            max-height: 95vh;
             overflow-y: auto;
             padding: 2.5rem;
             position: relative;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+            box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.8);
             margin: auto;
             animation: modalSlideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .modal-content input,
+        .modal-content select,
+        .modal-content textarea {
+            width: 100%;
+            padding: 0.55rem 0.8rem;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.04);
+            color: white;
+            outline: none;
+            font-size: 0.85rem;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .modal-content .form-group label {
+            margin-bottom: 0.25rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .modal-content input:focus,
+        .modal-content select:focus,
+        .modal-content textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .modal-content select option {
+            background: #0f172a;
+            color: white;
+        }
+
+        .close-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-muted);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .close-btn:hover {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border-color: rgba(239, 68, 68, 0.3);
+            transform: scale(1.05);
+        }
+
+        .btn-add-item {
+            border: 2px dashed rgba(255, 255, 255, 0.08);
+            background: none;
+            color: var(--text-muted);
+            padding: 1rem;
+            border-radius: 10px;
+            width: 100%;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 0.8rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-add-item:hover {
+            background: rgba(255, 255, 255, 0.03);
+            border-color: rgba(255, 255, 255, 0.15);
+            color: white;
         }
 
         @keyframes modalSlideUp {
@@ -277,7 +356,7 @@
         .form-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
+            gap: 0.8rem 1.2rem;
         }
 
         .form-group.full {
@@ -929,7 +1008,7 @@
         <div class="modal-content" style="max-width: 1350px;">
             <div class="modal-header">
                 <h2 id="maintModalTitle">Registrar Manutenção Detalhada</h2>
-                <button class="close-btn" onclick="closeModal('modalMaint')"><i data-lucide="x"></i></button>
+                <button class="close-btn" type="button" onclick="closeMaintModal(false)"><i data-lucide="x"></i></button>
             </div>
             <form id="maintForm">
                 <div class="form-grid">
@@ -943,14 +1022,13 @@
 
                     <div class="form-group">
                         <label>Veículo (Placa)</label>
-                        <select id="maint_veiculo" required></select>
+                        <div class="autocomplete-wrapper" style="position: relative;">
+                            <input type="text" id="maint_veiculo_search" placeholder="Buscar placa..." required autocomplete="off" oninput="handleMaintVehicleSearch(this)" onfocus="handleMaintVehicleSearch(this)" onkeydown="handleMaintAutocompleteKeydown(event, this)">
+                            <input type="hidden" id="maint_veiculo" required>
+                            <div class="autocomplete-results" id="maint_veiculo_results" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #1e293b; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; z-index: 100; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8);"></div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Tipo de Manutenção</label>
-                        <select id="maint_tipo" required>
-                            <option value="">Selecione o tipo...</option>
-                        </select>
-                    </div>
+
                     <div class="form-group">
                         <label>Data do Serviço</label>
                         <input type="date" id="maint_data" required oninput="calculateNextMaint()">
@@ -971,7 +1049,11 @@
 
                     <div class="form-group">
                         <label>Oficina / Fornecedor</label>
-                        <select id="maint_oficina" required></select>
+                        <div class="autocomplete-wrapper" style="position: relative;">
+                            <input type="text" id="maint_oficina_search" placeholder="Buscar oficina..." required autocomplete="off" oninput="handleMaintOficinaSearch(this)" onfocus="handleMaintOficinaSearch(this)" onkeydown="handleMaintAutocompleteKeydown(event, this)">
+                            <input type="hidden" id="maint_oficina" required>
+                            <div class="autocomplete-results" id="maint_oficina_results" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #1e293b; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; z-index: 100; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8);"></div>
+                        </div>
                     </div>
                     <!-- Seção: Itens da Manutenção (DINÂMICO) -->
                     <div class="form-group full" style="margin-top: 1.5rem; margin-bottom: 0.5rem;">
@@ -979,10 +1061,6 @@
                             <label style="color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
                                 <i data-lucide="list-checks" style="width: 16px;"></i> Itens e Serviços Realizados
                             </label>
-                            <button type="button" class="btn-plus" onclick="addMaintItem()"
-                                style="padding: 0.4rem 0.8rem; font-size: 0.7rem;">
-                                <i data-lucide="plus" style="width: 14px;"></i> ADICIONAR ITEM
-                            </button>
                         </div>
                         <div
                             style="height: 1px; background: var(--border-card); width: 100%; margin-top: 5px; margin-bottom: 1rem;">
@@ -991,12 +1069,15 @@
                         <div id="maint_items_container" style="display: flex; flex-direction: column; gap: 1rem;">
                             <!-- Itens inseridos via JS -->
                         </div>
+
+                        <button type="button" class="btn-add-item" onclick="addMaintItem()">
+                            <i data-lucide="plus" style="width:16px;"></i> Adicionar Novo Item
+                        </button>
                     </div>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
-                    <button type="button" class="btn-submit" style="background: rgba(255,255,255,0.05); color: white;"
-                        onclick="closeModal('modalMaint')">CANCELAR</button>
-                    <button type="submit" class="btn-submit">FINALIZAR ORDEM DE SERVIÇO</button>
+                <div class="modal-footer" style="margin-top: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 1.5rem; display: flex; justify-content: flex-end; gap: 1rem;">
+                    <button type="button" class="btn" style="background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.1); padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s;" onclick="closeMaintModal(false)">CANCELAR</button>
+                    <button type="submit" class="btn btn-primary" style="background: var(--primary); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s;">FINALIZAR ORDEM DE SERVIÇO</button>
                 </div>
             </form>
         </div>

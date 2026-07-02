@@ -1139,6 +1139,8 @@
             font-size: 11pt;
             line-height: 1.55;
             position: relative;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
 
         .doc-paper .doc-header-top {
@@ -1328,8 +1330,8 @@
             <h1
                 style="font-size: 2.2rem; font-weight: 900; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
                 Comercial</h1>
-            <p style="color: var(--text-muted); font-size: 0.9rem; font-weight: 500; margin-top: 0.5rem;">GestÃ£o
-                estratÃ©gica de contratos de clientes</p>
+            <p style="color: var(--text-muted); font-size: 0.9rem; font-weight: 500; margin-top: 0.5rem;">Gestão
+                estratégica de contratos de clientes</p>
         </header>
 
         <nav class="tabs-header">
@@ -1416,8 +1418,8 @@
                         <i data-lucide="search"
                             style="position: absolute; left: 1.2rem; top: 50%; transform: translateY(-50%); width: 18px; color: var(--text-muted);"></i>
                     </div>
-                    <button class="btn-new" onclick="openContratoModal()">
-                        <i data-lucide="file-plus"></i> NOVA PROPOSTA
+                    <button class="btn-new" onclick="openContratoModal()" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                        <i data-lucide="file-plus"></i> NOVA PROPOSTA <kbd style="background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 4px; padding: 1px 5px; font-size: 0.7rem; font-family: monospace; margin-left: 4px; box-shadow: 0 1px 0 rgba(0,0,0,0.2); color: #fff;">F2</kbd>
                     </button>
                 </div>
 
@@ -1668,6 +1670,7 @@
                             <label>CNPJ / CPF</label>
                             <input type="text" id="cliente_cnpj_cpf" class="com-input"
                                 placeholder="Ex: 00.000.000/0000-00 ou 000.000.000-00" maxlength="18">
+                            <div id="cnpj_cpf_feedback" style="display: none; font-size: 0.75rem; margin-top: 0.3rem; font-weight: 600;"></div>
                         </div>
                         <div class="com-group">
                             <label>Email do Cliente</label>
@@ -1847,11 +1850,18 @@
                 <!-- Section 6: Itens da Proposta -->
                 <div>
                     <div
-                        style="display:flex;align-items:center;gap:0.7rem;margin-bottom:1.2rem;padding-bottom:0.8rem;border-bottom:1px solid var(--border-color);">
+                        style="display:flex;align-items:center;gap:0.7rem;margin-bottom:1.2rem;padding-bottom:0.8rem;border-bottom:1px solid var(--border-color);flex-wrap:wrap;">
                         <i data-lucide="list" style="width:16px;color:var(--primary);"></i>
                         <span
                             style="font-size:0.8rem;font-weight:800;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px;">Itens
                             da Proposta</span>
+                        
+                        <!-- Seletor de Versão do Layout de Itens -->
+                        <div class="version-selector-group" style="display:inline-flex; background:rgba(255,255,255,0.05); padding:3px; border-radius:10px; margin-left:1.5rem; border:1px solid var(--border-color);">
+                            <button type="button" id="btnVersao1" onclick="setPropostaVersao(1)" class="version-tab active" style="background:var(--primary); color:#fff; border:none; padding:0.35rem 0.8rem; border-radius:8px; font-size:0.75rem; font-weight:700; cursor:pointer; transition:all 0.3s; outline:none;">Versão 1 (Itens)</button>
+                            <button type="button" id="btnVersao2" onclick="setPropostaVersao(2)" class="version-tab" style="background:none; color:var(--text-muted); border:none; padding:0.35rem 0.8rem; border-radius:8px; font-size:0.75rem; font-weight:700; cursor:pointer; transition:all 0.3s; outline:none;">Versão 2 (Logística)</button>
+                        </div>
+
                         <button type="button" onclick="addItemProposta()"
                             style="margin-left:auto;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:var(--primary);padding:0.35rem 0.9rem;border-radius:8px;font-size:0.75rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:0.4rem;">
                             <i data-lucide="plus" style="width:13px;"></i> Adicionar Item
@@ -1859,7 +1869,7 @@
                     </div>
                     <div style="overflow-x:auto;">
                         <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
-                            <thead>
+                            <thead id="propostaItensHeader">
                                 <tr style="background:rgba(255,255,255,0.04);">
                                     <th
                                         style="padding:0.6rem 0.5rem;text-align:center;color:var(--text-muted);font-weight:700;width:36px;">
@@ -1917,8 +1927,8 @@
                     <button type="button" onclick="closeContratoModal()"
                         style="background:none;border:1px solid var(--border-color);color:var(--text-muted);padding:0.75rem 1.4rem;border-radius:12px;font-weight:700;cursor:pointer;font-size:0.85rem;">Cancelar</button>
                     <button type="button" onclick="document.getElementById('contratoForm').requestSubmit()"
-                        id="btnSaveContrato" class="btn-new" style="font-size:0.9rem;padding:0.8rem 1.8rem;">
-                        <i data-lucide="save" style="width:16px;"></i> SALVAR
+                        id="btnSaveContrato" class="btn-new" style="font-size:0.9rem;padding:0.8rem 1.8rem; display: inline-flex; align-items: center; gap: 0.5rem;">
+                        <i data-lucide="save" style="width:16px;"></i> SALVAR <kbd style="background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 4px; padding: 1px 5px; font-size: 0.7rem; font-family: monospace; margin-left: 4px; box-shadow: 0 1px 0 rgba(0,0,0,0.2); color: #fff;">Ctrl+Enter</kbd>
                     </button>
                 </div>
             </div>
@@ -1999,6 +2009,39 @@
             </div>
             <div class="doc-paper" id="docPropostaPaper">
                 <!-- conteúdo gerado via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CONFIRMAÇÃO POR PIN (6 DÍGITOS) -->
+    <div id="pinModal" class="custom-modal-overlay">
+        <div class="modal-v2" style="max-width: 450px; text-align: center; padding: 2rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; margin: 10% auto;">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+                <div class="icon-circle" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);">
+                    <i data-lucide="shield-alert" style="width: 30px; height: 30px;"></i>
+                </div>
+                <div>
+                    <h2 style="font-size: 1.6rem; font-weight: 800; color: white; margin: 0; line-height: 1.2;">Confirmação de Segurança</h2>
+                    <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 0.5rem;">Insira o código abaixo para confirmar a exclusão:</p>
+                </div>
+                
+                <div id="generatedPinDisplay" style="background: rgba(129, 140, 248, 0.1); border: 2px dashed rgba(129, 140, 248, 0.3); border-radius: 16px; padding: 1.2rem; width: 100%; max-width: 300px; margin: 0.5rem 0;">
+                    <span id="pinChallengeValue" style="font-family: 'JetBrains Mono', monospace; font-size: 2.5rem; font-weight: 800; letter-spacing: 0.4rem; color: #818cf8; display: block;">000000</span>
+                </div>
+            </div>
+
+            <div class="pin-inputs" style="display: flex; gap: 0.6rem; justify-content: center; margin: 1.5rem 0;">
+                <input type="password" maxlength="1" class="pin-field" data-index="0" oninput="movePinFocus(this)" style="width: 45px; height: 60px; background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; font-size: 2rem; font-weight: 800; color: white; text-align: center; outline: none; transition: all 0.3s;">
+                <input type="password" maxlength="1" class="pin-field" data-index="1" oninput="movePinFocus(this)" style="width: 45px; height: 60px; background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; font-size: 2rem; font-weight: 800; color: white; text-align: center; outline: none; transition: all 0.3s;">
+                <input type="password" maxlength="1" class="pin-field" data-index="2" oninput="movePinFocus(this)" style="width: 45px; height: 60px; background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; font-size: 2rem; font-weight: 800; color: white; text-align: center; outline: none; transition: all 0.3s;">
+                <input type="password" maxlength="1" class="pin-field" data-index="3" oninput="movePinFocus(this)" style="width: 45px; height: 60px; background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; font-size: 2rem; font-weight: 800; color: white; text-align: center; outline: none; transition: all 0.3s;">
+                <input type="password" maxlength="1" class="pin-field" data-index="4" oninput="movePinFocus(this)" style="width: 45px; height: 60px; background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; font-size: 2rem; font-weight: 800; color: white; text-align: center; outline: none; transition: all 0.3s;">
+                <input type="password" maxlength="1" class="pin-field" data-index="5" oninput="movePinFocus(this)" style="width: 45px; height: 60px; background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; font-size: 2rem; font-weight: 800; color: white; text-align: center; outline: none; transition: all 0.3s;">
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 2rem;">
+                <button onclick="confirmPin()" style="background: #ef4444; color: white; border: none; border-radius: 12px; padding: 1rem; font-weight: 800; cursor: pointer; width: 100%; transition: all 0.2s;">CONFIRMAR EXCLUSÃO</button>
+                <button onclick="closeContratoModal(true); document.getElementById('pinModal').classList.remove('active');" style="background: transparent; border: none; color: #94a3b8; font-weight: 700; cursor: pointer; padding: 0.5rem;">CANCELAR</button>
             </div>
         </div>
     </div>

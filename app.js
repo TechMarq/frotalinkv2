@@ -1064,6 +1064,20 @@ async function updateVehicleDriver(vehicleId, driverId) {
         if (error) {
             console.error(error);
             alert('Erro ao atualizar');
+        } else {
+            if (window.registrarLog) {
+                const v = vehicles.find(item => item.id === vehicleId);
+                const placa = v ? v.placa : vehicleId;
+                let descLog = '';
+                if (driverId === "GARAGEM" || driverId === "DISPONIVEL") {
+                    descLog = `Alterou alocação do veículo ${placa} para ${driverId}`;
+                } else {
+                    const d = drivers.find(item => item.id === driverId);
+                    const motoristaNome = d ? d.nome_completo : driverId;
+                    descLog = `Alocou motorista ${motoristaNome} no veículo ${placa}`;
+                }
+                window.registrarLog('frota', 'ALTERAÇÃO', descLog);
+            }
         }
 
         fetchVehicles(); // Recarrega para atualizar a UI
@@ -1195,7 +1209,7 @@ async function addMaintLog() {
     const data = document.getElementById('newLogDate').value;
     const desc = document.getElementById('newLogDesc').value;
 
-    if (!desc) return alert('Descreva a situação.');
+    if (!desc) return alert('Descreva a situation.');
 
     try {
         const { error } = await client
@@ -1203,6 +1217,12 @@ async function addMaintLog() {
             .insert([{ veiculo_id: vehicleId, data, descricao: desc }]);
 
         if (error) throw error;
+
+        if (window.registrarLog) {
+            const v = vehicles.find(item => item.id === vehicleId);
+            const placa = v ? v.placa : vehicleId;
+            window.registrarLog('frota', 'INCLUSÃO', `Adicionou registro no histórico de manutenção do veículo ${placa}: "${desc}"`);
+        }
 
         document.getElementById('newLogDesc').value = '';
         fetchMaintLogs(vehicleId);
@@ -1215,9 +1235,17 @@ async function addMaintLog() {
 async function deleteMaintLog(logId) {
     if (!confirm('Excluir este registro do histórico?')) return;
     try {
+        const log = maintLogs.find(l => l.id === logId);
         const { error } = await client.from('veiculo_situacoes_log').delete().eq('id', logId);
         if (error) throw error;
+        
         const vehicleId = document.getElementById('maintVehicleId').value;
+        if (window.registrarLog && log) {
+            const v = vehicles.find(item => item.id === vehicleId);
+            const placa = v ? v.placa : vehicleId;
+            window.registrarLog('frota', 'EXCLUSÃO', `Excluiu registro do histórico de manutenção do veículo ${placa}: "${log.descricao}"`);
+        }
+
         fetchMaintLogs(vehicleId);
         fetchVehicles(); // 🔄 Atualiza o dashboard
     } catch (err) {
@@ -1239,7 +1267,14 @@ async function editMaintLog(logId) {
             .eq('id', logId);
 
         if (error) throw error;
+        
         const vehicleId = document.getElementById('maintVehicleId').value;
+        if (window.registrarLog) {
+            const v = vehicles.find(item => item.id === vehicleId);
+            const placa = v ? v.placa : vehicleId;
+            window.registrarLog('frota', 'ALTERAÇÃO', `Editou registro no histórico de manutenção do veículo ${placa}. Antigo: "${log.descricao}" -> Novo: "${novaDesc}"`);
+        }
+
         fetchMaintLogs(vehicleId);
         fetchVehicles(); // 🔄 Atualiza o dashboard
     } catch (err) {
@@ -1274,6 +1309,10 @@ async function handleMaintenanceSubmit(e) {
             .eq('id', vehicleId);
 
         if (error) throw error;
+
+        if (window.registrarLog) {
+            window.registrarLog('frota', 'ALTERAÇÃO', `Atualizou informações de manutenção do veículo ${v ? v.placa : vehicleId}. Oficina: ${oficinaNome}. Motivo: ${motivo}`);
+        }
 
         alert('Informações atualizadas com sucesso!');
         document.getElementById('maintPendingStatus').value = '';
@@ -2081,6 +2120,14 @@ async function handleAddVehicle(e) {
 
         if (result.error) throw result.error;
 
+        if (window.registrarLog) {
+            if (id) {
+                window.registrarLog('frota', 'ALTERAÇÃO', `Atualizou veículo de placa ${vehicleData.placa}`);
+            } else {
+                window.registrarLog('frota', 'INCLUSÃO', `Cadastrou novo veículo de placa ${vehicleData.placa}`);
+            }
+        }
+
         closeAddModal();
         fetchVehicles();
         alert(id ? 'Veículo atualizado!' : 'Veículo cadastrado!');
@@ -2142,6 +2189,14 @@ async function handleAddDriver(e) {
 
         if (result.error) throw result.error;
 
+        if (window.registrarLog) {
+            if (id) {
+                window.registrarLog('frota', 'ALTERAÇÃO', `Atualizou cadastro do motorista ${driverData.nome_completo}`);
+            } else {
+                window.registrarLog('frota', 'INCLUSÃO', `Cadastrou novo motorista ${driverData.nome_completo}`);
+            }
+        }
+
         closeDriverModal();
         fetchDrivers();
         alert(id ? 'Motorista atualizado com sucesso!' : 'Motorista cadastrado com sucesso!');
@@ -2157,8 +2212,15 @@ async function deleteVehicle(id) {
     if (!confirm('Deseja realmente excluir este veículo? Esta ação não pode ser desfeita.')) return;
 
     try {
+        const v = vehicles.find(item => item.id === id);
+        const placa = v ? v.placa : id;
         const { error } = await client.from('veiculos').delete().eq('id', id);
         if (error) throw error;
+
+        if (window.registrarLog) {
+            window.registrarLog('frota', 'EXCLUSÃO', `Excluiu veículo de placa ${placa}`);
+        }
+
         alert('Veículo excluído com sucesso!');
         fetchVehicles();
     } catch (err) {
@@ -2171,8 +2233,15 @@ async function deleteDriver(id) {
     if (!confirm('Deseja realmente excluir este motorista?')) return;
 
     try {
+        const d = drivers.find(item => item.id === id);
+        const nome = d ? d.nome_completo : id;
         const { error } = await client.from('motoristas').delete().eq('id', id);
         if (error) throw error;
+
+        if (window.registrarLog) {
+            window.registrarLog('frota', 'EXCLUSÃO', `Excluiu motorista ${nome}`);
+        }
+
         alert('Motorista excluído com sucesso!');
         fetchDrivers();
     } catch (err) {
@@ -2597,6 +2666,10 @@ window.saveWorkshop = async (e) => {
 
         if (error) throw error;
 
+        if (window.registrarLog) {
+            window.registrarLog('frota', 'INCLUSÃO', `Cadastrou oficina "${nome}" em ${cidade || '-'}/${estado || '-'}`);
+        }
+
         alert('Oficina cadastrada com sucesso!');
         document.getElementById('workshopForm').reset();
         closeWorkshopModal();
@@ -2631,6 +2704,10 @@ window.saveFuelType = async (e) => {
             .single();
 
         if (error) throw error;
+
+        if (window.registrarLog) {
+            window.registrarLog('frota', 'INCLUSÃO', `Cadastrou tipo de combustível "${descricao}" (${unidade})`);
+        }
 
         alert('Tipo de combustível cadastrado com sucesso!');
         document.getElementById('fuelTypeForm').reset();
@@ -2739,6 +2816,11 @@ async function addMotivoInativo() {
     try {
         const { error } = await client.from('veiculo_motivos_inativacao').insert([{ nome }]);
         if (error) throw error;
+
+        if (window.registrarLog) {
+            window.registrarLog('frota', 'INCLUSÃO', `Cadastrou motivo de inativação de veículo: "${nome}"`);
+        }
+
         input.value = '';
         await fetchInativoMotivos();
     } catch (err) {
@@ -2753,8 +2835,15 @@ async function deleteMotivoInativo(id) {
     }
     if (!confirm('Deseja realmente excluir este motivo?')) return;
     try {
+        const m = inativoMotivos.find(item => item.id === id);
+        const nomeMotivo = m ? m.nome : id;
         const { error } = await client.from('veiculo_motivos_inativacao').delete().eq('id', id);
         if (error) throw error;
+
+        if (window.registrarLog) {
+            window.registrarLog('frota', 'EXCLUSÃO', `Excluiu motivo de inativação de veículo: "${nomeMotivo}"`);
+        }
+
         await fetchInativoMotivos();
     } catch (err) {
         alert('Erro ao excluir: ' + err.message);
