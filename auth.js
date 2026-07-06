@@ -206,6 +206,9 @@ function canDo(modulo, acao) {
     if (window.currentUserRole === 'admin') return true;
     
     let targetMod = modulo;
+    if (targetMod === 'dp') {
+        targetMod = 'dp_funcionarios';
+    }
     if (targetMod === 'abastecimento_importacoes' && window.currentUserPermissions) {
         if (!window.currentUserPermissions['abastecimento_importacoes'] && window.currentUserPermissions['abastecimento_integracoes']) {
             targetMod = 'abastecimento_integracoes';
@@ -215,10 +218,15 @@ function canDo(modulo, acao) {
         targetMod = 'compras_notas';
     }
     
+    let targetAcao = acao;
+    if (targetAcao === 'create') {
+        targetAcao = 'add';
+    }
+    
     if (!window.currentUserPermissions || !window.currentUserPermissions[targetMod]) return false;
     
     // As chaves no JSON podem ser 'view', 'add', 'edit', 'delete'
-    return !!window.currentUserPermissions[targetMod][acao];
+    return !!window.currentUserPermissions[targetMod][targetAcao];
 }
 window.canDo = canDo;
 
