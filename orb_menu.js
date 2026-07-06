@@ -14,6 +14,7 @@
         { id: 'stock', icon: 'package', label: 'Estoque', url: 'estoque.html' },
         { id: 'finance', icon: 'dollar-sign', label: 'Financeiro', url: 'financeiro.html' },
         { id: 'comercial', icon: 'briefcase', label: 'Comercial', url: 'comercial.html' },
+        { id: 'dp', icon: 'users', label: 'DP', url: 'dp.html' },
         { id: 'auditoria', icon: 'activity', label: 'Auditoria', url: 'auditoria.html' }
     ];
 
@@ -26,7 +27,8 @@
         'shop': 'compras',
         'stock': 'estoque',
         'finance': 'financeiro',
-        'comercial': 'comercial'
+        'comercial': 'comercial',
+        'dp': 'dp'
     };
 
     function initOrbMenu() {

@@ -2412,7 +2412,7 @@ window.gerarDocumentoProposta = () => {
         cep         ? `<p>CEP: ${cep}</p>` : ''
     ].filter(Boolean).join('');
 
-    const saudacao   = contatoNome ? `Prezado ${contatoNome},` : 'Prezado(a) Senhor(a),';
+    const saudacao   = contatoNome ? `Prezado(a) ${contatoNome},` : 'Prezado(a) Senhor(a),';
     const fixedIntro = 'A New Cargo Transporte e Logística Ltda. tem o prazer de apresentar a presente proposta comercial para a prestação de serviços de transporte executivo, conforme as condições e especificações descritas no Termo de Referência.';
     const objetoTexto = objeto ? `<p class="doc-intro" style="margin-top: 10px;"><strong>Objetivo / Escopo:</strong> ${objeto}</p>` : '';
     const validadeTexto = dataValidade

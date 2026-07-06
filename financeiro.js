@@ -159,6 +159,88 @@ function toggleAdminMode(tipo) {
     console.log("Modo edição unificado.");
 }
 
+// --- Configuração de Ordenação Semântica ---
+const COL_DEFS = {
+    PAGAR: [
+        { key: 'codigo_sequencial', label: 'Cód.', sortable: true },
+        { key: 'data_vencimento', label: 'Vencimento', sortable: true },
+        { key: 'entidade_nome', label: 'Fornecedor / Favorecido', sortable: true },
+        { key: 'descricao', label: 'Descrição Principal', sortable: true },
+        { key: 'valor_total', label: 'Valor Total', sortable: true, align: 'right' },
+        { key: 'valor_pago', label: 'Valor Pago', sortable: true, align: 'right' },
+        { key: 'status', label: 'Status', sortable: true },
+        { key: 'centro_custo_id', label: 'Centro Custo', sortable: true },
+        { key: 'actions', label: 'Ações', sortable: false, align: 'center' }
+    ],
+    RECEBER: [
+        { key: 'codigo_sequencial', label: 'Cód.', sortable: true },
+        { key: 'previsao_pagamento', label: 'Previsão', sortable: true },
+        { key: 'entidade_nome', label: 'Cliente', sortable: true },
+        { key: 'descricao', label: 'Descrição', sortable: true },
+        { key: 'valor_total', label: 'Vlr. Bruto', sortable: true, align: 'right' },
+        { key: 'valor_liquido', label: 'Vlr. Líquido', sortable: true, align: 'right' },
+        { key: 'status', label: 'Status', sortable: true },
+        { key: 'data_competencia', label: 'Competência', sortable: true },
+        { key: 'actions', label: 'Ações', sortable: false, align: 'center' }
+    ]
+};
+
+function renderThead(tipo) {
+    const table = document.getElementById(`table-${tipo.toLowerCase()}`);
+    if (!table) return;
+    const thead = table.querySelector('thead');
+    if (!thead) return;
+
+    const cols = COL_DEFS[tipo];
+    const sort = state.sort[tipo];
+    const chkId = tipo === 'PAGAR' ? 'chkAllPagar' : 'chkAllReceber';
+
+    thead.innerHTML = `
+        <tr>
+            <th style="width: 40px; text-align: center; vertical-align: middle;">
+                <input type="checkbox" id="${chkId}" onclick="toggleSelectAll('${tipo}', this)">
+            </th>
+            ${cols.map(c => {
+                const isCurrent = sort.key === c.key;
+                let icon = '';
+                if (c.sortable) {
+                    if (isCurrent) {
+                        icon = sort.dir === 'asc' 
+                            ? '<i data-lucide="chevron-up" style="width:14px; color:var(--primary);"></i>' 
+                            : '<i data-lucide="chevron-down" style="width:14px; color:var(--primary);"></i>';
+                    } else {
+                        icon = '<i data-lucide="chevrons-up-down" style="width:12px; opacity:0.2;"></i>';
+                    }
+                }
+                const alignStyle = c.align ? `text-align:${c.align};` : '';
+                const cursorStyle = c.sortable ? 'cursor:pointer; user-select:none;' : '';
+                const justify = c.align === 'right' ? 'flex-end' : (c.align === 'center' ? 'center' : 'flex-start');
+
+                return `
+                    <th ${c.sortable ? `onclick="handleSort('${tipo}', '${c.key}')"` : ''} 
+                        style="${alignStyle} ${cursorStyle} transition: all 0.2s;" 
+                        class="${c.sortable ? 'sortable-header' : ''} ${isCurrent ? 'active-sort' : ''}">
+                        <div style="display:flex; align-items:center; gap:0.5rem; justify-content: ${justify}">
+                            ${c.label}
+                            ${c.sortable ? `<span class="sort-icon-wrapper" style="display:flex; align-items:center;">${icon}</span>` : ''}
+                        </div>
+                    </th>`;
+            }).join('')}
+        </tr>
+    `;
+    if (window.lucide) lucide.createIcons();
+}
+
+window.handleSort = (tipo, key) => {
+    if (state.sort[tipo].key === key) {
+        state.sort[tipo].dir = state.sort[tipo].dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        state.sort[tipo].key = key;
+        state.sort[tipo].dir = 'asc';
+    }
+    renderLancamentos(tipo);
+};
+
 // --- Renderização de Listas ---
 function renderAll() {
     renderLancamentos('PAGAR');
@@ -170,6 +252,8 @@ function renderAll() {
 function renderLancamentos(tipo) {
     const tbody = document.getElementById(`tbody-${tipo.toLowerCase()}`);
     if (!tbody) return;
+
+    renderThead(tipo);
 
     // Reset master checkbox
     const masterChk = document.getElementById(`chkAll${tipo === 'PAGAR' ? 'Pagar' : 'Receber'}`);
@@ -204,8 +288,22 @@ function renderLancamentos(tipo) {
 
     filtered.sort((a, b) => {
         let vA = a[sort.key], vB = b[sort.key];
-        if (sort.key.includes('data')) { vA = new Date(vA || 0); vB = new Date(vB || 0); }
-        if (sort.key === 'valor_total' || sort.key === 'valor_pago') { vA = parseFloat(vA) || 0; vB = parseFloat(vB) || 0; }
+        if (sort.key.includes('data') || sort.key === 'previsao_pagamento' || sort.key === 'data_competencia') { 
+            vA = new Date(vA || 0); 
+            vB = new Date(vB || 0); 
+        }
+        else if (sort.key === 'valor_total' || sort.key === 'valor_pago' || sort.key === 'valor_liquido') {
+            if (sort.key === 'valor_liquido') {
+                vA = (parseFloat(a.valor_total) || 0) - (parseFloat(a.valor_tributo_total) || 0);
+                vB = (parseFloat(b.valor_total) || 0) - (parseFloat(b.valor_tributo_total) || 0);
+            } else {
+                vA = parseFloat(vA) || 0;
+                vB = parseFloat(vB) || 0;
+            }
+        } else {
+            vA = (vA || '').toString().toLowerCase();
+            vB = (vB || '').toString().toLowerCase();
+        }
         if (vA < vB) return sort.dir === 'asc' ? -1 : 1;
         if (vA > vB) return sort.dir === 'asc' ? 1 : -1;
         return 0;
@@ -1002,6 +1100,7 @@ async function deleteEntry(id) {
         try {
             const { error } = await supabaseClient.from('fin_lancamentos').delete().eq('id', id);
             if (error) throw error;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'EXCLUSÃO', `DETALHE: Excluiu lançamento ${l ? l.tipo : ''}: ${l ? l.descricao : id} (Valor: R$ ${l ? l.valor_total : 0})`);
             
             // Reverter integrado_financeiro se for o último lançamento daquela compra
             if (l && l.compra_id) {
@@ -1309,9 +1408,11 @@ async function handleReceberSubmit(e) {
         if (id) {
             const { error } = await supabaseClient.from('fin_lancamentos').update(record).eq('id', id);
             if (error) throw error;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Editou recebimento: ${record.descricao} - Cliente/Entidade: ${record.entidade_nome} (Valor: R$ ${record.valor_total})`);
         } else {
             const { error } = await supabaseClient.from('fin_lancamentos').insert([record]);
             if (error) throw error;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Lançou recebimento: ${record.descricao} - Cliente/Entidade: ${record.entidade_nome} (Valor: R$ ${record.valor_total})`);
         }
 
         closeModal('receberModal');
@@ -1363,12 +1464,14 @@ async function handleEntrySubmit(e) {
         if (id) {
             const { error: upErr } = await supabaseClient.from('fin_lancamentos').update(mainRecord).eq('id', id);
             if (upErr) throw upErr;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Editou lançamento (${mainRecord.tipo}): ${mainRecord.descricao} - Fornecedor/Entidade: ${mainRecord.entidade_nome} (Valor: R$ ${mainRecord.valor_total})`);
             await supabaseClient.from('fin_lancamento_itens').delete().eq('lancamento_id', id);
             await supabaseClient.from('fin_lancamento_adicionais').delete().eq('lancamento_id', id);
             await supabaseClient.from('fin_lancamento_parcelas').delete().eq('lancamento_id', id);
         } else {
             const { data: inserted, error: inErr } = await supabaseClient.from('fin_lancamentos').insert([mainRecord]).select().single();
             if (inErr) throw inErr;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Lançou ${mainRecord.tipo.toLowerCase()}: ${mainRecord.descricao} - Fornecedor/Entidade: ${mainRecord.entidade_nome} (Valor: R$ ${mainRecord.valor_total})`);
             lancamentoId = inserted.id;
         }
 
@@ -1505,6 +1608,8 @@ async function handlePayment(e) {
         }).eq('id', contaId);
         if (errC) throw errC;
 
+        if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Baixou/Registrou pagamento no lançamento (${l.tipo}): ${l.descricao} - Valor Baixado: R$ ${valorPagoInput} (Conta: ${conta.nome})`);
+
         closeModal('paymentModal');
         await loadInitialData();
         renderAll();
@@ -1535,6 +1640,7 @@ async function duplicateEntry(id) {
 
         const { error } = await supabaseClient.from('fin_lancamentos').insert([copy]);
         if (error) throw error;
+        if (typeof registrarLog === 'function') registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Duplicou lançamento (${l.tipo}): ${l.descricao}`);
 
         await loadInitialData();
         renderAll();
@@ -2331,9 +2437,11 @@ async function handleFornecedorSubmit(e) {
         if (id) {
             const { error } = await supabaseClient.from('fornecedores').update(data).eq('id', id);
             if (error) throw error;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Editou fornecedor: ${data.nome}`);
         } else {
             const { error } = await supabaseClient.from('fornecedores').insert([data]);
             if (error) throw error;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Cadastrou fornecedor: ${data.nome}`);
         }
 
         showToast('Fornecedor salvo!', 'success');
@@ -2349,8 +2457,10 @@ async function handleFornecedorSubmit(e) {
 async function deleteFornecedor(id) {
     if (!confirm('Excluir este fornecedor? Ele pode estar vinculado a compras ou abastecimentos.')) return;
     try {
+        const f = state.fornecedores.find(item => item.id === id);
         const { error } = await supabaseClient.from('fornecedores').delete().eq('id', id);
         if (error) throw error;
+        if (typeof registrarLog === 'function') registrarLog('financeiro', 'EXCLUSÃO', `DETALHE: Excluiu fornecedor: ${f ? f.nome : id}`);
         await loadInitialData();
         renderConfig();
         updateDropdowns();
@@ -2441,9 +2551,11 @@ async function handlePlanoSubmit(e) {
         if (id) {
             const { error } = await supabaseClient.from('fin_plano_contas').update(data).eq('id', id);
             if (error) throw error;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Editou conta no plano: ${data.codigo} - ${data.nome}`);
         } else {
             const { error } = await supabaseClient.from('fin_plano_contas').insert([data]);
             if (error) throw error;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Cadastrou conta no plano: ${data.codigo} - ${data.nome}`);
         }
 
         showToast('Conta salva!', 'success');
@@ -2459,8 +2571,10 @@ async function handlePlanoSubmit(e) {
 async function deletePlanoItem(id) {
     if (!confirm('Deseja excluir esta conta? Subcontas também serão removidas.')) return;
     try {
+        const item = state.categorias.find(c => c.id === id);
         const { error } = await supabaseClient.from('fin_plano_contas').delete().eq('id', id);
         if (error) throw error;
+        if (typeof registrarLog === 'function') registrarLog('financeiro', 'EXCLUSÃO', `DETALHE: Excluiu conta do plano: ${item ? item.codigo + ' - ' + item.nome : id}`);
         await loadInitialData();
         renderConfig();
         updateDropdowns();
@@ -2540,9 +2654,11 @@ async function handleCustoSubmit(e) {
         if (id) {
             const { error } = await supabaseClient.from('fin_centros_custo').update(data).eq('id', id);
             if (error) throw error;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Editou centro de custo: ${data.codigo} - ${data.nome}`);
         } else {
             const { error } = await supabaseClient.from('fin_centros_custo').insert([data]);
             if (error) throw error;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Cadastrou centro de custo: ${data.codigo} - ${data.nome}`);
         }
 
         showToast('Centro de custo salvo!', 'success');
@@ -2558,8 +2674,10 @@ async function handleCustoSubmit(e) {
 async function deleteCustoItem(id) {
     if (!confirm('Deseja excluir este centro de custo?')) return;
     try {
+        const item = state.centrosCusto.find(cc => cc.id === id);
         const { error } = await supabaseClient.from('fin_centros_custo').delete().eq('id', id);
         if (error) throw error;
+        if (typeof registrarLog === 'function') registrarLog('financeiro', 'EXCLUSÃO', `DETALHE: Excluiu centro de custo: ${item ? item.codigo + ' - ' + item.nome : id}`);
         await loadInitialData();
         renderConfig();
         updateDropdowns();
@@ -2612,9 +2730,11 @@ async function handleBankSubmit(e) {
         if (id) {
             const { error } = await supabaseClient.from('fin_contas_bancarias').update(data).eq('id', id);
             if (error) throw error;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Editou conta bancária: ${data.nome}`);
         } else {
             const { error } = await supabaseClient.from('fin_contas_bancarias').insert([data]);
             if (error) throw error;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Cadastrou conta bancária: ${data.nome} (Saldo Inicial: R$ ${data.saldo_inicial})`);
         }
 
         showToast('Conta bancária salva!', 'success');
@@ -2630,8 +2750,10 @@ async function handleBankSubmit(e) {
 async function deleteBankItem(id) {
     if (!confirm('Deseja excluir esta conta bancária?')) return;
     try {
+        const item = state.contas.find(c => c.id === id);
         const { error } = await supabaseClient.from('fin_contas_bancarias').delete().eq('id', id);
         if (error) throw error;
+        if (typeof registrarLog === 'function') registrarLog('financeiro', 'EXCLUSÃO', `DETALHE: Excluiu conta bancária: ${item ? item.nome : id}`);
         await loadInitialData();
         renderConfig();
         updateDropdowns();
@@ -2676,9 +2798,11 @@ async function handleFormaSubmit(e) {
         if (id) {
             const { error } = await supabaseClient.from('formas_pagamento').update(data).eq('id', id);
             if (error) throw error;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Editou forma de pagamento: ${data.nome}`);
         } else {
             const { error } = await supabaseClient.from('formas_pagamento').insert([data]);
             if (error) throw error;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Cadastrou forma de pagamento: ${data.nome}`);
         }
 
         showToast('Forma de pagamento salva!', 'success');
@@ -2694,8 +2818,10 @@ async function handleFormaSubmit(e) {
 async function deleteFormaItem(id) {
     if (!confirm('Deseja excluir esta forma de pagamento?')) return;
     try {
+        const item = state.formasPagamento.find(f => f.id === id);
         const { error } = await supabaseClient.from('formas_pagamento').delete().eq('id', id);
         if (error) throw error;
+        if (typeof registrarLog === 'function') registrarLog('financeiro', 'EXCLUSÃO', `DETALHE: Excluiu forma de pagamento: ${item ? item.nome : id}`);
         await loadInitialData();
         renderConfig();
         updateDropdowns();
@@ -2817,6 +2943,8 @@ async function handleBulkPayment(e) {
         renderAll();
         showToast(`${countSucesso} lançamentos baixados com sucesso!`, 'success');
         
+        if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Realizou baixa em lote de ${countSucesso} lançamentos (Conta: ${conta.nome})`);
+
         // Esconder barra
         const bar = document.getElementById('bulkActionsBar');
         if (bar) bar.style.display = 'none';
@@ -2869,6 +2997,7 @@ window.deleteBulkSelected = async () => {
             await loadInitialData();
             renderAll();
             showToast(`${countSucesso} lançamentos excluídos!`, 'success');
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'EXCLUSÃO EM LOTE', `DETALHE: Excluiu ${countSucesso} lançamentos em lote`);
             
             const bar = document.getElementById('bulkActionsBar');
             if (bar) bar.style.display = 'none';
@@ -3144,6 +3273,7 @@ window.vincularConciliacao = async function(lancamentoId) {
         state.selectedExtratoItem = state.extratoParsed[0] || null;
 
         showToast("Conciliação efetuada com sucesso!", "success");
+        if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Conciliou lançamento (${l.tipo}): ${l.descricao} (Valor: R$ ${l.valor_total})`);
         await loadInitialData();
         renderAll();
         renderConciliacao();
@@ -3193,6 +3323,7 @@ window.lancarConciliacaoRapida = async function() {
         state.selectedExtratoItem = state.extratoParsed[0] || null;
 
         showToast("Lançamento rápido criado e conciliado!", "success");
+        if (typeof registrarLog === 'function') registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Lançamento rápido e conciliação criada pelo extrato: ${record.descricao} (Valor: R$ ${record.valor_total})`);
         await loadInitialData();
         renderAll();
         renderConciliacao();

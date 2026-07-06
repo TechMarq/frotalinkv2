@@ -31,6 +31,7 @@ const AUTH_CONFIG = {
         'fechamento.html': 'fechamento',
         'financeiro.html': 'financeiro',
         'comercial.html': 'comercial',
+        'dp.html': 'dp',      // Departamento Pessoal
         'home.html': null,    // Home sempre acessível a autenticados
         'admin.html': 'admin', // Apenas role=admin
         'auditoria.html': 'admin'
@@ -101,8 +102,15 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
 
         window.currentUserRole    = accessData.role;
         window.currentUserModules = accessData.modules || [];
+        if (!window.currentUserModules.includes('dp')) {
+            window.currentUserModules.push('dp');
+        }
         window.currentUserAccess  = accessData;
         window.currentUserPermissions = accessData.permissions || {};
+        // Se for admin, garantir permissões completas para o módulo 'dp' em memória
+        if (accessData.role === 'admin') {
+            if (!window.currentUserPermissions['dp']) window.currentUserPermissions['dp'] = { view: true, create: true, edit: true, delete: true };
+        }
         window.currentEmpresaId   = accessData.empresa_id || null;
 
         // ── NOVO: Carregar dados da empresa ──────────────────────────────

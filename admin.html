@@ -1034,9 +1034,18 @@
             { key: 'financeiro_dre',         label: 'Financeiro -- DRE' },
             { key: 'financeiro_conciliacao', label: 'Financeiro -- Conciliação' },
             { key: 'financeiro_config',      label: 'Financeiro -- Cadastros (Fornecedores / Contas / Plano de Contas / Centros de Custo)' },
-            // "?"? COMERCIAL "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
+            // 👔 COMERCIAL
             { key: 'comercial_contratos', label: 'Comercial -- Contratos' },
             { key: 'comercial_cadastros', label: 'Comercial -- Cadastros (Tabelas / Demandas / Status)' },
+            // 👥 DEPARTAMENTO PESSOAL
+            { key: 'dp_funcionarios', label: 'DP -- Funcionários' },
+            { key: 'dp_aso',          label: 'DP -- ASO / Saúde' },
+            { key: 'dp_ferias',       label: 'DP -- Férias' },
+            { key: 'dp_ponto',        label: 'DP -- Ponto, Ocorrências e Atestados' },
+            { key: 'dp_epis',         label: 'DP -- EPIs e Uniformes' },
+            { key: 'dp_beneficios',   label: 'DP -- Benefícios' },
+            { key: 'dp_contratos',    label: 'DP -- Contratos e Checklist de Experiência' },
+            { key: 'dp_cargos',       label: 'DP -- Cargos e Salários' },
         ];
 
         let adminClient = null;
@@ -1206,7 +1215,8 @@
             estoque: { bg: 'rgba(249, 115, 22, 0.04)', border: '#f97316' },
             fechamento: { bg: 'rgba(244, 63, 94, 0.04)', border: '#f43f5e' },
             financeiro: { bg: 'rgba(34, 197, 94, 0.04)', border: '#22c55e' },
-            comercial: { bg: 'rgba(99, 102, 241, 0.04)', border: '#6366f1' }
+            comercial: { bg: 'rgba(99, 102, 241, 0.04)', border: '#6366f1' },
+            dp: { bg: 'rgba(56, 189, 248, 0.04)', border: '#38bdf8' }
         };
 
         const GROUP_NAMES = {
@@ -1217,7 +1227,8 @@
             estoque: { name: 'Estoque', icon: 'package' },
             fechamento: { name: 'Fechamento', icon: 'file-check' },
             financeiro: { name: 'Financeiro', icon: 'dollar-sign' },
-            comercial: { name: 'Comercial', icon: 'briefcase' }
+            comercial: { name: 'Comercial', icon: 'briefcase' },
+            dp: { name: 'Departamento Pessoal', icon: 'users' }
         };
 
         window.toggleGroupCollapse = function(prefix, groupKey) {

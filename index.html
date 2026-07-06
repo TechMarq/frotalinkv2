@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FrotaLink | Gestão de Veículos</title>
+    <title>Frota | Gestão de Veículos</title>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -140,11 +140,14 @@
                 style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
                 <div class="status-filters" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                     <button id="filter-MANUTENCAO" class="filter-chip filter-maint"
-                        onclick="toggleStatusFilter('MANUTENCAO')">MANUTENÇÃO <span class="filter-count" id="count-status-MANUTENCAO">0</span></button>
+                        onclick="toggleStatusFilter('MANUTENCAO')">MANUTENÇÃO <span class="filter-count"
+                            id="count-status-MANUTENCAO">0</span></button>
                     <button id="filter-GARAGEM" class="filter-chip filter-garage"
-                        onclick="toggleStatusFilter('GARAGEM')">GARAGEM <span class="filter-count" id="count-status-GARAGEM">0</span></button>
+                        onclick="toggleStatusFilter('GARAGEM')">GARAGEM <span class="filter-count"
+                            id="count-status-GARAGEM">0</span></button>
                     <button id="filter-DISPONIVEL" class="filter-chip filter-avail"
-                        onclick="toggleStatusFilter('DISPONIVEL')">DISPONÍVEL <span class="filter-count" id="count-status-DISPONIVEL">0</span></button>
+                        onclick="toggleStatusFilter('DISPONIVEL')">DISPONÍVEL <span class="filter-count"
+                            id="count-status-DISPONIVEL">0</span></button>
                 </div>
                 <button class="btn-col-config" onclick="toggleColPanel('dashboard')">
                     <i data-lucide="settings-2" style="width:14px;"></i> Colunas

@@ -1714,8 +1714,9 @@
                             <i data-lucide="search"
                                 style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); width: 14px;"></i>
                             <input type="text" id="fuelSearch" placeholder="Pesquise por placa, modelo..."
-                                style="padding: 0.6rem 1rem 0.6rem 2.22rem; width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border-card); border-radius: 10px;"
+                                style="display: block; box-sizing: border-box; padding: 0.6rem 2.5rem 0.6rem 2.22rem; width: 100% !important; background: rgba(255,255,255,0.03); border: 1px solid var(--border-card); border-radius: 10px;"
                                 oninput="renderFuelTable()">
+                            <button id="clearFuelSearch" class="clear-btn" onclick="clearFuelSearch()">&times;</button>
                         </div>
 
                         <!-- Botões Compactos (Mobile Row 2) -->

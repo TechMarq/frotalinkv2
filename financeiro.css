@@ -1370,3 +1370,21 @@
 .btn-edit {
     visibility: visible !important;
 }
+
+/* Table sorting styles */
+th.sortable-header:hover {
+    color: var(--primary) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+}
+th.sortable-header:hover .sort-icon-wrapper i {
+    opacity: 0.8 !important;
+    color: var(--primary) !important;
+}
+th.active-sort {
+    color: var(--primary) !important;
+    background: rgba(79, 70, 229, 0.08) !important;
+}
+th.active-sort i {
+    color: var(--primary) !important;
+    opacity: 1 !important;
+}

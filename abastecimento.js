@@ -1509,6 +1509,36 @@ async function loadInitialData() {
         console.log(`Total de abastecimentos carregados: ${allAbastecimentos.length}`);
         state.fuelingRecords = allAbastecimentos;
 
+        // Carregar logs de alteração e mapeamento de usuários para o histórico
+        let logsAlteracao = [];
+        let userMap = {};
+        if (supabaseClient) {
+            try {
+                const { data: logsData } = await supabaseClient
+                    .from('logs_atividade')
+                    .select('*')
+                    .eq('modulo', 'abastecimento')
+                    .eq('acao', 'ALTERAÇÃO');
+                logsAlteracao = logsData || [];
+                
+                const { data: usersData } = await supabaseClient
+                    .from('user_access')
+                    .select('email, nome_completo');
+                if (usersData) {
+                    usersData.forEach(u => {
+                        userMap[u.email] = u.nome_completo;
+                    });
+                }
+            } catch (e) {
+                console.warn("Erro ao carregar logs de alteração ou usuários do Supabase:", e);
+            }
+        } else {
+            const localLogs = JSON.parse(localStorage.getItem('frotalink_audit_logs') || '[]');
+            logsAlteracao = localLogs.filter(log => log.modulo === 'abastecimento' && log.acao === 'ALTERAÇÃO');
+        }
+        state.alterationLogs = logsAlteracao;
+        state.userMap = userMap;
+
         renderFuelTable();
         calculateStats();
         populateDropdowns();
@@ -1945,6 +1975,67 @@ window.handleDateChange = () => {
     renderFuelTable();
 };
 
+function findAlterationLogForRecord(record, logs, userMap) {
+    if (!logs || logs.length === 0) return null;
+    
+    const formatarDataBR = (d) => {
+        if (!d) return '';
+        const pts = d.split('-');
+        return pts.length === 3 ? `${pts[2]}/${pts[1]}/${pts[0]}` : d;
+    };
+    const recordPlaca = record.veiculos?.placa || '';
+    const recordDataBR = formatarDataBR(record.data);
+    const recordHorario = record.horario ? record.horario.substring(0, 5) : '';
+
+    for (const log of logs) {
+        const desc = log.descricao || '';
+        if (desc.includes(`(ID: ${record.id})`)) {
+            return log;
+        }
+        const hasPlate = recordPlaca && desc.includes(`veículo ${recordPlaca}`);
+        const hasDate = recordDataBR && desc.includes(`na data ${recordDataBR}`);
+        const hasHorario = recordHorario && desc.includes(`às ${recordHorario}`);
+        
+        if (hasPlate && hasDate && hasHorario) {
+            return log;
+        }
+    }
+    return null;
+}
+
+function getAlterationText(log, userMap) {
+    if (!log) return '';
+    let userDisplay = log.usuario_email || 'Sistema';
+    if (userMap && userMap[log.usuario_email]) {
+        userDisplay = userMap[log.usuario_email];
+    } else {
+        const emailParts = userDisplay.split('@');
+        if (emailParts.length > 0) {
+            userDisplay = emailParts[0];
+        }
+    }
+    
+    const desc = log.descricao || '';
+    let changesText = '';
+    
+    if (desc.includes('ALTERACAO:')) {
+        const parts = desc.split('ALTERACAO:');
+        if (parts.length > 1) {
+            let changePart = parts[1].split('|')[0].trim();
+            if (changePart.startsWith('Alterações:')) {
+                changePart = changePart.replace('Alterações:', '').trim();
+            }
+            changesText = changePart;
+        }
+    }
+    
+    if (!changesText) {
+        changesText = 'registro alterado';
+    }
+    
+    return `[${userDisplay}] - alterou ${changesText}`;
+}
+
 function renderFuelTable() {
     const tbody = document.getElementById('fuelList');
     if (!tbody) return;
@@ -2086,15 +2177,29 @@ function renderFuelTable() {
             `;
         }
 
+        const alterationLog = findAlterationLogForRecord(f, state.alterationLogs || [], state.userMap || {});
+        let alterationIconHtml = '';
+        if (alterationLog) {
+            const tooltipText = getAlterationText(alterationLog, state.userMap || {});
+            const escapedTooltip = tooltipText.replace(/"/g, '&quot;');
+            const escapedAlert = tooltipText.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            alterationIconHtml = `
+                <span class="row-alteration-icon" title="${escapedTooltip}" style="color: #fbbf24; display: inline-flex; align-items: center; cursor: help; margin-left: 0.25rem;" onclick="event.stopPropagation(); alert('${escapedAlert}');">
+                    <i data-lucide="history" style="width: 14px; height: 14px; stroke-width: 2.5;"></i>
+                </span>
+            `;
+        }
+
         return `
             <tr>
                 <td style="text-align: center;">
                     <input type="checkbox" class="fuel-checkbox" value="${f.id}" onchange="updateSelectedUI()">
                 </td>
                 <td data-label="Data / Hora" data-column="data">
-                    <div style="font-weight: 600; display: flex; align-items: center; gap: 0.25rem;">
+                    <div style="font-weight: 600; display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap;">
                         ${alertIconHtml}
                         ${fDate.toLocaleDateString('pt-BR')}
+                        ${alterationIconHtml}
                     </div>
                     <div style="font-size: 0.75rem; color: var(--text-muted);">${formatTime24h(f.data, f.horario)}</div>
                 </td>
@@ -2384,12 +2489,25 @@ function setupFormListeners() {
                 let descricao = '';
                 if (isEditing) {
                     const changesStr = changes.length > 0 ? `Alterações: ${changes.join(', ')}` : 'Sem alterações.';
-                    descricao = `DETALHE: Alterou abastecimento do veículo ${placaStr} na data ${dataBR} às ${horarioBR} no valor de R$ ${data.valor_total} | ALTERACAO: ${changesStr} | MOTIVO: ${motivoAlteracao}`;
+                    descricao = `DETALHE: Alterou abastecimento (ID: ${data.id}) do veículo ${placaStr} na data ${dataBR} às ${horarioBR} no valor de R$ ${data.valor_total} | ALTERACAO: ${changesStr} | MOTIVO: ${motivoAlteracao}`;
                 } else {
                     descricao = `DETALHE: Registrou novo abastecimento do veículo ${placaStr} na data ${dataBR} às ${horarioBR} no valor de R$ ${data.valor_total}`;
                 }
 
                 window.registrarLog('abastecimento', acao, descricao);
+
+                if (isEditing) {
+                    const newLog = {
+                        usuario_email: window.currentUser?.email || 'sistema@frotalink.com.br',
+                        modulo: 'abastecimento',
+                        acao: 'ALTERAÇÃO',
+                        descricao: descricao,
+                        data_hora: new Date().toISOString()
+                    };
+                    if (!state.alterationLogs) state.alterationLogs = [];
+                    state.alterationLogs.push(newLog);
+                    refreshUI();
+                }
             }
 
             fuelForm.reset();

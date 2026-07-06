@@ -364,7 +364,8 @@
                 <span class="kpi-value" id="kpi-finance-alerts">0</span>
                 <span class="kpi-trend danger" id="kpi-finance-alerts-sub">Contas em atraso</span>
             </a>
-            <a href="financeiro.html#receber" class="kpi-card" id="kpi-card-finance-receber-alerts" style="display: none;">
+            <a href="financeiro.html#receber" class="kpi-card" id="kpi-card-finance-receber-alerts"
+                style="display: none;">
                 <i data-lucide="trending-up" class="kpi-icon" style="color: var(--success);"></i>
                 <span class="kpi-label">Contas a Receber</span>
                 <span class="kpi-value" id="kpi-finance-receber-alerts">0</span>
@@ -376,6 +377,12 @@
                 <span class="kpi-value" id="kpi-comercial-alerts">0</span>
                 <span class="kpi-trend warn" id="kpi-comercial-alerts-sub">Contas vencendo</span>
             </a>
+            <a href="dp.html" class="kpi-card" id="kpi-card-dp-alerts" style="display: none;">
+                <i data-lucide="users" class="kpi-icon" style="color: #38bdf8;"></i>
+                <span class="kpi-label">Alertas Dep. Pessoal</span>
+                <span class="kpi-value" id="kpi-dp-alerts">0</span>
+                <span class="kpi-trend warn" id="kpi-dp-alerts-sub">ASOs / Contratos</span>
+            </a>
         </section>
 
         <section class="section-title"><i data-lucide="grid" style="color: var(--primary);"></i>Módulos do Sistema
@@ -385,7 +392,7 @@
                 <div class="status-pill pill-active">Instalado</div>
                 <div class="module-icon"><i data-lucide="truck"></i></div>
                 <div>
-                    <h3>FrotaLink (Gestão)</h3>
+                    <h3>Gestão Frota</h3>
                     <p>Controle de veículos, alocações de motoristas e seguros.</p>
                 </div>
             </a>
@@ -452,21 +459,46 @@
                     <p>Gestão estratégica de contratos de clientes.</p>
                 </div>
             </a>
-            <!-- Admin card: only visible for role=admin -->
-            <a href="admin.html" class="module-card" id="adminModuleCard" style="display:none; border-color: rgba(99,102,241,0.3); background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(192,132,252,0.04));">
-                <div class="status-pill" style="background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.2);">Admin</div>
-                <div class="module-icon" style="background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(192,132,252,0.1)); color: #818cf8;"><i data-lucide="shield-check"></i></div>
+            <a href="dp.html" class="module-card" id="module-card-dp" style="display: none;">
+                <div class="status-pill pill-active">Instalado</div>
+                <div class="module-icon" style="background: rgba(14, 165, 233, 0.1); color: #38bdf8;"><i
+                        data-lucide="users"></i></div>
                 <div>
-                    <h3 style="background: linear-gradient(to right, #818cf8, #c084fc); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">Painel Administrativo</h3>
+                    <h3>Departamento Pessoal</h3>
+                    <p>Funcionários, ASO, férias, EPIs e contratos.</p>
+                </div>
+            </a>
+            <!-- Admin card: only visible for role=admin -->
+            <a href="admin.html" class="module-card" id="adminModuleCard"
+                style="display:none; border-color: rgba(99,102,241,0.3); background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(192,132,252,0.04));">
+                <div class="status-pill"
+                    style="background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.2);">
+                    Admin</div>
+                <div class="module-icon"
+                    style="background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(192,132,252,0.1)); color: #818cf8;">
+                    <i data-lucide="shield-check"></i>
+                </div>
+                <div>
+                    <h3
+                        style="background: linear-gradient(to right, #818cf8, #c084fc); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
+                        Painel Administrativo</h3>
                     <p>Controle de acesso e permissões por usuário.</p>
                 </div>
             </a>
             <!-- Auditoria card: only visible for role=admin -->
-            <a href="auditoria.html" class="module-card" id="auditoriaModuleCard" style="display:none; border-color: rgba(99,102,241,0.3); background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(192,132,252,0.04));">
-                <div class="status-pill" style="background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.2);">Admin</div>
-                <div class="module-icon" style="background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(192,132,252,0.1)); color: #818cf8;"><i data-lucide="activity"></i></div>
+            <a href="auditoria.html" class="module-card" id="auditoriaModuleCard"
+                style="display:none; border-color: rgba(99,102,241,0.3); background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(192,132,252,0.04));">
+                <div class="status-pill"
+                    style="background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.2);">
+                    Admin</div>
+                <div class="module-icon"
+                    style="background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(192,132,252,0.1)); color: #818cf8;">
+                    <i data-lucide="activity"></i>
+                </div>
                 <div>
-                    <h3 style="background: linear-gradient(to right, #818cf8, #c084fc); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">Histórico de Auditoria</h3>
+                    <h3
+                        style="background: linear-gradient(to right, #818cf8, #c084fc); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
+                        Histórico de Auditoria</h3>
                     <p>Log de ações de usuários e alterações do sistema.</p>
                 </div>
             </a>
@@ -477,7 +509,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="auth.js"></script>
     <script>
-let supabaseClient = null;
+        let supabaseClient = null;
 
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons(); updateDate();
@@ -485,7 +517,7 @@ let supabaseClient = null;
                 supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
                 initHome();
             }
-            
+
             // Controle de exibição de cards de acordo com as permissões do usuário
             function applyHomePermissions() {
                 if (!window.currentUserRole) {
@@ -495,7 +527,7 @@ let supabaseClient = null;
 
                 const hasAccess = (moduleKey) => {
                     // Garantir que o módulo está habilitado no plano/empresa do usuário
-                    if (window.currentUserModules && 
+                    if (window.currentUserModules &&
                         !window.currentUserModules.some(m => m === moduleKey || m.startsWith(moduleKey + '_'))) {
                         return false;
                     }
@@ -503,7 +535,7 @@ let supabaseClient = null;
                     if (window.currentUserRole === 'admin') return true;
                     if (!window.currentUserPermissions) return false;
                     if (window.currentUserPermissions[moduleKey] && window.currentUserPermissions[moduleKey].view) return true;
-                    return Object.keys(window.currentUserPermissions).some(key => 
+                    return Object.keys(window.currentUserPermissions).some(key =>
                         (key.startsWith(moduleKey + '_') || key === moduleKey) && window.currentUserPermissions[key].view
                     );
                 };
@@ -517,7 +549,8 @@ let supabaseClient = null;
                     'kpi-card-estoque-alerts': 'estoque',
                     'kpi-card-finance-alerts': 'financeiro',
                     'kpi-card-finance-receber-alerts': 'financeiro',
-                    'kpi-card-comercial-alerts': 'comercial'
+                    'kpi-card-comercial-alerts': 'comercial',
+                    'kpi-card-dp-alerts': 'dp'
                 };
                 Object.entries(kpis).forEach(([id, mod]) => {
                     const el = document.getElementById(id);
@@ -535,7 +568,8 @@ let supabaseClient = null;
                     'module-card-estoque': 'estoque',
                     'module-card-fechamento': 'fechamento',
                     'module-card-financeiro': 'financeiro',
-                    'module-card-comercial': 'comercial'
+                    'module-card-comercial': 'comercial',
+                    'module-card-dp': 'dp'
                 };
                 Object.entries(modules).forEach(([id, mod]) => {
                     const el = document.getElementById(id);
@@ -551,7 +585,7 @@ let supabaseClient = null;
                 }
                 const auditoriaCard = document.getElementById('auditoriaModuleCard');
                 if (auditoriaCard) {
-                    const hasAudAccess = window.currentUserRole === 'admin' || 
+                    const hasAudAccess = window.currentUserRole === 'admin' ||
                         (window.currentUserPermissions && Object.keys(window.currentUserPermissions).some(key => key.endsWith('_auditoria') && window.currentUserPermissions[key].view));
                     auditoriaCard.style.display = hasAudAccess ? 'flex' : 'none';
                 }
@@ -610,14 +644,17 @@ let supabaseClient = null;
                     return all;
                 };
 
-                const [vehicles, drivers, maints, fuelData, inventory, finLancamentos, comContratos] = await Promise.all([
+                const [vehicles, drivers, maints, fuelData, inventory, finLancamentos, comContratos, dpAsos, dpContratos, dpFerias] = await Promise.all([
                     fetchAll('veiculos', '*'),
                     fetchAll('motoristas', '*'),
                     fetchAll('manutencoes', '*, manutencao_itens(*), manutencao_tipos(descricao)'),
                     fetchAll('abastecimentos', '*, veiculos(placa, ignorar_media, tipo_combustivel)'),
                     fetchAll('estoque', '*'),
                     fetchAll('fin_lancamentos', '*'),
-                    fetchAll('com_contratos', '*')
+                    fetchAll('com_contratos', '*'),
+                    fetchAll('dp_asos', 'id,data_vencimento,tipo'),
+                    fetchAll('dp_contratos_exp', 'id,data_fim_45,data_fim_90,status_45,status_90'),
+                    fetchAll('dp_ferias', 'id,periodo_conc_fim,status')
                 ]);
 
                 // Sort by date/time to ensure correct chronological sequence
@@ -636,7 +673,7 @@ let supabaseClient = null;
                 document.getElementById('kpi-vehicles-sub').innerText = vehicles.filter(v => v.status === 'ATIVO').length + ' Operacionais';
 
                 const classCounts = {};
-                vehicles.forEach(v => { const c = (v.classificacao && ['PROPRIO','TERCEIRO','ALUGADO','DIRETORIA','ESPECIAL','OUTRO'].includes(v.classificacao)) ? v.classificacao : 'OUTRO'; classCounts[c] = (classCounts[c] || 0) + 1; });
+                vehicles.forEach(v => { const c = (v.classificacao && ['PROPRIO', 'TERCEIRO', 'ALUGADO', 'DIRETORIA', 'ESPECIAL', 'OUTRO'].includes(v.classificacao)) ? v.classificacao : 'OUTRO'; classCounts[c] = (classCounts[c] || 0) + 1; });
                 document.getElementById('classTooltipList').innerHTML = Object.entries(classCounts).map(([label, count]) => `<div class="class-item"><span>${label}</span><span>${count}</span></div>`).join('');
 
                 // 2. KPI Manutenções
@@ -675,7 +712,7 @@ let supabaseClient = null;
                 } catch (e) { console.warn("Supabase dismissed alerts load failed:", e); }
 
                 let fuelAlertsCount = 0;
-                
+
                 // Sort by date/time to ensure correct consumption calculation
                 fuelData.sort((a, b) => smartParseDate(a.data, a.horario) - smartParseDate(b.data, b.horario));
 
@@ -688,12 +725,12 @@ let supabaseClient = null;
                 for (const vid in vehicleGroups) {
                     const group = vehicleGroups[vid];
                     const vehicle = vehicles.find(v => v.id === vid);
-                    
+
                     group.forEach((f, idx) => {
                         const prev = group[idx - 1];
                         // Priorizar ignorar_media do veículo, depois da tabela vinculada
                         const isIgnored = vehicle?.ignorar_media || f.veiculos?.ignorar_media;
-                        
+
                         const checkAndAdd = (title) => {
                             const key = `${f.id}_${title}`;
                             if (!dismissedAlerts.includes(key)) {
@@ -720,12 +757,12 @@ let supabaseClient = null;
                         }
 
                         if (f.valor_total > 1500) checkAndAdd('Abastecimento Elevado 💰');
-                        
+
                         // Registro Duplicado logic must match abastecimento.js exactly (data, horario, km_atual)
-                        const duplicates = group.filter(r => 
-                            r.data === f.data && 
-                            r.horario === f.horario && 
-                            r.km_atual === f.km_atual && 
+                        const duplicates = group.filter(r =>
+                            r.data === f.data &&
+                            r.horario === f.horario &&
+                            r.km_atual === f.km_atual &&
                             r.id !== f.id
                         );
                         if (duplicates.length > 0) checkAndAdd('Registro Duplicado 📑');
@@ -786,24 +823,52 @@ let supabaseClient = null;
                 // Alertas Comercial (Contratos Vencidos e A Vencer em 30 dias)
                 const in30Days = new Date(hoje);
                 in30Days.setDate(hoje.getDate() + 30);
-                
+
                 const comVencidos = comContratos.filter(c => c.data_vencimento && new Date(c.data_vencimento + 'T00:00:00') < hoje);
                 const comAVencer = comContratos.filter(c => {
                     if (!c.data_vencimento) return false;
                     const d = new Date(c.data_vencimento + 'T00:00:00');
                     return d >= hoje && d <= in30Days;
                 });
-                
+
                 const totalComAlerts = comVencidos.length + comAVencer.length;
                 document.getElementById('kpi-comercial-alerts').innerText = totalComAlerts;
                 const comSubTextEl = document.getElementById('kpi-comercial-alerts-sub');
-                
+
                 if (totalComAlerts > 0) {
                     comSubTextEl.innerText = `${comVencidos.length} vencidos, ${comAVencer.length} a vencer`;
                     comSubTextEl.className = comVencidos.length > 0 ? "kpi-trend danger" : "kpi-trend warn";
                 } else {
                     comSubTextEl.innerText = "Contratos vigentes em dia";
                     comSubTextEl.className = "kpi-trend up";
+                }
+
+                // Alertas Departamento Pessoal (ASOs + Contratos de Experiência vencendo + Férias vencidas)
+                const in15Days = new Date(hoje); in15Days.setDate(hoje.getDate() + 15);
+                const dpAsosAlert = dpAsos.filter(a => a.data_vencimento && new Date(a.data_vencimento + 'T00:00:00') <= in30Days);
+                const dpContrAlerts = dpContratos.filter(c => {
+                    const d45 = c.data_fim_45 ? new Date(c.data_fim_45 + 'T00:00:00') : null;
+                    const d90 = c.data_fim_90 ? new Date(c.data_fim_90 + 'T00:00:00') : null;
+                    return (d45 && d45 >= hoje && d45 <= in15Days && c.status_45 === 'PENDENTE') ||
+                        (d90 && d90 >= hoje && d90 <= in15Days && c.status_90 === 'PENDENTE');
+                });
+                const dpFeriasAlerts = dpFerias.filter(f => f.status !== 'CONCLUIDA' && f.status !== 'VENCIDA' && f.periodo_conc_fim && new Date(f.periodo_conc_fim + 'T00:00:00') < hoje);
+
+                const totalDpAlerts = dpAsosAlert.length + dpContrAlerts.length + dpFeriasAlerts.length;
+                document.getElementById('kpi-dp-alerts').innerText = totalDpAlerts;
+                const dpSubTextEl = document.getElementById('kpi-dp-alerts-sub');
+                if (totalDpAlerts > 0) {
+                    const parts = [];
+                    if (dpAsosAlert.length > 0) parts.push(`${dpAsosAlert.length} ASOs`);
+                    if (dpContrAlerts.length > 0) parts.push(`${dpContrAlerts.length} contratos`);
+                    if (dpFeriasAlerts.length > 0) parts.push(`${dpFeriasAlerts.length} férias`);
+                    dpSubTextEl.innerText = parts.join(', ');
+
+                    const temVencidos = dpAsosAlert.some(a => new Date(a.data_vencimento + 'T00:00:00') < hoje) || dpFeriasAlerts.length > 0;
+                    dpSubTextEl.className = temVencidos ? "kpi-trend danger" : "kpi-trend warn";
+                } else {
+                    dpSubTextEl.innerText = "Tudo em dia";
+                    dpSubTextEl.className = "kpi-trend up";
                 }
 
                 lucide.createIcons();
@@ -816,5 +881,3 @@ let supabaseClient = null;
 </body>
 
 </html>
-
-

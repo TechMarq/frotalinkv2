@@ -815,8 +815,23 @@
         </style>
         <div class="filter-bar">
             <div class="filter-group">
+                <label>Tipo de Período</label>
+                <select id="period_type" class="filter-select" onchange="togglePeriodType()" style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-card); color: white; padding: 0.6rem 0.8rem; border-radius: 10px; font-size: 0.85rem; outline: none; cursor: pointer; height: 38px;">
+                    <option value="month">Mês / Ano</option>
+                    <option value="range">Intervalo de Datas</option>
+                </select>
+            </div>
+            <div class="filter-group" id="group-period-month">
                 <label>Período (Mês/Ano)</label>
                 <input type="month" id="filter_period" onclick="this.showPicker()">
+            </div>
+            <div class="filter-group" id="group-period-start" style="display: none;">
+                <label>Data Início</label>
+                <input type="date" id="filter_start_date">
+            </div>
+            <div class="filter-group" id="group-period-end" style="display: none;">
+                <label>Data Fim</label>
+                <input type="date" id="filter_end_date">
             </div>
             <div class="filter-group" id="group-classificacao">
                 <label>Classificação</label>

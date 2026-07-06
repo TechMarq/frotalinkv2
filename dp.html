@@ -1,0 +1,2346 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Departamento Pessoal | FrotaLink</title>
+    <meta name="description" content="Gestão completa de funcionários internos: ASO, férias, ponto, EPIs, benefícios, contratos e cargos.">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="orb_menu.css">
+    <link rel="icon" type="image/png" href="https://img.icons8.com/color/48/conference-call.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+    <script defer src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        :root {
+            --primary: #0ea5e9;
+            --primary-hover: #0284c7;
+            --primary-glow: rgba(14, 165, 233, 0.25);
+            --secondary: #1e293b;
+            --bg-dark: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --purple: #8b5cf6;
+            --pink: #ec4899;
+        }
+
+        /* ── Scrollbars ── */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(15,23,42,0.4); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: rgba(14,165,233,0.3); border-radius: 10px; border: 2px solid rgba(30,41,59,1); }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(14,165,233,0.55); }
+
+        body {
+            background: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            background-image:
+                radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
+                radial-gradient(at 50% 0%, hsla(200, 80%, 15%, 1) 0, transparent 60%),
+                radial-gradient(at 100% 0%, hsla(220, 60%, 12%, 1) 0, transparent 50%);
+        }
+
+        .dp-container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+
+        /* ── Page Header ── */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .page-header-left { display: flex; flex-direction: column; gap: 0.3rem; }
+        .page-breadcrumb {
+            color: var(--primary);
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .page-title {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .page-subtitle { color: var(--text-muted); font-size: 0.9rem; }
+        .page-actions { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+
+        /* ── Tabs ── */
+        .tabs-wrapper { margin-bottom: 2rem; overflow-x: auto; padding-bottom: 0.5rem; }
+        .tabs-wrapper::-webkit-scrollbar { height: 4px; }
+
+        /* ── Alert Banner ── */
+        .alert-banner {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.25);
+            border-radius: 12px;
+            padding: 0.85rem 1.25rem;
+            margin-bottom: 1.5rem;
+            color: #fca5a5;
+            font-size: 0.9rem;
+            animation: fadeInDown 0.3s ease;
+        }
+        .alert-banner.warning { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.25); color: #fcd34d; }
+        .alert-banner.info { background: rgba(14,165,233,0.1); border-color: rgba(14,165,233,0.25); color: #7dd3fc; }
+
+        /* ── KPI Grid ── */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .kpi-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(12px);
+        }
+        .kpi-box:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 8px 25px rgba(14,165,233,0.1); }
+        .kpi-box-icon {
+            width: 52px; height: 52px;
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .kpi-box-icon svg { width: 24px; height: 24px; }
+        .kpi-box-info { flex: 1; min-width: 0; }
+        .kpi-box-value { font-size: 1.8rem; font-weight: 800; line-height: 1; }
+        .kpi-box-label { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem; }
+        .kpi-box-sub { font-size: 0.72rem; margin-top: 0.15rem; font-weight: 600; }
+
+        /* ── Section Header ── */
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.25rem;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+        .section-title-text {
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .section-title-text svg { color: var(--primary); }
+
+        /* ── Filter Bar ── */
+        .filter-bar {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 1.25rem;
+        }
+        .filter-bar input, .filter-bar select {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-main);
+            padding: 0.6rem 1rem;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.9rem;
+            transition: border-color 0.2s;
+        }
+        .filter-bar input:focus, .filter-bar select:focus { outline: none; border-color: var(--primary); }
+        .filter-bar input { flex: 1; min-width: 220px; }
+        .filter-bar select { min-width: 160px; }
+
+        /* ── Table ── */
+        .table-container {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            backdrop-filter: blur(12px);
+        }
+        .table-container .scroll-wrap { overflow-x: auto; max-height: 620px; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        thead th {
+            background: rgba(15,23,42,0.8);
+            color: var(--text-muted);
+            padding: 0.85rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05rem;
+            position: sticky; top: 0; z-index: 2;
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+            transition: color 0.15s;
+        }
+        thead th:hover { color: var(--text-main); }
+        thead th.sort-asc::after { content: ' ↑'; color: var(--primary); }
+        thead th.sort-desc::after { content: ' ↓'; color: var(--primary); }
+        tbody tr { border-top: 1px solid var(--border-color); transition: background 0.15s; }
+        tbody tr:hover { background: rgba(255,255,255,0.03); }
+        tbody td { padding: 0.85rem 1rem; vertical-align: middle; }
+        .table-empty { text-align: center; padding: 3rem; color: var(--text-muted); }
+        .table-empty svg { opacity: 0.3; margin-bottom: 0.75rem; }
+
+        /* ── Status Badges ── */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04rem;
+            white-space: nowrap;
+        }
+        .badge-ativo    { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.2); }
+        .badge-ferias   { background: rgba(14,165,233,0.15); color: #38bdf8; border: 1px solid rgba(14,165,233,0.2); }
+        .badge-afastado { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.2); }
+        .badge-desligado{ background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+        .badge-apto     { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.2); }
+        .badge-inapto   { background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+        .badge-pendente { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.2); }
+        .badge-vencido  { background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+        .badge-ok       { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.2); }
+        .badge-purple   { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.2); }
+        .badge-info     { background: rgba(14,165,233,0.15); color: #38bdf8; border: 1px solid rgba(14,165,233,0.2); }
+
+        /* ── Action Buttons in table ── */
+        .btn-icon {
+            background: none;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0.4rem;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-icon:hover { border-color: var(--primary); color: var(--primary); background: rgba(14,165,233,0.08); }
+        .btn-icon.danger:hover { border-color: var(--danger); color: var(--danger); background: rgba(239,68,68,0.08); }
+        .btn-icon svg { width: 15px; height: 15px; }
+
+        /* ── Pagination ── */
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .pagination-btns { display: flex; gap: 0.5rem; }
+        .page-btn {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-main);
+            cursor: pointer;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.85rem;
+            transition: all 0.15s;
+        }
+        .page-btn:hover, .page-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+        .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        /* ── Modals ── */
+        .dp-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .dp-modal-overlay.open { display: flex; }
+        .dp-modal {
+            background: #111827;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 760px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.6);
+            animation: modalIn 0.25s ease;
+        }
+        .dp-modal.wide { max-width: 960px; }
+        .dp-modal.narrow { max-width: 520px; }
+        @keyframes modalIn { from { opacity:0; transform: translateY(-20px) scale(0.97); } to { opacity:1; transform:none; } }
+        @keyframes fadeInDown { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:none; } }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 1.75rem 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky; top: 0;
+            background: #111827;
+            z-index: 1;
+            border-radius: 20px 20px 0 0;
+        }
+        .modal-title { font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+        .modal-title svg { color: var(--primary); }
+        .modal-close {
+            background: none; border: none; color: var(--text-muted);
+            cursor: pointer; padding: 0.35rem; border-radius: 8px;
+            transition: all 0.15s; display: flex;
+        }
+        .modal-close:hover { color: var(--text-main); background: rgba(255,255,255,0.05); }
+        .modal-body { padding: 1.5rem 1.75rem; }
+        .modal-footer {
+            padding: 1.25rem 1.75rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+        }
+
+        /* ── Form Fields ── */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .form-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+        .form-grid.cols-1 { grid-template-columns: 1fr; }
+        .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+        .form-group.span-2 { grid-column: span 2; }
+        .form-group.span-3 { grid-column: span 3; }
+        .form-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04rem; }
+        .form-group input, .form-group select, .form-group textarea {
+            background: rgba(15,23,42,0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-main);
+            padding: 0.7rem 1rem;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.9rem;
+            width: 100%;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+        .form-group select option { background: #1e293b; }
+        .form-section-title {
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08rem;
+            color: var(--primary);
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(14,165,233,0.2);
+            margin: 1.5rem 0 1rem;
+            grid-column: 1 / -1;
+        }
+        .form-section-title:first-child { margin-top: 0; }
+
+        /* ── Buttons ── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.65rem 1.25rem;
+            border-radius: 10px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        .btn svg { width: 16px; height: 16px; }
+        .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 4px 15px rgba(14,165,233,0.3); }
+        .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(14,165,233,0.4); }
+        .btn-secondary { background: rgba(255,255,255,0.06); color: var(--text-main); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+        .btn-danger { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+        .btn-danger:hover { background: rgba(239,68,68,0.25); }
+        .btn-success { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.2); }
+        .btn-success:hover { background: rgba(16,185,129,0.25); }
+        .btn-sm { padding: 0.45rem 0.9rem; font-size: 0.82rem; }
+
+        /* ── View Sections ── */
+        .view-section { display: none; }
+        .view-section.active { display: block; animation: fadeInDown 0.25s ease; }
+
+        /* ── Dashboard: Aniversariantes & Alertas ── */
+        .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; }
+        @media(max-width:768px) { .dash-grid { grid-template-columns: 1fr; } }
+        .dash-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.25rem;
+            backdrop-filter: blur(12px);
+        }
+        .dash-card-title { font-size: 0.9rem; font-weight: 700; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); }
+        .aniv-list, .alert-list { display: flex; flex-direction: column; gap: 0.6rem; }
+        .aniv-item, .alert-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.65rem 0.85rem;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border-color);
+            font-size: 0.86rem;
+        }
+        .aniv-avatar {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--purple));
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 0.8rem; color: #fff;
+            flex-shrink: 0;
+        }
+        .aniv-info { flex: 1; }
+        .aniv-nome { font-weight: 600; }
+        .aniv-data { color: var(--text-muted); font-size: 0.78rem; }
+
+        /* ── Checklist Scores ── */
+        .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+        .score-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 0.85rem; }
+        .score-stars { display: flex; gap: 2px; }
+        .star { font-size: 0.9rem; }
+        .star.filled { color: #fcd34d; }
+        .star.empty { color: #334155; }
+        .nota-total { text-align: center; padding: 1.25rem; margin-top: 1rem; background: rgba(14,165,233,0.08); border: 1px solid rgba(14,165,233,0.2); border-radius: 12px; }
+        .nota-total .value { font-size: 2.5rem; font-weight: 800; color: var(--primary); }
+        .nota-total .label { color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem; }
+
+        /* ── Progress Bar (férias, banco horas) ── */
+        .progress-bar-wrap { background: rgba(255,255,255,0.06); border-radius: 50px; height: 6px; overflow: hidden; flex: 1; }
+        .progress-bar-fill { height: 100%; border-radius: 50px; background: linear-gradient(90deg, var(--primary), var(--purple)); transition: width 0.4s; }
+
+        /* ── Mobile ── */
+        @media(max-width:768px) {
+            .dp-container { padding: 1rem; }
+            .form-grid { grid-template-columns: 1fr; }
+            .form-grid.cols-3 { grid-template-columns: 1fr; }
+            .form-group.span-2, .form-group.span-3 { grid-column: span 1; }
+            .page-header { flex-direction: column; align-items: flex-start; }
+            thead { display: none; }
+            tbody tr { display: block; margin-bottom: 0.75rem; border-radius: 12px; border: 1px solid var(--border-color); background: var(--card-bg); }
+            tbody td { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 1rem; border-top: 1px solid rgba(255,255,255,0.04); }
+            tbody td::before { content: attr(data-label); font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; flex-shrink: 0; margin-right: 0.5rem; }
+            .kpi-row { grid-template-columns: 1fr 1fr; }
+        }
+
+        /* ── Toast ── */
+        #dp-toast {
+            position: fixed; bottom: 2rem; right: 2rem;
+            background: #1e293b; border: 1px solid var(--border-color);
+            border-radius: 12px; padding: 0.85rem 1.25rem;
+            color: var(--text-main); font-size: 0.9rem; font-weight: 500;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+            display: flex; align-items: center; gap: 0.6rem;
+            z-index: 9999; transform: translateY(100px); opacity: 0;
+            transition: all 0.3s ease; pointer-events: none;
+            max-width: 380px;
+        }
+        #dp-toast.show { transform: none; opacity: 1; }
+        #dp-toast.success { border-color: rgba(16,185,129,0.4); }
+        #dp-toast.error { border-color: rgba(239,68,68,0.4); }
+
+        /* ── Ficha do Funcionário (view modal) ── */
+        .ficha-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1.5rem; }
+        .ficha-item { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .ficha-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05rem; color: var(--text-muted); font-weight: 600; }
+        .ficha-value { font-size: 0.92rem; color: var(--text-main); }
+        .ficha-section { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08rem; color: var(--primary); padding: 1rem 0 0.5rem; border-bottom: 1px solid rgba(14,165,233,0.2); margin-bottom: 0.5rem; grid-column: 1/-1; }
+
+        /* ── Stars Input ── */
+        .star-input { display: flex; gap: 4px; }
+        .star-input-btn { font-size: 1.4rem; cursor: pointer; transition: transform 0.1s; line-height: 1; }
+        .star-input-btn:hover { transform: scale(1.2); }
+        .star-input-btn.active { color: #fcd34d; }
+        .star-input-btn:not(.active) { color: #334155; }
+    </style>
+</head>
+
+<body>
+<div class="dp-container">
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="page-header-left">
+            <a href="home.html"
+                style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;"
+                onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
+            </a>
+            <div class="page-breadcrumb">
+                <i data-lucide="home" style="width:14px;"></i>
+                <span>FrotaLink</span>
+                <span>/</span>
+                <span>Departamento Pessoal</span>
+            </div>
+            <h1 class="page-title">Departamento Pessoal</h1>
+            <p class="page-subtitle">Gestão completa de funcionários internos</p>
+        </div>
+        <div class="page-actions">
+            <button class="btn btn-secondary btn-sm" onclick="exportarExcel()" data-perm="dp:view">
+                <i data-lucide="file-spreadsheet"></i> Excel
+            </button>
+            <button class="btn btn-primary" onclick="abrirModalFuncionario()" data-perm="dp:create" id="btn-novo-func" title="Atalho: F2">
+                <i data-lucide="user-plus"></i> Novo Funcionário [F2]
+            </button>
+        </div>
+    </div>
+
+    <!-- Banner de Alertas Críticos -->
+    <div id="dp-alert-banner" style="display:none;"></div>
+
+    <!-- Tabs -->
+    <div class="tabs-wrapper">
+        <nav class="tabs-header">
+            <button class="tab-item active" onclick="switchTab('dashboard')" id="tab-dashboard">
+                <i data-lucide="layout-dashboard" style="width:18px;"></i> Dashboard
+            </button>
+            <button class="tab-item" onclick="switchTab('funcionarios')" id="tab-funcionarios" data-perm="dp:view">
+                <i data-lucide="users" style="width:18px;"></i> Funcionários
+            </button>
+            <button class="tab-item" onclick="switchTab('aso')" id="tab-aso" data-perm="dp_aso:view">
+                <i data-lucide="stethoscope" style="width:18px;"></i> ASO / Saúde
+            </button>
+            <button class="tab-item" onclick="switchTab('ferias')" id="tab-ferias" data-perm="dp_ferias:view">
+                <i data-lucide="umbrella" style="width:18px;"></i> Férias
+            </button>
+            <button class="tab-item" onclick="switchTab('ponto')" id="tab-ponto" data-perm="dp_ponto:view">
+                <i data-lucide="clock" style="width:18px;"></i> Ponto & Ocorrências
+            </button>
+            <button class="tab-item" onclick="switchTab('epis')" id="tab-epis" data-perm="dp_epis:view">
+                <i data-lucide="hard-hat" style="width:18px;"></i> EPIs & Uniformes
+            </button>
+            <button class="tab-item" onclick="switchTab('beneficios')" id="tab-beneficios" data-perm="dp_beneficios:view">
+                <i data-lucide="credit-card" style="width:18px;"></i> Benefícios
+            </button>
+            <button class="tab-item" onclick="switchTab('contratos')" id="tab-contratos" data-perm="dp_contratos:view">
+                <i data-lucide="file-text" style="width:18px;"></i> Contratos & Checklist
+            </button>
+            <button class="tab-item" onclick="switchTab('cargos')" id="tab-cargos" data-perm="dp_cargos:view">
+                <i data-lucide="briefcase" style="width:18px;"></i> Cargos & Salários
+            </button>
+        </nav>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         TAB: DASHBOARD
+    ════════════════════════════════════════════ -->
+    <div id="view-dashboard" class="view-section active">
+
+        <!-- KPIs -->
+        <div class="kpi-row">
+            <div class="kpi-box" onclick="switchTab('funcionarios')">
+                <div class="kpi-box-icon" style="background:rgba(14,165,233,0.12); color:#38bdf8;">
+                    <i data-lucide="users"></i>
+                </div>
+                <div class="kpi-box-info">
+                    <div class="kpi-box-value" id="kpi-total-func">0</div>
+                    <div class="kpi-box-label">Funcionários Ativos</div>
+                    <div class="kpi-box-sub" style="color:var(--text-muted);" id="kpi-total-func-sub">Carregando...</div>
+                </div>
+            </div>
+            <div class="kpi-box" onclick="switchTab('aso')">
+                <div class="kpi-box-icon" style="background:rgba(239,68,68,0.12); color:#f87171;">
+                    <i data-lucide="stethoscope"></i>
+                </div>
+                <div class="kpi-box-info">
+                    <div class="kpi-box-value" id="kpi-asos-venc">0</div>
+                    <div class="kpi-box-label">ASOs Vencidos/Vencendo</div>
+                    <div class="kpi-box-sub" style="color:#f87171;" id="kpi-asos-sub">Em 30 dias</div>
+                </div>
+            </div>
+            <div class="kpi-box" onclick="switchTab('contratos')">
+                <div class="kpi-box-icon" style="background:rgba(245,158,11,0.12); color:#fcd34d;">
+                    <i data-lucide="file-text"></i>
+                </div>
+                <div class="kpi-box-info">
+                    <div class="kpi-box-value" id="kpi-contr-venc">0</div>
+                    <div class="kpi-box-label">Contratos Experiência</div>
+                    <div class="kpi-box-sub" style="color:#fcd34d;" id="kpi-contr-sub">Vencendo em 15 dias</div>
+                </div>
+            </div>
+            <div class="kpi-box" onclick="switchTab('ferias')">
+                <div class="kpi-box-icon" style="background:rgba(16,185,129,0.12); color:#34d399;">
+                    <i data-lucide="umbrella"></i>
+                </div>
+                <div class="kpi-box-info">
+                    <div class="kpi-box-value" id="kpi-ferias-hoje">0</div>
+                    <div class="kpi-box-label">Em Férias Hoje</div>
+                    <div class="kpi-box-sub" style="color:#34d399;" id="kpi-ferias-sub">Funcionários ausentes</div>
+                </div>
+            </div>
+            <div class="kpi-box" onclick="switchTab('ponto')">
+                <div class="kpi-box-icon" style="background:rgba(245,158,11,0.12); color:#fcd34d;">
+                    <i data-lucide="activity"></i>
+                </div>
+                <div class="kpi-box-info">
+                    <div class="kpi-box-value" id="kpi-afastados">0</div>
+                    <div class="kpi-box-label">Afastados</div>
+                    <div class="kpi-box-sub" style="color:#fcd34d;" id="kpi-afastados-sub">INSS / Atestado</div>
+                </div>
+            </div>
+            <div class="kpi-box" onclick="switchTab('epis')">
+                <div class="kpi-box-icon" style="background:rgba(139,92,246,0.12); color:#a78bfa;">
+                    <i data-lucide="hard-hat"></i>
+                </div>
+                <div class="kpi-box-info">
+                    <div class="kpi-box-value" id="kpi-epis-venc">0</div>
+                    <div class="kpi-box-label">EPIs / CA Vencendo</div>
+                    <div class="kpi-box-sub" style="color:#a78bfa;" id="kpi-epis-sub">Próximos 60 dias</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aniversariantes + Alertas -->
+        <div class="dash-grid">
+            <div class="dash-card">
+                <div class="dash-card-title">
+                    <i data-lucide="cake" style="width:16px; color:#ec4899;"></i>
+                    Aniversariantes do Mês
+                </div>
+                <div class="aniv-list" id="dash-aniversariantes">
+                    <div style="text-align:center; color:var(--text-muted); padding:1rem; font-size:0.85rem;">Carregando...</div>
+                </div>
+            </div>
+            <div class="dash-card">
+                <div class="dash-card-title">
+                    <i data-lucide="bell-ring" style="width:16px; color:#f87171;"></i>
+                    Alertas e Pendências
+                </div>
+                <div class="alert-list" id="dash-alertas">
+                    <div style="text-align:center; color:var(--text-muted); padding:1rem; font-size:0.85rem;">Carregando...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Férias Programadas -->
+        <div class="dash-card" style="margin-top:1.5rem;">
+            <div class="dash-card-title">
+                <i data-lucide="calendar-range" style="width:16px; color:#38bdf8;"></i>
+                Férias Programadas (próximos 60 dias)
+            </div>
+            <div id="dash-ferias-prog" style="margin-top:0.5rem;">
+                <div style="text-align:center; color:var(--text-muted); padding:1rem; font-size:0.85rem;">Carregando...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         TAB: FUNCIONÁRIOS
+    ════════════════════════════════════════════ -->
+    <div id="view-funcionarios" class="view-section">
+        <div class="section-header">
+            <div class="section-title-text"><i data-lucide="users"></i> Lista de Funcionários</div>
+            <div style="display:flex; gap:0.5rem;">
+                <button class="btn btn-secondary btn-sm" onclick="exportarExcel('funcionarios')"><i data-lucide="download"></i> Exportar</button>
+                <button class="btn btn-primary btn-sm" onclick="abrirModalFuncionario()" data-perm="dp:create"><i data-lucide="user-plus"></i> Novo</button>
+            </div>
+        </div>
+        <div class="filter-bar">
+            <input type="text" id="func-search" placeholder="🔍 Buscar por nome, CPF, matrícula..." oninput="renderFuncionarios()">
+            <select id="func-filter-status" onchange="renderFuncionarios()">
+                <option value="">Todos os Status</option>
+                <option value="ATIVO">Ativo</option>
+                <option value="FERIAS">Em Férias</option>
+                <option value="AFASTADO">Afastado</option>
+                <option value="DESLIGADO">Desligado</option>
+            </select>
+            <select id="func-filter-cargo" onchange="renderFuncionarios()">
+                <option value="">Todos os Cargos</option>
+            </select>
+            <select id="func-filter-setor" onchange="renderFuncionarios()">
+                <option value="">Todos os Setores</option>
+            </select>
+        </div>
+        <div class="table-container">
+            <div class="scroll-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('funcionarios','matricula')">Matrícula</th>
+                            <th onclick="sortTable('funcionarios','nome_completo')">Nome</th>
+                            <th onclick="sortTable('funcionarios','cargo_nome')">Cargo</th>
+                            <th onclick="sortTable('funcionarios','setor')">Setor</th>
+                            <th onclick="sortTable('funcionarios','data_admissao')">Admissão</th>
+                            <th onclick="sortTable('funcionarios','data_nascimento')">Aniversário</th>
+                            <th onclick="sortTable('funcionarios','status')">Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="func-tbody">
+                        <tr><td colspan="8" class="table-empty">Carregando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <span id="func-page-info">Mostrando 0 registros</span>
+                <div class="pagination-btns" id="func-pagination"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         TAB: ASO / SAÚDE
+    ════════════════════════════════════════════ -->
+    <div id="view-aso" class="view-section">
+        <div class="section-header">
+            <div class="section-title-text"><i data-lucide="stethoscope"></i> Controle de ASO</div>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalAso()" data-perm="dp_aso:create"><i data-lucide="plus"></i> Novo ASO</button>
+        </div>
+        <div class="filter-bar">
+            <input type="text" id="aso-search" placeholder="🔍 Buscar funcionário..." oninput="renderAsos()">
+            <select id="aso-filter-tipo" onchange="renderAsos()">
+                <option value="">Todos os Tipos</option>
+                <option value="ADMISSIONAL">Admissional</option>
+                <option value="PERIODICO">Periódico</option>
+                <option value="MUDANCA_FUNCAO">Mudança de Função</option>
+                <option value="RETORNO_TRABALHO">Retorno ao Trabalho</option>
+                <option value="DEMISSIONAL">Demissional</option>
+            </select>
+            <select id="aso-filter-resultado" onchange="renderAsos()">
+                <option value="">Todos os Resultados</option>
+                <option value="APTO">Apto</option>
+                <option value="INAPTO">Inapto</option>
+                <option value="APTO_COM_RESTRICOES">Apto c/ Restrições</option>
+            </select>
+            <select id="aso-filter-venc" onchange="renderAsos()">
+                <option value="">Qualquer Vencimento</option>
+                <option value="vencido">Vencido</option>
+                <option value="30dias">Vence em 30 dias</option>
+                <option value="60dias">Vence em 60 dias</option>
+            </select>
+        </div>
+        <div class="table-container">
+            <div class="scroll-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('asos','funcionario_nome')">Funcionário</th>
+                            <th onclick="sortTable('asos','tipo')">Tipo</th>
+                            <th onclick="sortTable('asos','data_exame')">Data Exame</th>
+                            <th onclick="sortTable('asos','data_vencimento')">Vencimento</th>
+                            <th onclick="sortTable('asos','resultado')">Resultado</th>
+                            <th>Clínica / Médico</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="aso-tbody">
+                        <tr><td colspan="7" class="table-empty">Carregando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <span id="aso-page-info">Mostrando 0 registros</span>
+                <div class="pagination-btns" id="aso-pagination"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         TAB: FÉRIAS
+    ════════════════════════════════════════════ -->
+    <div id="view-ferias" class="view-section">
+        <div class="section-header">
+            <div class="section-title-text"><i data-lucide="umbrella"></i> Controle de Férias</div>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalFerias()" data-perm="dp_ferias:create"><i data-lucide="plus"></i> Registrar Férias</button>
+        </div>
+        <div class="filter-bar">
+            <input type="text" id="ferias-search" placeholder="🔍 Buscar funcionário..." oninput="renderFerias()">
+            <select id="ferias-filter-status" onchange="renderFerias()">
+                <option value="">Todos os Status</option>
+                <option value="AQUISITIVO">Aquisitivo</option>
+                <option value="PROGRAMADA">Programada</option>
+                <option value="EM_GOZO">Em Gozo</option>
+                <option value="CONCLUIDA">Concluída</option>
+                <option value="VENCIDA">Vencida</option>
+            </select>
+        </div>
+        <div class="table-container">
+            <div class="scroll-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('ferias','funcionario_nome')">Funcionário</th>
+                            <th>Período Aquisitivo</th>
+                            <th>Limite Concessivo</th>
+                            <th>Gozo Programado</th>
+                            <th onclick="sortTable('ferias','dias_gozados')">Dias</th>
+                            <th onclick="sortTable('ferias','status')">Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ferias-tbody">
+                        <tr><td colspan="7" class="table-empty">Carregando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <span id="ferias-page-info">Mostrando 0 registros</span>
+                <div class="pagination-btns" id="ferias-pagination"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         TAB: PONTO & OCORRÊNCIAS
+    ════════════════════════════════════════════ -->
+    <div id="view-ponto" class="view-section">
+        <!-- Sub-tabs -->
+        <div class="tabs-header" style="margin-bottom:1.5rem;">
+            <button class="tab-item active" onclick="switchSubTab('ponto','banco')" id="sub-ponto-banco"><i data-lucide="clock" style="width:16px;"></i> Banco de Horas / Faltas</button>
+            <button class="tab-item" onclick="switchSubTab('ponto','atestados')" id="sub-ponto-atestados"><i data-lucide="file-heart" style="width:16px;"></i> Atestados & Afastamentos</button>
+        </div>
+
+        <!-- Sub: Banco de Horas -->
+        <div id="sub-view-ponto-banco" class="view-section active">
+            <div class="section-header">
+                <div class="section-title-text"><i data-lucide="clock"></i> Banco de Horas, Faltas e Atrasos</div>
+                <button class="btn btn-primary btn-sm" onclick="abrirModalPonto()" data-perm="dp_ponto:create"><i data-lucide="plus"></i> Registrar Ocorrência</button>
+            </div>
+            <div class="filter-bar">
+                <input type="text" id="ponto-search" placeholder="🔍 Buscar funcionário..." oninput="renderPonto()">
+                <select id="ponto-filter-tipo" onchange="renderPonto()">
+                    <option value="">Todos os Tipos</option>
+                    <option value="FALTA">Falta</option>
+                    <option value="ATRASO">Atraso</option>
+                    <option value="HORA_EXTRA">Hora Extra</option>
+                    <option value="SAIDA_ANTECIPADA">Saída Antecipada</option>
+                </select>
+                <input type="month" id="ponto-filter-mes" onchange="renderPonto()" style="background:var(--card-bg); border:1px solid var(--border-color); border-radius:10px; color:var(--text-main); padding:0.6rem 1rem; font-family:'Outfit',sans-serif; font-size:0.9rem;">
+            </div>
+            <div class="table-container">
+                <div class="scroll-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('ponto','funcionario_nome')">Funcionário</th>
+                                <th onclick="sortTable('ponto','data')">Data</th>
+                                <th onclick="sortTable('ponto','tipo')">Tipo</th>
+                                <th onclick="sortTable('ponto','minutos')">Minutos</th>
+                                <th>Justificativa</th>
+                                <th onclick="sortTable('ponto','justificado')">Justificado</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ponto-tbody">
+                            <tr><td colspan="7" class="table-empty">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <span id="ponto-page-info">Mostrando 0 registros</span>
+                    <div class="pagination-btns" id="ponto-pagination"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sub: Atestados & Afastamentos -->
+        <div id="sub-view-ponto-atestados" class="view-section">
+            <div class="section-header">
+                <div class="section-title-text"><i data-lucide="file-heart"></i> Atestados Médicos e Afastamentos</div>
+                <button class="btn btn-primary btn-sm" onclick="abrirModalAtestado()" data-perm="dp_ponto:create"><i data-lucide="plus"></i> Novo Registro</button>
+            </div>
+            <div class="filter-bar">
+                <input type="text" id="atestado-search" placeholder="🔍 Buscar funcionário..." oninput="renderAtestados()">
+                <select id="atestado-filter-tipo" onchange="renderAtestados()">
+                    <option value="">Todos os Tipos</option>
+                    <option value="ATESTADO_MEDICO">Atestado Médico</option>
+                    <option value="AFASTAMENTO_INSS">Afastamento INSS</option>
+                    <option value="ACIDENTE_TRABALHO">Acidente de Trabalho</option>
+                    <option value="LICENCA_MATERNIDADE">Licença Maternidade</option>
+                    <option value="LICENCA_PATERNIDADE">Licença Paternidade</option>
+                    <option value="OUTROS">Outros</option>
+                </select>
+                <select id="atestado-filter-status" onchange="renderAtestados()">
+                    <option value="">Todos os Status</option>
+                    <option value="ATIVO">Ativo</option>
+                    <option value="ENCERRADO">Encerrado</option>
+                </select>
+            </div>
+            <div class="table-container">
+                <div class="scroll-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('atestados','funcionario_nome')">Funcionário</th>
+                                <th onclick="sortTable('atestados','tipo')">Tipo</th>
+                                <th onclick="sortTable('atestados','data_inicio')">Início</th>
+                                <th onclick="sortTable('atestados','data_fim')">Fim</th>
+                                <th onclick="sortTable('atestados','dias')">Dias</th>
+                                <th>CID</th>
+                                <th onclick="sortTable('atestados','status')">Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="atestado-tbody">
+                            <tr><td colspan="8" class="table-empty">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <span id="atestado-page-info">Mostrando 0 registros</span>
+                    <div class="pagination-btns" id="atestado-pagination"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         TAB: EPIs & UNIFORMES
+    ════════════════════════════════════════════ -->
+    <div id="view-epis" class="view-section">
+        <div class="tabs-header" style="margin-bottom:1.5rem;">
+            <button class="tab-item active" onclick="switchSubTab('epis','epi')" id="sub-epis-epi"><i data-lucide="hard-hat" style="width:16px;"></i> EPIs</button>
+            <button class="tab-item" onclick="switchSubTab('epis','uniforme')" id="sub-epis-uniforme"><i data-lucide="shirt" style="width:16px;"></i> Uniformes</button>
+        </div>
+
+        <!-- Sub: EPIs -->
+        <div id="sub-view-epis-epi" class="view-section active">
+            <div class="section-header">
+                <div class="section-title-text"><i data-lucide="hard-hat"></i> Controle de EPIs</div>
+                <button class="btn btn-primary btn-sm" onclick="abrirModalEpi()" data-perm="dp_epis:create"><i data-lucide="plus"></i> Registrar Entrega</button>
+            </div>
+            <div class="filter-bar">
+                <input type="text" id="epi-search" placeholder="🔍 Buscar funcionário ou EPI..." oninput="renderEpis()">
+                <select id="epi-filter-motivo" onchange="renderEpis()">
+                    <option value="">Todos os Motivos</option>
+                    <option value="ADMISSIONAL">Admissional</option>
+                    <option value="TROCA_PERIODICA">Troca Periódica</option>
+                    <option value="DESGASTE">Desgaste</option>
+                    <option value="PERDA">Perda</option>
+                    <option value="OUTROS">Outros</option>
+                </select>
+                <select id="epi-filter-ca" onchange="renderEpis()">
+                    <option value="">Todos os CA</option>
+                    <option value="vencido">CA Vencido</option>
+                    <option value="vencendo">CA Vencendo (60 dias)</option>
+                </select>
+            </div>
+            <div class="table-container">
+                <div class="scroll-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('epis','funcionario_nome')">Funcionário</th>
+                                <th onclick="sortTable('epis','nome_epi')">EPI</th>
+                                <th onclick="sortTable('epis','ca_numero')">Nº CA</th>
+                                <th onclick="sortTable('epis','ca_vencimento')">Venc. CA</th>
+                                <th onclick="sortTable('epis','data_entrega')">Entrega</th>
+                                <th onclick="sortTable('epis','motivo')">Motivo</th>
+                                <th>Recebido</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="epi-tbody">
+                            <tr><td colspan="8" class="table-empty">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <span id="epi-page-info">Mostrando 0 registros</span>
+                    <div class="pagination-btns" id="epi-pagination"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sub: Uniformes -->
+        <div id="sub-view-epis-uniforme" class="view-section">
+            <div class="section-header">
+                <div class="section-title-text"><i data-lucide="shirt"></i> Controle de Uniformes</div>
+                <button class="btn btn-primary btn-sm" onclick="abrirModalUniforme()" data-perm="dp_epis:create"><i data-lucide="plus"></i> Registrar Entrega</button>
+            </div>
+            <div class="filter-bar">
+                <input type="text" id="uniforme-search" placeholder="🔍 Buscar funcionário ou item..." oninput="renderUniformes()">
+                <select id="uniforme-filter-estado" onchange="renderUniformes()">
+                    <option value="">Todos os Estados</option>
+                    <option value="NOVO">Novo</option>
+                    <option value="BOM">Bom</option>
+                    <option value="DESGASTADO">Desgastado</option>
+                    <option value="DANIFICADO">Danificado</option>
+                </select>
+            </div>
+            <div class="table-container">
+                <div class="scroll-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('uniformes','funcionario_nome')">Funcionário</th>
+                                <th onclick="sortTable('uniformes','item')">Item</th>
+                                <th onclick="sortTable('uniformes','tamanho')">Tamanho</th>
+                                <th onclick="sortTable('uniformes','quantidade')">Qtd</th>
+                                <th onclick="sortTable('uniformes','data_entrega')">Entrega</th>
+                                <th onclick="sortTable('uniformes','estado')">Estado</th>
+                                <th onclick="sortTable('uniformes','motivo')">Motivo</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="uniforme-tbody">
+                            <tr><td colspan="8" class="table-empty">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <span id="uniforme-page-info">Mostrando 0 registros</span>
+                    <div class="pagination-btns" id="uniforme-pagination"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         TAB: BENEFÍCIOS
+    ════════════════════════════════════════════ -->
+    <div id="view-beneficios" class="view-section">
+        <div class="section-header">
+            <div class="section-title-text"><i data-lucide="credit-card"></i> Controle de Benefícios</div>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalBeneficio()" data-perm="dp_beneficios:create"><i data-lucide="plus"></i> Novo Benefício</button>
+        </div>
+        <div class="filter-bar">
+            <input type="text" id="benef-search" placeholder="🔍 Buscar funcionário..." oninput="renderBeneficios()">
+            <select id="benef-filter-tipo" onchange="renderBeneficios()">
+                <option value="">Todos os Tipos</option>
+                <option value="VT">Vale Transporte</option>
+                <option value="VA">Vale Alimentação</option>
+                <option value="VR">Vale Refeição</option>
+                <option value="PLANO_SAUDE">Plano de Saúde</option>
+                <option value="PLANO_ODONTO">Plano Odontológico</option>
+                <option value="SEGURO_VIDA">Seguro de Vida</option>
+                <option value="OUTROS">Outros</option>
+            </select>
+            <select id="benef-filter-ativo" onchange="renderBeneficios()">
+                <option value="">Ativos e Inativos</option>
+                <option value="true">Apenas Ativos</option>
+                <option value="false">Apenas Inativos</option>
+            </select>
+        </div>
+        <div class="table-container">
+            <div class="scroll-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('beneficios','funcionario_nome')">Funcionário</th>
+                            <th onclick="sortTable('beneficios','tipo')">Benefício</th>
+                            <th onclick="sortTable('beneficios','valor')">Valor Empresa</th>
+                            <th onclick="sortTable('beneficios','valor_desconto_func')">Desconto Func.</th>
+                            <th>Operadora</th>
+                            <th onclick="sortTable('beneficios','data_inicio')">Início</th>
+                            <th onclick="sortTable('beneficios','ativo')">Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="benef-tbody">
+                        <tr><td colspan="8" class="table-empty">Carregando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <span id="benef-page-info">Mostrando 0 registros</span>
+                <div class="pagination-btns" id="benef-pagination"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         TAB: CONTRATOS & CHECKLIST
+    ════════════════════════════════════════════ -->
+    <div id="view-contratos" class="view-section">
+        <div class="tabs-header" style="margin-bottom:1.5rem;">
+            <button class="tab-item active" onclick="switchSubTab('contratos','exp')" id="sub-contratos-exp"><i data-lucide="file-text" style="width:16px;"></i> Contratos de Experiência</button>
+            <button class="tab-item" onclick="switchSubTab('contratos','check')" id="sub-contratos-check"><i data-lucide="clipboard-check" style="width:16px;"></i> Checklist 45/90 dias</button>
+        </div>
+
+        <!-- Sub: Contratos -->
+        <div id="sub-view-contratos-exp" class="view-section active">
+            <div class="section-header">
+                <div class="section-title-text"><i data-lucide="file-text"></i> Contratos de Experiência</div>
+                <button class="btn btn-primary btn-sm" onclick="abrirModalContrato()" data-perm="dp_contratos:create"><i data-lucide="plus"></i> Novo Contrato</button>
+            </div>
+            <div class="filter-bar">
+                <input type="text" id="contr-search" placeholder="🔍 Buscar funcionário..." oninput="renderContratos()">
+                <select id="contr-filter-status" onchange="renderContratos()">
+                    <option value="">Todos os Status</option>
+                    <option value="PENDENTE">Pendente</option>
+                    <option value="APROVADO">Aprovado</option>
+                    <option value="REPROVADO">Reprovado</option>
+                    <option value="EFETIVADO">Efetivado</option>
+                </select>
+            </div>
+            <div class="table-container">
+                <div class="scroll-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('contratos','funcionario_nome')">Funcionário</th>
+                                <th onclick="sortTable('contratos','data_inicio')">Início</th>
+                                <th onclick="sortTable('contratos','data_fim_45')">45 dias</th>
+                                <th>Status 45</th>
+                                <th onclick="sortTable('contratos','data_fim_90')">90 dias</th>
+                                <th>Status 90</th>
+                                <th>Resultado</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contr-tbody">
+                            <tr><td colspan="8" class="table-empty">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <span id="contr-page-info">Mostrando 0 registros</span>
+                    <div class="pagination-btns" id="contr-pagination"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sub: Checklist -->
+        <div id="sub-view-contratos-check" class="view-section">
+            <div class="section-header">
+                <div class="section-title-text"><i data-lucide="clipboard-check"></i> Checklist de Avaliação</div>
+                <button class="btn btn-primary btn-sm" onclick="abrirModalChecklist()" data-perm="dp_contratos:create"><i data-lucide="plus"></i> Nova Avaliação</button>
+            </div>
+            <div class="filter-bar">
+                <input type="text" id="check-search" placeholder="🔍 Buscar funcionário..." oninput="renderChecklist()">
+                <select id="check-filter-periodo" onchange="renderChecklist()">
+                    <option value="">Todos os Períodos</option>
+                    <option value="45_DIAS">45 Dias</option>
+                    <option value="90_DIAS">90 Dias</option>
+                </select>
+                <select id="check-filter-rec" onchange="renderChecklist()">
+                    <option value="">Todas as Recomendações</option>
+                    <option value="EFETIVADO">Efetivar</option>
+                    <option value="PRORROGAR">Prorrogar</option>
+                    <option value="DESLIGAR">Desligar</option>
+                </select>
+            </div>
+            <div class="table-container">
+                <div class="scroll-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('checklist','funcionario_nome')">Funcionário</th>
+                                <th onclick="sortTable('checklist','periodo')">Período</th>
+                                <th onclick="sortTable('checklist','data_avaliacao')">Data</th>
+                                <th>Avaliador</th>
+                                <th onclick="sortTable('checklist','nota_media')">Nota Média</th>
+                                <th onclick="sortTable('checklist','recomendacao')">Recomendação</th>
+                                <th>Assinaturas</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="check-tbody">
+                            <tr><td colspan="8" class="table-empty">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <span id="check-page-info">Mostrando 0 registros</span>
+                    <div class="pagination-btns" id="check-pagination"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         TAB: CARGOS & SALÁRIOS
+    ════════════════════════════════════════════ -->
+    <div id="view-cargos" class="view-section">
+        <div class="section-header">
+            <div class="section-title-text"><i data-lucide="briefcase"></i> Descrição de Cargos e Salários</div>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalCargo()" data-perm="dp_cargos:create"><i data-lucide="plus"></i> Novo Cargo</button>
+        </div>
+        <div class="filter-bar">
+            <input type="text" id="cargo-search" placeholder="🔍 Buscar cargo ou CBO..." oninput="renderCargos()">
+            <select id="cargo-filter-nivel" onchange="renderCargos()">
+                <option value="">Todos os Níveis</option>
+                <option value="OPERACIONAL">Operacional</option>
+                <option value="TECNICO">Técnico</option>
+                <option value="SUPERVISAO">Supervisão</option>
+                <option value="GERENCIAL">Gerencial</option>
+                <option value="DIRETORIA">Diretoria</option>
+            </select>
+            <select id="cargo-filter-ativo" onchange="renderCargos()">
+                <option value="">Todos</option>
+                <option value="true">Ativos</option>
+                <option value="false">Inativos</option>
+            </select>
+        </div>
+        <div class="table-container">
+            <div class="scroll-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('cargos','nome')">Cargo</th>
+                            <th onclick="sortTable('cargos','cbo')">CBO</th>
+                            <th onclick="sortTable('cargos','nivel')">Nível</th>
+                            <th onclick="sortTable('cargos','setor')">Setor</th>
+                            <th onclick="sortTable('cargos','salario_base')">Salário Base</th>
+                            <th>Faixa</th>
+                            <th onclick="sortTable('cargos','carga_horaria')">C.H. Mensal</th>
+                            <th onclick="sortTable('cargos','ativo')">Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cargo-tbody">
+                        <tr><td colspan="9" class="table-empty">Carregando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <span id="cargo-page-info">Mostrando 0 registros</span>
+                <div class="pagination-btns" id="cargo-pagination"></div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /dp-container -->
+
+<!-- ════════════════════════════════════════════
+     MODAL: FUNCIONÁRIO
+════════════════════════════════════════════ -->
+<div id="modal-funcionario" class="dp-modal-overlay">
+    <div class="dp-modal wide">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="user-plus"></i> <span id="modal-func-title">Novo Funcionário</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-funcionario')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="form-funcionario" onsubmit="return false;">
+                <div class="form-grid">
+                    <div class="form-section-title">📋 Dados Pessoais</div>
+                    <div class="form-group span-2">
+                        <label>Nome Completo *</label>
+                        <input type="text" id="func-nome" required placeholder="Nome completo do funcionário">
+                    </div>
+                    <div class="form-group">
+                        <label>CPF</label>
+                        <input type="text" id="func-cpf" placeholder="000.000.000-00" maxlength="14">
+                    </div>
+                    <div class="form-group">
+                        <label>RG</label>
+                        <input type="text" id="func-rg" placeholder="00.000.000-0">
+                    </div>
+                    <div class="form-group">
+                        <label>Órgão Emissor / UF</label>
+                        <input type="text" id="func-rg-orgao" placeholder="SSP/SP">
+                    </div>
+                    <div class="form-group">
+                        <label>Data de Nascimento</label>
+                        <input type="date" id="func-nascimento">
+                    </div>
+                    <div class="form-group">
+                        <label>Sexo</label>
+                        <select id="func-sexo">
+                            <option value="">Selecione</option>
+                            <option value="M">Masculino</option>
+                            <option value="F">Feminino</option>
+                            <option value="OUTRO">Outro</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Estado Civil</label>
+                        <select id="func-estado-civil">
+                            <option value="">Selecione</option>
+                            <option value="SOLTEIRO">Solteiro(a)</option>
+                            <option value="CASADO">Casado(a)</option>
+                            <option value="DIVORCIADO">Divorciado(a)</option>
+                            <option value="VIUVO">Viúvo(a)</option>
+                            <option value="UNIAO_ESTAVEL">União Estável</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Escolaridade</label>
+                        <select id="func-escolaridade">
+                            <option value="">Selecione</option>
+                            <option value="FUNDAMENTAL">Fund. Incompleto</option>
+                            <option value="FUNDAMENTAL_COMPLETO">Fund. Completo</option>
+                            <option value="MEDIO">Médio Incompleto</option>
+                            <option value="MEDIO_COMPLETO">Médio Completo</option>
+                            <option value="SUPERIOR">Superior Incompleto</option>
+                            <option value="SUPERIOR_COMPLETO">Superior Completo</option>
+                            <option value="POS">Pós-Graduação</option>
+                            <option value="MESTRADO">Mestrado</option>
+                            <option value="DOUTORADO">Doutorado</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Nome da Mãe</label>
+                        <input type="text" id="func-mae" placeholder="Nome completo da mãe">
+                    </div>
+                    <div class="form-group">
+                        <label>Naturalidade / Cidade Natal</label>
+                        <input type="text" id="func-naturalidade" placeholder="Cidade, UF">
+                    </div>
+
+                    <div class="form-section-title">📞 Contato</div>
+                    <div class="form-group">
+                        <label>Celular</label>
+                        <input type="text" id="func-celular" placeholder="(00) 00000-0000">
+                    </div>
+                    <div class="form-group">
+                        <label>Telefone Fixo</label>
+                        <input type="text" id="func-telefone" placeholder="(00) 0000-0000">
+                    </div>
+                    <div class="form-group span-2">
+                        <label>E-mail</label>
+                        <input type="email" id="func-email" placeholder="email@empresa.com">
+                    </div>
+
+                    <div class="form-section-title">🏠 Endereço</div>
+                    <div class="form-group">
+                        <label>CEP</label>
+                        <input type="text" id="func-cep" placeholder="00000-000" maxlength="9" oninput="buscarCep(this.value)">
+                    </div>
+                    <div class="form-group">
+                        <label>Logradouro</label>
+                        <input type="text" id="func-logradouro" placeholder="Rua, Avenida...">
+                    </div>
+                    <div class="form-group">
+                        <label>Número</label>
+                        <input type="text" id="func-numero" placeholder="123">
+                    </div>
+                    <div class="form-group">
+                        <label>Complemento</label>
+                        <input type="text" id="func-complemento" placeholder="Apto, Bloco...">
+                    </div>
+                    <div class="form-group">
+                        <label>Bairro</label>
+                        <input type="text" id="func-bairro" placeholder="Bairro">
+                    </div>
+                    <div class="form-group">
+                        <label>Cidade</label>
+                        <input type="text" id="func-cidade" placeholder="Cidade">
+                    </div>
+                    <div class="form-group">
+                        <label>UF</label>
+                        <select id="func-uf">
+                            <option value="">UF</option>
+                            <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+                            <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+                            <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+                            <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
+                            <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+                            <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+                            <option selected>SP</option><option>SE</option><option>TO</option>
+                        </select>
+                    </div>
+
+                    <div class="form-section-title">🚨 Contato de Emergência</div>
+                    <div class="form-group span-2">
+                        <label>Nome do Contato</label>
+                        <input type="text" id="func-emerg-nome" placeholder="Nome do familiar ou contato">
+                    </div>
+                    <div class="form-group">
+                        <label>Telefone Emergência</label>
+                        <input type="text" id="func-emerg-tel" placeholder="(00) 00000-0000">
+                    </div>
+                    <div class="form-group">
+                        <label>Parentesco</label>
+                        <input type="text" id="func-emerg-parent" placeholder="Cônjuge, Mãe, Pai...">
+                    </div>
+
+                    <div class="form-section-title">💼 Dados Trabalhistas</div>
+                    <div class="form-group">
+                        <label>Matrícula</label>
+                        <input type="text" id="func-matricula" placeholder="Ex: 0001">
+                    </div>
+                    <div class="form-group">
+                        <label>Cargo *</label>
+                        <select id="func-cargo-id">
+                            <option value="">Selecione o cargo</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Setor / Departamento</label>
+                        <input type="text" id="func-setor" placeholder="Administrativo, Operacional...">
+                    </div>
+                    <div class="form-group">
+                        <label>Data de Admissão *</label>
+                        <input type="date" id="func-admissao" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Tipo de Contrato</label>
+                        <select id="func-tipo-contrato">
+                            <option value="CLT">CLT</option>
+                            <option value="PJ">PJ</option>
+                            <option value="ESTAGIO">Estágio</option>
+                            <option value="APRENDIZ">Jovem Aprendiz</option>
+                            <option value="TEMPORARIO">Temporário</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Turno</label>
+                        <select id="func-turno">
+                            <option value="">Selecione</option>
+                            <option value="DIURNO">Diurno</option>
+                            <option value="NOTURNO">Noturno</option>
+                            <option value="12X36">12x36</option>
+                            <option value="ESCALA">Escala</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Salário (R$)</label>
+                        <input type="number" id="func-salario" placeholder="0,00" step="0.01" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="func-status">
+                            <option value="ATIVO">Ativo</option>
+                            <option value="FERIAS">Em Férias</option>
+                            <option value="AFASTADO">Afastado</option>
+                            <option value="DESLIGADO">Desligado</option>
+                        </select>
+                    </div>
+                    <div class="form-group span-2" id="func-motivo-deslig-wrap" style="display:none;">
+                        <label>Motivo do Desligamento</label>
+                        <input type="text" id="func-motivo-deslig" placeholder="Motivo do desligamento">
+                    </div>
+                    <div class="form-group" id="func-data-demissao-wrap" style="display:none;">
+                        <label>Data de Demissão</label>
+                        <input type="date" id="func-demissao">
+                    </div>
+
+                    <div class="form-section-title">📄 Documentos Legais</div>
+                    <div class="form-group">
+                        <label>PIS / PASEP</label>
+                        <input type="text" id="func-pis" placeholder="000.00000.00-0">
+                    </div>
+                    <div class="form-group">
+                        <label>CTPS Número</label>
+                        <input type="text" id="func-ctps-num" placeholder="Número da CTPS">
+                    </div>
+                    <div class="form-group">
+                        <label>CTPS Série</label>
+                        <input type="text" id="func-ctps-serie" placeholder="Série">
+                    </div>
+                    <div class="form-group">
+                        <label>CTPS UF</label>
+                        <select id="func-ctps-uf">
+                            <option value="">UF</option>
+                            <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+                            <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+                            <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+                            <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
+                            <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+                            <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+                            <option selected>SP</option><option>SE</option><option>TO</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Data de Emissão CTPS</label>
+                        <input type="date" id="func-ctps-data">
+                    </div>
+
+                    <div class="form-section-title">🏦 Dados Bancários</div>
+                    <div class="form-group">
+                        <label>Banco</label>
+                        <input type="text" id="func-banco" placeholder="Ex: 001 - Banco do Brasil">
+                    </div>
+                    <div class="form-group">
+                        <label>Agência</label>
+                        <input type="text" id="func-agencia" placeholder="0000-0">
+                    </div>
+                    <div class="form-group">
+                        <label>Conta</label>
+                        <input type="text" id="func-conta" placeholder="00000-0">
+                    </div>
+                    <div class="form-group">
+                        <label>Tipo de Conta</label>
+                        <select id="func-tipo-conta">
+                            <option value="CORRENTE">Conta Corrente</option>
+                            <option value="POUPANCA">Conta Poupança</option>
+                            <option value="PAGAMENTO">Conta de Pagamento</option>
+                        </select>
+                    </div>
+                    <div class="form-group span-2">
+                        <label>Chave PIX</label>
+                        <input type="text" id="func-pix" placeholder="CPF, e-mail, celular ou chave aleatória">
+                    </div>
+
+                    <div class="form-section-title">📝 Observações</div>
+                    <div class="form-group span-2">
+                        <label>Observações Gerais</label>
+                        <textarea id="func-obs" placeholder="Informações adicionais sobre o funcionário..."></textarea>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-funcionario')">Cancelar</button>
+            <button class="btn btn-primary btn-save" onclick="salvarFuncionario()"><i data-lucide="save"></i> Salvar Funcionário</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: ASO
+════════════════════════════════════════════ -->
+<div id="modal-aso" class="dp-modal-overlay">
+    <div class="dp-modal">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="stethoscope"></i> <span id="modal-aso-title">Novo ASO</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-aso')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="form-group span-2">
+                    <label>Funcionário *</label>
+                    <select id="aso-func-id" required>
+                        <option value="">Selecione o funcionário</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Tipo de ASO *</label>
+                    <select id="aso-tipo" required onchange="toggleAsoVencimento()">
+                        <option value="">Selecione</option>
+                        <option value="ADMISSIONAL">Admissional</option>
+                        <option value="PERIODICO">Periódico</option>
+                        <option value="MUDANCA_FUNCAO">Mudança de Função</option>
+                        <option value="RETORNO_TRABALHO">Retorno ao Trabalho</option>
+                        <option value="DEMISSIONAL">Demissional</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Data do Exame *</label>
+                    <input type="date" id="aso-data" required onchange="calcularVencimentoAso()">
+                </div>
+                <div class="form-group" id="aso-period-wrap">
+                    <label>Periodicidade (meses)</label>
+                    <select id="aso-periodicidade" onchange="calcularVencimentoAso()">
+                        <option value="">Selecione</option>
+                        <option value="6">6 meses</option>
+                        <option value="12">12 meses</option>
+                        <option value="24">24 meses</option>
+                    </select>
+                </div>
+                <div class="form-group" id="aso-venc-wrap">
+                    <label>Data de Vencimento <span id="aso-venc-auto-label" style="color:var(--primary);font-size:0.7rem;font-weight:600;"></span></label>
+                    <input type="date" id="aso-vencimento" placeholder="Calculado automaticamente">
+                </div>
+                <div class="form-group">
+                    <label>Resultado *</label>
+                    <select id="aso-resultado" required>
+                        <option value="APTO">Apto</option>
+                        <option value="INAPTO">Inapto</option>
+                        <option value="APTO_COM_RESTRICOES">Apto com Restrições</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Médico Responsável</label>
+                    <input type="text" id="aso-medico" placeholder="Dr. Nome Sobrenome">
+                </div>
+                <div class="form-group">
+                    <label>CRM do Médico</label>
+                    <input type="text" id="aso-crm" placeholder="000000/UF">
+                </div>
+                <div class="form-group">
+                    <label>Clínica / SESMT</label>
+                    <input type="text" id="aso-clinica" placeholder="Nome da clínica">
+                </div>
+                <div class="form-group span-2">
+                    <label>Exames Realizados</label>
+                    <input type="text" id="aso-exames" placeholder="Audiometria, Acuidade visual, Hemograma...">
+                </div>
+                <div class="form-group span-2" id="aso-restricoes-wrap" style="display:none;">
+                    <label>Restrições</label>
+                    <textarea id="aso-restricoes" placeholder="Descreva as restrições..."></textarea>
+                </div>
+                <div class="form-group span-2">
+                    <label>Observações</label>
+                    <textarea id="aso-obs" placeholder="Observações adicionais..."></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-aso')">Cancelar</button>
+            <button class="btn btn-primary btn-save" onclick="salvarAso()"><i data-lucide="save"></i> Salvar ASO</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: FÉRIAS
+════════════════════════════════════════════ -->
+<div id="modal-ferias" class="dp-modal-overlay">
+    <div class="dp-modal">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="umbrella"></i> <span id="modal-ferias-title">Registrar Férias</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-ferias')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="form-group span-2">
+                    <label>Funcionário *</label>
+                    <select id="ferias-func-id" required>
+                        <option value="">Selecione o funcionário</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Início Período Aquisitivo *</label>
+                    <input type="date" id="ferias-aq-ini" required>
+                </div>
+                <div class="form-group">
+                    <label>Fim Período Aquisitivo *</label>
+                    <input type="date" id="ferias-aq-fim" required>
+                </div>
+                <div class="form-group">
+                    <label>Início do Gozo</label>
+                    <input type="date" id="ferias-gozo-ini" onchange="calcularFimGozoFerias()">
+                </div>
+                <div class="form-group">
+                    <label>Dias Gozados</label>
+                    <input type="number" id="ferias-dias" placeholder="Ex: 30" oninput="calcularFimGozoFerias()">
+                </div>
+                <div class="form-group">
+                    <label>Fim do Gozo (calculado)</label>
+                    <input type="date" id="ferias-gozo-fim" readonly style="opacity:0.7; cursor:not-allowed;">
+                </div>
+                <div class="form-group">
+                    <label>Parcela Nº</label>
+                    <select id="ferias-parcela">
+                        <option value="1">1ª Parcela</option>
+                        <option value="2">2ª Parcela</option>
+                        <option value="3">3ª Parcela</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Abono Pecuniário (venda 10 dias)</label>
+                    <select id="ferias-abono">
+                        <option value="false">Não</option>
+                        <option value="true">Sim</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Adiantamento 13º</label>
+                    <select id="ferias-13">
+                        <option value="false">Não</option>
+                        <option value="true">Sim</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="ferias-status">
+                        <option value="AQUISITIVO">Aquisitivo (acumulando)</option>
+                        <option value="PROGRAMADA">Programada</option>
+                        <option value="EM_GOZO">Em Gozo</option>
+                        <option value="CONCLUIDA">Concluída</option>
+                        <option value="VENCIDA">Vencida</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Data de Pagamento</label>
+                    <input type="date" id="ferias-pgto">
+                </div>
+                <div class="form-group">
+                    <label>Valor Pago (R$)</label>
+                    <input type="number" id="ferias-valor" step="0.01" min="0" placeholder="0,00">
+                </div>
+                <div class="form-group span-2">
+                    <label>Observações</label>
+                    <textarea id="ferias-obs" placeholder="Observações..."></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-ferias')">Cancelar</button>
+            <button class="btn btn-primary btn-save" onclick="salvarFerias()"><i data-lucide="save"></i> Salvar Férias</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: PONTO / OCORRÊNCIA
+════════════════════════════════════════════ -->
+<div id="modal-ponto" class="dp-modal-overlay">
+    <div class="dp-modal narrow">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="clock"></i> <span id="modal-ponto-title">Registrar Ocorrência</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-ponto')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid cols-1">
+                <div class="form-group">
+                    <label>Funcionário *</label>
+                    <select id="ponto-func-id" required>
+                        <option value="">Selecione o funcionário</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Tipo *</label>
+                    <select id="ponto-tipo" required>
+                        <option value="">Selecione</option>
+                        <option value="FALTA">Falta</option>
+                        <option value="ATRASO">Atraso</option>
+                        <option value="HORA_EXTRA">Hora Extra</option>
+                        <option value="SAIDA_ANTECIPADA">Saída Antecipada</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Data *</label>
+                    <input type="date" id="ponto-data" required>
+                </div>
+                <div class="form-group">
+                    <label>Minutos</label>
+                    <input type="number" id="ponto-minutos" placeholder="Ex: 30 (para 30 minutos)" min="0">
+                </div>
+                <div class="form-group">
+                    <label>Justificativa</label>
+                    <textarea id="ponto-justificativa" placeholder="Motivo da ocorrência..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Justificado?</label>
+                    <select id="ponto-justificado">
+                        <option value="false">Não</option>
+                        <option value="true">Sim</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Aprovado / Verificado por</label>
+                    <input type="text" id="ponto-aprovado" placeholder="Nome do responsável">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-ponto')">Cancelar</button>
+            <button class="btn btn-primary btn-save" onclick="salvarPonto()"><i data-lucide="save"></i> Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: ATESTADO / AFASTAMENTO
+════════════════════════════════════════════ -->
+<div id="modal-atestado" class="dp-modal-overlay">
+    <div class="dp-modal">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="file-heart"></i> <span id="modal-atestado-title">Novo Atestado / Afastamento</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-atestado')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="form-group span-2">
+                    <label>Funcionário *</label>
+                    <select id="atestado-func-id" required>
+                        <option value="">Selecione o funcionário</option>
+                    </select>
+                </div>
+                <div class="form-group span-2">
+                    <label>Tipo *</label>
+                    <select id="atestado-tipo" required>
+                        <option value="">Selecione</option>
+                        <option value="ATESTADO_MEDICO">Atestado Médico</option>
+                        <option value="AFASTAMENTO_INSS">Afastamento INSS</option>
+                        <option value="ACIDENTE_TRABALHO">Acidente de Trabalho</option>
+                        <option value="LICENCA_MATERNIDADE">Licença Maternidade</option>
+                        <option value="LICENCA_PATERNIDADE">Licença Paternidade</option>
+                        <option value="OUTROS">Outros</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Data Início *</label>
+                    <input type="date" id="atestado-inicio" required onchange="calcularDiasAtestado()">
+                </div>
+                <div class="form-group">
+                    <label>Data Fim</label>
+                    <input type="date" id="atestado-fim" onchange="calcularDiasAtestado()">
+                </div>
+                <div class="form-group">
+                    <label>Dias (calculado)</label>
+                    <input type="number" id="atestado-dias" readonly style="opacity:0.7;">
+                </div>
+                <div class="form-group">
+                    <label>CID-10</label>
+                    <input type="text" id="atestado-cid" placeholder="Ex: J06.9">
+                </div>
+                <div class="form-group">
+                    <label>Médico</label>
+                    <input type="text" id="atestado-medico" placeholder="Dr. Nome">
+                </div>
+                <div class="form-group">
+                    <label>CRM</label>
+                    <input type="text" id="atestado-crm" placeholder="000000/UF">
+                </div>
+                <div class="form-group">
+                    <label>Nº Benefício INSS</label>
+                    <input type="text" id="atestado-beneficio" placeholder="Apenas para afastamentos INSS">
+                </div>
+                <div class="form-group">
+                    <label>Data da Perícia</label>
+                    <input type="date" id="atestado-pericia">
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="atestado-status">
+                        <option value="ATIVO">Ativo</option>
+                        <option value="ENCERRADO">Encerrado</option>
+                        <option value="INDEFERIDO">Indeferido</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Data de Retorno Efetivo</label>
+                    <input type="date" id="atestado-retorno">
+                </div>
+                <div class="form-group span-2">
+                    <label>Observações</label>
+                    <textarea id="atestado-obs" placeholder="Observações adicionais..."></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-atestado')">Cancelar</button>
+            <button class="btn btn-primary btn-save" onclick="salvarAtestado()"><i data-lucide="save"></i> Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: EPI
+════════════════════════════════════════════ -->
+<div id="modal-epi" class="dp-modal-overlay">
+    <div class="dp-modal">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="hard-hat"></i> <span id="modal-epi-title">Registrar Entrega de EPI</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-epi')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="form-group span-2">
+                    <label>Funcionário *</label>
+                    <select id="epi-func-id" required>
+                        <option value="">Selecione o funcionário</option>
+                    </select>
+                </div>
+                <div class="form-group span-2">
+                    <label>Nome do EPI *</label>
+                    <input type="text" id="epi-nome" required placeholder="Ex: Capacete de segurança, Bota de segurança...">
+                </div>
+                <div class="form-group">
+                    <label>Número do CA</label>
+                    <input type="text" id="epi-ca" placeholder="Ex: 12345">
+                </div>
+                <div class="form-group">
+                    <label>Vencimento do CA</label>
+                    <input type="date" id="epi-ca-venc">
+                </div>
+                <div class="form-group">
+                    <label>Fabricante</label>
+                    <input type="text" id="epi-fabricante" placeholder="Nome do fabricante">
+                </div>
+                <div class="form-group">
+                    <label>Quantidade</label>
+                    <input type="number" id="epi-qtd" value="1" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Data de Entrega *</label>
+                    <input type="date" id="epi-entrega" required>
+                </div>
+                <div class="form-group">
+                    <label>Vencimento do EPI (vida útil)</label>
+                    <input type="date" id="epi-venc-epi">
+                </div>
+                <div class="form-group span-2">
+                    <label>Motivo da Entrega</label>
+                    <select id="epi-motivo">
+                        <option value="ADMISSIONAL">Admissional</option>
+                        <option value="TROCA_PERIODICA">Troca Periódica</option>
+                        <option value="DESGASTE">Desgaste/Danificado</option>
+                        <option value="PERDA">Perda</option>
+                        <option value="OUTROS">Outros</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Funcionário Assinou Recibo?</label>
+                    <select id="epi-assinatura">
+                        <option value="false">Não</option>
+                        <option value="true">Sim</option>
+                    </select>
+                </div>
+                <div class="form-group span-2">
+                    <label>Observações</label>
+                    <textarea id="epi-obs" placeholder="Observações..."></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-epi')">Cancelar</button>
+            <button class="btn btn-primary btn-save" onclick="salvarEpi()"><i data-lucide="save"></i> Salvar EPI</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: UNIFORME
+════════════════════════════════════════════ -->
+<div id="modal-uniforme" class="dp-modal-overlay">
+    <div class="dp-modal narrow">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="shirt"></i> <span id="modal-uniforme-title">Registrar Uniforme</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-uniforme')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid cols-1">
+                <div class="form-group">
+                    <label>Funcionário *</label>
+                    <select id="unif-func-id" required>
+                        <option value="">Selecione o funcionário</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Item *</label>
+                    <input type="text" id="unif-item" required placeholder="Camisa, Calça, Bota, Colete...">
+                </div>
+                <div class="form-group">
+                    <label>Tamanho</label>
+                    <input type="text" id="unif-tamanho" placeholder="P, M, G, GG, 38, 40...">
+                </div>
+                <div class="form-group">
+                    <label>Quantidade</label>
+                    <input type="number" id="unif-qtd" value="1" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Data de Entrega *</label>
+                    <input type="date" id="unif-entrega" required>
+                </div>
+                <div class="form-group">
+                    <label>Estado</label>
+                    <select id="unif-estado">
+                        <option value="NOVO">Novo</option>
+                        <option value="BOM">Bom</option>
+                        <option value="DESGASTADO">Desgastado</option>
+                        <option value="DANIFICADO">Danificado</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Motivo</label>
+                    <select id="unif-motivo">
+                        <option value="ADMISSIONAL">Admissional</option>
+                        <option value="TROCA">Troca</option>
+                        <option value="PERDA">Perda</option>
+                        <option value="OUTROS">Outros</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Observações</label>
+                    <textarea id="unif-obs" placeholder="Observações..."></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-uniforme')">Cancelar</button>
+            <button class="btn btn-primary btn-save" onclick="salvarUniforme()"><i data-lucide="save"></i> Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: BENEFÍCIO
+════════════════════════════════════════════ -->
+<div id="modal-beneficio" class="dp-modal-overlay">
+    <div class="dp-modal narrow">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="credit-card"></i> <span id="modal-benef-title">Novo Benefício</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-beneficio')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid cols-1">
+                <div class="form-group">
+                    <label>Funcionário *</label>
+                    <select id="benef-func-id" required>
+                        <option value="">Selecione o funcionário</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Tipo de Benefício *</label>
+                    <select id="benef-tipo" required>
+                        <option value="">Selecione</option>
+                        <option value="VT">Vale Transporte</option>
+                        <option value="VA">Vale Alimentação</option>
+                        <option value="VR">Vale Refeição</option>
+                        <option value="PLANO_SAUDE">Plano de Saúde</option>
+                        <option value="PLANO_ODONTO">Plano Odontológico</option>
+                        <option value="SEGURO_VIDA">Seguro de Vida</option>
+                        <option value="OUTROS">Outros</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Descrição</label>
+                    <input type="text" id="benef-desc" placeholder="Detalhes do benefício">
+                </div>
+                <div class="form-group">
+                    <label>Valor da Empresa (R$)</label>
+                    <input type="number" id="benef-valor" step="0.01" min="0" placeholder="0,00">
+                </div>
+                <div class="form-group">
+                    <label>Desconto do Funcionário (R$)</label>
+                    <input type="number" id="benef-desconto" step="0.01" min="0" placeholder="0,00">
+                </div>
+                <div class="form-group">
+                    <label>Operadora / Fornecedor</label>
+                    <input type="text" id="benef-operadora" placeholder="Nome da operadora">
+                </div>
+                <div class="form-group">
+                    <label>Nº Cartão / Benefício</label>
+                    <input type="text" id="benef-cartao" placeholder="Número do cartão ou contrato">
+                </div>
+                <div class="form-group">
+                    <label>Data de Início *</label>
+                    <input type="date" id="benef-inicio" required>
+                </div>
+                <div class="form-group">
+                    <label>Data de Encerramento</label>
+                    <input type="date" id="benef-fim">
+                </div>
+                <div class="form-group">
+                    <label>Ativo?</label>
+                    <select id="benef-ativo">
+                        <option value="true">Sim</option>
+                        <option value="false">Não</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Observações</label>
+                    <textarea id="benef-obs" placeholder="Observações..."></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-beneficio')">Cancelar</button>
+            <button class="btn btn-primary btn-save" onclick="salvarBeneficio()"><i data-lucide="save"></i> Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: CONTRATO EXPERIÊNCIA
+════════════════════════════════════════════ -->
+<div id="modal-contrato" class="dp-modal-overlay">
+    <div class="dp-modal">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="file-text"></i> <span id="modal-contr-title">Novo Contrato de Experiência</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-contrato')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="form-group span-2">
+                    <label>Funcionário *</label>
+                    <select id="contr-func-id" required onchange="autoPreencherContrato()">
+                        <option value="">Selecione o funcionário</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Data de Início *</label>
+                    <input type="date" id="contr-inicio" required onchange="calcularDatasContrato()">
+                </div>
+                <div class="form-group">
+                    <label>Fim 45 dias (calculado)</label>
+                    <input type="date" id="contr-fim45" readonly style="opacity:0.7;">
+                </div>
+                <div class="form-group">
+                    <label>Fim 90 dias (calculado)</label>
+                    <input type="date" id="contr-fim90" readonly style="opacity:0.7;">
+                </div>
+
+                <div class="form-section-title">✅ Avaliação 45 Dias</div>
+                <div class="form-group">
+                    <label>Status 45 dias</label>
+                    <select id="contr-status45">
+                        <option value="PENDENTE">Pendente</option>
+                        <option value="APROVADO">Aprovado</option>
+                        <option value="REPROVADO">Reprovado</option>
+                        <option value="PRORROGADO">Prorrogado</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Data da Avaliação 45d</label>
+                    <input type="date" id="contr-data45">
+                </div>
+                <div class="form-group">
+                    <label>Avaliador 45d</label>
+                    <input type="text" id="contr-aval45" placeholder="Nome do avaliador">
+                </div>
+                <div class="form-group span-2">
+                    <label>Avaliação 45 dias</label>
+                    <textarea id="contr-avaliacao45" placeholder="Comentários sobre o desempenho no período de 45 dias..."></textarea>
+                </div>
+
+                <div class="form-section-title">🏆 Avaliação 90 Dias</div>
+                <div class="form-group">
+                    <label>Status 90 dias</label>
+                    <select id="contr-status90">
+                        <option value="PENDENTE">Pendente</option>
+                        <option value="APROVADO">Aprovado</option>
+                        <option value="REPROVADO">Reprovado</option>
+                        <option value="EFETIVADO">Efetivado</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Data da Avaliação 90d</label>
+                    <input type="date" id="contr-data90">
+                </div>
+                <div class="form-group">
+                    <label>Avaliador 90d</label>
+                    <input type="text" id="contr-aval90" placeholder="Nome do avaliador">
+                </div>
+                <div class="form-group span-2">
+                    <label>Avaliação 90 dias</label>
+                    <textarea id="contr-avaliacao90" placeholder="Comentários sobre o desempenho no período de 90 dias..."></textarea>
+                </div>
+
+                <div class="form-section-title">📊 Resultado Final</div>
+                <div class="form-group">
+                    <label>Resultado Final</label>
+                    <select id="contr-resultado">
+                        <option value="">Aguardando</option>
+                        <option value="EFETIVADO">Efetivado</option>
+                        <option value="DESLIGADO">Desligado</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Data de Efetivação / Desligamento</label>
+                    <input type="date" id="contr-data-efetivacao">
+                </div>
+                <div class="form-group span-2">
+                    <label>Observações</label>
+                    <textarea id="contr-obs" placeholder="Observações gerais..."></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-contrato')">Cancelar</button>
+            <button class="btn btn-primary btn-save" onclick="salvarContrato()"><i data-lucide="save"></i> Salvar Contrato</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: CHECKLIST EXPERIÊNCIA
+════════════════════════════════════════════ -->
+<div id="modal-checklist" class="dp-modal-overlay">
+    <div class="dp-modal">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="clipboard-check"></i> <span id="modal-check-title">Avaliação de Experiência</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-checklist')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="form-group span-2">
+                    <label>Funcionário *</label>
+                    <select id="check-func-id" required>
+                        <option value="">Selecione o funcionário</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Período *</label>
+                    <select id="check-periodo" required>
+                        <option value="45_DIAS">45 Dias</option>
+                        <option value="90_DIAS">90 Dias</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Data da Avaliação</label>
+                    <input type="date" id="check-data">
+                </div>
+                <div class="form-group span-2">
+                    <label>Avaliador</label>
+                    <input type="text" id="check-avaliador" placeholder="Nome do gestor/avaliador">
+                </div>
+
+                <div class="form-section-title">⭐ Critérios de Avaliação (1 a 5 estrelas)</div>
+            </div>
+
+            <div class="score-grid" id="checklist-scores">
+                <!-- JS vai gerar os campos de estrelas aqui -->
+            </div>
+
+            <div class="nota-total" id="nota-total-box" style="display:none;">
+                <div class="value" id="nota-media-display">0.0</div>
+                <div class="label">Nota Média Final</div>
+            </div>
+
+            <div class="form-grid" style="margin-top:1rem;">
+                <div class="form-group">
+                    <label>Recomendação Final *</label>
+                    <select id="check-recomendacao" required>
+                        <option value="">Selecione</option>
+                        <option value="EFETIVADO">Efetivar</option>
+                        <option value="PRORROGAR">Prorrogar Contrato</option>
+                        <option value="DESLIGAR">Desligar</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Assinatura do Funcionário</label>
+                    <select id="check-assin-func">
+                        <option value="false">Pendente</option>
+                        <option value="true">Assinado</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Assinatura do Gestor</label>
+                    <select id="check-assin-gestor">
+                        <option value="false">Pendente</option>
+                        <option value="true">Assinado</option>
+                    </select>
+                </div>
+                <div class="form-group span-2">
+                    <label>Comentários Gerais</label>
+                    <textarea id="check-comentarios" placeholder="Observações e comentários sobre a avaliação..."></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-checklist')">Cancelar</button>
+            <button class="btn btn-primary btn-save" onclick="salvarChecklist()"><i data-lucide="save"></i> Salvar Avaliação</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: CARGO
+════════════════════════════════════════════ -->
+<div id="modal-cargo" class="dp-modal-overlay">
+    <div class="dp-modal">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="briefcase"></i> <span id="modal-cargo-title">Novo Cargo</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-cargo')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="form-group span-2">
+                    <label>Nome do Cargo *</label>
+                    <input type="text" id="cargo-nome" required placeholder="Ex: Auxiliar Administrativo">
+                </div>
+                <div class="form-group">
+                    <label>CBO</label>
+                    <input type="text" id="cargo-cbo" placeholder="Ex: 4110-05">
+                </div>
+                <div class="form-group">
+                    <label>Nível</label>
+                    <select id="cargo-nivel">
+                        <option value="">Selecione</option>
+                        <option value="OPERACIONAL">Operacional</option>
+                        <option value="TECNICO">Técnico</option>
+                        <option value="SUPERVISAO">Supervisão</option>
+                        <option value="GERENCIAL">Gerencial</option>
+                        <option value="DIRETORIA">Diretoria</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Setor / Departamento</label>
+                    <input type="text" id="cargo-setor" placeholder="Administrativo, Operacional...">
+                </div>
+                <div class="form-group">
+                    <label>Carga Horária Mensal</label>
+                    <input type="number" id="cargo-ch" value="220" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Salário Base (R$)</label>
+                    <input type="number" id="cargo-salario-base" step="0.01" min="0" placeholder="0,00">
+                </div>
+                <div class="form-group">
+                    <label>Salário Mínimo da Faixa (R$)</label>
+                    <input type="number" id="cargo-salario-min" step="0.01" min="0" placeholder="0,00">
+                </div>
+                <div class="form-group">
+                    <label>Salário Máximo da Faixa (R$)</label>
+                    <input type="number" id="cargo-salario-max" step="0.01" min="0" placeholder="0,00">
+                </div>
+                <div class="form-group span-2">
+                    <label>Descrição do Cargo</label>
+                    <textarea id="cargo-descricao" placeholder="Descreva o cargo, função e finalidade..."></textarea>
+                </div>
+                <div class="form-group span-2">
+                    <label>Responsabilidades</label>
+                    <textarea id="cargo-responsabilidades" placeholder="Liste as principais responsabilidades..."></textarea>
+                </div>
+                <div class="form-group span-2">
+                    <label>Requisitos Mínimos</label>
+                    <textarea id="cargo-requisitos" placeholder="Formação, experiência, conhecimentos exigidos..."></textarea>
+                </div>
+                <div class="form-group span-2">
+                    <label>Benefícios Padrão</label>
+                    <textarea id="cargo-beneficios" placeholder="VT, VA, Plano de Saúde..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Ativo</label>
+                    <select id="cargo-ativo">
+                        <option value="true">Sim</option>
+                        <option value="false">Não</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-cargo')">Cancelar</button>
+            <button class="btn btn-primary btn-save" onclick="salvarCargo()"><i data-lucide="save"></i> Salvar Cargo</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: FICHA DO FUNCIONÁRIO (VIEW)
+════════════════════════════════════════════ -->
+<div id="modal-ficha" class="dp-modal-overlay">
+    <div class="dp-modal wide">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="user"></i> Ficha do Funcionário</div>
+            <div style="display:flex;gap:0.5rem;">
+                <button class="btn btn-secondary btn-sm" onclick="editarFuncionarioDaFicha()"><i data-lucide="pencil"></i> Editar</button>
+                <button class="modal-close" onclick="fecharModal('modal-ficha')"><i data-lucide="x"></i></button>
+            </div>
+        </div>
+        <div class="modal-body" id="ficha-body">
+            <!-- Preenchido via JS -->
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="dp-toast"><i data-lucide="info" style="width:16px;flex-shrink:0;"></i><span id="dp-toast-msg"></span></div>
+
+<script src="dp.js"></script>
+<script src="orb_menu.js"></script>
+</body>
+</html>

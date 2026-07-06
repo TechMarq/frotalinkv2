@@ -15,6 +15,21 @@ const state = {
     supplierSort: { col: 'data_emissao', dir: 'asc' } // Sort state for supplier detail table
 };
 
+// --- Period Toggle ---
+function togglePeriodType() {
+    const type = document.getElementById('period_type').value;
+    if (type === 'month') {
+        document.getElementById('group-period-month').style.display = 'block';
+        document.getElementById('group-period-start').style.display = 'none';
+        document.getElementById('group-period-end').style.display = 'none';
+    } else {
+        document.getElementById('group-period-month').style.display = 'none';
+        document.getElementById('group-period-start').style.display = 'block';
+        document.getElementById('group-period-end').style.display = 'block';
+    }
+}
+window.togglePeriodType = togglePeriodType;
+
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', async () => {
     if (window.supabase) {
@@ -27,17 +42,35 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await updateIntelligentSupplierFilter();
             }
         });
+        document.getElementById('filter_start_date').addEventListener('change', async () => {
+            if (state.currentModuleTab === 'fornecedores') {
+                await updateIntelligentSupplierFilter();
+            }
+        });
+        document.getElementById('filter_end_date').addEventListener('change', async () => {
+            if (state.currentModuleTab === 'fornecedores') {
+                await updateIntelligentSupplierFilter();
+            }
+        });
     }
 });
 
 async function updateIntelligentSupplierFilter() {
-    const period = document.getElementById('filter_period').value;
-    if (!period) return;
+    const periodType = document.getElementById('period_type')?.value || 'month';
+    let startDate, endDate;
 
-    const [year, month] = period.split('-').map(Number);
-    const lastDay = new Date(year, month, 0).getDate();
-    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    if (periodType === 'month') {
+        const period = document.getElementById('filter_period').value;
+        if (!period) return;
+        const [year, month] = period.split('-').map(Number);
+        const lastDay = new Date(year, month, 0).getDate();
+        startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+        endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    } else {
+        startDate = document.getElementById('filter_start_date').value;
+        endDate = document.getElementById('filter_end_date').value;
+        if (!startDate || !endDate) return;
+    }
 
     showLoading(true, 'Atualizando lista de fornecedores...');
     try {
@@ -440,22 +473,35 @@ function showLoading(show, text = 'Processando...') {
 }
 
 async function generateClosing() {
-    const period = document.getElementById('filter_period').value;
-    if (!period) {
-        alert('Por favor, selecione o período.');
-        return;
+    const periodType = document.getElementById('period_type')?.value || 'month';
+    let startDate, endDate;
+
+    if (periodType === 'month') {
+        const period = document.getElementById('filter_period').value;
+        if (!period) {
+            alert('Por favor, selecione o período.');
+            return;
+        }
+        const [year, month] = period.split('-').map(Number);
+        const lastDay = new Date(year, month, 0).getDate();
+        startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+        endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        state.periodLabel = new Date(year, month - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+    } else {
+        startDate = document.getElementById('filter_start_date').value;
+        endDate = document.getElementById('filter_end_date').value;
+        if (!startDate || !endDate) {
+            alert('Por favor, selecione as datas de início e fim.');
+            return;
+        }
+        const formatD = (dStr) => {
+            const [y, m, d] = dStr.split('-');
+            return `${d}/${m}/${y}`;
+        };
+        state.periodLabel = `${formatD(startDate)} ATÉ ${formatD(endDate)}`;
     }
 
-    const [year, month] = period.split('-').map(Number);
-    const lastDay = new Date(year, month, 0).getDate();
-    
-    // Use simple YYYY-MM-DD for broader compatibility
-    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
     console.log('Filtrando de:', startDate, 'até:', endDate);
-
-    state.periodLabel = new Date(year, month - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
     
     const selectedClasses = Array.from(document.querySelectorAll('#classificacaoDropdown input:checked')).map(cb => cb.value);
     const selectedProps = Array.from(document.querySelectorAll('#propDropdown input:checked')).map(cb => cb.value);
