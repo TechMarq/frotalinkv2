@@ -30,6 +30,7 @@ const state = {
 
 // --- Inicialização ---
 document.addEventListener('DOMContentLoaded', async () => {
+    if (typeof window.showLoader === 'function') window.showLoader();
     initSupabase();
     await loadInitialData();
     renderAll();
@@ -43,6 +44,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     if (window.lucide) lucide.createIcons();
+    if (typeof window.hideLoader === 'function') window.hideLoader();
 });
 
 function setupSearchableInputs() {
@@ -900,6 +902,10 @@ window.exportDRE = function() {
 
 // --- CRUD Operations ---
 async function openEntryModal(tipo, id = null) {
+    if (typeof window.showLoader === 'function') window.showLoader();
+    setTimeout(() => {
+        if (typeof window.hideLoader === 'function') window.hideLoader();
+    }, 250);
     if (tipo === 'RECEBER') {
         if (typeof canDo === 'function' && !canDo('financeiro_receber', id ? 'edit' : 'add')) {
             showToast('Você não tem permissão para esta ação.', 'error');

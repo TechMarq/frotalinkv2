@@ -69,6 +69,10 @@ const cleanNumber = (val) => {
 
 // --- UI Opening Handlers (Moved to top for availability) ---
 window.openFuelModal = (id = null) => {
+    if (typeof window.showLoader === 'function') window.showLoader();
+    setTimeout(() => {
+        if (typeof window.hideLoader === 'function') window.hideLoader();
+    }, 250);
     console.log('Solicitação para abrir modal de abastecimento. ID:', id);
     if (id) {
         if (!canDo('abastecimento_lancamentos', 'edit')) {
@@ -1372,16 +1376,20 @@ const MOCK_DATA = {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    if (typeof window.showLoader === 'function') window.showLoader();
     if (window.supabase && SUPABASE_URL && SUPABASE_KEY) {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         updateStatus('Conectado', 'success');
-        loadInitialData();
+        loadInitialData().then(() => {
+            if (typeof window.hideLoader === 'function') window.hideLoader();
+        });
         setupFormListeners();
     } else {
         updateStatus('Modo Demo Local', 'warn');
         loadMockData();
         setupFormListeners();
         console.log('Sistema operando com dados fictícios para teste local.');
+        if (typeof window.hideLoader === 'function') window.hideLoader();
     }
 });
 

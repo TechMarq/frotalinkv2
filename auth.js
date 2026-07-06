@@ -1049,3 +1049,99 @@ async function registrarLog(modulo, acao, descricao) {
 }
 window.registrarLog = registrarLog;
 
+// ============================================================
+//  GLOBAL LOADING OVERLAY INJECTION
+// ============================================================
+(function() {
+    function injectLoader() {
+        if (document.getElementById('global-loading-screen')) return;
+        
+        // Inject styles dynamically so they work on pages that don't load style.css (like home.html)
+        if (!document.getElementById('global-loading-styles')) {
+            const style = document.createElement('style');
+            style.id = 'global-loading-styles';
+            style.textContent = `
+                .global-loading-overlay {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100vw;
+                    height: 100vh;
+                    background: rgba(15, 23, 42, 0.85);
+                    backdrop-filter: blur(8px);
+                    -webkit-backdrop-filter: blur(8px);
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 999999;
+                    opacity: 1;
+                    visibility: visible;
+                    transition: opacity 0.3s ease, visibility 0.3s ease;
+                }
+                .global-loading-overlay.hidden {
+                    opacity: 0;
+                    visibility: hidden;
+                    pointer-events: none;
+                }
+                .global-loading-logo {
+                    max-width: 400px;
+                    max-height: 400px;
+                    width: 90%;
+                    height: auto;
+                    object-fit: contain;
+                    user-select: none;
+                    pointer-events: none;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        const loaderDiv = document.createElement('div');
+        loaderDiv.id = 'global-loading-screen';
+        loaderDiv.className = 'global-loading-overlay';
+        loaderDiv.innerHTML = `
+            <img src="img/logo.frotalink.carre.gif.gif" class="global-loading-logo" alt="Carregando..." />
+        `;
+        document.body.appendChild(loaderDiv);
+    }
+
+    let autoHideTimer = null;
+
+    window.showLoader = function() {
+        if (autoHideTimer) {
+            clearTimeout(autoHideTimer);
+            autoHideTimer = null;
+        }
+        const el = document.getElementById('global-loading-screen');
+        if (el) {
+            el.classList.remove('hidden');
+        } else {
+            injectLoader();
+        }
+    };
+
+    window.hideLoader = function() {
+        if (autoHideTimer) {
+            clearTimeout(autoHideTimer);
+            autoHideTimer = null;
+        }
+        const el = document.getElementById('global-loading-screen');
+        if (el) {
+            el.classList.add('hidden');
+        }
+    };
+
+    // Auto-inject on load
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            injectLoader();
+            // Automatically hide loader after 500ms to guarantee page is visible
+            autoHideTimer = setTimeout(window.hideLoader, 500);
+        });
+    } else {
+        injectLoader();
+        autoHideTimer = setTimeout(window.hideLoader, 500);
+    }
+})();
+

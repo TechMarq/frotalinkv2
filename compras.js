@@ -58,6 +58,7 @@ const COL_DEFS = {
 let currentSort = { key: 'data', dir: 'desc' };
 
 document.addEventListener('DOMContentLoaded', async () => {
+    if (typeof window.showLoader === 'function') window.showLoader();
     await loadInventoryProducts(); 
     await loadVehicles(); 
     await loadDrivers();
@@ -74,8 +75,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         handleDatePresetChange(datePreset);
     } else {
         renderCompras();
-        updateDashboard();
     }
+    
+    // Force text input fields and textareas to be uppercase (database-level & visually consistent)
+    document.addEventListener('input', (e) => {
+        const target = e.target;
+        const isTextInput = target && (
+            target.tagName === 'TEXTAREA' || 
+            (target.tagName === 'INPUT' && (target.type === 'text' || !target.type))
+        );
+        if (isTextInput) {
+            const start = target.selectionStart;
+            const end = target.selectionEnd;
+            target.value = target.value.toUpperCase();
+            target.setSelectionRange(start, end);
+        }
+    });
     
     document.getElementById('compraForm').addEventListener('submit', handleSaveCompra);
     
@@ -207,6 +222,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
     });
+    if (typeof window.hideLoader === 'function') window.hideLoader();
 });
 
 
@@ -393,10 +409,32 @@ async function loadCompras() {
                     descricao: ad.descricao,
                     valor: parseFloat(ad.valor)
                 })),
-                parcelasData: (cloudParcs || []).filter(p => p.compra_id === c.id).map(p => ({
-                    data: p.data_vencimento,
-                    valor: parseFloat(p.valor)
-                })),
+                parcelasData: (() => {
+                    const parcs = (cloudParcs || []).filter(p => p.compra_id === c.id).map(p => ({
+                        data: p.data_vencimento,
+                        valor: parseFloat(p.valor)
+                    }));
+                    if (parcs.length === 0 && c.financeiro_parcelado && c.qtd_parcelas > 1) {
+                        console.log(`🔌 [Recovery] Gerando parcelas em memória para compra ${c.id} (${c.qtd_parcelas}x)`);
+                        const qty = c.qtd_parcelas;
+                        const baseVal = Number((parseFloat(c.valor_total) / qty).toFixed(2));
+                        let diff = parseFloat(c.valor_total) - (baseVal * qty);
+                        
+                        const dateOrigin = new Date(c.data_emissao + 'T12:00:00');
+                        const generated = [];
+                        for (let i = 1; i <= qty; i++) {
+                            const dueDate = new Date(dateOrigin);
+                            dueDate.setMonth(dueDate.getMonth() + i);
+                            const val = (i === qty) ? Number((baseVal + diff).toFixed(2)) : baseVal;
+                            generated.push({
+                                data: dueDate.toISOString().split('T')[0],
+                                valor: val
+                            });
+                        }
+                        return generated;
+                    }
+                    return parcs;
+                })(),
                 observacoes: c.observacoes
             };
         });
@@ -1011,66 +1049,71 @@ window.onChipDrop = (e) => {
 // --- Modal ---
 
 window.openCompraModal = async (id = null) => {
-    if (id) {
-        if (!canDo('compras_historico', 'edit')) {
-            alert('Você não tem permissão para editar compras.');
-            return;
+    if (typeof window.showLoader === 'function') window.showLoader();
+    try {
+        if (id) {
+            if (!canDo('compras_historico', 'edit')) {
+                alert('Você não tem permissão para editar compras.');
+                return;
+            }
+        } else {
+            if (!canDo('compras_historico', 'add')) {
+                alert('Você não tem permissão para lançar compras.');
+                return;
+            }
         }
-    } else {
-        if (!canDo('compras_historico', 'add')) {
-            alert('Você não tem permissão para lançar compras.');
-            return;
-        }
-    }
-    await loadConfigFromSupabase();
-    await loadInventoryProducts();
-    await loadVehicles();
-    await loadDrivers();
-    const modal = document.getElementById('compraModal');
-    const form = document.getElementById('compraForm');
-    modal.classList.add('active');
-    form.reset();
-    const fId = document.getElementById('fornecedorId');
-    const fSearch = document.getElementById('fornecedorSearch');
-    if (fId) fId.value = '';
-    if (fSearch) fSearch.value = '';
-    const catId = document.getElementById('categoriaId');
-    const catSearch = document.getElementById('categoriaSearch');
-    if (catId) catId.value = '';
-    if (catSearch) catSearch.value = '';
-    document.getElementById('itemsContainer').innerHTML = '';
-    document.getElementById('additionalContainer').innerHTML = '';
-    document.getElementById('parcelasContainer').innerHTML = '';
-    document.getElementById('parcelasSection').style.display = 'none';
-    document.getElementById('toggleParcelas').classList.remove('active');
-    document.getElementById('qtdParcWrapper').style.opacity = '0.5';
-    document.getElementById('qtdParcWrapper').style.pointerEvents = 'none';
+        await loadConfigFromSupabase();
+        await loadInventoryProducts();
+        await loadVehicles();
+        await loadDrivers();
+        const modal = document.getElementById('compraModal');
+        const form = document.getElementById('compraForm');
+        modal.classList.add('active');
+        form.reset();
+        const fId = document.getElementById('fornecedorId');
+        const fSearch = document.getElementById('fornecedorSearch');
+        if (fId) fId.value = '';
+        if (fSearch) fSearch.value = '';
+        const catId = document.getElementById('categoriaId');
+        const catSearch = document.getElementById('categoriaSearch');
+        if (catId) catId.value = '';
+        if (catSearch) catSearch.value = '';
+        document.getElementById('itemsContainer').innerHTML = '';
+        document.getElementById('additionalContainer').innerHTML = '';
+        document.getElementById('parcelasContainer').innerHTML = '';
+        document.getElementById('parcelasSection').style.display = 'none';
+        document.getElementById('toggleParcelas').classList.remove('active');
+        document.getElementById('qtdParcWrapper').style.opacity = '0.5';
+        document.getElementById('qtdParcWrapper').style.pointerEvents = 'none';
 
-    if (id) {
-        editId = id;
-        const c = compras.find(item => item.id == id);
-        if (c) populateModal(c);
-    } else {
-        editId = null;
-        const uniqueId = 'NC-' + Date.now().toString().slice(-6);
-        document.getElementById('labelCodUnico').innerText = 'COD: ' + uniqueId;
-        document.getElementById('labelCodUnico').dataset.value = uniqueId;
-        addItemRow();
-        document.getElementById('dataCompra').valueAsDate = new Date();
-        const vInput = document.getElementById('vencimentoNota');
-        vInput.disabled = false;
-        vInput.valueAsDate = new Date();
-        if (vInput.parentElement) {
-            vInput.parentElement.style.opacity = '1';
-            vInput.parentElement.style.pointerEvents = 'auto';
+        if (id) {
+            editId = id;
+            const c = compras.find(item => item.id == id);
+            if (c) populateModal(c);
+        } else {
+            editId = null;
+            const uniqueId = 'NC-' + Date.now().toString().slice(-6);
+            document.getElementById('labelCodUnico').innerText = 'COD: ' + uniqueId;
+            document.getElementById('labelCodUnico').dataset.value = uniqueId;
+            addItemRow();
+            document.getElementById('dataCompra').valueAsDate = new Date();
+            const vInput = document.getElementById('vencimentoNota');
+            vInput.disabled = false;
+            vInput.valueAsDate = new Date();
+            if (vInput.parentElement) {
+                vInput.parentElement.style.opacity = '1';
+                vInput.parentElement.style.pointerEvents = 'auto';
+            }
         }
-    }
-    calculateTotal();
+        calculateTotal();
 
-    setTimeout(() => {
-        const dataInput = document.getElementById('dataCompra');
-        if (dataInput) dataInput.focus();
-    }, 100);
+        setTimeout(() => {
+            const dataInput = document.getElementById('dataCompra');
+            if (dataInput) dataInput.focus();
+        }, 100);
+    } finally {
+        if (typeof window.hideLoader === 'function') window.hideLoader();
+    }
 };
 
 window.openViewModal = (id) => {
@@ -1399,7 +1442,7 @@ function addItemRow(data = {}, shouldFocus = true) {
             </div>
             <div class="input-group">
                 <label style="font-size:0.6rem;">KM Atual</label>
-                <input type="number" class="maint-km compra-input" placeholder="Ex: 105000" value="${data.maintKm || ''}" style="font-size:0.75rem;">
+                <input type="text" class="maint-km compra-input" placeholder="Ex: 105.000" value="${window.formatKM ? window.formatKM(data.maintKm) : (data.maintKm || '')}" style="font-size:0.75rem;">
             </div>
             <div class="input-group">
                 <label style="font-size:0.6rem;">Controle de Troca</label>
@@ -1413,7 +1456,7 @@ function addItemRow(data = {}, shouldFocus = true) {
             <!-- Campos Condicionais de Troca -->
             <div class="maint-km-extra" style="display:${data.maintControle === 'KM' ? 'block' : 'none'};">
                 <label style="font-size:0.6rem;">Intervalo KM</label>
-                <input type="number" class="maint-intervalo-km compra-input" placeholder="Ex: 10000" value="${data.maintIntervaloKm || ''}" style="font-size:0.75rem;">
+                <input type="text" class="maint-intervalo-km compra-input" placeholder="Ex: 10.000" value="${window.formatKM ? window.formatKM(data.maintIntervaloKm) : (data.maintIntervaloKm || '')}" style="font-size:0.75rem;">
             </div>
             <div class="maint-data-extra" style="display:${data.maintControle === 'DATA' ? 'block' : 'none'};">
                 <label style="font-size:0.6rem;">Meses de Intervalo</label>
@@ -2124,6 +2167,7 @@ async function handleSaveCompra(e) {
         }
     }
     console.log("🚀 CLIQUE NO BOTÃO SALVAR DETECTADO!");
+    const client = window.authClient || supabaseClient;
     
     try {
         const parseBr = (val) => {
@@ -2221,9 +2265,9 @@ async function handleSaveCompra(e) {
                     maintControl: r.querySelector('.maint-control-toggle')?.classList.contains('active') || false,
                     maintTipoId: r.querySelector('.maint-tipo-id')?.value || '',
                     maintAcaoId: r.querySelector('.maint-acao-id')?.value || '',
-                    maintKm: r.querySelector('.maint-km')?.value || '',
+                    maintKm: (r.querySelector('.maint-km')?.value || '').replace(/\D/g, ''),
                     maintControle: r.querySelector('.maint-controle-troca')?.value || 'NENHUMA',
-                    maintIntervaloKm: r.querySelector('.maint-intervalo-km')?.value || '',
+                    maintIntervaloKm: (r.querySelector('.maint-intervalo-km')?.value || '').replace(/\D/g, ''),
                     maintIntervaloMeses: r.querySelector('.maint-intervalo-meses')?.value || '',
                     maintGarantia: r.querySelector('.maint-possui-garantia')?.value === 'true',
                     maintMesesGarantia: r.querySelector('.maint-meses-garantia')?.value || ''
@@ -2336,9 +2380,9 @@ async function handleSaveCompra(e) {
                     veiculo_id: row.querySelector('.item-veiculo').value,
                     tipo_id: row.querySelector('.maint-tipo-id').value,
                     acao_id: row.querySelector('.maint-acao-id').value,
-                    km_atual: row.querySelector('.maint-km').value || 0,
+                    km_atual: parseFloat(itemData.maintKm) || 0,
                     controle_proxima_troca: row.querySelector('.maint-controle-troca').value,
-                    intervalo_km: row.querySelector('.maint-intervalo-km')?.value || null,
+                    intervalo_km: parseFloat(itemData.maintIntervaloKm) || null,
                     intervalo_meses: row.querySelector('.maint-intervalo-meses')?.value || null,
                     possui_garantia: row.querySelector('.maint-possui-garantia').value === 'true',
                     meses_garantia: row.querySelector('.maint-meses-garantia')?.value || null,
@@ -2383,11 +2427,12 @@ async function handleSaveCompra(e) {
                     valor_total: compraData.valorTotal,
                     financeiro_parcelado: compraData.financeiro,
                     qtd_parcelas: compraData.qtdParcelas,
-                    observacoes: compraData.observacoes
+                    observacoes: compraData.observacoes,
+                    empresa_id: window.currentEmpresaId || null
                 };
 
                 console.log("📤 Enviando para Supabase:", dbCompra);
-                const { error: compError } = await supabaseClient.from('compras').upsert([dbCompra]);
+                const { error: compError } = await client.from('compras').upsert([dbCompra]);
                 if (compError) {
                     console.error("❌ Erro ao salvar compra:", compError);
                     alert("Erro ao salvar compra no banco de dados: " + compError.message);
@@ -2395,7 +2440,7 @@ async function handleSaveCompra(e) {
                 }
 
                 // 2. Sync Items
-                await supabaseClient.from('compra_itens').delete().eq('compra_id', dbCompra.id);
+                await client.from('compra_itens').delete().eq('compra_id', dbCompra.id);
                 const dbItems = compraData.itens.map(it => ({
                     compra_id: dbCompra.id,
                     tipo: it.tipo || 'peca',
@@ -2417,10 +2462,11 @@ async function handleSaveCompra(e) {
                     maint_intervalo_km: parseFloat(it.maintIntervaloKm) || null,
                     maint_intervalo_meses: parseInt(it.maintIntervaloMeses) || null,
                     maint_garantia: it.maintGarantia || false,
-                    maint_meses_garantia: parseInt(it.maintMesesGarantia) || null
+                    maint_meses_garantia: parseInt(it.maintMesesGarantia) || null,
+                    empresa_id: window.currentEmpresaId || null
                 }));
                 if (dbItems.length > 0) {
-                    const { error: itemsError } = await supabaseClient.from('compra_itens').insert(dbItems);
+                    const { error: itemsError } = await client.from('compra_itens').insert(dbItems);
                     if (itemsError) {
                         console.error("❌ Erro ao salvar itens:", itemsError);
                         alert("Erro ao salvar itens da compra: " + itemsError.message);
@@ -2429,28 +2475,30 @@ async function handleSaveCompra(e) {
                 }
 
                 // 3. Sync Additionals
-                await supabaseClient.from('compra_adicionais').delete().eq('compra_id', dbCompra.id);
+                await client.from('compra_adicionais').delete().eq('compra_id', dbCompra.id);
                 const dbAdds = (compraData.adicionais || []).map(ad => ({
                     compra_id: dbCompra.id,
                     descricao: ad.descricao,
-                    valor: ad.valor
+                    valor: ad.valor,
+                    empresa_id: window.currentEmpresaId || null
                 }));
                 if (dbAdds.length > 0) {
-                    const { error: addsError } = await supabaseClient.from('compra_adicionais').insert(dbAdds);
+                    const { error: addsError } = await client.from('compra_adicionais').insert(dbAdds);
                     if (addsError) console.error("❌ Erro adicionais:", addsError);
                 }
 
                 // 4. Sync Installments
-                await supabaseClient.from('compra_parcelas').delete().eq('compra_id', dbCompra.id);
+                await client.from('compra_parcelas').delete().eq('compra_id', dbCompra.id);
                 const dbParcs = (compraData.parcelasData || []).map((p, idx) => ({
                     compra_id: dbCompra.id,
                     numero_parcela: idx + 1,
                     data_vencimento: p.data,
                     valor: p.valor,
-                    status: 'PENDENTE'
+                    status: 'PENDENTE',
+                    empresa_id: window.currentEmpresaId || null
                 }));
                 if (dbParcs.length > 0) {
-                    const { error: parcsError } = await supabaseClient.from('compra_parcelas').insert(dbParcs);
+                    const { error: parcsError } = await client.from('compra_parcelas').insert(dbParcs);
                     if (parcsError) console.error("❌ Erro parcelas:", parcsError);
                 }
 
@@ -2467,20 +2515,21 @@ async function handleSaveCompra(e) {
             for (const it of compraData.itens) {
                 if (it.estoque && it.produtoId) {
                     try {
-                        await supabaseClient.from('estoque_movimentacoes').insert([{
+                        await client.from('estoque_movimentacoes').insert([{
                             item_id: it.produtoId,
                             tipo: 'ENTRADA',
                             quantidade: it.quantidade,
                             motivo: `COMPRA: Nota #${compraData.numeroNota} | ${fornNome}`,
                             responsavel: 'SISTEMA COMPRAS',
                             valor_unitario: it.valorUnitario,
-                            data: new Date().toISOString()
+                            data: new Date().toISOString(),
+                            empresa_id: window.currentEmpresaId || null
                         }]);
 
-                        const { data: prod } = await supabaseClient.from('estoque').select('estoque_atual').eq('id', it.produtoId).single();
+                        const { data: prod } = await client.from('estoque').select('estoque_atual').eq('id', it.produtoId).single();
                         if (prod) {
                             const newStock = (parseFloat(prod.estoque_atual) || 0) + it.quantidade;
-                            await supabaseClient.from('estoque').update({ 
+                            await client.from('estoque').update({ 
                                 estoque_atual: newStock,
                                 valor_custo: it.valorUnitario,
                                 valor_venda: it.valorVenda || 0
@@ -2511,13 +2560,14 @@ async function handleSaveCompra(e) {
                         const typeDesc = typeObj ? typeObj.descricao.toUpperCase() : 'CORRETIVA';
 
                         // 1. Insert main maintenance record
-                        const { data: newMaint, error: maintError } = await supabaseClient.from('manutencoes').insert([{
+                        const { data: newMaint, error: maintError } = await client.from('manutencoes').insert([{
                             veiculo_id: m.veiculo_id,
                             oficina_id: fornObj.id || m.oficina_id,
                             tipo_id: m.tipo_id || null,
                             data: compraData.data,
                             km_atual: parseFloat(m.km_atual) || 0,
-                            status: 'PENDENTE' // Updated to PENDENTE as requested
+                            status: 'PENDENTE', // Updated to PENDENTE as requested
+                            empresa_id: window.currentEmpresaId || null
                         }]).select().single();
 
                         if (maintError) {
@@ -2549,7 +2599,7 @@ async function handleSaveCompra(e) {
                                 vencimento_garantia = baseDate.toISOString().split('T')[0];
                             }
 
-                            const { error: itemError } = await supabaseClient.from('manutencao_itens').insert([{
+                            const { error: itemError } = await client.from('manutencao_itens').insert([{
                                 manutencao_id: newMaint.id,
                                 acao_id: m.acao_id || null,
                                 descricao: `[ID:${compraData.id}] ${m.descricao}`, // Changed to unique internal ID
@@ -4188,13 +4238,37 @@ function areDescriptionsSimilar(desc1, desc2) {
     const d2 = normalizeStr(desc2);
     if (!d1 || !d2) return false;
     
-    // Direct substring check
-    if (d1.includes(d2) || d2.includes(d1)) return true;
+    // Words to exclude because they are very common verbs or generic terms in maintenance context
+    const genericWords = new Set([
+        'troca', 'reparo', 'conserto', 'manutencao', 'ajuste', 'revisao', 'limpeza', 
+        'aplicacao', 'aplicada', 'aplicado', 'para', 'com', 'sem', 'sob', 
+        'novo', 'nova', 'novos', 'novas', 'geral', 'parcial', 'peca', 'pecas', 
+        'servico', 'servicos', 'mao', 'obra', 'maodeobra', 'trocar', 'substituicao',
+        'instalacao', 'recondicionado', 'recondicionamento', 'recarga', 'teste', 'diagnostico',
+        'oleo', 'filtro', 'fluido', 'aditivo', 'kit', 'jogo', 'par'
+    ]);
     
-    // Word share check (words of length >= 4)
-    const words1 = d1.split(/\s+/).filter(w => w.length >= 4);
-    const words2 = d2.split(/\s+/).filter(w => w.length >= 4);
-    return words1.some(w => words2.includes(w));
+    // Direct match
+    if (d1 === d2) return true;
+    
+    // Split into words of length >= 3
+    const words1 = d1.split(/\s+/).filter(w => w.length >= 3);
+    const words2 = d2.split(/\s+/).filter(w => w.length >= 3);
+    
+    // Filter out the generic words
+    const nonGeneric1 = words1.filter(w => !genericWords.has(w));
+    const nonGeneric2 = words2.filter(w => !genericWords.has(w));
+    
+    // If there are no specific words left in either description, they cannot be considered similar
+    if (nonGeneric1.length === 0 || nonGeneric2.length === 0) {
+        return false;
+    }
+    
+    // Check if they share at least one specific/non-generic word
+    const sharedNonGeneric = nonGeneric1.filter(w => nonGeneric2.includes(w));
+    if (sharedNonGeneric.length >= 1) return true;
+    
+    return false;
 }
 
 function parseDateRobust(dateStr) {
@@ -5052,3 +5126,45 @@ window.handleMarcarValesComoFaturados = async () => {
         btnMarcar.innerHTML = origText;
     }
 };
+
+// --- KM Formatting Helper & Listener ---
+window.formatKM = function(val) {
+    if (val === undefined || val === null || val === '') return '';
+    const clean = val.toString().replace(/\D/g, '');
+    if (!clean) return '';
+    return parseInt(clean, 10).toLocaleString('pt-BR');
+};
+
+document.addEventListener('input', (e) => {
+    const target = e.target;
+    if (target && target.tagName === 'INPUT') {
+        if (target.classList.contains('maint-km') || target.classList.contains('maint-intervalo-km')) {
+            let value = target.value;
+            let clean = value.replace(/\D/g, '');
+            if (!clean) {
+                target.value = '';
+                return;
+            }
+            
+            let formatted = parseInt(clean, 10).toLocaleString('pt-BR');
+            
+            let cursorPosition = target.selectionStart;
+            let beforeCursorOnlyDigits = value.substring(0, cursorPosition).replace(/\D/g, '').length;
+            
+            target.value = formatted;
+            
+            let newCursorPosition = 0;
+            let digitsFound = 0;
+            for (let i = 0; i < formatted.length; i++) {
+                if (/\d/.test(formatted[i])) {
+                    digitsFound++;
+                }
+                newCursorPosition = i + 1;
+                if (digitsFound === beforeCursorOnlyDigits) {
+                    break;
+                }
+            }
+            target.setSelectionRange(newCursorPosition, newCursorPosition);
+        }
+    }
+});

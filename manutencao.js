@@ -39,6 +39,7 @@ const showToast = (msg, type = 'success') => {
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', async () => {
+    if (typeof window.showLoader === 'function') window.showLoader();
     if (window.supabase) {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         updateStatus('Conectado', 'success');
@@ -47,6 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
         updateStatus('Erro Supabase', 'error');
     }
+    if (typeof window.hideLoader === 'function') window.hideLoader();
 });
 
 function updateStatus(text, type) {
@@ -827,60 +829,65 @@ document.addEventListener('click', (e) => {
 
 // --- Modal & Form ---
 window.openMaintModal = async (id = null) => {
-    if (id) {
-        if (!canDo('manutencao_os', 'edit')) {
-            alert('Você não tem permissão para editar manutenções.');
-            return;
+    if (typeof window.showLoader === 'function') window.showLoader();
+    try {
+        if (id) {
+            if (!canDo('manutencao_os', 'edit')) {
+                alert('Você não tem permissão para editar manutenções.');
+                return;
+            }
+        } else {
+            if (!canDo('manutencao_os', 'add')) {
+                alert('Você não tem permissão para registrar manutenções.');
+                return;
+            }
         }
-    } else {
-        if (!canDo('manutencao_os', 'add')) {
-            alert('Você não tem permissão para registrar manutenções.');
-            return;
+        state.editingId = id;
+        state.currentMaintItems = [];
+        state.editingStatus = 'PENDENTE'; // Reset status
+        const form = document.getElementById('maintForm');
+        const title = document.getElementById('maintModalTitle');
+        form.reset();
+
+        if (id) {
+            title.innerText = 'Editar Manutenção';
+            const m = state.manutencoes.find(x => x.id === id);
+            if (m) {
+                const veh = state.vehicles.find(v => v.id === m.veiculo_id);
+                document.getElementById('maint_veiculo').value = m.veiculo_id;
+                document.getElementById('maint_veiculo_search').value = veh ? `${veh.placa} - ${veh.modelo}` : '';
+
+                document.getElementById('maint_data').value = m.data;
+
+                const forn = state.oficinas.find(o => o.id === m.oficina_id);
+                document.getElementById('maint_oficina').value = m.oficina_id;
+                document.getElementById('maint_oficina_search').value = forn ? forn.nome : '';
+
+                document.getElementById('maint_km').value = m.km_atual;
+                state.editingStatus = m.status;
+
+                const { data: items } = await supabaseClient.from('manutencao_itens').select('*').eq('manutencao_id', id);
+                state.currentMaintItems = items || [];
+            }
+        } else {
+            title.innerText = 'Registrar Manutenção';
+            document.getElementById('maint_veiculo_search').value = '';
+            document.getElementById('maint_veiculo').value = '';
+            document.getElementById('maint_oficina_search').value = '';
+            document.getElementById('maint_oficina').value = '';
+            document.getElementById('maint_data').value = new Date().toISOString().split('T')[0];
+            addMaintItem();
         }
+
+        renderMaintItems();
+        document.getElementById('modalMaint').classList.add('active');
+        setTimeout(() => {
+            const input = document.getElementById('maint_veiculo_search');
+            if (input) input.focus();
+        }, 150);
+    } finally {
+        if (typeof window.hideLoader === 'function') window.hideLoader();
     }
-    state.editingId = id;
-    state.currentMaintItems = [];
-    state.editingStatus = 'PENDENTE'; // Reset status
-    const form = document.getElementById('maintForm');
-    const title = document.getElementById('maintModalTitle');
-    form.reset();
-
-    if (id) {
-        title.innerText = 'Editar Manutenção';
-        const m = state.manutencoes.find(x => x.id === id);
-        if (m) {
-            const veh = state.vehicles.find(v => v.id === m.veiculo_id);
-            document.getElementById('maint_veiculo').value = m.veiculo_id;
-            document.getElementById('maint_veiculo_search').value = veh ? `${veh.placa} - ${veh.modelo}` : '';
-
-            document.getElementById('maint_data').value = m.data;
-
-            const forn = state.oficinas.find(o => o.id === m.oficina_id);
-            document.getElementById('maint_oficina').value = m.oficina_id;
-            document.getElementById('maint_oficina_search').value = forn ? forn.nome : '';
-
-            document.getElementById('maint_km').value = m.km_atual;
-            state.editingStatus = m.status;
-
-            const { data: items } = await supabaseClient.from('manutencao_itens').select('*').eq('manutencao_id', id);
-            state.currentMaintItems = items || [];
-        }
-    } else {
-        title.innerText = 'Registrar Manutenção';
-        document.getElementById('maint_veiculo_search').value = '';
-        document.getElementById('maint_veiculo').value = '';
-        document.getElementById('maint_oficina_search').value = '';
-        document.getElementById('maint_oficina').value = '';
-        document.getElementById('maint_data').value = new Date().toISOString().split('T')[0];
-        addMaintItem();
-    }
-
-    renderMaintItems();
-    document.getElementById('modalMaint').classList.add('active');
-    setTimeout(() => {
-        const input = document.getElementById('maint_veiculo_search');
-        if (input) input.focus();
-    }, 150);
 };
 
 window.addMaintItem = () => {
