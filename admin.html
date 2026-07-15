@@ -757,6 +757,7 @@
                                 <label for="new-role">Perfil de Acesso *</label>
                                 <select id="new-role">
                                     <option value="user">Usuário</option>
+                                    <option value="gerencial">Gerencial / Diretor</option>
                                     <option value="admin">Administrador</option>
                                 </select>
                             </div>
@@ -941,6 +942,7 @@
                         <label for="edit-role">Perfil de Acesso</label>
                         <select id="edit-role">
                             <option value="user">Usuário</option>
+                            <option value="gerencial">Gerencial / Diretor</option>
                             <option value="admin">Administrador</option>
                         </select>
                     </div>
@@ -1117,6 +1119,16 @@
             }
         }
 
+        function isOriginalAdmin(user) {
+            if (!user || user.role !== 'admin') return false;
+            // O admin original é o mais antigo cadastrado com o papel 'admin'
+            const admins = allUsers.filter(u => u.role === 'admin' && u.created_at);
+            if (admins.length === 0) return false;
+            // Ordenar por data de criação crescente
+            admins.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            return admins[0].email === user.email;
+        }
+
         function renderUsersTable(users) {
             const tbody = document.getElementById('usersTableBody');
 
@@ -1135,7 +1147,9 @@
                 const perms = u.permissions || {};
                 const roleBadge = u.role === 'admin'
                     ? '<span class="badge badge-admin">Admin</span>'
-                    : '<span class="badge badge-user">Usuário</span>';
+                    : (u.role === 'gerencial'
+                        ? '<span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3);">Gerencial</span>'
+                        : '<span class="badge badge-user">Usuário</span>');
                 const statusBadge = u.active
                     ? '<span class="badge badge-active">Ativo</span>'
                     : '<span class="badge badge-inactive">Inativo</span>';
@@ -1165,7 +1179,7 @@
                     ? new Date(u.created_at).toLocaleDateString('pt-BR')
                     : '--';
 
-                const actionButtons = u.role === 'admin' 
+                const actionButtons = isOriginalAdmin(u)
                     ? `<span style="color: var(--text-muted); font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
                          🔒 Acesso Protegido
                        </span>`
@@ -1243,6 +1257,44 @@
             }
         };
 
+        function updateModuleCardStatus(prefix, groupKey) {
+            const statusBadge = document.getElementById(`status-${prefix}-${groupKey}`);
+            const cardElement = document.getElementById(`card-${prefix}-${groupKey}`);
+            if (!statusBadge) return;
+
+            // Encontrar todos os checkboxes do grupo
+            let isAnyViewChecked = false;
+            ALL_MODULES.forEach(m => {
+                const modGroup = m.key.split('_')[0];
+                if (modGroup === groupKey) {
+                    const viewCb = document.getElementById(`${prefix}-${m.key}-view`);
+                    if (viewCb && viewCb.checked) {
+                        isAnyViewChecked = true;
+                    }
+                }
+            });
+
+            if (isAnyViewChecked) {
+                statusBadge.textContent = 'Ativo';
+                statusBadge.style.background = 'rgba(16, 185, 129, 0.15)';
+                statusBadge.style.color = '#10b981';
+                statusBadge.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+                statusBadge.style.display = 'inline-block';
+                if (cardElement) {
+                    cardElement.style.background = 'rgba(16, 185, 129, 0.02)';
+                }
+            } else {
+                statusBadge.textContent = 'Bloqueado';
+                statusBadge.style.background = 'rgba(239, 68, 68, 0.1)';
+                statusBadge.style.color = '#f87171';
+                statusBadge.style.border = '1px solid rgba(239, 68, 68, 0.2)';
+                statusBadge.style.display = 'inline-block';
+                if (cardElement) {
+                    cardElement.style.background = 'rgba(255, 255, 255, 0.015)';
+                }
+            }
+        }
+
         window.toggleGroupBatch = function(prefix, groupKey, checked) {
             ALL_MODULES.forEach(m => {
                 const modKey = m.key.split('_')[0];
@@ -1258,6 +1310,7 @@
                     }
                 }
             });
+            updateModuleCardStatus(prefix, groupKey);
         };
 
         function buildPermMatrix(containerId, prefix) {
@@ -1306,6 +1359,7 @@
                                 <span style="display: inline-flex; align-items: center; gap: 0.5rem;">
                                     <i data-lucide="${groupInfo.icon}" style="width: 18px; height: 18px; color: ${colorDef.border};"></i> 
                                     ${groupInfo.name}
+                                    <span class="module-status-badge" id="status-${prefix}-${groupKey}" style="margin-left: 0.5rem; font-size: 0.65rem; padding: 0.15rem 0.45rem; border-radius: 20px; font-weight: 700; text-transform: uppercase;"></span>
                                 </span>
                             </h4>
                             <div class="group-actions-wrap" onclick="event.stopPropagation()">
@@ -1350,6 +1404,8 @@
                     if (!viewChecked) cb.checked = false;
                 }
             });
+            const groupKey = key.split('_')[0];
+            updateModuleCardStatus(prefix, groupKey);
         }
 
         function getPermissionsFromMatrix(prefix) {
@@ -1400,6 +1456,7 @@
                     const pAud = perms[groupKey + '_auditoria'] || { view: false };
                     audCb.checked = !!pAud.view;
                 }
+                updateModuleCardStatus(prefix, groupKey);
             });
         }
 
@@ -1473,8 +1530,8 @@
         function openEditModal(email) {
             const user = allUsers.find(u => u.email === email);
             if (!user) return;
-            if (user.role === 'admin') {
-                alert('Erro: Contas administradoras são protegidas e só podem ser alteradas diretamente no banco de dados.');
+            if (isOriginalAdmin(user)) {
+                alert('Erro: A conta administradora original é protegida e só pode ser alterada diretamente no banco de dados.');
                 return;
             }
 
@@ -1599,8 +1656,8 @@
 
         async function toggleUserAccess(email, currentActive) {
             const user = allUsers.find(u => u.email === email);
-            if (user && user.role === 'admin') {
-                alert('Erro: Contas administradoras são protegidas e só podem ser alteradas diretamente no banco de dados.');
+            if (user && isOriginalAdmin(user)) {
+                alert('Erro: A conta administradora original é protegida e só pode ser alterada diretamente no banco de dados.');
                 return;
             }
             const action = currentActive ? 'revogar acesso de' : 'ativar acesso de';
@@ -1621,8 +1678,8 @@
 
         async function deleteUser(email) {
             const user = allUsers.find(u => u.email === email);
-            if (user && user.role === 'admin') {
-                alert('Erro: Contas administradoras são protegidas e só podem ser alteradas diretamente no banco de dados.');
+            if (user && isOriginalAdmin(user)) {
+                alert('Erro: A conta administradora original é protegida e só pode ser alterada diretamente no banco de dados.');
                 return;
             }
             if (!confirm(`⚠️ ATENÇÃO: Isso removerá permanentemente o acesso de "${email}" do sistema.\n\nO usuário não conseguirá mais fazer login.\n\nDeseja continuar?`)) return;

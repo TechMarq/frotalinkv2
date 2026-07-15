@@ -35,6 +35,12 @@
             title: 'Notícias',
             icon: 'newspaper',
             defaultPos: { right: '270px', top: '120px' }
+        },
+        {
+            id: 'reservations',
+            title: 'Reservas de Salas',
+            icon: 'calendar-days',
+            defaultPos: { right: '270px', top: '450px' }
         }
     ];
 
@@ -45,7 +51,7 @@
     const getMinKey = (id) => `frotalink_widget_minimized_${id}`;
 
     // Active state
-    let visibleWidgets = JSON.parse(localStorage.getItem(KEY_VISIBLE) || '{"notepad": false, "calendar": false, "calculator": false, "postits": false, "news": false}');
+    let visibleWidgets = JSON.parse(localStorage.getItem(KEY_VISIBLE) || '{"notepad": false, "calendar": false, "calculator": false, "postits": false, "news": false, "reservations": false}');
 
     // Resize observer logic
     let resizeTimeout = null;
@@ -170,6 +176,8 @@
                 initPostitsWidget(body);
             } else if (w.id === 'news') {
                 initNewsWidget(body);
+            } else if (w.id === 'reservations') {
+                initReservationsWidget(body);
             }
 
             // Controls listeners
@@ -1010,6 +1018,402 @@
         updateChipsUI();
         loadNews();
         if (window.lucide) lucide.createIcons();
+    }
+
+    // --- Reservations Widget ---
+
+    function initReservationsWidget(body) {
+        body.innerHTML = `
+            <div class="reservations-widget" style="padding: 0.5rem; display: flex; flex-direction: column; height: 100%; box-sizing: border-box;">
+                <form id="reservation-form" style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom:0.75rem; padding-bottom:0.75rem; border-bottom:1px solid rgba(255,255,255,0.08);">
+                    <div style="display:flex; gap:0.5rem;">
+                        <div style="flex:1; display:flex; flex-direction:column; gap:0.2rem;">
+                            <label style="font-size:0.65rem; color:var(--widget-muted); font-weight:600;">SALA</label>
+                            <select id="res-sala" style="padding:0.4rem; background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.75rem; font-family:inherit; outline:none;">
+                                <option value="Sala de Reunião">Sala de Reunião</option>
+                                <option value="Sala de Treinamento">Sala de Treinamento</option>
+                            </select>
+                        </div>
+                        <div style="flex:1; display:flex; flex-direction:column; gap:0.2rem;">
+                            <label style="font-size:0.65rem; color:var(--widget-muted); font-weight:600;">DATA</label>
+                            <input type="date" id="res-data" required style="padding:0.4rem; background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.75rem; font-family:inherit; outline:none; color-scheme: dark;">
+                        </div>
+                    </div>
+                    
+                    <div style="display:flex; gap:0.5rem;">
+                        <div style="flex:1; display:flex; flex-direction:column; gap:0.2rem;">
+                            <label style="font-size:0.65rem; color:var(--widget-muted); font-weight:600;">HORÁRIO</label>
+                            <input type="time" id="res-horario" required style="padding:0.4rem; background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.75rem; font-family:inherit; outline:none; color-scheme: dark;">
+                        </div>
+                        <div style="flex:1; display:flex; flex-direction:column; gap:0.2rem;">
+                            <label style="font-size:0.65rem; color:var(--widget-muted); font-weight:600;">DURAÇÃO</label>
+                            <select id="res-duracao" style="padding:0.4rem; background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.75rem; font-family:inherit; outline:none;">
+                                <option value="30 min">30 min</option>
+                                <option value="1 hora">1 hora</option>
+                                <option value="1h 30m">1h 30m</option>
+                                <option value="2 horas">2 horas</option>
+                                <option value="3 horas">3 horas</option>
+                                <option value="4 horas">4 horas</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" style="margin-top:0.2rem; padding:0.45rem; background:var(--widget-accent); color:#fff; border:none; border-radius:6px; font-size:0.75rem; font-weight:600; cursor:pointer; transition:background 0.2s;">
+                        Reservar Sala
+                    </button>
+                </form>
+                
+                <div class="res-list-container" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 150px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; gap:0.5rem; flex-wrap:wrap;">
+                        <div style="font-size:0.7rem; font-weight:700; color:var(--widget-muted); text-transform:uppercase; letter-spacing:0.02em;">Filtro:</div>
+                        <div class="res-filter-buttons" style="display:flex; gap:0.2rem;">
+                            <button type="button" class="res-filter-btn" data-filter="todos" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.3); color:#fff; padding:0.2rem 0.4rem; border-radius:4px; font-size:0.65rem; cursor:pointer; font-weight:600; font-family:inherit; transition:all 0.2s; box-shadow: 0 0 8px rgba(255,255,255,0.2);">Todos</button>
+                            <button type="button" class="res-filter-btn" data-filter="reuniao" style="background:rgba(59, 130, 246, 0.05); border:1px solid rgba(59, 130, 246, 0.1); color:#60a5fa; opacity:0.7; padding:0.2rem 0.4rem; border-radius:4px; font-size:0.65rem; cursor:pointer; font-weight:600; font-family:inherit; transition:all 0.2s;">Reunião</button>
+                            <button type="button" class="res-filter-btn" data-filter="treinamento" style="background:rgba(168, 85, 247, 0.05); border:1px solid rgba(168, 85, 247, 0.1); color:#c084fc; opacity:0.7; padding:0.2rem 0.4rem; border-radius:4px; font-size:0.65rem; cursor:pointer; font-weight:600; font-family:inherit; transition:all 0.2s;">Treino</button>
+                        </div>
+                    </div>
+                    <div id="res-list-loading" style="font-size:0.75rem; color:var(--widget-muted); text-align:center; padding:1rem;">Carregando reservas...</div>
+                    <div id="res-list-empty" style="font-size:0.75rem; color:var(--widget-muted); text-align:center; padding:1rem; display:none;">Nenhuma reserva ativa.</div>
+                    <div id="res-list-items" style="display:flex; flex-direction:column; gap:0.4rem; overflow-y:auto; flex: 1; padding-right: 2px;"></div>
+                </div>
+            </div>
+        `;
+
+        let activeFilter = 'todos';
+        const form = body.querySelector('#reservation-form');
+        const listItems = body.querySelector('#res-list-items');
+        const loadingEl = body.querySelector('#res-list-loading');
+        const emptyEl = body.querySelector('#res-list-empty');
+
+        function updateFilterButtonsUI() {
+            body.querySelectorAll('.res-filter-btn').forEach(btn => {
+                const filter = btn.getAttribute('data-filter');
+                const isActive = filter === activeFilter;
+                
+                if (filter === 'todos') {
+                    if (isActive) {
+                        btn.style.background = 'rgba(255,255,255,0.1)';
+                        btn.style.borderColor = 'rgba(255,255,255,0.3)';
+                        btn.style.color = '#fff';
+                        btn.style.boxShadow = '0 0 8px rgba(255,255,255,0.2)';
+                        btn.style.opacity = '1';
+                    } else {
+                        btn.style.background = 'rgba(255,255,255,0.03)';
+                        btn.style.borderColor = 'rgba(255,255,255,0.08)';
+                        btn.style.color = 'var(--widget-muted)';
+                        btn.style.boxShadow = 'none';
+                        btn.style.opacity = '0.7';
+                    }
+                } else if (filter === 'reuniao') {
+                    if (isActive) {
+                        btn.style.background = 'rgba(59, 130, 246, 0.2)';
+                        btn.style.borderColor = '#3b82f6';
+                        btn.style.color = '#fff';
+                        btn.style.textShadow = '0 0 5px #60a5fa';
+                        btn.style.boxShadow = '0 0 10px rgba(59, 130, 246, 0.5)';
+                        btn.style.opacity = '1';
+                    } else {
+                        btn.style.background = 'rgba(59, 130, 246, 0.05)';
+                        btn.style.borderColor = 'rgba(59, 130, 246, 0.1)';
+                        btn.style.color = '#60a5fa';
+                        btn.style.textShadow = 'none';
+                        btn.style.boxShadow = 'none';
+                        btn.style.opacity = '0.7';
+                    }
+                } else if (filter === 'treinamento') {
+                    if (isActive) {
+                        btn.style.background = 'rgba(168, 85, 247, 0.2)';
+                        btn.style.borderColor = '#a855f7';
+                        btn.style.color = '#fff';
+                        btn.style.textShadow = '0 0 5px #c084fc';
+                        btn.style.boxShadow = '0 0 10px rgba(168, 85, 247, 0.5)';
+                        btn.style.opacity = '1';
+                    } else {
+                        btn.style.background = 'rgba(168, 85, 247, 0.05)';
+                        btn.style.borderColor = 'rgba(168, 85, 247, 0.1)';
+                        btn.style.color = '#c084fc';
+                        btn.style.textShadow = 'none';
+                        btn.style.boxShadow = 'none';
+                        btn.style.opacity = '0.7';
+                    }
+                }
+            });
+        }
+
+        // Configurar botões de filtro
+        body.querySelectorAll('.res-filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                activeFilter = btn.getAttribute('data-filter');
+                updateFilterButtonsUI();
+                loadReservations();
+            });
+        });
+
+        function getLocalTodayStr() {
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // Set default date to today
+        body.querySelector('#res-data').value = getLocalTodayStr();
+
+        async function loadReservations(attempts = 0) {
+            if ((!window.authClient || !window.currentEmpresaId || !window.currentUser) && attempts < 30) {
+                setTimeout(() => loadReservations(attempts + 1), 200);
+                return;
+            }
+            try {
+                const empresaId = window.currentEmpresaId || null;
+                if (!empresaId) {
+                    loadingEl.style.display = 'none';
+                    emptyEl.style.display = 'block';
+                    listItems.innerHTML = '';
+                    emptyEl.textContent = 'Erro: Empresa não identificada.';
+                    return;
+                }
+
+                const { data, error } = await window.authClient
+                    .from('reservas_salas')
+                    .select('*')
+                    .eq('empresa_id', empresaId)
+                    .order('data', { ascending: true })
+                    .order('horario', { ascending: true });
+
+                if (error) throw error;
+
+                loadingEl.style.display = 'none';
+                listItems.innerHTML = '';
+
+                // Filtrar reservas passadas
+                const todayStr = getLocalTodayStr();
+                let activeRes = (data || []).filter(r => r.data >= todayStr);
+
+                // Aplicar filtro de tipo de sala
+                if (activeFilter === 'reuniao') {
+                    activeRes = activeRes.filter(r => r.sala === 'Sala de Reunião');
+                } else if (activeFilter === 'treinamento') {
+                    activeRes = activeRes.filter(r => r.sala === 'Sala de Treinamento');
+                }
+
+                if (activeRes.length === 0) {
+                    emptyEl.style.display = 'block';
+                } else {
+                    emptyEl.style.display = 'none';
+                    const now = new Date();
+
+                    activeRes.forEach(r => {
+                        // Se o status for 'Finalizado', verificar se já se passou 1 hora
+                        if (r.status === 'Finalizado' && r.concluido_em) {
+                            const finishedTime = new Date(r.concluido_em);
+                            const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+                            if (finishedTime < oneHourAgo) {
+                                return; // Oculta/Filtra a reserva da listagem
+                            }
+                        }
+
+                        // Calcular início da reserva de forma local e segura
+                        const [year, month, day] = r.data.split('-').map(Number);
+                        const [hour, minute] = r.horario.split(':').map(Number);
+                        const startDate = new Date(year, month - 1, day, hour, minute, 0);
+
+                        // Calcular duração em minutos
+                        let durationMinutes = 30;
+                        const durLower = (r.duracao || '').toLowerCase();
+                        if (durLower.includes('1 hora') || durLower.includes('1h')) durationMinutes = 60;
+                        else if (durLower.includes('1h 30m') || durLower.includes('1h30')) durationMinutes = 90;
+                        else if (durLower.includes('2 horas') || durLower.includes('2h')) durationMinutes = 120;
+                        else if (durLower.includes('3 horas') || durLower.includes('3h')) durationMinutes = 180;
+                        else if (durLower.includes('4 horas') || durLower.includes('4h')) durationMinutes = 240;
+
+                        const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+                        const endHours = String(endDate.getHours()).padStart(2, '0');
+                        const endMinutes = String(endDate.getMinutes()).padStart(2, '0');
+                        const endTimeStr = `${endHours}:${endMinutes}`;
+
+                        // Determinar o status textual e estilo
+                        let statusText = 'Agendado';
+                        let statusColorBg = 'rgba(99, 102, 241, 0.15)';
+                        let statusColorText = '#818cf8';
+
+                        if (r.status === 'Finalizado') {
+                            statusText = 'Finalizado';
+                            statusColorBg = 'rgba(16, 185, 129, 0.15)';
+                            statusColorText = '#10b981';
+                        } else if (now >= startDate && now < endDate) {
+                            statusText = 'Em andamento';
+                            statusColorBg = 'rgba(245, 158, 11, 0.15)';
+                            statusColorText = '#f59e0b';
+                        } else if (now >= endDate) {
+                            statusText = 'Encerrado';
+                            statusColorBg = 'rgba(239, 68, 68, 0.15)';
+                            statusColorText = '#f87171';
+                        }
+
+                        // Estilos de cor diferenciados para cada tipo de sala
+                        let salaColor = '#818cf8';
+                        let salaBg = 'rgba(99, 102, 241, 0.15)';
+                        let salaBorder = '1px solid rgba(99, 102, 241, 0.25)';
+
+                        if (r.sala === 'Sala de Reunião') {
+                            salaColor = '#60a5fa'; // Azul
+                            salaBg = 'rgba(59, 130, 246, 0.12)';
+                            salaBorder = '1px solid rgba(59, 130, 246, 0.2)';
+                        } else if (r.sala === 'Sala de Treinamento') {
+                            salaColor = '#c084fc'; // Roxo/Lilás
+                            salaBg = 'rgba(168, 85, 247, 0.12)';
+                            salaBorder = '1px solid rgba(168, 85, 247, 0.2)';
+                        }
+
+                        // Format date to local
+                        const dateFormatted = new Date(r.data + 'T00:00:00').toLocaleDateString('pt-BR');
+                        const item = document.createElement('div');
+                        item.className = 'res-item';
+                        item.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); padding:0.5rem; border-radius:8px; font-size:0.75rem; margin-bottom: 2px;';
+                        
+                        const timeStr = r.horario.substring(0, 5);
+                        const currentUserEmail = window.currentUser?.email || '';
+                        const isCreator = currentUserEmail && r.criado_por_email && (currentUserEmail.toLowerCase() === r.criado_por_email.toLowerCase());
+                        
+                        // Botão concluir se o usuário for o criador e ainda não estiver finalizado
+                        const showConclude = isCreator && r.status !== 'Finalizado';
+                        const concludeBtnHtml = showConclude
+                            ? `<button class="conclude-res-btn" data-id="${r.id}" style="background:#10b981; border:none; color:#fff; cursor:pointer; padding:0.25rem 0.4rem; border-radius:4px; font-size:0.65rem; font-weight:600; margin-right:0.3rem; transition:background 0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">
+                                   Concluir
+                               </button>`
+                            : '';
+
+                        const deleteBtnHtml = isCreator
+                            ? `<button class="delete-res-btn" data-id="${r.id}" style="background:none; border:none; color:#f87171; cursor:pointer; padding:0.25rem; font-size:0.9rem; transition:color 0.2s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#f87171'">
+                                   🗑️
+                               </button>`
+                            : '';
+                        
+                        item.innerHTML = `
+                            <div style="display:flex; flex-direction:column; gap:0.15rem; flex:1;">
+                                <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+                                    <span style="font-weight:700; color:${salaColor}; background:${salaBg}; border:${salaBorder}; padding:0.15rem 0.4rem; border-radius:6px; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.02em;">${r.sala}</span>
+                                    <span style="background:rgba(255,255,255,0.08); padding:0.15rem 0.4rem; border-radius:6px; font-size:0.7rem; color:var(--widget-muted);">${r.duracao}</span>
+                                    <span style="background:${statusColorBg}; color:${statusColorText}; padding:0.15rem 0.4rem; border-radius:6px; font-size:0.7rem; font-weight:700; text-transform:uppercase;">${statusText}</span>
+                                </div>
+                                <div style="color:#fff; font-weight:500; margin-top:0.25rem;">📅 ${dateFormatted} das ${timeStr} às ${endTimeStr}</div>
+                                <div style="font-size:0.65rem; color:var(--widget-muted);">Por: ${r.reservado_por}</div>
+                            </div>
+                            <div style="display:flex; align-items:center;">
+                                ${concludeBtnHtml}
+                                ${deleteBtnHtml}
+                            </div>
+                        `;
+
+                        if (showConclude) {
+                            item.querySelector('.conclude-res-btn').addEventListener('click', async () => {
+                                try {
+                                    const { error: updErr } = await window.authClient
+                                        .from('reservas_salas')
+                                        .update({
+                                            status: 'Finalizado',
+                                            concluido_em: new Date().toISOString()
+                                        })
+                                        .eq('id', r.id);
+                                    if (updErr) throw updErr;
+                                    loadReservations();
+                                } catch (err) {
+                                    alert('Erro ao concluir: ' + err.message);
+                                }
+                            });
+                        }
+
+                        if (isCreator) {
+                            item.querySelector('.delete-res-btn').addEventListener('click', async () => {
+                                if (confirm('Tem certeza que deseja cancelar esta reserva?')) {
+                                    try {
+                                        const { error: delErr } = await window.authClient
+                                            .from('reservas_salas')
+                                            .delete()
+                                            .eq('id', r.id);
+                                        if (delErr) throw delErr;
+                                        loadReservations();
+                                    } catch (err) {
+                                        alert('Erro ao cancelar: ' + err.message);
+                                    }
+                                }
+                            });
+                        }
+
+                        listItems.appendChild(item);
+                    });
+
+                    // Se todas foram filtradas por terem passado de 1 hora concluídas
+                    if (listItems.children.length === 0) {
+                        emptyEl.style.display = 'block';
+                    }
+                }
+            } catch (err) {
+                loadingEl.style.display = 'none';
+                emptyEl.style.display = 'block';
+                emptyEl.textContent = 'Erro ao carregar: ' + err.message;
+            }
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = form.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.textContent = 'Reservando...';
+
+            try {
+                const sala = form.querySelector('#res-sala').value;
+                const data = form.querySelector('#res-data').value;
+                const horario = form.querySelector('#res-horario').value;
+                const duracao = form.querySelector('#res-duracao').value;
+                const reservado_por = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || 'Funcionário';
+                const empresaId = window.currentEmpresaId;
+
+                if (!empresaId) throw new Error('Empresa não vinculada ao usuário.');
+
+                // Collision check
+                const { data: existing, error: checkErr } = await window.authClient
+                    .from('reservas_salas')
+                    .select('*')
+                    .eq('empresa_id', empresaId)
+                    .eq('sala', sala)
+                    .eq('data', data)
+                    .eq('horario', horario + ':00');
+
+                if (checkErr) throw checkErr;
+                if (existing && existing.length > 0) {
+                    throw new Error('Já existe uma reserva para esta sala neste mesmo dia e horário!');
+                }
+
+                const { error: insErr } = await window.authClient
+                    .from('reservas_salas')
+                    .insert({
+                        sala,
+                        data,
+                        horario,
+                        duracao,
+                        reservado_por,
+                        criado_por_email: window.currentUser?.email,
+                        empresa_id: empresaId
+                    });
+
+                if (insErr) throw insErr;
+
+                // Reset
+                form.querySelector('#res-horario').value = '';
+                loadReservations();
+            } catch (err) {
+                alert('Erro ao reservar: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Reservar Sala';
+            }
+        });
+
+        // Load initially
+        loadReservations();
     }
 
     // --- Global Click/Close handler to dismiss Manager Panel ---

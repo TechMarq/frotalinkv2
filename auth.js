@@ -152,6 +152,12 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
             return;
         }
 
+        // Se o perfil for gerencial e estiver em qualquer outra página que não seja gerencial.html, redirecionar para gerencial.html
+        if (accessData.role === 'gerencial' && !currentPage.endsWith('gerencial.html')) {
+            window.location.href = 'gerencial.html';
+            return;
+        }
+
         // Verificar permissão para o módulo desta página
         const requiredModule = AUTH_CONFIG.moduleMap[currentPage];
 
@@ -171,6 +177,7 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
 
         if (requiredModule && requiredModule !== 'admin') {
             const hasViewPerm = window.currentUserRole === 'admin' || 
+                window.currentUserRole === 'gerencial' ||
                 (window.currentUserPermissions[requiredModule] && window.currentUserPermissions[requiredModule].view) ||
                 Object.keys(window.currentUserPermissions).some(key => 
                     (key.startsWith(requiredModule + '_') || key === requiredModule) && window.currentUserPermissions[key].view
@@ -187,6 +194,9 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
                 injectAuthUI();
+                if (window.currentUserRole === 'gerencial') {
+                    document.querySelectorAll('.back-link, a[href="home.html"]').forEach(el => el.style.display = 'none');
+                }
                 if (requiredModule && requiredModule !== 'admin') {
                     applyPermissions(requiredModule);
                 }
@@ -194,6 +204,9 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
             });
         } else {
             injectAuthUI();
+            if (window.currentUserRole === 'gerencial') {
+                document.querySelectorAll('.back-link, a[href="home.html"]').forEach(el => el.style.display = 'none');
+            }
             if (requiredModule && requiredModule !== 'admin') {
                 applyPermissions(requiredModule);
             }
