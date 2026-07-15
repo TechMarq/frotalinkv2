@@ -24,12 +24,15 @@ let dpBeneficios = [];
 let dpContratos = [];
 let dpChecklist = [];
 let dpCargos = [];
+let dpEstoqueItens = [];
+let dpEstoqueMovs = [];
 
 // Paginação
 const PER_PAGE = 200;
 const pages = {
     funcionarios: 1, asos: 1, ferias: 1, ponto: 1, atestados: 1,
-    epis: 1, uniformes: 1, beneficios: 1, contratos: 1, checklist: 1, cargos: 1
+    epis: 1, uniformes: 1, beneficios: 1, contratos: 1, checklist: 1, cargos: 1,
+    estoque: 1
 };
 
 // Ordenação
@@ -44,13 +47,15 @@ const sorts = {
     beneficios: { key: 'tipo', dir: 'asc' },
     contratos: { key: 'data_inicio', dir: 'desc' },
     checklist: { key: 'data_avaliacao', dir: 'desc' },
-    cargos: { key: 'nome', dir: 'asc' }
+    cargos: { key: 'nome', dir: 'asc' },
+    estoque: { key: 'nome', dir: 'asc' }
 };
 
 // IDs em edição
 let editIds = {
     funcionario: null, aso: null, ferias: null, ponto: null, atestado: null,
-    epi: null, uniforme: null, beneficio: null, contrato: null, checklist: null, cargo: null
+    epi: null, uniforme: null, beneficio: null, contrato: null, checklist: null, cargo: null,
+    estoque_item: null
 };
 
 // Funcionário em visualização
@@ -160,11 +165,15 @@ async function init() {
             loadBeneficios(),
             loadContratos(),
             loadChecklist(),
+            loadEstoqueItens(),
+            loadEstoqueMovs(),
         ]);
         renderDashboard();
         renderFuncionarios();
         renderCargos();
         populateFuncSelects();
+        populateEstoqueSelects();
+        renderEstoque();
         lucide.createIcons();
     } catch (err) {
         console.error('[DP] Erro na inicialização:', err);
@@ -298,6 +307,24 @@ async function loadChecklist() {
     }
 }
 
+async function loadEstoqueItens() {
+    const { data, error } = await sb.from('dp_estoque_itens')
+        .select('*')
+        .order('nome', { ascending: true });
+    if (!error) {
+        dpEstoqueItens = data || [];
+    }
+}
+
+async function loadEstoqueMovs() {
+    const { data, error } = await sb.from('dp_estoque_movimentacoes')
+        .select('*')
+        .order('data', { ascending: false });
+    if (!error) {
+        dpEstoqueMovs = data || [];
+    }
+}
+
 // ============================================================
 //  POPULATE SELECTS
 // ============================================================
@@ -357,6 +384,51 @@ function populateFuncSelects() {
     if (selSetor) {
         selSetor.innerHTML = '<option value="">Todos os Setores</option>';
         setoresUnicos.forEach(s => selSetor.innerHTML += `<option value="${s}">${s}</option>`);
+    }
+}
+
+function populateEstoqueSelects() {
+    // 1. Populate EPI selection in EPI modal
+    const epiSelect = document.getElementById('epi-estoque-id');
+    if (epiSelect) {
+        const cur = epiSelect.value;
+        epiSelect.innerHTML = '<option value="">Selecione o EPI no estoque...</option>';
+        dpEstoqueItens.filter(i => i.tipo === 'EPI').forEach(i => {
+            const opt = document.createElement('option');
+            opt.value = i.id;
+            opt.textContent = `${i.nome} (Saldo: ${i.quantidade_atual}) ${i.ca_numero ? '[CA ' + i.ca_numero + ']' : ''}`;
+            epiSelect.appendChild(opt);
+        });
+        if (cur) epiSelect.value = cur;
+    }
+
+    // 2. Populate Uniform selection in Uniform modal
+    const unifSelect = document.getElementById('unif-estoque-id');
+    if (unifSelect) {
+        const cur = unifSelect.value;
+        unifSelect.innerHTML = '<option value="">Selecione o uniforme no estoque...</option>';
+        dpEstoqueItens.filter(i => i.tipo === 'UNIFORME').forEach(i => {
+            const opt = document.createElement('option');
+            opt.value = i.id;
+            opt.textContent = `${i.nome} ${i.tamanho ? '[' + i.tamanho + ']' : ''} (Saldo: ${i.quantidade_atual})`;
+            unifSelect.appendChild(opt);
+        });
+        if (cur) unifSelect.value = cur;
+    }
+
+    // 3. Populate Item selection in Stock Movement modal
+    const movSelect = document.getElementById('est-mov-item-id');
+    if (movSelect) {
+        const cur = movSelect.value;
+        movSelect.innerHTML = '<option value="">Selecione o item...</option>';
+        dpEstoqueItens.forEach(i => {
+            const opt = document.createElement('option');
+            opt.value = i.id;
+            const detail = i.tipo === 'EPI' ? (i.ca_numero ? 'CA ' + i.ca_numero : '') : (i.tamanho || '');
+            opt.textContent = `[${i.tipo}] ${i.nome} ${detail ? '(' + detail + ')' : ''} - Saldo: ${i.quantidade_atual}`;
+            movSelect.appendChild(opt);
+        });
+        if (cur) movSelect.value = cur;
     }
 }
 
@@ -1135,6 +1207,7 @@ function abrirNovoRegistroAbaAtiva() {
             const subId = activeSub.id.replace('sub-epis-', '');
             if (subId === 'epi') abrirModalEpi();
             if (subId === 'uniforme') abrirModalUniforme();
+            if (subId === 'estoque') abrirModalEstoqueItem();
         }
     } else if (tabId === 'contratos') {
         const activeSub = document.querySelector('#view-contratos .tab-item.active');
@@ -1236,6 +1309,8 @@ function abrirModalEpi() {
     ['epi-func-id','epi-nome','epi-ca','epi-ca-venc','epi-fabricante','epi-venc-epi','epi-obs'].forEach(id => {
         const el = document.getElementById(id); if (el) el.value = '';
     });
+    const selectEst = document.getElementById('epi-estoque-id');
+    if (selectEst) selectEst.value = '';
     document.getElementById('epi-qtd').value = '1';
     document.getElementById('epi-motivo').value = 'ADMISSIONAL';
     document.getElementById('epi-assinatura').value = 'false';
@@ -1249,6 +1324,8 @@ function abrirModalUniforme() {
     ['unif-func-id','unif-item','unif-tamanho','unif-entrega','unif-obs'].forEach(id => {
         const el = document.getElementById(id); if (el) el.value = '';
     });
+    const selectEst = document.getElementById('unif-estoque-id');
+    if (selectEst) selectEst.value = '';
     document.getElementById('unif-qtd').value = '1';
     document.getElementById('unif-estado').value = 'NOVO';
     document.getElementById('unif-motivo').value = 'ADMISSIONAL';
@@ -1439,6 +1516,12 @@ function editarEpi(id) {
         'epi-motivo': e.motivo, 'epi-assinatura': e.assinatura_recebido, 'epi-obs': e.observacoes,
     };
     Object.entries(fields).forEach(([id, val]) => { const el = document.getElementById(id); if (el && val != null) el.value = val; });
+    
+    // Vincular item do estoque correspondente
+    const matchingStock = dpEstoqueItens.find(i => i.tipo === 'EPI' && i.nome === e.nome_epi);
+    const selectEst = document.getElementById('epi-estoque-id');
+    if (selectEst) selectEst.value = matchingStock ? matchingStock.id : '';
+
     abrirModalPadrao('modal-epi');
     lucide.createIcons();
 }
@@ -1454,6 +1537,12 @@ function editarUniforme(id) {
         'unif-motivo': u.motivo, 'unif-obs': u.observacoes,
     };
     Object.entries(fields).forEach(([id, val]) => { const el = document.getElementById(id); if (el && val != null) el.value = val; });
+    
+    // Vincular item do estoque correspondente
+    const matchingStock = dpEstoqueItens.find(i => i.tipo === 'UNIFORME' && i.nome === u.item && i.tamanho === u.tamanho);
+    const selectEst = document.getElementById('unif-estoque-id');
+    if (selectEst) selectEst.value = matchingStock ? matchingStock.id : '';
+
     abrirModalPadrao('modal-uniforme');
     lucide.createIcons();
 }
@@ -1773,7 +1862,17 @@ async function salvarEpi() {
         assinatura_recebido: v('epi-assinatura') === 'true', observacoes: v('epi-obs'),
         updated_at: new Date().toISOString(),
     };
-    await crudSave('dp_epis', 'epi', payload, loadEpis, renderEpis);
+
+    try {
+        const originalRecord = editIds.epi ? dpEpis.find(x => x.id === editIds.epi) : null;
+        const ok = await processarMovimentacaoEstoque('epi', originalRecord, payload);
+        if (!ok) return; // Erro de estoque ou cancelamento
+        
+        await crudSave('dp_epis', 'epi', payload, loadEpis, renderEpis);
+    } catch (err) {
+        console.error('[DP salvarEpi] Erro:', err);
+        toast('Erro ao registrar entrega de EPI: ' + (err.message || ''), 'error');
+    }
 }
 
 async function salvarUniforme() {
@@ -1788,7 +1887,17 @@ async function salvarUniforme() {
         estado: v('unif-estado'), motivo: v('unif-motivo'), observacoes: v('unif-obs'),
         updated_at: new Date().toISOString(),
     };
-    await crudSave('dp_uniformes', 'uniforme', payload, loadUniformes, renderUniformes);
+
+    try {
+        const originalRecord = editIds.uniforme ? dpUniformes.find(x => x.id === editIds.uniforme) : null;
+        const ok = await processarMovimentacaoEstoque('uniforme', originalRecord, payload);
+        if (!ok) return; // Erro de estoque ou cancelamento
+        
+        await crudSave('dp_uniformes', 'uniforme', payload, loadUniformes, renderUniformes);
+    } catch (err) {
+        console.error('[DP salvarUniforme] Erro:', err);
+        toast('Erro ao registrar entrega de uniforme: ' + (err.message || ''), 'error');
+    }
 }
 
 async function salvarBeneficio() {
@@ -2008,16 +2117,19 @@ async function deletarRegistro(tipo, id) {
         funcionario: 'dp_funcionarios', aso: 'dp_asos', ferias: 'dp_ferias', ponto: 'dp_ponto',
         atestado: 'dp_atestados', epi: 'dp_epis', uniforme: 'dp_uniformes', beneficio: 'dp_beneficios',
         contrato: 'dp_contratos_exp', checklist: 'dp_checklist_exp', cargo: 'dp_cargos',
+        estoque_item: 'dp_estoque_itens',
     };
     const loadMap = {
         funcionario: loadFuncionarios, aso: loadAsos, ferias: loadFerias, ponto: loadPonto,
         atestado: loadAtestados, epi: loadEpis, uniforme: loadUniformes, beneficio: loadBeneficios,
         contrato: loadContratos, checklist: loadChecklist, cargo: loadCargos,
+        estoque_item: loadEstoqueItens,
     };
     const renderMap = {
         funcionario: renderFuncionarios, aso: renderAsos, ferias: renderFerias, ponto: renderPonto,
         atestado: renderAtestados, epi: renderEpis, uniforme: renderUniformes, beneficio: renderBeneficios,
         contrato: renderContratos, checklist: renderChecklist, cargo: renderCargos,
+        estoque_item: renderEstoque,
     };
 
     // Buscar informações do item antes de excluir para enriquecer o log de auditoria
@@ -2040,10 +2152,48 @@ async function deletarRegistro(tipo, id) {
             if (item) descExclusao = `Excluiu Atestado / Afastamento (${item.tipo}) do funcionário ${item.funcionario_nome}`;
         } else if (tipo === 'epi') {
             const item = dpEpis.find(x => x.id === id);
-            if (item) descExclusao = `Excluiu entrega de EPI (${item.nome_epi}) do funcionário ${item.funcionario_nome}`;
+            if (item) {
+                descExclusao = `Excluiu entrega de EPI (${item.nome_epi}) do funcionário ${item.funcionario_nome}`;
+                // Devolver estoque
+                const stockItem = dpEstoqueItens.find(i => i.tipo === 'EPI' && i.nome === item.nome_epi);
+                if (stockItem) {
+                    const novoSaldo = (stockItem.quantidade_atual || 0) + (item.quantidade || 1);
+                    await sb.from('dp_estoque_itens').update({ quantidade_atual: novoSaldo }).eq('id', stockItem.id);
+                    await sb.from('dp_estoque_movimentacoes').insert([{
+                        empresa_id: empresaId,
+                        item_id: stockItem.id,
+                        tipo: 'ESTORNO',
+                        quantidade: item.quantidade || 1,
+                        motivo: `Devolução por cancelamento de entrega para ${item.funcionario_nome}`,
+                        data: new Date()
+                    }]);
+                    await loadEstoqueItens();
+                    populateEstoqueSelects();
+                    renderEstoque();
+                }
+            }
         } else if (tipo === 'uniforme') {
             const item = dpUniformes.find(x => x.id === id);
-            if (item) descExclusao = `Excluiu entrega de Uniforme (${item.item}) do funcionário ${item.funcionario_nome}`;
+            if (item) {
+                descExclusao = `Excluiu entrega de Uniforme (${item.item}) do funcionário ${item.funcionario_nome}`;
+                // Devolver estoque
+                const stockItem = dpEstoqueItens.find(i => i.tipo === 'UNIFORME' && i.nome === item.item && i.tamanho === item.tamanho);
+                if (stockItem) {
+                    const novoSaldo = (stockItem.quantidade_atual || 0) + (item.quantidade || 1);
+                    await sb.from('dp_estoque_itens').update({ quantidade_atual: novoSaldo }).eq('id', stockItem.id);
+                    await sb.from('dp_estoque_movimentacoes').insert([{
+                        empresa_id: empresaId,
+                        item_id: stockItem.id,
+                        tipo: 'ESTORNO',
+                        quantidade: item.quantidade || 1,
+                        motivo: `Devolução por cancelamento de entrega para ${item.funcionario_nome}`,
+                        data: new Date()
+                    }]);
+                    await loadEstoqueItens();
+                    populateEstoqueSelects();
+                    renderEstoque();
+                }
+            }
         } else if (tipo === 'beneficio') {
             const item = dpBeneficios.find(x => x.id === id);
             if (item) descExclusao = `Excluiu benefício (${item.tipo}) do funcionário ${item.funcionario_nome}`;
@@ -2056,6 +2206,9 @@ async function deletarRegistro(tipo, id) {
         } else if (tipo === 'cargo') {
             const item = dpCargos.find(x => x.id === id);
             if (item) descExclusao = `Excluiu o cargo ${item.nome} (CBO: ${item.cbo || '—'})`;
+        } else if (tipo === 'estoque_item') {
+            const item = dpEstoqueItens.find(x => x.id === id);
+            if (item) descExclusao = `Excluiu item de estoque ${item.nome} (${item.tipo})`;
         }
     } catch (e) {
         console.warn('[AuditLog] Erro ao construir descrição rica de exclusão:', e);
@@ -2116,7 +2269,15 @@ function switchSubTab(prefix, subId) {
     if (btn) btn.classList.add('active');
     const sec = document.getElementById(`sub-view-${prefix}-${subId}`);
     if (sec) sec.classList.add('active');
-    const renderMap = { 'ponto-banco': renderPonto, 'ponto-atestados': renderAtestados, 'epis-epi': renderEpis, 'epis-uniforme': renderUniformes, 'contratos-exp': renderContratos, 'contratos-check': renderChecklist };
+    const renderMap = { 
+        'ponto-banco': renderPonto, 
+        'ponto-atestados': renderAtestados, 
+        'epis-epi': renderEpis, 
+        'epis-uniforme': renderUniformes, 
+        'epis-estoque': renderEstoque, 
+        'contratos-exp': renderContratos, 
+        'contratos-check': renderChecklist 
+    };
     if (renderMap[`${prefix}-${subId}`]) renderMap[`${prefix}-${subId}`]();
     if (window.lucide) lucide.createIcons();
 }
@@ -2164,8 +2325,8 @@ function sortTable(key, column) {
     const renderMap = {
         funcionarios: renderFuncionarios, asos: renderAsos, ferias: renderFerias,
         ponto: renderPonto, atestados: renderAtestados, epis: renderEpis,
-        uniformes: renderUniformes, beneficios: renderBeneficios, contratos: renderContratos,
-        checklist: renderChecklist, cargos: renderCargos,
+        uniformes: renderUniformes, estoque: renderEstoque, beneficios: renderBeneficios, 
+        contratos: renderContratos, checklist: renderChecklist, cargos: renderCargos,
     };
     if (renderMap[key]) renderMap[key]();
 }
@@ -2540,7 +2701,389 @@ function injetarIndicadoresAtalhos() {
     // 4. Fechar "X" no topo dos modais
     const botoesX = document.querySelectorAll('.dp-modal-overlay .modal-close');
     botoesX.forEach(btn => {
-        btn.setAttribute('title', 'Fechar [Esc]');
+        });
+}
+
+// ============================================================
+//  MÓDULO: ESTOQUE DE EPI & UNIFORMES
+// ============================================================
+
+function aoSelecionarEpiEstoque() {
+    const itemId = v('epi-estoque-id');
+    const item = dpEstoqueItens.find(i => i.id === itemId);
+    if (item) {
+        document.getElementById('epi-nome').value = item.nome;
+        document.getElementById('epi-ca').value = item.ca_numero || '';
+        document.getElementById('epi-ca-venc').value = item.ca_vencimento || '';
+        document.getElementById('epi-fabricante').value = item.fabricante || '';
+    } else {
+        document.getElementById('epi-nome').value = '';
+        document.getElementById('epi-ca').value = '';
+        document.getElementById('epi-ca-venc').value = '';
+        document.getElementById('epi-fabricante').value = '';
+    }
+}
+
+function aoSelecionarUniformeEstoque() {
+    const itemId = v('unif-estoque-id');
+    const item = dpEstoqueItens.find(i => i.id === itemId);
+    if (item) {
+        document.getElementById('unif-item').value = item.nome;
+        document.getElementById('unif-tamanho').value = item.tamanho || '';
+    } else {
+        document.getElementById('unif-item').value = '';
+        document.getElementById('unif-tamanho').value = '';
+    }
+}
+
+function renderEstoque() {
+    const search = (document.getElementById('estoque-search')?.value || '').toLowerCase();
+    const filterTipo = document.getElementById('estoque-filter-tipo')?.value || '';
+    const filterAlerta = document.getElementById('estoque-filter-alerta')?.value || '';
+
+    let list = dpEstoqueItens.filter(i => {
+        const s = `${i.nome} ${i.fabricante || ''}`.toLowerCase();
+        if (search && !s.includes(search)) return false;
+        if (filterTipo && i.tipo !== filterTipo) return false;
+        
+        const isCritico = i.quantidade_atual < i.quantidade_minima;
+        if (filterAlerta === 'critico' && !isCritico) return false;
+        if (filterAlerta === 'ok' && isCritico) return false;
+        
+        return true;
     });
+
+    list = semanticSort(list, sorts.estoque);
+    const { page, total } = paginate('estoque', list.length);
+    const slice = list.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
+    const tbody = document.getElementById('estoque-tbody');
+    if (slice.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="table-empty"><i data-lucide="boxes" style="display:block;margin:0 auto 0.5rem;width:32px;height:32px;"></i>Nenhum item em estoque</td></tr>`;
+        lucide.createIcons(); return;
+    }
+
+    tbody.innerHTML = slice.map(i => {
+        const isCritico = i.quantidade_atual < i.quantidade_minima;
+        const statusBadge = isCritico 
+            ? '<span class="badge badge-vencido">⚠️ Reposição</span>' 
+            : '<span class="badge badge-ok">OK</span>';
+            
+        const detail = i.tipo === 'EPI' 
+            ? (i.ca_numero ? `CA: ${i.ca_numero}` : '—') 
+            : (i.tamanho ? `Tamanho: ${i.tamanho}` : '—');
+
+        return `
+            <tr ${isCritico ? 'style="background:rgba(239,68,68,0.02);"' : ''}>
+                <td data-label="Tipo"><span class="badge ${i.tipo === 'EPI' ? 'badge-info' : 'badge-purple'}">${i.tipo}</span></td>
+                <td data-label="Nome do Item" style="font-weight:600;">${i.nome}</td>
+                <td data-label="Detalhe">${detail}</td>
+                <td data-label="Fabricante">${i.fabricante || '<span style="color:var(--text-muted)">—</span>'}</td>
+                <td data-label="Qtd Atual" style="font-weight:700; color:${isCritico?'var(--danger)':'var(--success)'};">${i.quantidade_atual}</td>
+                <td data-label="Qtd Mínima">${i.quantidade_minima}</td>
+                <td data-label="Status">${statusBadge}</td>
+                <td data-label="Ações" style="white-space:nowrap;">
+                    <button class="btn-icon" onclick="editarEstoqueItem('${i.id}')" title="Editar"><i data-lucide="pencil"></i></button>
+                    <button class="btn-icon danger" onclick="deletarRegistro('estoque_item','${i.id}')" title="Excluir"><i data-lucide="trash-2"></i></button>
+                </td>
+            </tr>`;
+    }).join('');
+
+    renderPagination('estoque-pagination', 'estoque-page-info', page, total, list.length, 'renderEstoque');
+    lucide.createIcons();
+}
+
+function toggleCamposEstoqueItem() {
+    const tipo = v('est-item-tipo');
+    const tamWrap = document.getElementById('est-item-tamanho-wrap');
+    const epiFields = document.querySelectorAll('.est-item-epi-fields');
+    
+    if (tipo === 'UNIFORME') {
+        if (tamWrap) tamWrap.style.display = 'flex';
+        epiFields.forEach(el => el.style.display = 'none');
+    } else {
+        if (tamWrap) tamWrap.style.display = 'none';
+        epiFields.forEach(el => el.style.display = 'flex');
+    }
+}
+
+function abrirModalEstoqueItem() {
+    editIds.estoque_item = null;
+    document.getElementById('modal-estoque-item-title').textContent = 'Novo Item no Catálogo';
+    document.getElementById('est-item-tipo').value = 'EPI';
+    document.getElementById('est-item-nome').value = '';
+    document.getElementById('est-item-tamanho').value = '';
+    document.getElementById('est-item-ca').value = '';
+    document.getElementById('est-item-ca-venc').value = '';
+    document.getElementById('est-item-fabricante').value = '';
+    document.getElementById('est-item-minimo').value = '5';
+    
+    toggleCamposEstoqueItem();
+    abrirModalPadrao('modal-estoque-item');
+    lucide.createIcons();
+}
+
+function editarEstoqueItem(id) {
+    const item = dpEstoqueItens.find(i => i.id === id);
+    if (!item) return;
+    
+    editIds.estoque_item = id;
+    document.getElementById('modal-estoque-item-title').textContent = 'Editar Item do Catálogo';
+    document.getElementById('est-item-tipo').value = item.tipo;
+    document.getElementById('est-item-nome').value = item.nome;
+    document.getElementById('est-item-tamanho').value = item.tamanho || '';
+    document.getElementById('est-item-ca').value = item.ca_numero || '';
+    document.getElementById('est-item-ca-venc').value = item.ca_vencimento || '';
+    document.getElementById('est-item-fabricante').value = item.fabricante || '';
+    document.getElementById('est-item-minimo').value = item.quantidade_minima || 0;
+    
+    toggleCamposEstoqueItem();
+    abrirModalPadrao('modal-estoque-item');
+    lucide.createIcons();
+}
+
+function abrirModalEstoqueMov() {
+    document.getElementById('est-mov-item-id').value = '';
+    document.getElementById('est-mov-qtd').value = '';
+    document.getElementById('est-mov-motivo').value = 'Compra';
+    document.getElementById('est-mov-resp').value = '';
+    
+    abrirModalPadrao('modal-estoque-mov');
+}
+
+async function salvarEstoqueItem() {
+    const tipo = v('est-item-tipo');
+    const nome = v('est-item-nome');
+    const minimo = parseInt(v('est-item-minimo')) || 0;
+    
+    if (!nome) {
+        toast('O nome do item é obrigatório.', 'error');
+        return;
+    }
+    
+    const payload = {
+        empresa_id: empresaId,
+        tipo,
+        nome,
+        tamanho: tipo === 'UNIFORME' ? v('est-item-tamanho') : null,
+        ca_numero: tipo === 'EPI' ? v('est-item-ca') : null,
+        ca_vencimento: tipo === 'EPI' && v('est-item-ca-venc') ? v('est-item-ca-venc') : null,
+        fabricante: v('est-item-fabricante'),
+        quantidade_minima: minimo,
+        updated_at: new Date()
+    };
+    
+    try {
+        let error;
+        if (editIds.estoque_item) {
+            const { error: err } = await sb.from('dp_estoque_itens')
+                .update(payload)
+                .eq('id', editIds.estoque_item);
+            error = err;
+        } else {
+            payload.quantidade_atual = 0;
+            const { error: err } = await sb.from('dp_estoque_itens')
+                .insert([payload]);
+            error = err;
+        }
+        
+        if (error) throw error;
+        
+        toast('Item salvo com sucesso!', 'success');
+        fecharModal('modal-estoque-item', true);
+        await loadEstoqueItens();
+        populateEstoqueSelects();
+        renderEstoque();
+    } catch (err) {
+        console.error('[DP estoque] Erro ao salvar:', err);
+        toast('Erro ao salvar item: ' + (err.message || ''), 'error');
+    }
+}
+
+async function salvarEstoqueMov() {
+    const itemId = v('est-mov-item-id');
+    const qtd = parseInt(v('est-mov-qtd'));
+    const motivo = v('est-mov-motivo');
+    const resp = v('est-mov-resp');
+    
+    if (!itemId) {
+        toast('Selecione o item do estoque.', 'error');
+        return;
+    }
+    if (isNaN(qtd) || qtd <= 0) {
+        toast('A quantidade deve ser maior que zero.', 'error');
+        return;
+    }
+    
+    const item = dpEstoqueItens.find(i => i.id === itemId);
+    if (!item) return;
+    
+    const payload = {
+        empresa_id: empresaId,
+        item_id: itemId,
+        tipo: 'ENTRADA',
+        quantidade: qtd,
+        motivo,
+        responsavel: resp,
+        data: new Date()
+    };
+    
+    try {
+        // 1. Inserir movimentação
+        const { error: errMov } = await sb.from('dp_estoque_movimentacoes').insert([payload]);
+        if (errMov) throw errMov;
+        
+        // 2. Atualizar saldo
+        const novoSaldo = (item.quantidade_atual || 0) + qtd;
+        const { error: errItem } = await sb.from('dp_estoque_itens')
+            .update({ quantidade_atual: novoSaldo, updated_at: new Date() })
+            .eq('id', itemId);
+        if (errItem) throw errItem;
+        
+        toast('Entrada registrada com sucesso!', 'success');
+        fecharModal('modal-estoque-mov', true);
+        
+        await loadEstoqueItens();
+        await loadEstoqueMovs();
+        populateEstoqueSelects();
+        renderEstoque();
+        renderDashboard(); // Atualiza alertas no dashboard se houver
+    } catch (err) {
+        console.error('[DP estoque] Erro na entrada:', err);
+        toast('Erro ao registrar entrada: ' + (err.message || ''), 'error');
+    }
+}
+
+async function processarMovimentacaoEstoque(tipoItem, oldRecord, newPayload) {
+    const isEpi = tipoItem === 'epi';
+    const selectId = isEpi ? 'epi-estoque-id' : 'unif-estoque-id';
+    const itemId = v(selectId);
+    
+    if (!itemId) return true; // Se não estiver vinculado ao estoque, ignora
+    
+    const item = dpEstoqueItens.find(i => i.id === itemId);
+    if (!item) return true;
+    
+    const newQty = parseInt(isEpi ? newPayload.quantidade : newPayload.quantidade) || 1;
+    
+    // Obter funcionário
+    const funcObj = dpFuncionarios.find(f => f.id === newPayload.funcionario_id);
+    const funcNome = funcObj ? funcObj.nome_completo : 'Funcionário';
+    
+    if (oldRecord) {
+        // EDIÇÃO
+        const oldQty = parseInt(oldRecord.quantidade) || 1;
+        const oldItemName = isEpi ? oldRecord.nome_epi : oldRecord.item;
+        
+        // Achar o item de estoque antigo
+        const oldItem = dpEstoqueItens.find(i => i.tipo === (isEpi ? 'EPI' : 'UNIFORME') && i.nome === oldItemName && (!isEpi ? i.tamanho === oldRecord.tamanho : true));
+        
+        if (oldItem && oldItem.id !== item.id) {
+            // Mudou de item! Reverte o antigo e debita o novo
+            // 1. Reverter antigo (adicionar de volta)
+            const { error: errOldItem } = await sb.from('dp_estoque_itens')
+                .update({ quantidade_atual: (oldItem.quantidade_atual || 0) + oldQty })
+                .eq('id', oldItem.id);
+            if (errOldItem) throw errOldItem;
+            
+            await sb.from('dp_estoque_movimentacoes').insert([{
+                empresa_id: empresaId,
+                item_id: oldItem.id,
+                tipo: 'ESTORNO',
+                quantidade: oldQty,
+                motivo: `Retorno por alteração de entrega para ${funcNome}`,
+                data: new Date()
+            }]);
+            
+            // 2. Debitar o novo
+            if ((item.quantidade_atual || 0) < newQty) {
+                toast(`Estoque insuficiente do novo item! Saldo: ${item.quantidade_atual}`, 'error');
+                return false;
+            }
+            
+            const { error: errNewItem } = await sb.from('dp_estoque_itens')
+                .update({ quantidade_atual: (item.quantidade_atual || 0) - newQty })
+                .eq('id', item.id);
+            if (errNewItem) throw errNewItem;
+            
+            await sb.from('dp_estoque_movimentacoes').insert([{
+                empresa_id: empresaId,
+                item_id: item.id,
+                tipo: 'SAIDA',
+                quantidade: newQty,
+                funcionario_id: newPayload.funcionario_id,
+                motivo: `Entrega para ${funcNome}`,
+                data: new Date()
+            }]);
+        } else {
+            // Item continua o mesmo, só ajusta a diferença de quantidade
+            const diff = newQty - oldQty;
+            if (diff > 0) {
+                // Quer mais itens, checa se tem saldo
+                if ((item.quantidade_atual || 0) < diff) {
+                    toast(`Estoque insuficiente! Saldo: ${item.quantidade_atual}, Necessário adicional: ${diff}`, 'error');
+                    return false;
+                }
+                const { error: errItem } = await sb.from('dp_estoque_itens')
+                    .update({ quantidade_atual: (item.quantidade_atual || 0) - diff })
+                    .eq('id', item.id);
+                if (errItem) throw errItem;
+                
+                await sb.from('dp_estoque_movimentacoes').insert([{
+                    empresa_id: empresaId,
+                    item_id: item.id,
+                    tipo: 'SAIDA',
+                    quantidade: diff,
+                    funcionario_id: newPayload.funcionario_id,
+                    motivo: `Ajuste de quantidade entrega para ${funcNome}`,
+                    data: new Date()
+                }]);
+            } else if (diff < 0) {
+                // Entregou a menos, devolve a diferença pro estoque
+                const devolver = Math.abs(diff);
+                const { error: errItem } = await sb.from('dp_estoque_itens')
+                    .update({ quantidade_atual: (item.quantidade_atual || 0) + devolver })
+                    .eq('id', item.id);
+                if (errItem) throw errItem;
+                
+                await sb.from('dp_estoque_movimentacoes').insert([{
+                    empresa_id: empresaId,
+                    item_id: item.id,
+                    tipo: 'ESTORNO',
+                    quantidade: devolver,
+                    motivo: `Estorno por ajuste de entrega para ${funcNome}`,
+                    data: new Date()
+                }]);
+            }
+        }
+    } else {
+        // NOVO REGISTRO: Debita a quantidade entregue
+        if ((item.quantidade_atual || 0) < newQty) {
+            toast(`Estoque insuficiente! Saldo atual: ${item.quantidade_atual}`, 'error');
+            return false;
+        }
+        
+        const { error: errItem } = await sb.from('dp_estoque_itens')
+            .update({ quantidade_atual: (item.quantidade_atual || 0) - newQty })
+            .eq('id', item.id);
+        if (errItem) throw errItem;
+        
+        await sb.from('dp_estoque_movimentacoes').insert([{
+            empresa_id: empresaId,
+            item_id: item.id,
+            tipo: 'SAIDA',
+            quantidade: newQty,
+            funcionario_id: newPayload.funcionario_id,
+            motivo: `Entrega para ${funcNome}`,
+            data: new Date()
+        }]);
+    }
+    
+    // Atualiza localmente e repopula selects
+    await loadEstoqueItens();
+    await loadEstoqueMovs();
+    populateEstoqueSelects();
+    renderEstoque();
+    return true;
 }
 

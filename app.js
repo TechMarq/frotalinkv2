@@ -1092,10 +1092,46 @@ function openMaintenanceModal(vehicleId, intendedStatus = null) {
     const v = vehicles.find(item => item.id === vehicleId);
     if (!v) return;
 
+    // Check permissions
+    const hasAdd = window.canDo ? window.canDo('frota_alocacoes', 'add') : true;
+    const hasEdit = window.canDo ? window.canDo('frota_alocacoes', 'edit') : true;
+    const hasDelete = window.canDo ? window.canDo('frota_alocacoes', 'delete') : true;
+    const isAdmin = window.currentUserRole === 'admin';
+    
+    // Header can only be edited/saved if user can edit/add/delete (write access)
+    const canSaveHeader = hasEdit || hasAdd || hasDelete || isAdmin;
+
     document.getElementById('maintVehicleId').value = vehicleId;
     document.getElementById('maintPendingStatus').value = intendedStatus || '';
-    document.getElementById('maintOficinaSelect').value = v.fornecedores?.nome || v.manutencao_oficina_id || '';
-    document.getElementById('maintMotivo').value = v.manutencao_motivo || '';
+    
+    const oficinaInput = document.getElementById('maintOficinaSelect');
+    const motivoInput = document.getElementById('maintMotivo');
+    const saveHeaderBtn = document.getElementById('btnSaveMaintHeader');
+
+    if (oficinaInput) {
+        oficinaInput.value = v.fornecedores?.nome || v.manutencao_oficina_id || '';
+        oficinaInput.disabled = !canSaveHeader;
+    }
+    if (motivoInput) {
+        motivoInput.value = v.manutencao_motivo || '';
+        motivoInput.disabled = !canSaveHeader;
+    }
+    if (saveHeaderBtn) {
+        saveHeaderBtn.style.display = canSaveHeader ? '' : 'none';
+    }
+
+    // Toggle New Log section based on ADD permission
+    const newLogHeader = document.getElementById('maintNewLogHeader');
+    const newLogGrid = document.getElementById('maintNewLogGrid');
+    if (newLogHeader && newLogGrid) {
+        if (hasAdd || isAdmin) {
+            newLogHeader.style.display = '';
+            newLogGrid.style.display = '';
+        } else {
+            newLogHeader.style.display = 'none';
+            newLogGrid.style.display = 'none';
+        }
+    }
     
     // Reset novo log
     document.getElementById('newLogDate').value = new Date().toISOString().split('T')[0];
@@ -1141,26 +1177,45 @@ function renderMaintLogs() {
         return;
     }
 
+    // Check permissions
+    const hasEdit = window.canDo ? window.canDo('frota_alocacoes', 'edit') : true;
+    const hasDelete = window.canDo ? window.canDo('frota_alocacoes', 'delete') : true;
+    const isAdmin = window.currentUserRole === 'admin';
+    const currentUserEmail = window.currentUser?.email || '';
+
     // Garante ordem: mais recente primeiro
     const sortedLogs = [...maintLogs].sort((a, b) => new Date(b.data) - new Date(a.data));
 
-    container.innerHTML = sortedLogs.map(log => `
+    container.innerHTML = sortedLogs.map(log => {
+        const isOwner = log.usuario_email && log.usuario_email.toLowerCase() === currentUserEmail.toLowerCase();
+        const canEditLog = hasEdit && (!log.usuario_email || isOwner || isAdmin);
+        const canDeleteLog = hasDelete && (!log.usuario_email || isOwner || isAdmin);
+        
+        const creatorText = log.usuario_email ? `<span style="display:block; font-size:0.75rem; color:var(--text-muted); margin-top:2px;">Por: ${log.usuario_email.split('@')[0]}</span>` : '';
+
+        return `
         <div class="maint-log-item" style="display: flex; gap: 1rem; padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: flex-start;">
             <div class="maint-log-date" style="font-weight: 700; color: var(--primary); min-width: 100px;">${formatDate(log.data)}</div>
-            <div class="maint-log-desc" style="flex: 1; font-size: 0.9rem;">${log.descricao}</div>
+            <div class="maint-log-desc" style="flex: 1; font-size: 0.9rem;">
+                ${log.descricao}
+                ${creatorText}
+            </div>
             <div class="maint-log-actions" style="display: flex; gap: 0.5rem; align-items: center;">
                 <button type="button" class="btn-edit" onclick="sendMaintLogNotification('${log.id}', event)" title="Enviar notificação WhatsApp" style="padding: 4px; visibility: visible; color: #25D366; border-color: rgba(37,211,102,0.3); background: rgba(37,211,102,0.08);">
                     <i data-lucide="send" style="width: 14px;"></i>
                 </button>
+                ${canEditLog ? `
                 <button type="button" class="btn-edit" onclick="editMaintLog('${log.id}')" title="Editar" style="padding: 4px; visibility: visible;">
                     <i data-lucide="edit-2" style="width: 14px;"></i>
-                </button>
+                </button>` : ''}
+                ${canDeleteLog ? `
                 <button type="button" class="btn-edit btn-delete" onclick="deleteMaintLog('${log.id}')" title="Excluir" style="padding: 4px; visibility: visible;">
                     <i data-lucide="trash-2" style="width: 14px;"></i>
-                </button>
+                </button>` : ''}
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
     if (window.lucide) lucide.createIcons();
 }
 
@@ -1209,12 +1264,21 @@ async function addMaintLog() {
     const data = document.getElementById('newLogDate').value;
     const desc = document.getElementById('newLogDesc').value;
 
-    if (!desc) return alert('Descreva a situation.');
+    if (!desc) return alert('Descreva a situação.');
+
+    // Check permissions
+    const hasAdd = window.canDo ? window.canDo('frota_alocacoes', 'add') : true;
+    const isAdmin = window.currentUserRole === 'admin';
+    if (!hasAdd && !isAdmin) {
+        alert('Você não tem permissão para adicionar históricos.');
+        return;
+    }
 
     try {
+        const userEmail = window.currentUser?.email || '';
         const { error } = await client
             .from('veiculo_situacoes_log')
-            .insert([{ veiculo_id: vehicleId, data, descricao: desc }]);
+            .insert([{ veiculo_id: vehicleId, data, descricao: desc, usuario_email: userEmail }]);
 
         if (error) throw error;
 
@@ -1233,9 +1297,22 @@ async function addMaintLog() {
 }
 
 async function deleteMaintLog(logId) {
+    const log = maintLogs.find(l => l.id === logId);
+    if (!log) return;
+
+    // Check permissions & ownership
+    const hasDelete = window.canDo ? window.canDo('frota_alocacoes', 'delete') : true;
+    const isAdmin = window.currentUserRole === 'admin';
+    const currentUserEmail = window.currentUser?.email || '';
+    const isOwner = log.usuario_email && log.usuario_email.toLowerCase() === currentUserEmail.toLowerCase();
+    
+    if (!hasDelete || (!isOwner && !isAdmin && log.usuario_email)) {
+        alert('Você não tem permissão para excluir este histórico.');
+        return;
+    }
+
     if (!confirm('Excluir este registro do histórico?')) return;
     try {
-        const log = maintLogs.find(l => l.id === logId);
         const { error } = await client.from('veiculo_situacoes_log').delete().eq('id', logId);
         if (error) throw error;
         
@@ -1256,6 +1333,17 @@ async function deleteMaintLog(logId) {
 async function editMaintLog(logId) {
     const log = maintLogs.find(l => l.id === logId);
     if (!log) return;
+
+    // Check permissions & ownership
+    const hasEdit = window.canDo ? window.canDo('frota_alocacoes', 'edit') : true;
+    const isAdmin = window.currentUserRole === 'admin';
+    const currentUserEmail = window.currentUser?.email || '';
+    const isOwner = log.usuario_email && log.usuario_email.toLowerCase() === currentUserEmail.toLowerCase();
+    
+    if (!hasEdit || (!isOwner && !isAdmin && log.usuario_email)) {
+        alert('Você não tem permissão para editar este histórico.');
+        return;
+    }
 
     const novaDesc = prompt('Editar descrição:', log.descricao);
     if (novaDesc === null || novaDesc === log.descricao) return;
@@ -2411,12 +2499,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (window.lucide) lucide.createIcons();
-    fetchDrivers();
-    fetchOficinas();
-    fetchFuelTypes();
-    fetchInativoMotivos();
-    fetchVehicles();
-    fetchWhatsAppConfig(); // 📱 Carregado UMA VEZ no init (não mais no renderAll)
+    if (typeof window.showLoader === 'function') window.showLoader();
+    Promise.all([
+        fetchDrivers(),
+        fetchOficinas(),
+        fetchFuelTypes(),
+        fetchInativoMotivos(),
+        fetchVehicles(),
+        fetchWhatsAppConfig()
+    ]).catch(err => {
+        console.error('Erro ao carregar dados iniciais:', err);
+    }).finally(() => {
+        if (typeof window.hideLoader === 'function') window.hideLoader();
+    });
     subscribeToChanges();
 
     if (searchInput) {

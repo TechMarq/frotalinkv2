@@ -32,6 +32,7 @@ const AUTH_CONFIG = {
         'financeiro.html': 'financeiro',
         'comercial.html': 'comercial',
         'dp.html': 'dp',      // Departamento Pessoal
+        'gerencial.html': 'gerencial', // Painel Gerencial — admin e gestores
         'home.html': null,    // Home sempre acessível a autenticados
         'admin.html': 'admin', // Apenas role=admin
         'auditoria.html': 'admin'
@@ -189,12 +190,14 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
                 if (requiredModule && requiredModule !== 'admin') {
                     applyPermissions(requiredModule);
                 }
+                preventSearchAutofill();
             });
         } else {
             injectAuthUI();
             if (requiredModule && requiredModule !== 'admin') {
                 applyPermissions(requiredModule);
             }
+            preventSearchAutofill();
         }
     });
 })();
@@ -1152,4 +1155,51 @@ window.registrarLog = registrarLog;
         autoHideTimer = setTimeout(window.hideLoader, 500);
     }
 })();
+
+/**
+ * Evita o preenchimento automático indesejado do navegador (autofill)
+ * em todos os campos de pesquisa dos módulos.
+ */
+function preventSearchAutofill() {
+    const searchTerms = ['search', 'busca', 'filter', 'filtro', 'pesquisa', 'query', 'find', 'v_cliente_nome'];
+    
+    const cleanSearchFields = () => {
+        const inputs = document.querySelectorAll('input');
+        const userEmail = window.currentUser?.email || '';
+        
+        inputs.forEach(input => {
+            const id = (input.id || '').toLowerCase();
+            const name = (input.name || '').toLowerCase();
+            const placeholder = (input.placeholder || '').toLowerCase();
+            const className = (input.className || '').toLowerCase();
+            
+            const isSearchField = searchTerms.some(term => 
+                id.includes(term) || 
+                name.includes(term) || 
+                placeholder.includes(term) || 
+                className.includes(term)
+            ) || input.closest('.search-box') || input.closest('.search-input-wrapper');
+            
+            if (isSearchField) {
+                // Configura autocomplete="off" para instruir o navegador a não preencher
+                if (input.getAttribute('autocomplete') !== 'off') {
+                    input.setAttribute('autocomplete', 'off');
+                }
+                
+                // Se o navegador já tiver auto-preenchido com o e-mail do usuário logado, limpa o campo
+                if (userEmail && input.value && input.value.toLowerCase() === userEmail.toLowerCase()) {
+                    input.value = '';
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }
+        });
+    };
+
+    // Executa imediatamente e em intervalos curtos para capturar autofill tardio do navegador
+    cleanSearchFields();
+    [50, 150, 300, 500, 1000, 2000, 3000].forEach(delay => {
+        setTimeout(cleanSearchFields, delay);
+    });
+}
 

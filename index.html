@@ -688,8 +688,8 @@
                     </div>
                 </div>
 
-                <div class="form-section-header">Novo Registro de Situação</div>
-                <div class="form-grid maint-grid-new">
+                <div class="form-section-header" id="maintNewLogHeader">Novo Registro de Situação</div>
+                <div class="form-grid maint-grid-new" id="maintNewLogGrid">
                     <div class="form-group">
                         <label>Data</label>
                         <input type="date" id="newLogDate">
@@ -714,7 +714,7 @@
 
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeMaintenanceModal()">Fechar</button>
-                    <button type="submit" class="btn btn-primary">Salvar Cabeçalho</button>
+                    <button type="submit" class="btn btn-primary" id="btnSaveMaintHeader">Salvar Cabeçalho</button>
                 </div>
             </form>
         </div>

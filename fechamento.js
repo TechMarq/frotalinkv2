@@ -766,6 +766,7 @@ function processData(fuel, maint, vehicles, purchases, sales) {
                 
                 grouped[owner][subKey].maint.push({
                     data: p.data_emissao,
+                    quantidade: parseFloat(it.quantidade) || 1,
                     servicos: `${it.produto}${it.marca ? ' ('+it.marca+')' : ''}`,
                     tipo: it.tipo === 'servico' ? 'SERVIÇO (COMPRAS)' : 'PEÇA (COMPRAS)',
                     fornecedor: p.fornecedores?.nome || 'Fornecedor não inf.',
@@ -823,6 +824,7 @@ function processData(fuel, maint, vehicles, purchases, sales) {
                     
                     grouped[owner][plate].maint.push({
                         data: p.data_emissao,
+                        quantidade: parseFloat(it.quantidade) || 1,
                         servicos: `${it.produto}${it.marca ? ' ('+it.marca+')' : ''}`,
                         tipo: it.tipo === 'servico' ? 'SERVIÇO (COMPRAS)' : 'PEÇA (COMPRAS)',
                         fornecedor: p.fornecedores?.nome || 'Fornecedor não inf.',
@@ -1338,17 +1340,19 @@ function selectPlate(plate, owner) {
                     <thead>
                         <tr>
                             <th>Data</th>
+                            <th style="text-align: center;">Qtd</th>
                             <th>Serviços / Itens</th>
                             <th>Fornecedor</th>
                             <th class="val-col">Valor</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${data.maint.length === 0 ? '<tr><td colspan="4" data-label="Aviso" style="text-align:center; color:var(--text-muted);">Nenhuma manutenção no período.</td></tr>' : 
+                        ${data.maint.length === 0 ? '<tr><td colspan="5" data-label="Aviso" style="text-align:center; color:var(--text-muted);">Nenhuma manutenção no período.</td></tr>' : 
                             data.maint.sort((a,b) => new Date(a.data) - new Date(b.data)).map(m => {
                                 return `
                                     <tr>
                                         <td data-label="Data">${new Date(m.data + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                                        <td data-label="Qtd" style="text-align: center; font-weight: 700;">${m.quantidade || 1}</td>
                                         <td data-label="Serviços / Itens">
                                             <div style="font-weight: 700;">${m.servicos}</div>
                                             <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">${m.tipo}</div>
@@ -1900,7 +1904,7 @@ function exportSupplierConsolidatedPDF() {
         y += 7.5;
 
         // Table of Notes for this supplier
-        const noteRows = data.purchases.sort((a,b) => new Date(a.data_emissao) - new Date(b.data_emissao)).map(p => {
+        const noteRows = getSortedPurchases(data.purchases).map(p => {
              return [
                 new Date(p.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR'),
                 p.numeroNota || p.numero_nota || '-',
@@ -2071,33 +2075,39 @@ function generateDetailedReportPDF() {
                 doc.text(`ABASTECIMENTOS POR CONDUTOR (${data.fuel.length})`, margin, y);
                 y += 4;
 
-                const fuelRows = data.fuel.sort((a,b) => new Date(a.data) - new Date(b.data)).map(f => {
-                    const total = parseFloat(f.valor_total) || 0;
+                const fuelByDriver = {};
+                data.fuel.forEach(f => {
+                    const dName = f.motorista_nome || 'NÃO INFORMADO';
+                    if (!fuelByDriver[dName]) fuelByDriver[dName] = { count: 0, total: 0 };
+                    fuelByDriver[dName].count++;
+                    fuelByDriver[dName].total += (parseFloat(f.valor_total) || 0);
+                });
+
+                const fuelRows = Object.keys(fuelByDriver).sort().map(dName => {
+                    const group = fuelByDriver[dName];
                     return [
-                        new Date(f.data + 'T12:00:00').toLocaleDateString('pt-BR'),
-                        f.motorista_nome || 'NÃO INFORMADO',
-                        f.tipo_combustivel,
-                        `${f.litros} L`,
-                        `R$ ${(total / f.litros).toFixed(2)}`,
-                        total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                        dName,
+                        `${group.count} abast.`,
+                        group.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
                     ];
                 });
 
                 // Add subtotal row
                 fuelRows.push([
-                    { content: 'Total Abastecimento Placa', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold', fillColor: [241, 245, 249] } },
+                    { content: 'Total Abastecimento Placa', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold', fillColor: [241, 245, 249] } },
                     { content: data.totalFuel.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold', fillColor: [209, 250, 229], textColor: [5, 150, 105] } }
                 ]);
 
                 doc.autoTable({
                     startY: y,
-                    head: [['DATA', 'CONDUTOR', 'TIPO', 'LITROS', 'V. UNIT.', 'TOTAL (R$)']],
+                    head: [['CONDUTOR', 'QTD ABAST.', 'TOTAL (R$)']],
                     body: fuelRows,
                     theme: 'grid',
                     headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255] },
                     styles: { fontSize: 7.5, cellPadding: 2 },
                     columnStyles: {
-                        5: { halign: 'right' }
+                        1: { halign: 'center' },
+                        2: { halign: 'right' }
                     }
                 });
 
@@ -2231,7 +2241,7 @@ function exportSupplierDetailedPDF() {
         doc.text(`RELATÓRIO DE FECHAMENTO - ${state.periodLabel} | Gerado em ${new Date().toLocaleDateString('pt-BR')}`, margin, y);
         y += 6;
 
-        data.purchases.forEach(p => {
+        getSortedPurchases(data.purchases).forEach(p => {
             if (y > 270) {
                 doc.addPage();
                 y = 15;

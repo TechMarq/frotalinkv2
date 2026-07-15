@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FrotaLink | Painel Gerencial Executivo</title>
+    <meta name="description" content="Painel gerencial executivo com indicadores de saúde financeira, frota, pessoas e operacional.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+    <script src="config.js"></script>
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-light: rgba(99, 102, 241, 0.15);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #06b6d4;
+            --bg-main: #060c19;
+            --bg-card: rgba(15, 23, 42, 0.8);
+            --bg-card2: rgba(30, 41, 59, 0.5);
+            --border: rgba(255, 255, 255, 0.07);
+            --border-hover: rgba(99, 102, 241, 0.4);
+            --text: #f1f5f9;
+            --text-muted: #64748b;
+            --text-soft: #94a3b8;
+            --radius: 18px;
+            --radius-sm: 10px;
+            --shadow: 0 4px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+
+        body {
+            background: var(--bg-main);
+            color: var(--text);
+            min-height: 100vh;
+            background-image:
+                radial-gradient(ellipse at 0% 0%, rgba(99,102,241,0.12) 0, transparent 55%),
+                radial-gradient(ellipse at 100% 0%, rgba(16,185,129,0.07) 0, transparent 55%),
+                radial-gradient(ellipse at 50% 100%, rgba(239,68,68,0.05) 0, transparent 50%);
+        }
+
+        /* ─── LOADING ─── */
+        #loading-overlay {
+            position: fixed; inset: 0; background: rgba(6,12,25,0.92);
+            display: none; align-items: center; justify-content: center;
+            z-index: 9999; flex-direction: column; gap: 1.2rem;
+            backdrop-filter: blur(8px);
+        }
+        .loader-ring {
+            width: 52px; height: 52px;
+            border: 3px solid rgba(99,102,241,0.15);
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        .loader-text { color: var(--text-soft); font-size: 0.9rem; font-weight: 500; }
+
+        /* ─── LAYOUT ─── */
+        .page-wrap { max-width: 1600px; margin: 0 auto; padding: 2rem 2.5rem 4rem; }
+
+        /* ─── HEADER ─── */
+        .ger-header {
+            display: flex; align-items: flex-start; justify-content: space-between;
+            flex-wrap: wrap; gap: 1.5rem; margin-bottom: 2.5rem;
+        }
+        .ger-header-left .back-link {
+            display: flex; align-items: center; gap: 0.5rem;
+            color: var(--text-muted); text-decoration: none;
+            font-size: 0.82rem; font-weight: 600; margin-bottom: 1rem;
+            transition: color 0.2s;
+        }
+        .ger-header-left .back-link:hover { color: var(--primary); }
+        .page-title {
+            font-size: 2.2rem; font-weight: 900; letter-spacing: -0.03em;
+            background: linear-gradient(135deg, #e0e7ff, #818cf8, #6ee7b7);
+            -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+            display: flex; align-items: center; gap: 0.8rem;
+        }
+        .page-subtitle { color: var(--text-muted); font-size: 0.9rem; margin-top: 0.4rem; }
+        .header-controls {
+            display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+        }
+        .periodo-wrap {
+            display: flex; align-items: center; gap: 0.6rem;
+            background: var(--bg-card2); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); padding: 0.5rem 0.9rem;
+        }
+        .periodo-wrap label { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+        .periodo-wrap select, .periodo-wrap input {
+            background: transparent; border: none; color: var(--text);
+            font-size: 0.85rem; font-family: 'Inter', sans-serif;
+            cursor: pointer; outline: none;
+            padding: 2px 6px;
+        }
+        .periodo-wrap select option { background: #1e293b; }
+        .divider-v { width: 1px; height: 16px; background: rgba(255, 255, 255, 0.15); margin: 0 4px; }
+        #btn-refresh {
+            display: flex; align-items: center; gap: 0.5rem;
+            background: var(--primary-light); border: 1px solid rgba(99,102,241,0.3);
+            color: #a5b4fc; border-radius: var(--radius-sm);
+            padding: 0.5rem 1rem; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+            transition: all 0.2s;
+            height: 38px;
+        }
+        #btn-refresh:hover { background: rgba(99,102,241,0.25); }
+        #btn-refresh i { width: 15px; height: 15px; }
+        #btn-refresh.spin i { animation: spin 0.8s linear; }
+        #timestamp { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; margin-left: 0.5rem; }
+
+        /* ─── SECTION HEADERS ─── */
+        .section-hd {
+            display: flex; align-items: center; gap: 0.75rem;
+            margin: 2.5rem 0 1.2rem; font-size: 1.05rem; font-weight: 700;
+            color: var(--text);
+        }
+        .section-hd .hd-icon {
+            width: 36px; height: 36px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem;
+        }
+        .section-hd .hd-badge {
+            font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.6rem;
+            border-radius: 20px; letter-spacing: 0.05em; text-transform: uppercase;
+        }
+
+        /* ─── KPI TOP ROW ─── */
+        .kpi-top-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem; margin-bottom: 1rem;
+        }
+        .kpi-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem 1.75rem;
+            position: relative; overflow: hidden;
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+            backdrop-filter: blur(20px);
+        }
+        .kpi-card:hover { transform: translateY(-3px); border-color: var(--border-hover); box-shadow: var(--shadow); }
+        .kpi-card::before {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.02), transparent);
+            pointer-events: none;
+        }
+        .kpi-card .kpi-bg-icon {
+            position: absolute; right: 1rem; top: 1rem;
+            opacity: 0.08; font-size: 4rem; line-height: 1;
+        }
+        .kpi-card .kpi-bg-icon i { width: 56px; height: 56px; }
+        .kpi-lbl {
+            font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.6rem;
+            display: flex; align-items: center; gap: 0.4rem;
+        }
+        .kpi-val {
+            font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em;
+            line-height: 1.1; margin-bottom: 0.35rem;
+        }
+        .kpi-sub { font-size: 0.78rem; color: var(--text-soft); font-weight: 500; }
+        @keyframes kpiPop { 0% { transform: scale(0.94); opacity: 0.6; } 100% { transform: scale(1); opacity: 1; } }
+        .kpi-animate { animation: kpiPop 0.4s ease; }
+
+        /* Colored accents */
+        .accent-green { color: var(--success); }
+        .accent-red { color: var(--danger); }
+        .accent-amber { color: var(--warning); }
+        .accent-indigo { color: var(--primary); }
+        .accent-cyan { color: var(--info); }
+
+        /* ─── GRID 2-COL ─── */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.2rem; }
+        .col-span-2 { grid-column: span 2; }
+
+        @media (max-width: 1100px) {
+            .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); }
+            .col-span-2 { grid-column: span 1; }
+        }
+        @media (max-width: 700px) {
+            .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+            .page-wrap { padding: 1rem 1rem 3rem; }
+            .page-title { font-size: 1.6rem; }
+        }
+
+        /* ─── CARD BASE ─── */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            backdrop-filter: blur(20px);
+            position: relative; overflow: hidden;
+        }
+        .card::before {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.015), transparent);
+            pointer-events: none;
+        }
+        .card-title {
+            font-size: 0.9rem; font-weight: 700; margin-bottom: 1.2rem;
+            display: flex; align-items: center; gap: 0.6rem; color: var(--text-soft);
+        }
+        .card-title i { width: 18px; height: 18px; }
+
+        /* ─── CHARTS ─── */
+        .chart-wrap {
+            height: 260px; position: relative;
+        }
+        .chart-wrap-tall { height: 320px; }
+
+        /* ─── MINI METRIC ROWS ─── */
+        .metric-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.65rem 0; border-bottom: 1px solid var(--border);
+        }
+        .metric-row:last-child { border-bottom: none; }
+        .metric-label { font-size: 0.83rem; color: var(--text-soft); font-weight: 500; display: flex; align-items: center; gap: 0.5rem; }
+        .metric-value { font-size: 0.95rem; font-weight: 700; }
+
+        /* ─── PROGRESS BAR ─── */
+        .progress-track {
+            height: 8px; border-radius: 99px;
+            background: rgba(255,255,255,0.06);
+            overflow: hidden; margin-top: 0.6rem;
+        }
+        .progress-fill {
+            height: 100%; border-radius: 99px;
+            background: var(--success);
+            transition: width 1s ease, background 0.3s;
+        }
+
+        /* ─── ALERTAS ─── */
+        .alertas-wrap { display: flex; flex-direction: column; gap: 0.6rem; }
+        .alerta-item {
+            display: flex; align-items: center; gap: 0.85rem;
+            padding: 0.8rem 1rem; border-radius: var(--radius-sm);
+            border: 1px solid; text-decoration: none; color: inherit;
+            font-size: 0.85rem; font-weight: 500;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .alerta-item:hover { transform: translateX(4px); box-shadow: var(--shadow); }
+        .alerta-item i { width: 18px; height: 18px; flex-shrink: 0; }
+        .alerta-danger { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); color: #fca5a5; }
+        .alerta-warn { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); color: #fcd34d; }
+        .alerta-info { background: rgba(6,182,212,0.08); border-color: rgba(6,182,212,0.2); color: #67e8f9; }
+        .alerta-ok { background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.2); color: #6ee7b7; cursor: default; }
+
+        /* ─── CONTAS BANCÁRIAS ─── */
+        .conta-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.6rem 0; border-bottom: 1px solid var(--border);
+        }
+        .conta-item:last-child { border-bottom: none; }
+        .conta-nome { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--text-soft); }
+        .conta-saldo { font-size: 0.92rem; font-weight: 700; }
+        .conta-saldo.pos { color: var(--success); }
+        .conta-saldo.neg { color: var(--danger); }
+
+        /* ─── ANIVERSARIANTES ─── */
+        .ani-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.55rem 0.75rem; border-radius: var(--radius-sm);
+            font-size: 0.83rem; margin-bottom: 0.3rem;
+            background: rgba(255,255,255,0.03);
+        }
+        .ani-item.today { background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.25); }
+        .ani-nome { font-weight: 600; }
+        .ani-data { color: var(--text-muted); font-size: 0.78rem; font-weight: 500; }
+
+        /* ─── ESTOQUE CRÍTICO ─── */
+        .estoque-item-critico {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.83rem;
+        }
+        .estoque-item-critico:last-child { border-bottom: none; }
+        .item-nome { color: var(--text-soft); font-weight: 500; }
+        .item-saldo.danger { color: var(--danger); font-weight: 700; font-size: 0.8rem; }
+
+        /* ─── EMPTY MSG ─── */
+        .empty-msg { color: var(--text-muted); font-size: 0.82rem; padding: 0.5rem 0; }
+        .empty-msg.ok { color: var(--success); }
+
+        /* ─── BADGE STATUS ─── */
+        .badge {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.2rem 0.65rem; border-radius: 20px;
+            font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
+        }
+        .badge-danger { background: rgba(239,68,68,0.15); color: #fca5a5; }
+        .badge-warn { background: rgba(245,158,11,0.15); color: #fcd34d; }
+        .badge-ok { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+
+        /* ─── STAT MINI ─── */
+        .stat-mini {
+            display: flex; flex-direction: column; gap: 0.2rem;
+            padding: 1rem; border-radius: var(--radius-sm);
+            background: rgba(255,255,255,0.025);
+            border: 1px solid var(--border);
+        }
+        .stat-mini-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); }
+        .stat-mini-val { font-size: 1.3rem; font-weight: 800; }
+
+        /* ─── DIVIDER ─── */
+        .section-divider {
+            height: 1px; background: linear-gradient(to right, transparent, var(--border), transparent);
+            margin: 2.5rem 0;
+        }
+
+        /* ─── ANIMATIONS ─── */
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .card, .kpi-card { animation: fadeUp 0.4s ease both; }
+    </style>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div id="loading-overlay">
+    <div class="loader-ring"></div>
+    <span class="loader-text">Carregando dados da empresa...</span>
+</div>
+
+<div class="page-wrap">
+
+    <!-- ─── HEADER ─── -->
+    <div class="ger-header">
+        <div class="ger-header-left">
+            <a href="home.html" class="back-link">
+                <i data-lucide="chevron-left" style="width:15px;height:15px;"></i>
+                Voltar ao Hub
+            </a>
+            <div class="page-title">
+                <i data-lucide="bar-chart-2" style="width:34px;height:34px;-webkit-text-fill-color:initial;color:#818cf8;"></i>
+                Painel Gerencial
+            </div>
+            <div class="page-subtitle">Visão executiva completa da sua empresa em tempo real</div>
+        </div>
+        <div class="header-controls">
+            <div class="periodo-wrap">
+                <label>PERÍODO</label>
+                <div class="divider-v"></div>
+                <select id="periodo-select">
+                    <option value="mes">Mês Específico</option>
+                    <option value="trimestre">Trimestre Atual</option>
+                    <option value="semestre">Semestre Atual</option>
+                    <option value="ano">Ano Atual</option>
+                </select>
+                <div id="mes-picker-wrap" style="display:flex;align-items:center;">
+                    <div class="divider-v"></div>
+                    <input type="month" id="mes-picker" style="color-scheme: dark;" value="">
+                </div>
+            </div>
+            <button id="btn-refresh">
+                <i data-lucide="refresh-cw"></i>
+                Atualizar
+            </button>
+            <span id="timestamp" style="font-size:0.75rem;color:var(--text-muted);">—</span>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════
+         SEÇÃO 1 — KPIs PRINCIPAIS (SAÚDE GERAL)
+    ══════════════════════════════════════════════════ -->
+    <div class="section-hd">
+        <div class="hd-icon" style="background:rgba(99,102,241,0.15);">💡</div>
+        <span>Saúde Geral da Empresa</span>
+        <span class="hd-badge" style="background:rgba(99,102,241,0.12);color:#a5b4fc;">KPIs PRINCIPAIS</span>
+    </div>
+
+    <div class="kpi-top-row">
+        <!-- Receita -->
+        <div class="kpi-card" style="border-color:rgba(16,185,129,0.2);">
+            <div class="kpi-bg-icon"><i data-lucide="trending-up" style="color:var(--success);"></i></div>
+            <div class="kpi-lbl"><i data-lucide="arrow-down-circle" style="width:14px;height:14px;color:var(--success);"></i> Receita do Período</div>
+            <div class="kpi-val accent-green" id="kpi-receita">—</div>
+            <div class="kpi-sub">Valores efetivamente recebidos</div>
+        </div>
+        <!-- Despesa -->
+        <div class="kpi-card" style="border-color:rgba(239,68,68,0.2);">
+            <div class="kpi-bg-icon"><i data-lucide="trending-down" style="color:var(--danger);"></i></div>
+            <div class="kpi-lbl"><i data-lucide="arrow-up-circle" style="width:14px;height:14px;color:var(--danger);"></i> Despesas do Período</div>
+            <div class="kpi-val accent-red" id="kpi-despesa">—</div>
+            <div class="kpi-sub">Valores efetivamente pagos</div>
+        </div>
+        <!-- Resultado -->
+        <div class="kpi-card">
+            <div class="kpi-bg-icon"><i data-lucide="activity" style="color:var(--primary);"></i></div>
+            <div class="kpi-lbl"><i data-lucide="zap" style="width:14px;height:14px;color:var(--primary);"></i> Resultado Líquido</div>
+            <div class="kpi-val" id="kpi-resultado" style="font-size:1.6rem;">—</div>
+            <div class="kpi-sub">Receita − Despesas do período</div>
+        </div>
+        <!-- Saldo em Caixa -->
+        <div class="kpi-card" style="border-color:rgba(6,182,212,0.2);">
+            <div class="kpi-bg-icon"><i data-lucide="landmark" style="color:var(--info);"></i></div>
+            <div class="kpi-lbl"><i data-lucide="credit-card" style="width:14px;height:14px;color:var(--info);"></i> Saldo em Caixa</div>
+            <div class="kpi-val accent-cyan" id="kpi-saldo-caixa">—</div>
+            <div class="kpi-sub">Total nas contas bancárias</div>
+        </div>
+        <!-- Contas Atrasadas -->
+        <div class="kpi-card" style="border-color:rgba(239,68,68,0.18);">
+            <div class="kpi-bg-icon"><i data-lucide="alert-circle" style="color:var(--danger);"></i></div>
+            <div class="kpi-lbl"><i data-lucide="clock" style="width:14px;height:14px;color:var(--danger);"></i> Contas Atrasadas</div>
+            <div class="kpi-val accent-red" id="kpi-contas-atrasadas">—</div>
+            <div class="kpi-sub">Aguardam pagamento urgente</div>
+        </div>
+        <!-- Funcionários -->
+        <div class="kpi-card">
+            <div class="kpi-bg-icon"><i data-lucide="users" style="color:var(--primary);"></i></div>
+            <div class="kpi-lbl"><i data-lucide="user-check" style="width:14px;height:14px;color:var(--primary);"></i> Funcionários Ativos</div>
+            <div class="kpi-val accent-indigo" id="kpi-dp-funcionarios">—</div>
+            <div class="kpi-sub">Equipe atual em atividade</div>
+        </div>
+    </div>
+
+    <!-- Espaçamento -->
+    <div style="height: 1.5rem;"></div>
+
+    <!-- ══════════════════════════════════════════════════
+         SEÇÃO 2 — FINANCEIRO DETALHADO
+    ══════════════════════════════════════════════════ -->
+    <div class="section-hd">
+        <div class="hd-icon" style="background:rgba(16,185,129,0.12);">💰</div>
+        <span>Financeiro</span>
+        <span class="hd-badge" style="background:rgba(16,185,129,0.1);color:#6ee7b7;">GESTÃO DE CAIXA</span>
+    </div>
+
+    <div class="grid-2">
+        <!-- Gráfico Receita vs Despesas -->
+        <div class="card col-span-2">
+            <div class="card-title">
+                <i data-lucide="bar-chart-2" style="color:var(--primary);"></i>
+                Evolução Financeira — Últimos 6 Meses
+            </div>
+            <div class="chart-wrap chart-wrap-tall">
+                <canvas id="chart-receita-despesa"></canvas>
+            </div>
+        </div>
+
+        <!-- Gráfico Despesas por Categoria -->
+        <div class="card">
+            <div class="card-title">
+                <i data-lucide="pie-chart" style="color:var(--danger);"></i>
+                Distribuição de Despesas por Categoria
+            </div>
+            <div class="chart-wrap">
+                <canvas id="chart-despesas-categ"></canvas>
+            </div>
+        </div>
+
+        <!-- Contas Bancárias + Alertas -->
+        <div class="card">
+            <div class="card-title" style="margin-bottom:0.8rem;">
+                <i data-lucide="landmark" style="color:var(--info);"></i>
+                Saldo por Conta Bancária
+            </div>
+            <div id="contas-bancarias-list"><p class="empty-msg">Carregando...</p></div>
+
+            <div class="card-title" style="margin-top:1.5rem;margin-bottom:0.8rem;padding-top:1.2rem;border-top:1px solid var(--border);">
+                <i data-lucide="calendar-clock" style="color:var(--warning);"></i>
+                Próximos Vencimentos
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;">
+                <div class="stat-mini">
+                    <span class="stat-mini-label">⚠️ A Pagar (7 dias)</span>
+                    <span class="stat-mini-val accent-amber" id="kpi-a-vencer">—</span>
+                </div>
+                <div class="stat-mini">
+                    <span class="stat-mini-label">🔜 A Receber (30 dias)</span>
+                    <span class="stat-mini-val accent-green" id="kpi-a-receber">—</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-divider"></div>
+
+    <!-- ══════════════════════════════════════════════════
+         SEÇÃO 3 — OPERACIONAL: FROTA, COMBUSTÍVEL, MANUTENÇÃO
+    ══════════════════════════════════════════════════ -->
+    <div class="section-hd">
+        <div class="hd-icon" style="background:rgba(245,158,11,0.1);">🚛</div>
+        <span>Operacional</span>
+        <span class="hd-badge" style="background:rgba(245,158,11,0.1);color:#fcd34d;">FROTA & MANUTENÇÃO</span>
+    </div>
+
+    <div class="grid-3">
+        <!-- Frota -->
+        <div class="card">
+            <div class="card-title">
+                <i data-lucide="truck" style="color:var(--primary);"></i>
+                Frota de Veículos
+            </div>
+            <div class="chart-wrap" style="height:180px;">
+                <canvas id="chart-frota-status"></canvas>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label"><i data-lucide="circle" style="width:10px;height:10px;color:var(--primary);fill:var(--primary);"></i> Total</span>
+                <span class="metric-value" id="kpi-frota-total">—</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label"><i data-lucide="check-circle" style="width:12px;height:12px;color:var(--success);"></i> Alocados</span>
+                <span class="metric-value accent-indigo" id="kpi-frota-alocados">—</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label"><i data-lucide="minus-circle" style="width:12px;height:12px;color:var(--text-muted);"></i> Disponíveis</span>
+                <span class="metric-value" id="kpi-frota-disponiveis">—</span>
+            </div>
+            <div style="margin-top:1rem;">
+                <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem;">
+                    <span>Utilização da Frota</span>
+                    <span id="kpi-frota-utilizacao">—</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" id="frota-progress-bar" style="width:0%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Combustível -->
+        <div class="card">
+            <div class="card-title">
+                <i data-lucide="fuel" style="color:var(--success);"></i>
+                Abastecimento do Período
+            </div>
+            <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:0.5rem;">
+                <div class="stat-mini">
+                    <span class="stat-mini-label">💸 Custo Total</span>
+                    <span class="stat-mini-val accent-red" id="kpi-comb-gasto">—</span>
+                </div>
+                <div class="stat-mini">
+                    <span class="stat-mini-label">🛢️ Volume Total</span>
+                    <span class="stat-mini-val accent-green" id="kpi-comb-litros">—</span>
+                </div>
+                <div class="stat-mini">
+                    <span class="stat-mini-label">📊 Preço Médio/Litro</span>
+                    <span class="stat-mini-val accent-amber" id="kpi-comb-preco-medio">—</span>
+                </div>
+                <div class="stat-mini">
+                    <span class="stat-mini-label">📋 Nº de Abastecimentos</span>
+                    <span class="stat-mini-val" id="kpi-comb-abastecimentos">—</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Manutenção -->
+        <div class="card">
+            <div class="card-title">
+                <i data-lucide="wrench" style="color:var(--danger);"></i>
+                Manutenção do Período
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">💸 Custo Total</span>
+                <span class="metric-value accent-red" id="kpi-manut-gasto">—</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">📋 Total de OS</span>
+                <span class="metric-value" id="kpi-manut-total">—</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">⏳ Pendentes</span>
+                <span class="metric-value accent-amber" id="kpi-manut-pendentes">—</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">
+                    <span class="badge badge-ok">PREV</span> Preventivas
+                </span>
+                <span class="metric-value accent-green" id="kpi-manut-preventivas">—</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">
+                    <span class="badge badge-danger">CORR</span> Corretivas
+                </span>
+                <span class="metric-value accent-red" id="kpi-manut-corretivas">—</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-divider"></div>
+
+    <!-- ══════════════════════════════════════════════════
+         SEÇÃO 4 — PESSOAS, ESTOQUE E COMERCIAL
+    ══════════════════════════════════════════════════ -->
+    <div class="section-hd">
+        <div class="hd-icon" style="background:rgba(6,182,212,0.1);">🏢</div>
+        <span>Pessoas, Estoque e Comercial</span>
+        <span class="hd-badge" style="background:rgba(6,182,212,0.1);color:#67e8f9;">RH & NEGÓCIOS</span>
+    </div>
+
+    <div class="grid-4">
+        <!-- Departamento Pessoal - KPIs -->
+        <div class="card col-span-2">
+            <div class="card-title">
+                <i data-lucide="users" style="color:var(--info);"></i>
+                Departamento Pessoal
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.7rem;margin-bottom:1.2rem;">
+                <div class="stat-mini">
+                    <span class="stat-mini-label">👷 Funcionários</span>
+                    <span class="stat-mini-val accent-indigo" id="kpi-dp-funcionarios2">—</span>
+                </div>
+                <div class="stat-mini">
+                    <span class="stat-mini-label">💰 Folha Estimada</span>
+                    <span class="stat-mini-val" style="font-size:1rem;" id="kpi-dp-folha">—</span>
+                </div>
+                <div class="stat-mini">
+                    <span class="stat-mini-label">🎂 Aniversariantes</span>
+                    <span class="stat-mini-val accent-amber" id="kpi-dp-aniversariantes">—</span>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;margin-bottom:1.2rem;">
+                <div class="stat-mini" style="border-color:rgba(245,158,11,0.25);">
+                    <span class="stat-mini-label">⏰ ASOs Vencendo (30d)</span>
+                    <span class="stat-mini-val accent-amber" id="kpi-dp-aso-vencendo">—</span>
+                </div>
+                <div class="stat-mini" style="border-color:rgba(239,68,68,0.25);">
+                    <span class="stat-mini-label">🚨 ASOs Vencidos</span>
+                    <span class="stat-mini-val accent-red" id="kpi-dp-aso-vencido">—</span>
+                </div>
+            </div>
+            <div class="card-title" style="font-size:0.78rem;margin-bottom:0.8rem;padding-top:1rem;border-top:1px solid var(--border);">
+                <i data-lucide="cake" style="color:var(--warning);"></i>
+                Aniversariantes do Mês
+            </div>
+            <div id="aniversariantes-list"><p class="empty-msg">Carregando...</p></div>
+        </div>
+
+        <!-- Estoque -->
+        <div class="card">
+            <div class="card-title">
+                <i data-lucide="package" style="color:var(--warning);"></i>
+                Estoque (Peças)
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">📦 Total de Itens</span>
+                <span class="metric-value" id="kpi-estoque-total">—</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">⚠️ Abaixo do Mínimo</span>
+                <span class="metric-value accent-amber" id="kpi-estoque-alertas">—</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">💵 Valor do Estoque</span>
+                <span class="metric-value accent-green" id="kpi-estoque-valor">—</span>
+            </div>
+            <div class="card-title" style="font-size:0.78rem;margin-bottom:0.6rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">
+                <i data-lucide="alert-triangle" style="color:var(--danger);"></i>
+                Itens em Estoque Crítico
+            </div>
+            <div id="estoque-critico-list"><p class="empty-msg">Carregando...</p></div>
+        </div>
+
+        <!-- Comercial -->
+        <div class="card">
+            <div class="card-title">
+                <i data-lucide="briefcase" style="color:#a78bfa;"></i>
+                Comercial (Contratos)
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">✅ Contratos Ativos</span>
+                <span class="metric-value accent-green" id="kpi-comercial-ativos">—</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">💲 Valor Total Ativo</span>
+                <span class="metric-value accent-indigo" style="font-size:0.88rem;" id="kpi-comercial-valor">—</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">⏰ Vencem em 30 dias</span>
+                <span class="metric-value accent-amber" id="kpi-comercial-vencendo">—</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">🚨 Contratos Vencidos</span>
+                <span class="metric-value accent-red" id="kpi-comercial-vencidos">—</span>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /page-wrap -->
+
+<script>
+// Sync kpi-dp-funcionarios para o segundo card
+const observer = new MutationObserver(() => {
+    const v1 = document.getElementById('kpi-dp-funcionarios');
+    const v2 = document.getElementById('kpi-dp-funcionarios2');
+    if (v1 && v2) v2.textContent = v1.textContent;
+});
+const el1 = document.getElementById('kpi-dp-funcionarios');
+if (el1) observer.observe(el1, { childList: true, characterData: true, subtree: true });
+
+// Inicializar mês picker com mês atual
+document.getElementById('mes-picker').value = new Date().toISOString().slice(0, 7);
+</script>
+<script src="gerencial.js"></script>
+</body>
+</html>

@@ -936,6 +936,7 @@
         <div class="tabs-header" style="margin-bottom:1.5rem;">
             <button class="tab-item active" onclick="switchSubTab('epis','epi')" id="sub-epis-epi"><i data-lucide="hard-hat" style="width:16px;"></i> EPIs</button>
             <button class="tab-item" onclick="switchSubTab('epis','uniforme')" id="sub-epis-uniforme"><i data-lucide="shirt" style="width:16px;"></i> Uniformes</button>
+            <button class="tab-item" onclick="switchSubTab('epis','estoque')" id="sub-epis-estoque"><i data-lucide="boxes" style="width:16px;"></i> Saldo / Estoque</button>
         </div>
 
         <!-- Sub: EPIs -->
@@ -1026,6 +1027,55 @@
                 <div class="pagination">
                     <span id="uniforme-page-info">Mostrando 0 registros</span>
                     <div class="pagination-btns" id="uniforme-pagination"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sub: Estoque -->
+        <div id="sub-view-epis-estoque" class="view-section">
+            <div class="section-header">
+                <div class="section-title-text"><i data-lucide="boxes"></i> Saldo e Estoque de EPIs & Uniformes</div>
+                <div style="display:flex; gap:0.5rem;">
+                    <button class="btn btn-secondary btn-sm" onclick="abrirModalEstoqueMov()" data-perm="dp_epis:create"><i data-lucide="plus-circle"></i> Dar Entrada (Saldo)</button>
+                    <button class="btn btn-primary btn-sm" onclick="abrirModalEstoqueItem()" data-perm="dp_epis:create"><i data-lucide="plus"></i> Novo Item no Catálogo</button>
+                </div>
+            </div>
+            <div class="filter-bar">
+                <input type="text" id="estoque-search" placeholder="🔍 Buscar item ou fabricante..." oninput="renderEstoque()">
+                <select id="estoque-filter-tipo" onchange="renderEstoque()">
+                    <option value="">Todos os Tipos</option>
+                    <option value="EPI">EPI</option>
+                    <option value="UNIFORME">Uniforme</option>
+                </select>
+                <select id="estoque-filter-alerta" onchange="renderEstoque()">
+                    <option value="">Todos os Status</option>
+                    <option value="critico">Apenas Estoque Crítico</option>
+                    <option value="ok">Apenas Estoque OK</option>
+                </select>
+            </div>
+            <div class="table-container">
+                <div class="scroll-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('estoque','tipo')">Tipo</th>
+                                <th onclick="sortTable('estoque','nome')">Nome do Item</th>
+                                <th>Detalhe (CA / Tamanho)</th>
+                                <th>Fabricante</th>
+                                <th onclick="sortTable('estoque','quantidade_atual')">Qtd Atual</th>
+                                <th onclick="sortTable('estoque','quantidade_minima')">Qtd Mínima</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="estoque-tbody">
+                            <tr><td colspan="8" class="table-empty">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <span id="estoque-page-info">Mostrando 0 registros</span>
+                    <div class="pagination-btns" id="estoque-pagination"></div>
                 </div>
             </div>
         </div>
@@ -1854,23 +1904,26 @@
                     </select>
                 </div>
                 <div class="form-group span-2">
-                    <label>Nome do EPI *</label>
-                    <input type="text" id="epi-nome" required placeholder="Ex: Capacete de segurança, Bota de segurança...">
+                    <label>EPI do Estoque *</label>
+                    <select id="epi-estoque-id" required onchange="aoSelecionarEpiEstoque()">
+                        <option value="">Selecione o EPI no estoque...</option>
+                    </select>
                 </div>
+                <input type="hidden" id="epi-nome">
                 <div class="form-group">
                     <label>Número do CA</label>
-                    <input type="text" id="epi-ca" placeholder="Ex: 12345">
+                    <input type="text" id="epi-ca" placeholder="Ex: 12345" readonly style="opacity:0.8;background:rgba(255,255,255,0.02);">
                 </div>
                 <div class="form-group">
                     <label>Vencimento do CA</label>
-                    <input type="date" id="epi-ca-venc">
+                    <input type="date" id="epi-ca-venc" readonly style="opacity:0.8;background:rgba(255,255,255,0.02);">
                 </div>
                 <div class="form-group">
                     <label>Fabricante</label>
-                    <input type="text" id="epi-fabricante" placeholder="Nome do fabricante">
+                    <input type="text" id="epi-fabricante" placeholder="Nome do fabricante" readonly style="opacity:0.8;background:rgba(255,255,255,0.02);">
                 </div>
                 <div class="form-group">
-                    <label>Quantidade</label>
+                    <label>Quantidade *</label>
                     <input type="number" id="epi-qtd" value="1" min="1">
                 </div>
                 <div class="form-group">
@@ -1929,12 +1982,15 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Item *</label>
-                    <input type="text" id="unif-item" required placeholder="Camisa, Calça, Bota, Colete...">
+                    <label>Uniforme do Estoque *</label>
+                    <select id="unif-estoque-id" required onchange="aoSelecionarUniformeEstoque()">
+                        <option value="">Selecione o uniforme no estoque...</option>
+                    </select>
                 </div>
+                <input type="hidden" id="unif-item">
                 <div class="form-group">
                     <label>Tamanho</label>
-                    <input type="text" id="unif-tamanho" placeholder="P, M, G, GG, 38, 40...">
+                    <input type="text" id="unif-tamanho" readonly style="opacity:0.8;background:rgba(255,255,255,0.02);">
                 </div>
                 <div class="form-group">
                     <label>Quantidade</label>
@@ -1971,6 +2027,99 @@
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="fecharModal('modal-uniforme')">Cancelar</button>
             <button class="btn btn-primary btn-save" onclick="salvarUniforme()"><i data-lucide="save"></i> Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: ITEM DE ESTOQUE (EPI / UNIFORME)
+════════════════════════════════════════════ -->
+<div id="modal-estoque-item" class="dp-modal-overlay">
+    <div class="dp-modal">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="boxes"></i> <span id="modal-estoque-item-title">Novo Item no Catálogo</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-estoque-item')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="form-group span-2">
+                    <label>Tipo de Item *</label>
+                    <select id="est-item-tipo" required onchange="toggleCamposEstoqueItem()">
+                        <option value="EPI">EPI (Equipamento de Proteção Individual)</option>
+                        <option value="UNIFORME">Uniforme</option>
+                    </select>
+                </div>
+                <div class="form-group span-2">
+                    <label>Nome do Item *</label>
+                    <input type="text" id="est-item-nome" required placeholder="Ex: Óculos de proteção, Calça operacional, Bota de PVC...">
+                </div>
+                <div class="form-group" id="est-item-tamanho-wrap" style="display:none;">
+                    <label>Tamanho</label>
+                    <input type="text" id="est-item-tamanho" placeholder="P, M, G, GG, 40, 42...">
+                </div>
+                <div class="form-group est-item-epi-fields">
+                    <label>Número do CA</label>
+                    <input type="text" id="est-item-ca" placeholder="Ex: 43210">
+                </div>
+                <div class="form-group est-item-epi-fields">
+                    <label>Vencimento do CA</label>
+                    <input type="date" id="est-item-ca-venc">
+                </div>
+                <div class="form-group">
+                    <label>Fabricante / Marca</label>
+                    <input type="text" id="est-item-fabricante" placeholder="Ex: 3M, Danny, Bracol...">
+                </div>
+                <div class="form-group">
+                    <label>Quantidade Mínima (Alerta)</label>
+                    <input type="number" id="est-item-minimo" value="5" min="0">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-estoque-item')">Cancelar</button>
+            <button class="btn btn-primary btn-save" onclick="salvarEstoqueItem()"><i data-lucide="save"></i> Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: MOVIMENTAÇÃO DE ESTOQUE (ENTRADA)
+════════════════════════════════════════════ -->
+<div id="modal-estoque-mov" class="dp-modal-overlay">
+    <div class="dp-modal narrow">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="plus-circle"></i> <span>Dar Entrada em Estoque</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-estoque-mov')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid cols-1">
+                <div class="form-group">
+                    <label>Item do Catálogo *</label>
+                    <select id="est-mov-item-id" required>
+                        <option value="">Selecione o item...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Quantidade de Entrada *</label>
+                    <input type="number" id="est-mov-qtd" required min="1" placeholder="Ex: 10">
+                </div>
+                <div class="form-group">
+                    <label>Motivo *</label>
+                    <select id="est-mov-motivo" required>
+                        <option value="Compra">Compra / Aquisição</option>
+                        <option value="Ajuste">Ajuste de Inventário</option>
+                        <option value="Estorno">Estorno / Devolução</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Responsável / Comprador</label>
+                    <input type="text" id="est-mov-resp" placeholder="Nome de quem comprou/ajustou">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-estoque-mov')">Cancelar</button>
+            <button class="btn btn-primary btn-save" onclick="salvarEstoqueMov()"><i data-lucide="save"></i> Registrar Entrada</button>
         </div>
     </div>
 </div>

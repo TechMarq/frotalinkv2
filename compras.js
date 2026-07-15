@@ -2799,12 +2799,14 @@ function renderCompras() {
             }
             return '';
         }).join(' ');
+        const itemPessoas = (c.itens || c.items || []).map(it => it.pessoa || '').join(' ');
 
         const searchable = [
             fornecedorObj.nome, 
             c.numeroNota, 
             (c.itens || c.items || []).map(i => i.produto).join(' '),
-            itemPlacas
+            itemPlacas,
+            itemPessoas
         ].map(txt => norm(txt)).join(' ');
 
         return searchable.includes(search);

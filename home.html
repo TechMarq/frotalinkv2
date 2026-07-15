@@ -468,6 +468,18 @@
                     <p>Funcionários, ASO, férias, EPIs e contratos.</p>
                 </div>
             </a>
+            <!-- Gerencial card: visible to admin and users with gerencial permission -->
+            <a href="gerencial.html" class="module-card" id="module-card-gerencial"
+                style="display:none; border-color: rgba(129,140,248,0.3); background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(16,185,129,0.04));">
+                <div class="status-pill" style="background: rgba(129,140,248,0.15); color: #a5b4fc; border: 1px solid rgba(129,140,248,0.25);">Executivo</div>
+                <div class="module-icon" style="background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(129,140,248,0.1)); color: #818cf8;">
+                    <i data-lucide="bar-chart-2"></i>
+                </div>
+                <div>
+                    <h3 style="background: linear-gradient(to right, #a5b4fc, #6ee7b7); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">Painel Gerencial</h3>
+                    <p>KPIs executivos e saúde financeira da empresa.</p>
+                </div>
+            </a>
             <!-- Admin card: only visible for role=admin -->
             <a href="admin.html" class="module-card" id="adminModuleCard"
                 style="display:none; border-color: rgba(99,102,241,0.3); background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(192,132,252,0.04));">
@@ -571,6 +583,13 @@
                     'module-card-comercial': 'comercial',
                     'module-card-dp': 'dp'
                 };
+                // Gerencial: visível para admin ou quem tem permissão gerencial
+                const gerencialCard = document.getElementById('module-card-gerencial');
+                if (gerencialCard) {
+                    const showGerencial = window.currentUserRole === 'admin' ||
+                        (window.currentUserPermissions && window.currentUserPermissions['gerencial']?.view);
+                    gerencialCard.style.display = showGerencial ? 'flex' : 'none';
+                }
                 Object.entries(modules).forEach(([id, mod]) => {
                     const el = document.getElementById(id);
                     if (el) {
