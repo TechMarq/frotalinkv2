@@ -1314,8 +1314,48 @@ function setupFormListeners() {
     const maintFormElement = document.getElementById('maintForm');
     if (maintFormElement) {
         maintFormElement.addEventListener('keydown', (e) => {
+            // Impedir envio acidental com Enter normal
             if (e.key === 'Enter' && !e.ctrlKey && e.target.tagName !== 'TEXTAREA') {
                 e.preventDefault();
+            }
+            
+            // Ctrl + Enter para enviar
+            if (e.key === 'Enter' && e.ctrlKey) {
+                e.preventDefault();
+                maintFormElement.requestSubmit();
+            }
+            
+            // Alt + I para adicionar item
+            if (e.key.toLowerCase() === 'i' && e.altKey) {
+                e.preventDefault();
+                if (typeof window.addMaintItem === 'function') {
+                    window.addMaintItem();
+                }
+            }
+        });
+
+        // Atalhos de teclado globais (Esc para fechar, Alt + N para abrir novo registro)
+        window.addEventListener('keydown', (e) => {
+            const modal = document.getElementById('modalMaint');
+            
+            // Esc para fechar modal ativo
+            if (e.key === 'Escape') {
+                if (modal && modal.classList.contains('active')) {
+                    e.preventDefault();
+                    if (typeof window.closeMaintModal === 'function') {
+                        window.closeMaintModal(false);
+                    }
+                }
+            }
+            
+            // F2 para abrir o modal de nova manutenção (se estiver inativo)
+            if (e.key === 'F2') {
+                if (modal && !modal.classList.contains('active')) {
+                    e.preventDefault();
+                    if (typeof window.openMaintModal === 'function') {
+                        window.openMaintModal(null);
+                    }
+                }
             }
         });
     }

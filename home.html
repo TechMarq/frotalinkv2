@@ -76,62 +76,92 @@
             gap: 0.5rem;
         }
 
+        /* ─── KPI Strip: faixa compacta de alertas em linha única ─── */
         .kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 4rem;
+            display: flex;
+            flex-direction: row;
+            gap: 0.6rem;
+            margin-bottom: 2rem;
+            overflow-x: auto;
+            padding-bottom: 0.4rem;
+            scrollbar-width: thin;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .kpi-grid::-webkit-scrollbar {
+            height: 4px;
+        }
+        .kpi-grid::-webkit-scrollbar-thumb {
+            background: var(--border-card);
+            border-radius: 4px;
         }
 
         .kpi-card {
             background: var(--bg-card);
             border: 1px solid var(--border-card);
-            border-radius: var(--radius);
-            padding: 2rem;
+            border-radius: 10px;
+            padding: 0.7rem 1rem;
             backdrop-filter: blur(12px);
             position: relative;
             overflow: hidden;
-            transition: all 0.3s ease;
+            transition: all 0.25s ease;
             cursor: pointer;
             text-decoration: none;
             color: inherit;
+            /* Tamanho fixo compacto — todos ficam na mesma linha */
+            flex: 0 0 auto;
+            min-width: 130px;
+            max-width: 170px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
         }
 
         .kpi-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-3px);
             border-color: var(--primary);
+            box-shadow: 0 4px 14px rgba(0,0,0,0.15);
         }
 
         .kpi-icon {
             position: absolute;
-            top: 1.5rem;
-            right: 1.5rem;
-            opacity: 0.15;
+            top: 0.6rem;
+            right: 0.6rem;
+            opacity: 0.12;
             color: var(--primary);
+            width: 18px !important;
+            height: 18px !important;
         }
 
         .kpi-label {
             color: var(--text-muted);
-            font-size: 0.85rem;
-            font-weight: 600;
+            font-size: 0.62rem;
+            font-weight: 700;
             text-transform: uppercase;
-            margin-bottom: 1rem;
+            letter-spacing: 0.04em;
             display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 0;
         }
 
         .kpi-value {
-            font-size: 2.2rem;
+            font-size: 1.55rem;
             font-weight: 800;
             display: block;
-            margin-bottom: 0.5rem;
+            line-height: 1.1;
         }
 
         .kpi-trend {
-            font-size: 0.8rem;
+            font-size: 0.62rem;
             font-weight: 600;
             display: flex;
             align-items: center;
-            gap: 0.3rem;
+            gap: 0.2rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .kpi-trend.up {
@@ -176,9 +206,9 @@
         }
 
         .section-title {
-            font-size: 1.5rem;
+            font-size: 1.3rem;
             font-weight: 700;
-            margin-bottom: 2rem;
+            margin-bottom: 1.2rem;
             display: flex;
             align-items: center;
             gap: 0.8rem;
@@ -192,24 +222,31 @@
         }
 
         .module-card {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01));
-            border: 1px solid var(--border-card);
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.13);
             border-radius: var(--radius);
             padding: 2rem;
             text-decoration: none;
             color: inherit;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             display: flex;
             flex-direction: column;
             gap: 1.5rem;
             position: relative;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow:
+                0 2px 12px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
         }
 
         .module-card:hover {
             border-color: var(--primary);
-            box-shadow: 0 0 40px rgba(79, 70, 229, 0.15);
+            background: rgba(99, 102, 241, 0.12);
+            box-shadow:
+                0 8px 28px rgba(99, 102, 241, 0.25),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15);
             transform: scale(1.02);
-            background: rgba(79, 70, 229, 0.05);
         }
 
         .module-icon {

@@ -953,50 +953,50 @@ function injectAuthUI() {
         <div id="auth-user-dropdown" style="position: relative;">
             <button id="auth-user-btn" onclick="toggleAuthDropdown()" style="
                 display: flex; align-items: center; gap: 0.5rem;
-                background: rgba(30, 41, 59, 0.9); backdrop-filter: blur(12px);
-                border: 1px solid rgba(255,255,255,0.1);
+                background: var(--bg-card); backdrop-filter: blur(12px);
+                border: 1px solid var(--border-card);
                 border-radius: 50px; padding: 0.4rem 0.8rem 0.4rem 0.4rem;
-                color: #f8fafc; cursor: pointer; font-family: inherit; font-size: 0.85rem;
-                transition: all 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                color: var(--text-main); cursor: pointer; font-family: inherit; font-size: 0.85rem;
+                transition: all 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
                 <span style="
                     width: 30px; height: 30px; border-radius: 50%;
-                    background: linear-gradient(135deg, #818cf8, #c084fc);
+                    background: linear-gradient(135deg, var(--primary), var(--success));
                     display: flex; align-items: center; justify-content: center;
                     font-size: 0.75rem; font-weight: 700; color: white; flex-shrink: 0;">
                     ${initials}
                 </span>
                 <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 0.05rem;">
-                    <span style="max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; line-height: 1.2;">${email}</span>
-                    <span style="font-size: 0.65rem; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;">${empresaNome}</span>
+                    <span style="max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; line-height: 1.2; color: var(--text-main);">${email}</span>
+                    <span style="font-size: 0.65rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;">${empresaNome}</span>
                 </div>
-                ${isAdmin ? '<span style="background: rgba(99,102,241,0.2); color: #818cf8; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; text-transform: uppercase;">Admin</span>' : ''}
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                ${isAdmin ? '<span style="background: rgba(45,158,107,0.15); color: var(--primary); font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; text-transform: uppercase;">Admin</span>' : ''}
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted);"><path d="m6 9 6 6 6-6"/></svg>
             </button>
             <div id="auth-dropdown-menu" style="
                 display: none;
                 position: absolute; top: calc(100% + 8px); right: 0;
-                background: #1e293b; border: 1px solid rgba(255,255,255,0.1);
+                background: var(--bg-card); border: 1px solid var(--border-card);
                 border-radius: 12px; padding: 0.5rem; min-width: 210px;
-                box-shadow: 0 8px 24px rgba(0,0,0,0.4); backdrop-filter: blur(12px);">
-                <div style="padding: 0.6rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 0.25rem;">
-                    <div style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 0.2rem;">Empresa</div>
-                    <div style="font-size: 0.85rem; color: #f8fafc; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${empresaNome}</div>
-                    <div style="font-size: 0.72rem; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 0.1rem;">${email}</div>
+                box-shadow: 0 8px 24px rgba(0,0,0,0.15); backdrop-filter: blur(12px);">
+                <div style="padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border-card); margin-bottom: 0.25rem;">
+                    <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 0.2rem;">Empresa</div>
+                    <div style="font-size: 0.85rem; color: var(--text-main); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${empresaNome}</div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 0.1rem;">${email}</div>
                 </div>
-                <a href="home.html" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 8px; color: #94a3b8; text-decoration: none; font-size: 0.85rem; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+                <a href="home.html" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 8px; color: var(--text-muted); text-decoration: none; font-size: 0.85rem; transition: background 0.2s;" onmouseover="this.style.background='rgba(45,158,107,0.08)'" onmouseout="this.style.background='transparent'">
                     🏠 Hub Principal
                 </a>
                 ${isAdmin ? `
-                <a href="admin.html" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 8px; color: #818cf8; text-decoration: none; font-size: 0.85rem; transition: background 0.2s;" onmouseover="this.style.background='rgba(99,102,241,0.1)'" onmouseout="this.style.background='transparent'">
+                <a href="admin.html" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 8px; color: var(--primary); text-decoration: none; font-size: 0.85rem; transition: background 0.2s;" onmouseover="this.style.background='rgba(45,158,107,0.1)'" onmouseout="this.style.background='transparent'">
                     🛡️ Painel Admin
                 </a>
-                <a href="empresa_setup.html" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 8px; color: #a5b4fc; text-decoration: none; font-size: 0.85rem; transition: background 0.2s;" onmouseover="this.style.background='rgba(99,102,241,0.08)'" onmouseout="this.style.background='transparent'">
+                <a href="empresa_setup.html" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 8px; color: var(--primary); text-decoration: none; font-size: 0.85rem; transition: background 0.2s;" onmouseover="this.style.background='rgba(45,158,107,0.08)'" onmouseout="this.style.background='transparent'">
                     🏢 Minha Empresa
                 </a>` : ''}
-                <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.05); margin: 0.25rem 0;">
+                <hr style="border: none; border-top: 1px solid var(--border-card); margin: 0.25rem 0;">
                 <button onclick="authLogout()" style="
                     display: flex; align-items: center; gap: 0.5rem; width: 100%;
-                    padding: 0.5rem 0.75rem; border-radius: 8px; color: #f87171;
+                    padding: 0.5rem 0.75rem; border-radius: 8px; color: #ef4444;
                     background: transparent; border: none; cursor: pointer;
                     font-size: 0.85rem; font-family: inherit; transition: background 0.2s; text-align: left;"
                     onmouseover="this.style.background='rgba(239,68,68,0.1)'"
@@ -1174,17 +1174,21 @@ window.registrarLog = registrarLog;
  * em todos os campos de pesquisa dos módulos.
  */
 function preventSearchAutofill() {
-    const searchTerms = ['search', 'busca', 'filter', 'filtro', 'pesquisa', 'query', 'find', 'v_cliente_nome'];
+    const searchTerms = ['search', 'busca', 'filter', 'filtro', 'pesquisa', 'query', 'find', 'v_cliente_nome', 'placa', 'motorista', 'cnh', 'veiculo'];
+    const userEmail = window.currentUser?.email || '';
     
     const cleanSearchFields = () => {
         const inputs = document.querySelectorAll('input');
-        const userEmail = window.currentUser?.email || '';
         
         inputs.forEach(input => {
             const id = (input.id || '').toLowerCase();
             const name = (input.name || '').toLowerCase();
             const placeholder = (input.placeholder || '').toLowerCase();
             const className = (input.className || '').toLowerCase();
+            const type = (input.type || '').toLowerCase();
+            
+            // Verifica se é de fato um campo de texto/busca e não checkbox/senha
+            if (type !== 'text' && type !== 'search' && type !== '') return;
             
             const isSearchField = searchTerms.some(term => 
                 id.includes(term) || 
@@ -1194,13 +1198,14 @@ function preventSearchAutofill() {
             ) || input.closest('.search-box') || input.closest('.search-input-wrapper');
             
             if (isSearchField) {
-                // Configura autocomplete="off" para instruir o navegador a não preencher
-                if (input.getAttribute('autocomplete') !== 'off') {
-                    input.setAttribute('autocomplete', 'off');
+                // Navegadores ignoram autocomplete="off" em inputs normais se detectarem perfil de senha.
+                // Atribuir 'new-password' ou um valor aleatório evita que o gerenciador de senhas do Google Chrome/Edge o preencha automaticamente.
+                if (input.getAttribute('autocomplete') !== 'new-password') {
+                    input.setAttribute('autocomplete', 'new-password');
                 }
                 
-                // Se o navegador já tiver auto-preenchido com o e-mail do usuário logado, limpa o campo
-                if (userEmail && input.value && input.value.toLowerCase() === userEmail.toLowerCase()) {
+                // Limpa o valor se o navegador insistir em preencher com o e-mail logado
+                if (userEmail && input.value && input.value.trim().toLowerCase() === userEmail.trim().toLowerCase()) {
                     input.value = '';
                     input.dispatchEvent(new Event('input', { bubbles: true }));
                     input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -1209,10 +1214,17 @@ function preventSearchAutofill() {
         });
     };
 
-    // Executa imediatamente e em intervalos curtos para capturar autofill tardio do navegador
+    // Monitora alterações para evitar autofill tardio
     cleanSearchFields();
-    [50, 150, 300, 500, 1000, 2000, 3000].forEach(delay => {
+    [50, 150, 300, 500, 1000, 1500, 2000, 3000, 5000].forEach(delay => {
         setTimeout(cleanSearchFields, delay);
+    });
+
+    // Monitora eventos globais de foco nos inputs para limpar caso o autofill aconteça ao interagir com a tela
+    document.addEventListener('focusin', (e) => {
+        if (e.target && e.target.tagName === 'INPUT') {
+            cleanSearchFields();
+        }
     });
 }
 

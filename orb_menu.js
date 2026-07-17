@@ -165,6 +165,11 @@
         link.href = 'widgets.css';
         document.head.appendChild(link);
 
+        // Load theme.js (must run early so theme applies before full render)
+        const themeScript = document.createElement('script');
+        themeScript.src = 'theme.js';
+        document.head.appendChild(themeScript);
+
         // Load widgets.js
         const script = document.createElement('script');
         script.src = 'widgets.js';

@@ -1704,3 +1704,667 @@ tr:hover td {
     user-select: none;
     pointer-events: none;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   🎨 THEME SYSTEM — Transições suaves entre temas
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Transição suave ao trocar variáveis CSS */
+body,
+.container, .ops-container, .app-container,
+.controls,
+.table-container,
+.modal,
+.modal-overlay,
+.badge,
+.btn,
+.btn-edit,
+.search-box input,
+.tab-btn, .tab-item,
+.nav-tabs, .tabs-header {
+    transition:
+        background 0.4s ease,
+        background-color 0.4s ease,
+        border-color 0.35s ease,
+        color 0.3s ease,
+        box-shadow 0.3s ease !important;
+}
+
+/* ───────────────────────────────────────────
+   Tema: Clean Verde — Fundo branco, detalhes verdes
+   Aplicado quando data-theme="green_pastel"
+   ─────────────────────────────────────────── */
+
+/* Body e container base */
+[data-theme="green_pastel"] body {
+    color: var(--text-main);
+    background-color: #f0f7f4 !important;
+}
+
+/* Títulos com verde escuro */
+[data-theme="green_pastel"] h1 {
+    background: linear-gradient(to right, #1a7a50, #2d9e6b) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+}
+
+/* Cards e containers — brancos com sombra leve */
+[data-theme="green_pastel"] .controls,
+[data-theme="green_pastel"] .table-container {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-color: rgba(45, 158, 107, 0.15) !important;
+    box-shadow: 0 2px 12px rgba(45, 158, 107, 0.08) !important;
+    backdrop-filter: none !important;
+}
+
+/* Tabela: cabeçalhos e linhas */
+[data-theme="green_pastel"] th {
+    background: rgba(45, 158, 107, 0.07) !important;
+    color: #1a7a50 !important;
+    border-bottom-color: rgba(45, 158, 107, 0.12) !important;
+}
+
+[data-theme="green_pastel"] td {
+    border-bottom-color: rgba(45, 158, 107, 0.08) !important;
+    color: var(--text-main) !important;
+}
+
+[data-theme="green_pastel"] tr:hover td {
+    background: rgba(45, 158, 107, 0.04) !important;
+}
+
+/* Placa com fundo verde claro */
+[data-theme="green_pastel"] .plate {
+    background: rgba(45, 158, 107, 0.1) !important;
+    color: #1a7a50 !important;
+}
+
+/* Navegação / Tabs */
+[data-theme="green_pastel"] .nav-tabs,
+[data-theme="green_pastel"] .tabs-header {
+    background: rgba(255, 255, 255, 0.85) !important;
+    border-color: rgba(45, 158, 107, 0.12) !important;
+    box-shadow: 0 1px 8px rgba(45, 158, 107, 0.08) !important;
+}
+
+[data-theme="green_pastel"] .tab-btn,
+[data-theme="green_pastel"] .tab-item {
+    color: #5a7a6a !important;
+}
+
+[data-theme="green_pastel"] .tab-btn.active,
+[data-theme="green_pastel"] .tab-item.active {
+    background: linear-gradient(135deg, #2d9e6b, #1a7a50) !important;
+    box-shadow: 0 4px 15px rgba(45, 158, 107, 0.25) !important;
+    color: #fff !important;
+}
+
+[data-theme="green_pastel"] .tab-btn:hover:not(.active),
+[data-theme="green_pastel"] .tab-item:hover:not(.active) {
+    background: rgba(45, 158, 107, 0.08) !important;
+    color: #1a7a50 !important;
+}
+
+/* Barra de busca */
+[data-theme="green_pastel"] .search-box input {
+    background: #fff !important;
+    border-color: rgba(45, 158, 107, 0.2) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .search-box input::placeholder {
+    color: #5a7a6a !important;
+}
+
+[data-theme="green_pastel"] .search-box input:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 3px rgba(45, 158, 107, 0.18) !important;
+}
+
+[data-theme="green_pastel"] .search-box svg {
+    color: #5a7a6a !important;
+}
+
+/* Badges */
+[data-theme="green_pastel"] .badge.success {
+    background: rgba(39, 174, 111, 0.12) !important;
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .badge.danger {
+    background: rgba(224, 82, 82, 0.1) !important;
+    color: #b83232 !important;
+}
+
+[data-theme="green_pastel"] .badge.warning {
+    background: rgba(212, 137, 26, 0.1) !important;
+    color: #a06010 !important;
+}
+
+/* Botões de edição */
+[data-theme="green_pastel"] .btn-edit {
+    background: rgba(45, 158, 107, 0.1) !important;
+    border-color: rgba(45, 158, 107, 0.2) !important;
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .btn-edit:hover {
+    background: var(--primary) !important;
+    color: white !important;
+    border-color: var(--primary) !important;
+    box-shadow: 0 4px 12px rgba(45, 158, 107, 0.35) !important;
+}
+
+[data-theme="green_pastel"] .btn-delete {
+    background: rgba(224, 82, 82, 0.08) !important;
+    border-color: rgba(224, 82, 82, 0.18) !important;
+    color: #b83232 !important;
+}
+
+[data-theme="green_pastel"] .btn-delete:hover {
+    background: #e05252 !important;
+    color: white !important;
+    border-color: #e05252 !important;
+}
+
+/* Switch toggle */
+[data-theme="green_pastel"] .switch {
+    background: rgba(45, 158, 107, 0.2) !important;
+}
+
+[data-theme="green_pastel"] .switch.active {
+    background: var(--primary) !important;
+}
+
+/* Botão genérico */
+[data-theme="green_pastel"] .btn {
+    background: rgba(255, 255, 255, 0.9) !important;
+    border-color: rgba(45, 158, 107, 0.2) !important;
+    color: #1a2e25 !important;
+}
+
+/* Modal */
+[data-theme="green_pastel"] .modal-overlay {
+    background: rgba(10, 40, 25, 0.6) !important;
+}
+
+[data-theme="green_pastel"] .modal {
+    background: #ffffff !important;
+    border-color: rgba(45, 158, 107, 0.15) !important;
+    box-shadow: 0 20px 60px rgba(45, 158, 107, 0.15) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .modal h2,
+[data-theme="green_pastel"] .modal h3 {
+    color: #1a7a50 !important;
+    -webkit-text-fill-color: #1a7a50 !important;
+    background: none !important;
+}
+
+[data-theme="green_pastel"] .modal label {
+    color: #5a7a6a !important;
+}
+
+/* Inputs / Selects / Textareas */
+[data-theme="green_pastel"] select,
+[data-theme="green_pastel"] input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="green_pastel"] textarea {
+    background: #fff !important;
+    border-color: rgba(45, 158, 107, 0.22) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] select:focus,
+[data-theme="green_pastel"] input:not([type="checkbox"]):focus,
+[data-theme="green_pastel"] textarea:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 2px rgba(45, 158, 107, 0.18) !important;
+    outline: none !important;
+}
+
+[data-theme="green_pastel"] select option,
+[data-theme="green_pastel"] .direct-select option {
+    background: #fff !important;
+    color: #1a2e25 !important;
+}
+
+/* ───────────────────────────────────────────
+   Overrides para o Módulo de Compras (compras.html)
+   ─────────────────────────────────────────── */
+[data-theme="green_pastel"] .tabs {
+    background: rgba(255, 255, 255, 0.85) !important;
+    border-color: rgba(45, 158, 107, 0.12) !important;
+    box-shadow: 0 1px 8px rgba(45, 158, 107, 0.08) !important;
+}
+
+[data-theme="green_pastel"] .tabs .tab-btn {
+    color: #5a7a6a !important;
+}
+
+[data-theme="green_pastel"] .tabs .tab-btn.active {
+    background: linear-gradient(135deg, #2d9e6b, #1a7a50) !important;
+    box-shadow: 0 4px 15px rgba(45, 158, 107, 0.25) !important;
+    color: #fff !important;
+}
+
+[data-theme="green_pastel"] .sub-tabs {
+    background: rgba(45, 158, 107, 0.06) !important;
+    border-color: rgba(45, 158, 107, 0.12) !important;
+}
+
+[data-theme="green_pastel"] .sub-tab-btn {
+    color: #5a7a6a !important;
+}
+
+[data-theme="green_pastel"] .sub-tab-btn.active {
+    background: #2d9e6b !important;
+    color: white !important;
+}
+
+[data-theme="green_pastel"] .stat-card {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-color: rgba(45, 158, 107, 0.18) !important;
+    box-shadow: 0 2px 12px rgba(45, 158, 107, 0.08) !important;
+}
+
+[data-theme="green_pastel"] .stat-card:hover {
+    background: #fff !important;
+    border-color: var(--primary) !important;
+}
+
+[data-theme="green_pastel"] .stat-value {
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .quick-filters {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-color: rgba(45, 158, 107, 0.18) !important;
+    box-shadow: 0 2px 12px rgba(45, 158, 107, 0.08) !important;
+}
+
+[data-theme="green_pastel"] .filter-select {
+    background: #fff !important;
+    border-color: rgba(45, 158, 107, 0.22) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .filter-select:focus {
+    border-color: var(--primary) !important;
+}
+
+[data-theme="green_pastel"] .preset-btn {
+    background: rgba(45, 158, 107, 0.06) !important;
+    border-color: rgba(45, 158, 107, 0.12) !important;
+    color: #5a7a6a !important;
+}
+
+[data-theme="green_pastel"] .preset-btn:hover,
+[data-theme="green_pastel"] .preset-btn.active {
+    background: #2d9e6b !important;
+    color: white !important;
+    border-color: #2d9e6b !important;
+}
+
+
+/* Status colors — reajustados para fundo claro */
+[data-theme="green_pastel"] .status-disponivel { color: #1a7a50 !important; }
+[data-theme="green_pastel"] .status-garagem    { color: #2563eb !important; }
+[data-theme="green_pastel"] .status-manutencao { color: #dc2626 !important; }
+[data-theme="green_pastel"] .status-vinc       { color: #7c3aed !important; }
+
+/* KPI cards — fundo branco limpo */
+[data-theme="green_pastel"] .kpi-card {
+    background: rgba(255, 255, 255, 0.88) !important;
+    border-color: rgba(45, 158, 107, 0.18) !important;
+    box-shadow: 0 2px 16px rgba(45, 158, 107, 0.08) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .kpi-card:hover {
+    border-color: var(--primary) !important;
+    box-shadow: 0 8px 28px rgba(45, 158, 107, 0.18) !important;
+}
+
+/* Module cards — estilo botão transparente com presença verde */
+[data-theme="green_pastel"] .module-card {
+    background: rgba(45, 158, 107, 0.13) !important;
+    border: 1.5px solid rgba(45, 158, 107, 0.4) !important;
+    box-shadow:
+        0 2px 12px rgba(45, 158, 107, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.65),
+        inset 0 -1px 0 rgba(45, 158, 107, 0.08) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .module-card:hover {
+    border-color: #2d9e6b !important;
+    background: rgba(45, 158, 107, 0.22) !important;
+    box-shadow:
+        0 8px 28px rgba(45, 158, 107, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8),
+        inset 0 -1px 0 rgba(45, 158, 107, 0.1) !important;
+    transform: scale(1.02) !important;
+}
+
+[data-theme="green_pastel"] .module-card h3 {
+    color: #1a2e25 !important;
+    -webkit-text-fill-color: #1a2e25 !important;
+    background: none !important;
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+[data-theme="green_pastel"] .module-card p {
+    color: #5a7a6a !important;
+    font-size: 0.88rem;
+}
+
+[data-theme="green_pastel"] .module-card .module-icon {
+    background: rgba(45, 158, 107, 0.15) !important;
+    border-radius: 12px;
+}
+
+[data-theme="green_pastel"] .status-pill.pill-active {
+    background: rgba(45, 158, 107, 0.15) !important;
+    color: #1a7a50 !important;
+    border: 1px solid rgba(45, 158, 107, 0.3) !important;
+}
+
+[data-theme="green_pastel"] .kpi-label {
+    color: #5a7a6a !important;
+}
+
+[data-theme="green_pastel"] .kpi-value {
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .kpi-trend.up   { color: #1a7a50 !important; }
+[data-theme="green_pastel"] .kpi-trend.warn { color: #a06010 !important; }
+[data-theme="green_pastel"] .kpi-trend.danger { color: #b83232 !important; }
+
+/* Notification badges */
+[data-theme="green_pastel"] .noti-btn {
+    background: rgba(45, 158, 107, 0.08) !important;
+    color: #1a7a50 !important;
+    border-color: rgba(45, 158, 107, 0.15) !important;
+}
+
+[data-theme="green_pastel"] .noti-panel {
+    background: #fff !important;
+    border-color: rgba(45, 158, 107, 0.15) !important;
+    box-shadow: 0 10px 30px rgba(45, 158, 107, 0.12) !important;
+    color: #1a2e25 !important;
+}
+
+/* Admin mode */
+[data-theme="green_pastel"] .admin-mode {
+    background: rgba(255, 255, 255, 0.9) !important;
+    border-color: rgba(45, 158, 107, 0.15) !important;
+    color: #1a2e25 !important;
+}
+
+/* Scrollbar personalizada — verde suave */
+[data-theme="green_pastel"] ::-webkit-scrollbar {
+    width: 8px !important;
+    height: 8px !important;
+}
+
+[data-theme="green_pastel"] ::-webkit-scrollbar-track {
+    background: rgba(45, 158, 107, 0.05) !important;
+}
+
+[data-theme="green_pastel"] ::-webkit-scrollbar-thumb {
+    background: rgba(45, 158, 107, 0.25) !important;
+    border-radius: 10px !important;
+}
+
+[data-theme="green_pastel"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(45, 158, 107, 0.5) !important;
+}
+
+/* Seleção de texto */
+[data-theme="green_pastel"] ::selection {
+    background: rgba(45, 158, 107, 0.2) !important;
+    color: #1a2e25 !important;
+}
+
+/* ─── Orb Menu — tema claro verde ─── */
+[data-theme="green_pastel"] .orb-main {
+    background: radial-gradient(circle at 30% 30%, #2d9e6b, #1a7a50) !important;
+    box-shadow:
+        0 10px 25px rgba(45, 158, 107, 0.35),
+        inset -5px -5px 15px rgba(0,0,0,0.2),
+        inset 5px 5px 15px rgba(255,255,255,0.2) !important;
+}
+
+[data-theme="green_pastel"] .orb-main:hover {
+    box-shadow: 0 15px 35px rgba(45, 158, 107, 0.55) !important;
+}
+
+[data-theme="green_pastel"] .orb-main.active {
+    background: radial-gradient(circle at 30% 30%, #e05252, #b91c1c) !important;
+}
+
+[data-theme="green_pastel"] .orb-satellite {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-color: rgba(45, 158, 107, 0.2) !important;
+    color: #1a7a50 !important;
+    box-shadow: 0 4px 12px rgba(45, 158, 107, 0.12) !important;
+}
+
+[data-theme="green_pastel"] .orb-satellite:hover {
+    background: var(--primary) !important;
+    color: white !important;
+}
+
+[data-theme="green_pastel"] .orb-label {
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #1a2e25 !important;
+    border-color: rgba(45, 158, 107, 0.15) !important;
+}
+
+/* ─── Widget trigger — tema claro verde ─── */
+[data-theme="green_pastel"] .widgets-manager-trigger {
+    background: rgba(255, 255, 255, 0.9) !important;
+    border-color: rgba(45, 158, 107, 0.2) !important;
+    color: #1a7a50 !important;
+    box-shadow: 0 4px 12px rgba(45, 158, 107, 0.1) !important;
+}
+
+[data-theme="green_pastel"] .widgets-manager-trigger:hover {
+    background: var(--primary) !important;
+    border-color: var(--primary) !important;
+    color: white !important;
+    box-shadow: 0 8px 20px rgba(45, 158, 107, 0.3) !important;
+}
+
+/* ─── Tooltip de manutenção ─── */
+[data-theme="green_pastel"] .maint-tooltip {
+    background: #fff !important;
+    border-color: rgba(45, 158, 107, 0.2) !important;
+    color: #1a2e25 !important;
+    box-shadow: 0 8px 20px rgba(45, 158, 107, 0.12) !important;
+}
+
+[data-theme="green_pastel"] .maint-tooltip strong {
+    color: var(--primary) !important;
+}
+
+/* ─── Painel de usuário logado ─── */
+[data-theme="green_pastel"] #auth-user-btn {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-color: rgba(45, 158, 107, 0.2) !important;
+    color: #1a2e25 !important;
+    box-shadow: 0 2px 10px rgba(45, 158, 107, 0.1) !important;
+}
+
+[data-theme="green_pastel"] #auth-dropdown-menu {
+    background: #fff !important;
+    border-color: rgba(45, 158, 107, 0.15) !important;
+    box-shadow: 0 10px 30px rgba(45, 158, 107, 0.15) !important;
+    color: #1a2e25 !important;
+}
+
+/* ─── Direct select (dropdowns inline) ─── */
+[data-theme="green_pastel"] .direct-select {
+    background: #fff !important;
+    border-color: rgba(45, 158, 107, 0.2) !important;
+    color: #1a2e25 !important;
+}
+
+/* ─── SVG grid de fundo (decorativo) ─── */
+[data-theme="green_pastel"] body > div[style*="z-index: -1"] svg path {
+    stroke: rgba(45, 158, 107, 0.15) !important;
+}
+
+/* ─── Entrada de Nota (compras.html) ─── */
+[data-theme="green_pastel"] .compra-input {
+    background: #fff !important;
+    border: 1px solid rgba(45, 158, 107, 0.25) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .compra-input:focus {
+    border-color: #2d9e6b !important;
+    box-shadow: 0 0 0 2px rgba(45, 158, 107, 0.18) !important;
+}
+
+[data-theme="green_pastel"] .btn-plus {
+    background: #2d9e6b !important;
+    color: #fff !important;
+}
+
+[data-theme="green_pastel"] .btn-plus:hover {
+    background: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .section-title {
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .items-table {
+    border-color: rgba(45, 158, 107, 0.18) !important;
+    background: #ffffff !important;
+}
+
+[data-theme="green_pastel"] .item-row {
+    background: rgba(240, 247, 244, 0.5) !important;
+    border-color: rgba(45, 158, 107, 0.15) !important;
+}
+
+[data-theme="green_pastel"] .item-row:hover {
+    background: rgba(240, 247, 244, 0.9) !important;
+    border-color: rgba(45, 158, 107, 0.3) !important;
+}
+
+[data-theme="green_pastel"] .item-line-2,
+[data-theme="green_pastel"] .item-line-3 {
+    border-top-color: rgba(45, 158, 107, 0.12) !important;
+}
+
+[data-theme="green_pastel"] .btn-add-item {
+    border-color: rgba(45, 158, 107, 0.3) !important;
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .btn-add-item:hover {
+    background: rgba(45, 158, 107, 0.08) !important;
+    color: #1a7a50 !important;
+    border-color: #2d9e6b !important;
+}
+
+[data-theme="green_pastel"] .btn-vinculo {
+    background: rgba(45, 158, 107, 0.12) !important;
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .btn-vinculo.active {
+    background: #2d9e6b !important;
+    color: #fff !important;
+}
+
+[data-theme="green_pastel"] .financial-box {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border: 1.5px solid rgba(45, 158, 107, 0.25) !important;
+    box-shadow: 0 4px 15px rgba(45, 158, 107, 0.08) !important;
+}
+
+[data-theme="green_pastel"] .resumo-info p {
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .btn-save {
+    background: #2d9e6b !important;
+    color: #fff !important;
+    box-shadow: 0 4px 14px rgba(45, 158, 107, 0.3) !important;
+}
+
+[data-theme="green_pastel"] .btn-save:hover {
+    background: #1a7a50 !important;
+    box-shadow: 0 6px 18px rgba(45, 158, 107, 0.4) !important;
+}
+
+[data-theme="green_pastel"] .btn-cancel {
+    color: #5a7a6a !important;
+}
+
+[data-theme="green_pastel"] .btn-cancel:hover {
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .stock-toggle {
+    background: rgba(45, 158, 107, 0.2) !important;
+}
+
+[data-theme="green_pastel"] .stock-toggle.active {
+    background: #2d9e6b !important;
+}
+
+[data-theme="green_pastel"] .autocomplete-results {
+    background: #ffffff !important;
+    border-color: rgba(45, 158, 107, 0.2) !important;
+    box-shadow: 0 8px 24px rgba(45, 158, 107, 0.12) !important;
+}
+
+[data-theme="green_pastel"] .autocomplete-item {
+    border-bottom-color: rgba(45, 158, 107, 0.06) !important;
+}
+
+[data-theme="green_pastel"] .autocomplete-item:hover {
+    background: rgba(45, 158, 107, 0.08) !important;
+}
+
+[data-theme="green_pastel"] .autocomplete-item .prod-name {
+    color: #1a2e25 !important;
+}
+
+/* Botões de Ações rápidos na tabela (Editar/Excluir) */
+[data-theme="green_pastel"] .action-btn-mini {
+    background: rgba(45, 158, 107, 0.12) !important;
+    border-color: rgba(45, 158, 107, 0.25) !important;
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .action-btn-mini:hover {
+    background: #2d9e6b !important;
+    color: #fff !important;
+    border-color: #2d9e6b !important;
+}
+
+[data-theme="green_pastel"] .action-btn-mini[onclick*="delete"] {
+    background: rgba(220, 38, 38, 0.1) !important;
+    border-color: rgba(220, 38, 38, 0.2) !important;
+    color: #dc2626 !important;
+}
+
+[data-theme="green_pastel"] .action-btn-mini[onclick*="delete"]:hover {
+    background: #dc2626 !important;
+    color: #fff !important;
+    border-color: #dc2626 !important;
+}
+
+

@@ -1401,8 +1401,8 @@ function addItemRow(data = {}, shouldFocus = true) {
             <div class="item-vinculo-section" style="flex-direction:row; align-items:center; gap:1.5rem; flex:2; display:${data.estoque ? 'none' : 'flex'}">
                 <label style="font-size:0.7rem; color:var(--text-muted); min-width:60px;">Vincular a:</label>
                 <div class="vinculo-btns">
-                    <button type="button" class="btn-vinculo ${!isPessoa ? '' : 'inactive'}" style="background:${!isPessoa ? '#4f46e5' : '#1e293b'}" onclick="setLinkType(this, 'veiculo')"><i data-lucide="truck" style="width:14px;"></i></button>
-                    <button type="button" class="btn-vinculo ${isPessoa ? '' : 'inactive'}" style="background:${isPessoa ? '#4f46e5' : '#1e293b'}" onclick="setLinkType(this, 'pessoa')"><i data-lucide="user-plus" style="width:14px;"></i></button>
+                    <button type="button" class="btn-vinculo ${!isPessoa ? '' : 'inactive'}" onclick="setLinkType(this, 'veiculo')"><i data-lucide="truck" style="width:14px;"></i></button>
+                    <button type="button" class="btn-vinculo ${isPessoa ? '' : 'inactive'}" onclick="setLinkType(this, 'pessoa')"><i data-lucide="user-plus" style="width:14px;"></i></button>
                 </div>
                 <div class="autocomplete-wrapper item-veiculo-wrapper" style="flex:1; ${isPessoa ? 'display:none' : ''}">
                     <input type="text" class="item-veiculo-search compra-input" placeholder="Buscar placa..." value="${vehDisplay}" oninput="handleVehicleSearch(this); window.checkSimilarRecentItem(this.closest('.item-row'))" onfocus="handleVehicleSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)" autocomplete="off">
@@ -1647,14 +1647,6 @@ window.setLinkType = (btn, type) => {
     const row = btn.closest('.item-row');
     parent.querySelectorAll('.btn-vinculo').forEach(b => b.classList.add('inactive'));
     btn.classList.remove('inactive');
-    
-    if (type === 'veiculo') {
-        btn.style.background = '#4f46e5';
-        if (btn.nextElementSibling) btn.nextElementSibling.style.background = '#1e293b';
-    } else {
-        btn.style.background = '#4f46e5';
-        if (btn.previousElementSibling) btn.previousElementSibling.style.background = '#1e293b';
-    }
     
     window.updateVinculoDisplay(row);
     if (row && typeof window.checkSimilarRecentItem === 'function') {
@@ -3163,7 +3155,7 @@ function updateSelectionKPIs(records) {
             
             return `
                 <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <div style="display: flex; justify-content: space-between; font-size: 0.65rem; font-weight: 700; color: #fff;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.65rem; font-weight: 700; color: var(--text-main);">
                         <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%;">${name}</span>
                         <span>${pct.toFixed(1)}%</span>
                     </div>
