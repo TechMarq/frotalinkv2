@@ -2875,8 +2875,8 @@ function renderInativoMotivos() {
     }
 
     list.innerHTML = inativoMotivos.map(m => `
-        <div style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.05);">
-            <span style="font-weight: 700; font-size: 0.85rem; text-transform: uppercase; color: #fff;">${m.nome}</span>
+        <div style="background: var(--bg-main); padding: 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-card);">
+            <span style="font-weight: 700; font-size: 0.85rem; text-transform: uppercase; color: var(--text-main);">${m.nome}</span>
             <button onclick="deleteMotivoInativo('${m.id}')" data-perm="frota_cadastros:delete" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.2rem; display: flex; align-items: center;" title="Excluir motivo">
                 <i data-lucide="x" style="width: 14px; height: 14px;"></i>
             </button>

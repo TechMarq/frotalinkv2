@@ -11,6 +11,70 @@
  */
 
 // ============================================================
+//  INTERCEPTADOR DE SUBMIT DE FORMULÁRIOS (GLOBAL LOADING)
+// ============================================================
+(function() {
+    // 1. Interceptar addEventListener('submit')
+    const originalAddEventListener = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function(type, listener, options) {
+        if (type === 'submit' && typeof listener === 'function') {
+            const wrappedListener = async function(event) {
+                if (typeof window.showLoader === 'function') window.showLoader();
+                try {
+                    const result = listener.call(this, event);
+                    if (result instanceof Promise) {
+                        await result;
+                    }
+                } catch (err) {
+                    console.error('[Submit Wrapper Error]', err);
+                } finally {
+                    setTimeout(() => {
+                        if (typeof window.hideLoader === 'function') window.hideLoader();
+                    }, 500);
+                }
+            };
+            return originalAddEventListener.call(this, type, wrappedListener, options);
+        }
+        return originalAddEventListener.call(this, type, listener, options);
+    };
+
+    // 2. Interceptar form.onsubmit = handler
+    const originalOnSubmitDescriptor = Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'onsubmit') || 
+                                       Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'onsubmit');
+
+    if (originalOnSubmitDescriptor && originalOnSubmitDescriptor.set) {
+        const originalSet = originalOnSubmitDescriptor.set;
+        Object.defineProperty(HTMLFormElement.prototype, 'onsubmit', {
+            set: function(listener) {
+                if (typeof listener === 'function') {
+                    const wrappedListener = async function(event) {
+                        if (typeof window.showLoader === 'function') window.showLoader();
+                        try {
+                            const result = listener.call(this, event);
+                            if (result instanceof Promise) {
+                                await result;
+                            }
+                        } catch (err) {
+                            console.error('[OnSubmit Wrapper Error]', err);
+                        } finally {
+                            setTimeout(() => {
+                                if (typeof window.hideLoader === 'function') window.hideLoader();
+                            }, 500);
+                        }
+                    };
+                    originalSet.call(this, wrappedListener);
+                } else {
+                    originalSet.call(this, listener);
+                }
+            },
+            get: originalOnSubmitDescriptor.get,
+            configurable: true,
+            enumerable: true
+        });
+    }
+})();
+
+// ============================================================
 //  CONFIGURAÇÃO — EDITE AQUI
 // ============================================================
 
@@ -201,6 +265,7 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
                     applyPermissions(requiredModule);
                 }
                 preventSearchAutofill();
+                initInactivityTracker();
             });
         } else {
             injectAuthUI();
@@ -211,6 +276,7 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
                 applyPermissions(requiredModule);
             }
             preventSearchAutofill();
+            initInactivityTracker();
         }
     });
 })();
@@ -858,6 +924,53 @@ async function authLogout() {
     }
     sessionStorage.setItem('auth_message', 'Você saiu com sucesso.');
     window.location.href = 'login.html';
+}
+
+/**
+ * Monitoramento de inatividade do usuário (1 hora)
+ */
+function initInactivityTracker() {
+    const INACTIVITY_TIMEOUT = 3600000; // 1 hora em milissegundos
+    const CHECK_INTERVAL = 10000; // checar a cada 10 segundos
+    const STORAGE_KEY = 'frotalink_last_activity';
+
+    // Inicializa ou atualiza o timer de atividade
+    localStorage.setItem(STORAGE_KEY, Date.now().toString());
+
+    function resetActivityTimer() {
+        localStorage.setItem(STORAGE_KEY, Date.now().toString());
+    }
+
+    // Eventos monitorados para registrar atividade do usuário
+    const events = ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'];
+    events.forEach(evt => {
+        window.addEventListener(evt, resetActivityTimer, { passive: true });
+    });
+
+    // Timer em segundo plano para checar a inatividade
+    const intervalId = setInterval(async () => {
+        const lastActivity = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
+        const timePassed = Date.now() - lastActivity;
+
+        if (timePassed >= INACTIVITY_TIMEOUT) {
+            clearInterval(intervalId);
+            // Remove os listeners de evento para evitar memory leaks
+            events.forEach(evt => {
+                window.removeEventListener(evt, resetActivityTimer);
+            });
+            console.log('[Auth] Deslogando usuário por inatividade...');
+            
+            if (window.authClient) {
+                try {
+                    await window.authClient.auth.signOut();
+                } catch (e) {
+                    console.error('[Auth] Erro ao deslogar via Supabase:', e);
+                }
+            }
+            sessionStorage.setItem('auth_message', 'Sua sessão expirou por inatividade de 1 hora.');
+            window.location.href = 'login.html';
+        }
+    }, CHECK_INTERVAL);
 }
 
 /**

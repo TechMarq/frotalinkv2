@@ -1036,14 +1036,14 @@
                         </div>
                         <div style="flex:1; display:flex; flex-direction:column; gap:0.2rem;">
                             <label style="font-size:0.65rem; color:var(--widget-muted); font-weight:600;">DATA</label>
-                            <input type="date" id="res-data" required style="padding:0.4rem; background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.75rem; font-family:inherit; outline:none; color-scheme: dark;">
+                            <input type="date" id="res-data" required style="padding:0.4rem; background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.75rem; font-family:inherit; outline:none; color-scheme: dark; cursor: pointer;">
                         </div>
                     </div>
                     
                     <div style="display:flex; gap:0.5rem;">
                         <div style="flex:1; display:flex; flex-direction:column; gap:0.2rem;">
                             <label style="font-size:0.65rem; color:var(--widget-muted); font-weight:600;">HORÁRIO</label>
-                            <input type="time" id="res-horario" required style="padding:0.4rem; background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.75rem; font-family:inherit; outline:none; color-scheme: dark;">
+                            <input type="time" id="res-horario" required style="padding:0.4rem; background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.75rem; font-family:inherit; outline:none; color-scheme: dark; cursor: pointer;">
                         </div>
                         <div style="flex:1; display:flex; flex-direction:column; gap:0.2rem;">
                             <label style="font-size:0.65rem; color:var(--widget-muted); font-weight:600;">DURAÇÃO</label>
@@ -1084,6 +1084,26 @@
         const listItems = body.querySelector('#res-list-items');
         const loadingEl = body.querySelector('#res-list-loading');
         const emptyEl = body.querySelector('#res-list-empty');
+
+        // Seletores de data e hora nativos abrem ao clicar no campo inteiro
+        const dateInput = form.querySelector('#res-data');
+        const timeInput = form.querySelector('#res-horario');
+
+        if (dateInput) {
+            dateInput.addEventListener('click', () => {
+                if (typeof dateInput.showPicker === 'function') {
+                    try { dateInput.showPicker(); } catch (e) { console.warn(e); }
+                }
+            });
+        }
+
+        if (timeInput) {
+            timeInput.addEventListener('click', () => {
+                if (typeof timeInput.showPicker === 'function') {
+                    try { timeInput.showPicker(); } catch (e) { console.warn(e); }
+                }
+            });
+        }
 
         function updateFilterButtonsUI() {
             body.querySelectorAll('.res-filter-btn').forEach(btn => {

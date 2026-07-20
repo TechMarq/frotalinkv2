@@ -3033,7 +3033,7 @@ function updateDropdowns() {
     // New: Update all item cost centers in rows to reflect new data
     document.querySelectorAll('.item-cc').forEach(sel => {
         const currentVal = sel.value;
-        const list = config.centrosCusto.filter(cc => !!cc.parentId);
+        const list = config.centrosCusto.filter(cc => !!cc.parentId).sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
         sel.innerHTML = '<option value="">Centro de Custo...</option>' + 
             list.map(cc => `<option value="${cc.id}" ${currentVal == cc.id ? 'selected' : ''}>${cc.nome}</option>`).join('');
     });
@@ -5161,4 +5161,29 @@ document.addEventListener('input', (e) => {
             target.setSelectionRange(newCursorPosition, newCursorPosition);
         }
     }
+});
+
+// --- Fechar resultados do Autocomplete ao clicar ou mudar o foco para fora ---
+document.addEventListener('click', (e) => {
+    document.querySelectorAll('.autocomplete-wrapper').forEach(wrapper => {
+        const resultsDiv = wrapper.querySelector('.autocomplete-results');
+        const input = wrapper.querySelector('input[type="text"]');
+        if (resultsDiv && input) {
+            if (!input.contains(e.target) && !resultsDiv.contains(e.target)) {
+                resultsDiv.style.display = 'none';
+            }
+        }
+    });
+});
+
+document.addEventListener('focusin', (e) => {
+    document.querySelectorAll('.autocomplete-wrapper').forEach(wrapper => {
+        const resultsDiv = wrapper.querySelector('.autocomplete-results');
+        const input = wrapper.querySelector('input[type="text"]');
+        if (resultsDiv && input) {
+            if (e.target !== input && !resultsDiv.contains(e.target)) {
+                resultsDiv.style.display = 'none';
+            }
+        }
+    });
 });

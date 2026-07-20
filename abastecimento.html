@@ -1488,7 +1488,7 @@
                     <div
                         style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">
                         Gasto (Seleção)</div>
-                    <div id="selectionFuelCost" style="font-size: 1.5rem; font-weight: 800; color: white;">R$ 0,00</div>
+                    <div id="selectionFuelCost" style="font-size: 1.5rem; font-weight: 800; color: var(--text-main);">R$ 0,00</div>
                 </div>
             </div>
 
@@ -1517,7 +1517,7 @@
                     <div
                         style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">
                         Total de Registros</div>
-                    <div id="totalRecordsCount" style="font-size: 1.5rem; font-weight: 800; color: white;">0</div>
+                    <div id="totalRecordsCount" style="font-size: 1.5rem; font-weight: 800; color: var(--text-main);">0</div>
                 </div>
             </div>
         </div>
@@ -1765,49 +1765,38 @@
                 </div>
 
                 <!-- Filtros Inteligentes -->
-                <div class="filter-group-mobile"
-                    style="margin-top: 1rem; margin-bottom: 1.2rem; padding: 0.8rem 1rem; background: rgba(30, 41, 59, 0.5); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); display: flex; gap: 0.8rem; flex-wrap: nowrap; align-items: center; overflow-x: auto; scrollbar-width: none;">
+                <!-- Filtros Inteligentes -->
+                <div class="quick-filters"
+                    style="margin-top: 1rem; margin-bottom: 1.2rem; display: flex; gap: 0.8rem; flex-wrap: nowrap; align-items: center; overflow-x: auto; scrollbar-width: none;">
                     <div
-                        style="display: flex; align-items: center; gap: 0.5rem; color: var(--primary); font-weight: 700; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; flex-shrink: 0;">
+                        style="display: flex; align-items: center; gap: 0.5rem; color: var(--primary); font-weight: 700; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; flex-shrink: 0; border-right: 1px solid rgba(255,255,255,0.1); padding-right: 1rem;">
                         <i data-lucide="filter" style="width: 14px;"></i> Filtros
                     </div>
-                    <div
-                        style="height: 20px; width: 1px; background: rgba(255,255,255,0.1); margin: 0 0.2rem; flex-shrink: 0;">
-                    </div>
 
-                    <div class="form-group" style="margin: 0; min-width: 140px; flex: 1;">
-                        <label
-                            style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">Categoria</label>
-                        <select id="fuel_filter_categoria" class="input-modern"
-                            style="width: 100%; height: 34px; font-size: 0.75rem; background: rgba(15, 23, 42, 0.6); border-radius: 6px; padding: 0 0.5rem;"
+                    <div class="filter-group" style="min-width: 140px; flex: 1;">
+                        <label>Categoria</label>
+                        <select id="fuel_filter_categoria" class="filter-select"
                             onchange="handleIntelligentFilter('categoria')">
                             <option value="">Todas</option>
                         </select>
                     </div>
-                    <div class="form-group" style="margin: 0; min-width: 160px; flex: 1.5;">
-                        <label style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">Posto /
-                            Local</label>
-                        <select id="fuel_filter_posto" class="input-modern"
-                            style="width: 100%; height: 34px; font-size: 0.75rem; background: rgba(15, 23, 42, 0.6); border-radius: 6px; padding: 0 0.5rem;"
+                    <div class="filter-group" style="min-width: 160px; flex: 1.5;">
+                        <label>Posto / Local</label>
+                        <select id="fuel_filter_posto" class="filter-select"
                             onchange="handleIntelligentFilter('posto')">
                             <option value="">Todos os Postos</option>
                         </select>
                     </div>
-                    <div class="form-group" style="margin: 0; min-width: 130px; flex: 1;">
-                        <label style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">Veículo</label>
-                        <select id="fuel_filter_veiculo" class="input-modern"
-                            style="width: 100%; height: 34px; font-size: 0.75rem; background: rgba(15, 23, 42, 0.6); border-radius: 6px; padding: 0 0.5rem;"
+                    <div class="filter-group" style="min-width: 130px; flex: 1;">
+                        <label>Veículo</label>
+                        <select id="fuel_filter_veiculo" class="filter-select"
                             onchange="handleIntelligentFilter('veiculo')">
                             <option value="">Todas Placas</option>
                         </select>
                     </div>
-                    <div
-                        style="height: 20px; width: 1px; background: rgba(255,255,255,0.1); margin: 0 0.2rem; flex-shrink: 0;">
-                    </div>
-                    <div class="form-group" style="margin: 0; min-width: 130px; flex: 1;">
-                        <label style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">Período</label>
-                        <select id="fuel_filter_periodo" class="input-modern"
-                            style="width: 100%; height: 34px; font-size: 0.75rem; background: rgba(15, 23, 42, 0.6); border-radius: 6px; padding: 0 0.5rem;"
+                    <div class="filter-group" style="min-width: 130px; flex: 1;">
+                        <label>Período</label>
+                        <select id="fuel_filter_periodo" class="filter-select"
                             onchange="handlePeriodChange(this.value)">
                             <option value="all">Tudo</option>
                             <option value="7">Últimos 7 dias</option>
@@ -1819,22 +1808,19 @@
                     </div>
                     <div id="custom_date_range"
                         style="display: none; gap: 0.4rem; align-items: center; flex-shrink: 0;">
-                        <div class="form-group" style="margin: 0; min-width: 110px;">
-                            <label
-                                style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">Início</label>
-                            <input type="date" id="fuel_filter_start" class="input-modern"
-                                style="width: 100%; height: 34px; font-size: 0.75rem; background: rgba(15, 23, 42, 0.6); border-radius: 6px; padding: 0 0.4rem;"
+                        <div class="filter-group" style="min-width: 110px;">
+                            <label>Início</label>
+                            <input type="date" id="fuel_filter_start" class="filter-select"
                                 onchange="handleDateChange()">
                         </div>
-                        <div class="form-group" style="margin: 0; min-width: 110px;">
-                            <label style="font-size: 0.6rem; color: var(--text-muted); margin-bottom: 4px;">Fim</label>
-                            <input type="date" id="fuel_filter_end" class="input-modern"
-                                style="width: 100%; height: 34px; font-size: 0.75rem; background: rgba(15, 23, 42, 0.6); border-radius: 6px; padding: 0 0.4rem;"
+                        <div class="filter-group" style="min-width: 110px;">
+                            <label>Fim</label>
+                            <input type="date" id="fuel_filter_end" class="filter-select"
                                 onchange="handleDateChange()">
                         </div>
                     </div>
                     <button onclick="clearFuelFilters()"
-                        style="height: 34px; padding: 0 0.8rem; background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; font-size: 0.65rem; font-weight: 700; margin-top: 14px; flex-shrink: 0;">
+                        style="height: 38px; padding: 0 0.8rem; background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; font-size: 0.65rem; font-weight: 700; flex-shrink: 0; transition: all 0.2s;">
                         <i data-lucide="filter-x" style="width: 12px;"></i> LIMPAR
                     </button>
                 </div>
