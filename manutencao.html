@@ -164,7 +164,10 @@
             background: var(--bg-card);
             border: 1px solid var(--border-card);
             border-radius: 16px;
-            overflow: hidden;
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: calc(100vh - 430px);
+            min-height: 320px;
             backdrop-filter: blur(12px);
         }
 
@@ -174,11 +177,11 @@
         }
 
         th {
-            background: #1e293b;
+            background: var(--bg-card);
+            color: var(--text-muted);
             text-align: left;
             padding: 1rem;
             font-size: 0.75rem;
-            color: var(--text-muted);
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -758,149 +761,165 @@
             </div>
         </div>
 
+        <!-- Top Summary KPI Cards (Layout idêntico ao Abastecimento) -->
         <div class="stats-summary" id="statsRow"
-            style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem;">
-            <!-- KPI 1: Total Serviços -->
-            <div class="card-kpi" style="padding: 1.2rem;">
+            style="display: flex; gap: 1.5rem; margin-bottom: 1.5rem;">
+            <div class="card-kpi"
+                style="flex: 1; background: var(--bg-card); padding: 1.5rem; border-radius: 16px; border: 1px solid var(--border-card); display: flex; align-items: center; gap: 1rem;">
                 <div class="kpi-icon"
-                    style="background: rgba(99, 102, 241, 0.1); color: #818cf8; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
-                    <i data-lucide="wrench" style="width: 20px;"></i>
+                    style="background: rgba(239, 68, 68, 0.1); color: #ef4444; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="alert-circle"></i>
                 </div>
                 <div>
-                    <div
-                        style="font-size: 0.65rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                        Total de ServiÃ§os</div>
-                    <div id="totalMaintCount" style="font-size: 1.3rem; font-weight: 800; color: var(--text-main);">0</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">
+                        TAXA CORRETIVA</div>
+                    <div id="correctivePerc" style="font-size: 1.5rem; font-weight: 800; color: #ef4444;">0%</div>
                 </div>
             </div>
 
-            <!-- KPI 2: Preventiva -->
-            <div class="card-kpi" style="padding: 1.2rem;">
+            <div class="card-kpi"
+                style="flex: 1; background: var(--bg-card); padding: 1.5rem; border-radius: 16px; border: 1px solid var(--border-card); display: flex; align-items: center; gap: 1rem;">
                 <div class="kpi-icon"
-                    style="background: rgba(16, 185, 129, 0.1); color: #10b981; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
-                    <i data-lucide="check-circle" style="width: 20px;"></i>
+                    style="background: rgba(16, 185, 129, 0.1); color: #10b981; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="wrench"></i>
                 </div>
                 <div>
-                    <div
-                        style="font-size: 0.65rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                        Taxa Preventiva</div>
-                    <div id="preventivePerc" style="font-size: 1.3rem; font-weight: 800; color: var(--text-main);">0%</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">
+                        TAXA PREVENTIVA</div>
+                    <div id="preventivePerc" style="font-size: 1.5rem; font-weight: 800; color: #10b981;">0%</div>
                 </div>
             </div>
 
-            <!-- KPI 3: Corretiva -->
-            <div class="card-kpi" style="padding: 1.2rem;">
+            <div class="card-kpi"
+                style="flex: 1; background: var(--bg-card); padding: 1.5rem; border-radius: 16px; border: 1px solid var(--border-card); display: flex; align-items: center; gap: 1rem;">
                 <div class="kpi-icon"
-                    style="background: rgba(239, 68, 68, 0.1); color: #ef4444; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
-                    <i data-lucide="alert-circle" style="width: 20px;"></i>
+                    style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="list"></i>
                 </div>
                 <div>
-                    <div
-                        style="font-size: 0.65rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                        Taxa Corretiva</div>
-                    <div id="correctivePerc" style="font-size: 1.3rem; font-weight: 800; color: var(--text-main);">0%</div>
-                </div>
-            </div>
-
-            <!-- KPI 4: Alertas CrÃ­ticos -->
-            <div class="card-kpi" style="padding: 1.2rem;">
-                <div class="kpi-icon"
-                    style="background: rgba(245, 158, 11, 0.1); color: #f59e0b; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
-                    <i data-lucide="shield-alert" style="width: 20px;"></i>
-                </div>
-                <div>
-                    <div
-                        style="font-size: 0.65rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                        Alertas Ativos</div>
-                    <div id="activeAlertsCount" style="font-size: 1.3rem; font-weight: 800; color: var(--text-main);">0</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">
+                        TOTAL DE REGISTROS</div>
+                    <div id="totalMaintCount" style="font-size: 1.5rem; font-weight: 800; color: var(--text-main);">0</div>
                 </div>
             </div>
         </div>
 
         <div id="maintSection" class="active">
-            <div class="data-header">
-                <h2 style="margin: 0;">Histórico de Manutenções</h2>
+            <div class="data-header" style="flex-wrap: wrap; gap: 1rem;">
+                <h2 style="margin: 0; font-size: 1.5rem; font-weight: 800;">Histórico de Manutenções</h2>
 
-                <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-                    <!-- Botoes de Filtro de Status (Pills) -->
-                    <div class="status-filters-pills"
-                        style="display: inline-flex; background: rgba(30, 41, 59, 0.6); padding: 0.3rem; border-radius: 12px; gap: 0.3rem; border: 1px solid var(--border-card);">
-                        <button type="button" class="status-filter-btn active" onclick="filterByStatus('TODOS', this)"
-                            style="background: var(--primary); border: none; color: white; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">Todos</button>
-                        <button type="button" class="status-filter-btn" onclick="filterByStatus('VENCIDO', this)"
-                            style="background: transparent; border: none; color: var(--text-muted); padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">Vencido</button>
-                        <button type="button" class="status-filter-btn" onclick="filterByStatus('PENDENTE', this)"
-                            style="background: transparent; border: none; color: var(--text-muted); padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">Pendente</button>
-                        <button type="button" class="status-filter-btn" onclick="filterByStatus('PROXIMO', this)"
-                            style="background: transparent; border: none; color: var(--text-muted); padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">Próximo</button>
-                    </div>
-                    <!-- Barra de Filtros e Busca -->
-                    <div class="search-box" style="position: relative; flex: 1; min-width: 300px;">
+                <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; flex: 1; justify-content: flex-end;">
+                    <!-- Pesquisa Principal -->
+                    <div class="search-box" style="position: relative; min-width: 260px; max-width: 400px; flex: 1;">
                         <i data-lucide="search"
                             style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); width: 18px;"></i>
-                        <input type="text" id="maintSearch" placeholder="Pesquise por modelo, oficina..."
-                            style="padding: 0.8rem 1rem 0.8rem 3rem; width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border-card); border-radius: 12px;"
+                        <input type="text" id="maintSearch" placeholder="Pesquise por placa, modelo, oficina..."
+                            style="padding: 0.75rem 1rem 0.75rem 3rem; width: 100%; background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 12px; color: var(--text-main);"
                             oninput="renderMaintTable()">
                     </div>
 
-                    <!-- Linha Compacta: Placa + Ãcones -->
-                    <div class="compact-row-mobile" style="display: flex; gap: 0.5rem; align-items: center;">
-                        <select id="maintFilterPlaca" onchange="renderMaintTable()"
-                            style="padding: 0.8rem 1rem; background: #1e293b; border: 1px solid var(--border-card); border-radius: 12px; color: white; outline: none; cursor: pointer; min-width: 150px;">
-                            <option value="" style="background: #1e293b; color: white;">Todas as Placas</option>
-                        </select>
-
-                        <div class="notification-wrapper" style="display: flex; align-items: center;">
-                            <button id="notiBtn" class="noti-btn" onclick="toggleNotiPanel()"
-                                style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444; width: 45px; height: 45px;">
-                                <i data-lucide="alert-triangle"></i>
-                                <span id="notiBadge" class="noti-badge"
-                                    style="display: none; background: #ef4444; border-color: #1e293b;">0</span>
-                            </button>
-                            <div id="notiPanel" class="noti-panel" style="top: 55px;">
-                                <div class="noti-header">
-                                    <h3>Alertas de Manutenção</h3>
-                                    <button class="noti-close" onclick="toggleNotiPanel()"
-                                        style="background:none; border:none; color:white; cursor:pointer; font-size:1.5rem;">&times;</button>
-                                </div>
-                                <div id="notiList" class="noti-list">
-                                    <div class="noti-empty">Nenhum alerta pendente.</div>
-                                </div>
+                    <!-- Notificações e Ações Rápidas -->
+                    <div class="notification-wrapper" style="display: flex; align-items: center; gap: 0.5rem;">
+                        <button id="notiBtn" class="noti-btn" onclick="toggleNotiPanel()"
+                            style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444; width: 42px; height: 42px; border-radius: 10px;"
+                            title="Alertas de Manutenção">
+                            <i data-lucide="alert-triangle"></i>
+                            <span id="notiBadge" class="noti-badge"
+                                style="display: none; background: #ef4444; border-color: #1e293b;">0</span>
+                        </button>
+                        <div id="notiPanel" class="noti-panel" style="top: 55px;">
+                            <div class="noti-header">
+                                <h3>Alertas de Manutenção</h3>
+                                <button class="noti-close" onclick="toggleNotiPanel()"
+                                    style="background:none; border:none; color:white; cursor:pointer; font-size:1.5rem;">&times;</button>
+                            </div>
+                            <div id="notiList" class="noti-list">
+                                <div class="noti-empty">Nenhum alerta pendente.</div>
                             </div>
                         </div>
 
                         <button id="toggleColorBtn" class="noti-btn" onclick="toggleRowColors()"
-                            style="width: 45px; height: 45px; background: rgba(255,255,255,0.05);"
+                            style="width: 42px; height: 42px; background: var(--bg-card); border-radius: 10px; color: var(--text-main);"
                             title="Alternar Cores das Linhas">
                             <i data-lucide="palette"></i>
                         </button>
-
-                        <button class="noti-btn" style="width: 45px; height: 45px; background: rgba(255,255,255,0.05);">
-                            <i data-lucide="settings"></i>
-                        </button>
                     </div>
 
-                    <!-- Linha de Ações: Modelo + Importar -->
-                    <div class="actions-row-mobile" style="display: flex; gap: 0.5rem; align-items: center;">
-                        <button class="btn-plus"
-                            style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); height: 45px; padding: 0 1.2rem;"
-                            onclick="exportMaintToExcel()">
-                            <i data-lucide="download" style="width: 18px;"></i> Modelo
-                        </button>
+                    <!-- Ações: Modelo, Importar, Nova Manutenção -->
+                    <button class="btn-plus"
+                        style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); height: 42px; padding: 0 1rem; border-radius: 10px; font-weight: 700;"
+                        onclick="exportMaintToExcel()">
+                        <i data-lucide="download" style="width: 16px;"></i> Modelo
+                    </button>
 
-                        <button class="btn-plus"
-                            style="background: rgba(99, 102, 241, 0.1); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.2); height: 45px; padding: 0 1.2rem;">
-                            <i data-lucide="upload" style="width: 18px;"></i> Importar
-                        </button>
-                    </div>
-
-                    <button class="btn-plus" onclick="openMaintModal()" style="height: 45px; padding: 0 1.5rem;"
+                    <button class="btn-plus" onclick="openMaintModal()"
+                        style="background: #10b981; color: white; border: none; height: 42px; padding: 0 1.2rem; border-radius: 10px; font-weight: 800;"
                         data-perm="manutencao_os:add">
-                        <i data-lucide="plus"></i> Nova Manutenção (F2)
+                        <i data-lucide="plus" style="width: 18px;"></i> Nova Manutenção
                     </button>
                 </div>
             </div>
 
+            <!-- Filtros Inteligentes (Barra de Filtros estilo Abastecimento) -->
+            <div class="intelligent-filter-bar"
+                style="margin-bottom: 1.2rem; padding: 0.8rem 1rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-card); display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 0.4rem; color: var(--primary); font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <i data-lucide="filter" style="width: 16px;"></i> FILTROS
+                </div>
+                <div style="height: 20px; width: 1px; background: var(--border-card); margin: 0 0.2rem;"></div>
+
+                <div style="flex: 1; min-width: 140px;">
+                    <select id="maintFilterTipo" class="input-modern"
+                        style="width: 100%; height: 38px; font-size: 0.8rem; background: var(--bg-main); border-radius: 8px; padding: 0 0.6rem; color: var(--text-main); border: 1px solid var(--border-card);"
+                        onchange="renderMaintTable()">
+                        <option value="">Todas as Categorias</option>
+                    </select>
+                </div>
+
+                <div style="flex: 1; min-width: 140px;">
+                    <select id="maintFilterOficina" class="input-modern"
+                        style="width: 100%; height: 38px; font-size: 0.8rem; background: var(--bg-main); border-radius: 8px; padding: 0 0.6rem; color: var(--text-main); border: 1px solid var(--border-card);"
+                        onchange="renderMaintTable()">
+                        <option value="">Todas as Oficinas</option>
+                    </select>
+                </div>
+
+                <div style="flex: 1; min-width: 140px;">
+                    <select id="maintFilterPlaca" class="input-modern"
+                        style="width: 100%; height: 38px; font-size: 0.8rem; background: var(--bg-main); border-radius: 8px; padding: 0 0.6rem; color: var(--text-main); border: 1px solid var(--border-card);"
+                        onchange="renderMaintTable()">
+                        <option value="">Todas as Placas</option>
+                    </select>
+                </div>
+
+                <button class="btn-icon" onclick="clearMaintFilters()" title="Limpar Filtros"
+                    style="padding: 0.4rem 0.8rem; background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px; font-size: 0.75rem; display: flex; align-items: center; gap: 0.4rem; height: 38px; cursor: pointer;">
+                    <i data-lucide="filter-x" style="width: 14px;"></i> LIMPAR
+                </button>
+            </div>
+
+            <!-- Botões de Filtro Rápido (Pills/Chips estilo Abastecimento) -->
+            <div class="status-filters-pills"
+                style="display: flex; gap: 0.5rem; margin-bottom: 1.2rem; overflow-x: auto; padding-bottom: 0.2rem;">
+                <button type="button" class="status-filter-btn active" onclick="filterByStatus('TODOS', this)"
+                    style="background: var(--primary); border: none; color: white; padding: 0.5rem 1.2rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                    <i data-lucide="layout-grid" style="width: 14px;"></i> Todos <span id="chipCountTodos" class="count" style="background: rgba(0,0,0,0.2); padding: 0.1rem 0.4rem; border-radius: 4px;">0</span>
+                </button>
+                <button type="button" class="status-filter-btn" onclick="filterByStatus('VENCIDO', this)"
+                    style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.5rem 1.2rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                    <i data-lucide="alert-triangle" style="width: 14px;"></i> Vencidos <span id="chipCountVencido" class="count" style="background: rgba(0,0,0,0.2); padding: 0.1rem 0.4rem; border-radius: 4px;">0</span>
+                </button>
+                <button type="button" class="status-filter-btn" onclick="filterByStatus('PENDENTE', this)"
+                    style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); color: #fbbf24; padding: 0.5rem 1.2rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                    <i data-lucide="clock" style="width: 14px;"></i> Pendentes <span id="chipCountPendente" class="count" style="background: rgba(0,0,0,0.2); padding: 0.1rem 0.4rem; border-radius: 4px;">0</span>
+                </button>
+                <button type="button" class="status-filter-btn" onclick="filterByStatus('PROXIMO', this)"
+                    style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); color: #60a5fa; padding: 0.5rem 1.2rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                    <i data-lucide="shield-alert" style="width: 14px;"></i> Próximos <span id="chipCountProximo" class="count" style="background: rgba(0,0,0,0.2); padding: 0.1rem 0.4rem; border-radius: 4px;">0</span>
+                </button>
+            </div>
+
+            <!-- Tabela Principal em Glassmorphism -->
             <div class="glass-table-container">
                 <table id="maintTable" class="mobile-cards">
                     <thead>
@@ -921,6 +940,18 @@
                         <!-- JS content -->
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Rodapé com Paginação (Layout Abastecimento) -->
+            <div class="pagination-container" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding: 0.8rem 1rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-card);">
+                <div id="maintPaginationInfo" style="font-size: 0.8rem; color: var(--text-muted);">
+                    Mostrando 1-0 de 0 registros
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button id="btnPrevMaintPage" class="btn-icon" onclick="changeMaintPage(-1)" style="padding: 0.4rem 0.8rem; font-size: 0.75rem; border-radius: 6px; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-card); cursor: pointer;">Anterior</button>
+                    <span id="maintPageNum" style="font-size: 0.8rem; font-weight: 700; background: var(--primary); padding: 0.3rem 0.7rem; border-radius: 6px; color: white;">1</span>
+                    <button id="btnNextMaintPage" class="btn-icon" onclick="changeMaintPage(1)" style="padding: 0.4rem 0.8rem; font-size: 0.75rem; border-radius: 6px; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-card); cursor: pointer;">Próxima</button>
+                </div>
             </div>
         </div>
 

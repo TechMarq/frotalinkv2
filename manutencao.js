@@ -15,7 +15,9 @@ const state = {
     currentSetupTab: 'fornecedores',
     charts: {},
     showRowColors: false, // 🎨 Controle de visualização de cores nas linhas
-    statusFilter: 'TODOS'
+    statusFilter: 'TODOS',
+    currentPage: 1,
+    pageSize: 500
 };
 
 // --- Global Utilities ---
@@ -69,7 +71,7 @@ async function loadInitialData() {
         let mData = null;
         let mError = null;
 
-        // Tenta buscar usando o novo esquema (tipo_id nos itens)
+        // Tenta buscar usando o novo esquema (tipo_id nos itens) - Limitado a 1000 registros mais recentes
         const resNew = await supabaseClient
             .from('manutencoes')
             .select(`
@@ -82,7 +84,8 @@ async function loadInitialData() {
                     manutencao_tipos:tipo_id (descricao)
                 )
             `)
-            .order('data', { ascending: false });
+            .order('data', { ascending: false })
+            .limit(1000);
 
         if (resNew.error) {
             console.warn('[Manutenção] Falha ao buscar no novo esquema (migração pendente?):', resNew.error.message);
@@ -99,7 +102,8 @@ async function loadInitialData() {
                         manutencao_acoes:acao_id (descricao)
                     )
                 `)
-                .order('data', { ascending: false });
+                .order('data', { ascending: false })
+                .limit(1000);
 
             if (resOld.error) {
                 mError = resOld.error;
@@ -126,7 +130,7 @@ async function loadInitialData() {
 
         if (mError || !mData) {
             console.error('Erro na busca de manutenções:', mError);
-            const { data: pureM } = await supabaseClient.from('manutencoes').select('*').order('data', { ascending: false });
+            const { data: pureM } = await supabaseClient.from('manutencoes').select('*').order('data', { ascending: false }).limit(1000);
             state.manutencoes = pureM || [];
         } else {
             state.manutencoes = mData || [];
@@ -137,33 +141,22 @@ async function loadInitialData() {
         state.acoes = a || [];
         state.tipos = t || [];
 
-        // --- Injeção do KM Atual Baseado no Último Abastecimento (com paginação) ---
+        // --- Injeção do KM Atual Baseado nos Abastecimentos Recentes ---
         try {
-            let allAbastecimentos = [];
-            let from = 0, to = 999, finished = false;
-
-            while (!finished) {
-                const { data: pageData, error: kmError } = await supabaseClient
-                    .from('abastecimentos')
-                    .select('veiculo_id, km_atual, data, horario')
-                    .order('data', { ascending: true })
-                    .order('horario', { ascending: true })
-                    .range(from, to);
-
-                if (kmError || !pageData || pageData.length === 0) {
-                    finished = true;
-                } else {
-                    allAbastecimentos = allAbastecimentos.concat(pageData);
-                    if (pageData.length < 1000) finished = true;
-                    else { from += 1000; to += 1000; }
-                }
-            }
+            const { data: pageData } = await supabaseClient
+                .from('abastecimentos')
+                .select('veiculo_id, km_atual')
+                .order('created_at', { ascending: false })
+                .limit(500);
 
             const kmMap = {};
-            allAbastecimentos.forEach(ab => {
-                const kmVal = parseFloat(ab.km_atual) || 0;
-                kmMap[ab.veiculo_id] = kmVal;
-            });
+            if (pageData) {
+                pageData.forEach(ab => {
+                    if (!kmMap[ab.veiculo_id]) {
+                        kmMap[ab.veiculo_id] = parseFloat(ab.km_atual) || 0;
+                    }
+                });
+            }
 
             state.vehicles.forEach(veh => {
                 veh.km_atual = kmMap[veh.id] || parseFloat(veh.km_atual) || 0;
@@ -242,6 +235,8 @@ function renderSetupTables() {
 function populateDropdowns() {
     const tSel = document.getElementById('maint_tipo');
     const filterPlaca = document.getElementById('maintFilterPlaca');
+    const filterTipo = document.getElementById('maintFilterTipo');
+    const filterOficina = document.getElementById('maintFilterOficina');
 
     if (tSel) {
         tSel.innerHTML = '<option value="">Selecione o tipo...</option>' +
@@ -251,19 +246,49 @@ function populateDropdowns() {
         filterPlaca.innerHTML = '<option value="" style="background: #1e293b; color: white;">Todas as Placas</option>' + 
             state.vehicles.map(v => `<option value="${v.placa}" style="background: #1e293b; color: white;">${v.placa}</option>`).join('');
     }
+    if (filterTipo) {
+        filterTipo.innerHTML = '<option value="" style="background: #1e293b; color: white;">Todas as Categorias</option>' + 
+            state.tipos.map(t => `<option value="${t.id}" style="background: #1e293b; color: white;">${t.descricao}</option>`).join('');
+    }
+    if (filterOficina) {
+        filterOficina.innerHTML = '<option value="" style="background: #1e293b; color: white;">Todas as Oficinas</option>' + 
+            state.oficinas.map(o => `<option value="${o.nome}" style="background: #1e293b; color: white;">${o.nome}</option>`).join('');
+    }
 }
+
+window.clearMaintFilters = function() {
+    const searchInput = document.getElementById('maintSearch');
+    const filterPlaca = document.getElementById('maintFilterPlaca');
+    const filterTipo = document.getElementById('maintFilterTipo');
+    const filterOficina = document.getElementById('maintFilterOficina');
+
+    if (searchInput) searchInput.value = '';
+    if (filterPlaca) filterPlaca.value = '';
+    if (filterTipo) filterTipo.value = '';
+    if (filterOficina) filterOficina.value = '';
+
+    state.statusFilter = 'TODOS';
+    state.currentPage = 1;
+    document.querySelectorAll('.status-filter-btn').forEach(btn => btn.classList.remove('active'));
+    const allBtn = document.querySelector('.status-filter-btn');
+    if (allBtn) allBtn.classList.add('active');
+
+    renderMaintTable();
+};
+
+window.changeMaintPage = function(delta) {
+    state.currentPage = (state.currentPage || 1) + delta;
+    renderMaintTable();
+};
 
 // --- Table & Stats ---
 window.filterByStatus = (status, btnEl) => {
     state.statusFilter = status;
+    state.currentPage = 1;
     document.querySelectorAll('.status-filter-btn').forEach(btn => {
         btn.classList.remove('active');
-        btn.style.background = 'transparent';
-        btn.style.color = 'var(--text-muted)';
     });
-    btnEl.classList.add('active');
-    btnEl.style.background = 'var(--primary)';
-    btnEl.style.color = 'white';
+    if (btnEl) btnEl.classList.add('active');
     renderMaintTable();
 };
 
@@ -273,10 +298,20 @@ function renderMaintTable() {
 
     const search = document.getElementById('maintSearch')?.value.toLowerCase() || '';
     const placaFilter = document.getElementById('maintFilterPlaca')?.value.toUpperCase() || '';
+    const tipoFilter = document.getElementById('maintFilterTipo')?.value || '';
+    const oficinaFilter = document.getElementById('maintFilterOficina')?.value.toLowerCase() || '';
 
     const filtered = state.manutencoes.filter(m => {
         const placa = (m.veiculos?.placa || '').toUpperCase();
         if (placaFilter && placa !== placaFilter) return false;
+
+        const oficina = (m.fornecedores?.nome || '').toLowerCase();
+        if (oficinaFilter && !oficina.includes(oficinaFilter)) return false;
+
+        if (tipoFilter) {
+            const hasTipo = (m.manutencao_itens || []).some(i => i.tipo_id === tipoFilter) || m.tipo_id === tipoFilter;
+            if (!hasTipo) return false;
+        }
 
         const hasItemMatch = (m.manutencao_itens || []).some(item => 
             (item.descricao || '').toLowerCase().includes(search) ||
@@ -326,7 +361,57 @@ function renderMaintTable() {
         return true;
     });
 
-    tbody.innerHTML = filtered.map(m => {
+    // Calcular percentuais de Preventiva e Corretiva para os cards do topo
+    let prevCount = 0;
+    let corrCount = 0;
+    filtered.forEach(m => {
+        (m.manutencao_itens || []).forEach(i => {
+            const desc = (i.manutencao_tipos?.descricao || '').toUpperCase();
+            if (desc === 'PREVENTIVA') prevCount++;
+            else if (desc === 'CORRETIVA') corrCount++;
+        });
+    });
+    const totalItems = prevCount + corrCount;
+    const prevPercEl = document.getElementById('preventivePerc');
+    if (prevPercEl) prevPercEl.innerText = totalItems > 0 ? ((prevCount / totalItems) * 100).toFixed(0) + '%' : '0%';
+
+    const corrPercEl = document.getElementById('correctivePerc');
+    if (corrPercEl) corrPercEl.innerText = totalItems > 0 ? ((corrCount / totalItems) * 100).toFixed(0) + '%' : '0%';
+
+    const totalCountEl = document.getElementById('totalMaintCount');
+    if (totalCountEl) totalCountEl.innerText = filtered.length;
+
+    const chipTodos = document.getElementById('chipCountTodos');
+    if (chipTodos) chipTodos.innerText = state.manutencoes.length;
+
+    // --- Pagination Logic ---
+    const totalRecords = filtered.length;
+    const pageSize = state.pageSize || 15;
+    const totalPages = Math.ceil(totalRecords / pageSize) || 1;
+    if (state.currentPage > totalPages) state.currentPage = totalPages;
+    if (state.currentPage < 1) state.currentPage = 1;
+
+    const startIdx = (state.currentPage - 1) * pageSize;
+    const endIdx = Math.min(startIdx + pageSize, totalRecords);
+    const pageRecords = filtered.slice(startIdx, endIdx);
+
+    const infoEl = document.getElementById('maintPaginationInfo');
+    if (infoEl) {
+        infoEl.innerText = totalRecords > 0 
+            ? `Mostrando ${startIdx + 1}-${endIdx} de ${totalRecords} registros`
+            : `Mostrando 0-0 de 0 registros`;
+    }
+
+    const pageNumEl = document.getElementById('maintPageNum');
+    if (pageNumEl) pageNumEl.innerText = state.currentPage;
+
+    const btnPrev = document.getElementById('btnPrevMaintPage');
+    if (btnPrev) btnPrev.disabled = state.currentPage <= 1;
+
+    const btnNext = document.getElementById('btnNextMaintPage');
+    if (btnNext) btnNext.disabled = state.currentPage >= totalPages;
+
+    tbody.innerHTML = pageRecords.map(m => {
         const items = m.manutencao_itens || [];
         const vehicle = state.vehicles.find(v => v.id === m.veiculo_id);
         const currentKm = vehicle?.km_atual || 0;

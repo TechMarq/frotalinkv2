@@ -1142,6 +1142,23 @@ async function registrarLog(modulo, acao, descricao) {
     const userEmail = window.currentUser?.email || 'sistema@frotalink.com.br';
     const empresaId = window.currentEmpresaId || null;
 
+    const acaoUpper = String(acao || '').toUpperCase();
+    const moduloLower = String(modulo || '').toLowerCase();
+
+    // Ignorar registros de INCLUSÃO/IMPORTAÇÃO para abastecimento e importações (registrar apenas ALTERAÇÃO e EXCLUSÃO)
+    if ((moduloLower === 'abastecimento' || moduloLower === 'importacao' || moduloLower === 'importação') && 
+        (acaoUpper === 'INCLUSÃO' || acaoUpper === 'INSERÇÃO' || acaoUpper === 'IMPORTAÇÃO')) {
+        return;
+    }
+
+    // No módulo Frota, registrar APENAS cadastro/alteração/exclusão de veículos e equipe (ignorando histórico interno de manutenção)
+    if (moduloLower === 'frota') {
+        const descLower = String(descricao || '').toLowerCase();
+        if (descLower.includes('manutenção') || descLower.includes('manutencao')) {
+            return;
+        }
+    }
+
     console.log(`[AuditLog] Log registrado: [${modulo}] ${acao} - ${descricao} (${userEmail})`);
 
     // 1. Se estiver usando o Supabase

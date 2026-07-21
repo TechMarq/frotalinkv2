@@ -30,10 +30,99 @@
             --bg-input: #1e293b;
             --border-color: rgba(255, 255, 255, 0.1);
             --text-main: #f8fafc;
-            --text-muted: #94a3b8;
         }
 
-        /* Tabs â€” padronizado com global style.css (pill nav) */
+        /* Limitação de Altura da Tabela & Header Fixo */
+        .table-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: calc(100vh - 430px);
+            min-height: 320px;
+            backdrop-filter: blur(12px);
+        }
+
+        .table-container th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--bg-card);
+        }
+
+        /* Rodapé de Paginação Moderno (Estilo Abastecimento/Manutenção) */
+        .pagination-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            padding: 0.8rem 1rem;
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .pagination-info {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .pagination-controls {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .btn-page {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem;
+            border-radius: 6px;
+            background: var(--bg-main);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-page:hover:not(:disabled) {
+            background: #10b981;
+            color: white;
+            border-color: #10b981;
+        }
+
+        .btn-page:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .page-numbers {
+            display: flex;
+            gap: 0.3rem;
+            align-items: center;
+        }
+
+        .page-num {
+            font-size: 0.8rem;
+            font-weight: 700;
+            background: var(--bg-main);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 0.3rem 0.7rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .page-num.active {
+            background: #10b981;
+            color: white;
+            border-color: #10b981;
+        }
+
+        /* Tabs — padronizado com global style.css (pill nav) */
         .tabs {
             display: inline-flex;
             gap: 0.5rem;
@@ -1205,8 +1294,8 @@
                 <div class="filter-group" style="min-width: 140px;">
                     <label>Período</label>
                     <select id="filterDatePreset" class="filter-select" onchange="handleDatePresetChange(this)">
+                        <option value="month" selected>Mês Atual</option>
                         <option value="all">Todos</option>
-                        <option value="month">Mês Atual</option>
                         <option value="15days">Últimos 15 Dias</option>
                         <option value="lastMonth">Mês Anterior</option>
                         <option value="custom">Personalizado</option>

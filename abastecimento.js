@@ -31,7 +31,7 @@ let state = {
         veiculo: '',
         combustivel: '',
         importacao_id: '',
-        periodo: 'all',
+        periodo: 'current_month',
         data_inicio: null,
         data_fim: null
     },
@@ -1486,35 +1486,30 @@ async function loadInitialData() {
         } catch (e) { console.warn("Erro ao carregar alertas ignorados do Supabase:", e); }
         state.dismissedAlerts = localDismissed;
 
-        // Carregar TODOS os abastecimentos (Bypassing 1000 limit)
-        let allAbastecimentos = [];
-        let from = 0;
-        let to = 999;
-        let finished = false;
+        // Carregar abastecimentos do mês atual
+        const now = new Date();
+        const firstDayOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 
-        while (!finished) {
-            const { data, error } = await supabaseClient
+        const { data: monthFuelData, error: fuelErr } = await supabaseClient
+            .from('abastecimentos')
+            .select('*, veiculos(placa, modelo, classificacao, ignorar_media, tipo_combustivel), motoristas(nome_completo), postos(nome), categorias_posto(descricao)')
+            .gte('data', firstDayOfMonth)
+            .order('km_atual', { ascending: false });
+
+        if (fuelErr) throw fuelErr;
+        let allAbastecimentos = monthFuelData || [];
+
+        // Se o mês atual não tiver registros (ex: início de mês), carregar os últimos 500 mais recentes
+        if (allAbastecimentos.length === 0) {
+            const { data: recentFuelData } = await supabaseClient
                 .from('abastecimentos')
                 .select('*, veiculos(placa, modelo, classificacao, ignorar_media, tipo_combustivel), motoristas(nome_completo), postos(nome), categorias_posto(descricao)')
-                .order('km_atual', { ascending: false })
-                .range(from, to);
-
-            if (error) throw error;
-            
-            if (!data || data.length === 0) {
-                finished = true;
-            } else {
-                allAbastecimentos = allAbastecimentos.concat(data);
-                if (data.length < 1000) {
-                    finished = true;
-                } else {
-                    from += 1000;
-                    to += 1000;
-                }
-            }
+                .order('created_at', { ascending: false })
+                .limit(500);
+            allAbastecimentos = recentFuelData || [];
         }
 
-        console.log(`Total de abastecimentos carregados: ${allAbastecimentos.length}`);
+        console.log(`Total de abastecimentos carregados (mês atual): ${allAbastecimentos.length}`);
         state.fuelingRecords = allAbastecimentos;
 
         // Carregar logs de alteração e mapeamento de usuários para o histórico
@@ -1903,7 +1898,7 @@ window.clearFuelFilters = () => {
         veiculo: '', 
         combustivel: '', 
         importacao_id: '',
-        periodo: 'all',
+        periodo: 'current_month',
         data_inicio: null,
         data_fim: null
     };
@@ -1917,10 +1912,12 @@ window.clearFuelFilters = () => {
     if (document.getElementById('fuel_filter_posto')) document.getElementById('fuel_filter_posto').value = '';
     if (document.getElementById('fuel_filter_veiculo')) document.getElementById('fuel_filter_veiculo').value = '';
     if (document.getElementById('fuel_filter_combustivel')) document.getElementById('fuel_filter_combustivel').value = '';
-    if (document.getElementById('fuel_filter_periodo')) document.getElementById('fuel_filter_periodo').value = 'all';
+    if (document.getElementById('fuel_filter_periodo')) document.getElementById('fuel_filter_periodo').value = 'current_month';
     
     const customRange = document.getElementById('custom_date_range');
     if (customRange) customRange.style.display = 'none';
+
+    handlePeriodChange('current_month');
     
     // Repopulate dropdowns to full lists
     const postoSel = document.getElementById('fuel_filter_posto');
@@ -1954,7 +1951,11 @@ window.handlePeriodChange = (period) => {
     let start = null;
     let end = new Date();
 
-    if (period === '7') {
+    if (period === 'current_month' || period === 'month') {
+        const now = new Date();
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    } else if (period === '7') {
         start = new Date();
         start.setDate(end.getDate() - 7);
     } else if (period === '15') {
@@ -5034,4 +5035,13 @@ window.exportComparativoToPDF = () => {
     doc.save(`Comparativo_Abastecimento_${new Date().getTime()}.pdf`);
     showToast('PDF comparativo baixado com sucesso!', 'success');
 };
+
+// Auto-initialize current month filter default on DOM load
+document.addEventListener('DOMContentLoaded', () => {
+    const pSel = document.getElementById('fuel_filter_periodo');
+    if (pSel) {
+        pSel.value = 'current_month';
+        handlePeriodChange('current_month');
+    }
+});
 

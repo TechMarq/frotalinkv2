@@ -34,13 +34,19 @@ async function initAuditoria() {
         supabaseClient = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
     }
 
-    // Set default dates (past 30 days)
+    // Set default dates (past 7 days)
     const today = new Date();
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(today.getDate() - 30);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(today.getDate() - 7);
 
-    document.getElementById('auditStartDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+    document.getElementById('auditStartDate').value = sevenDaysAgo.toISOString().split('T')[0];
     document.getElementById('auditEndDate').value = today.toISOString().split('T')[0];
+
+    // Purga automática de logs de auditoria com mais de 7 dias
+    if (supabaseClient) {
+        const cutoffDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        supabaseClient.from('logs_atividade').delete().lt('data_hora', cutoffDate).then(() => {}).catch(() => {});
+    }
 
     // Filtrar opções de módulo no dropdown se não for admin
     if (window.currentUserRole !== 'admin') {

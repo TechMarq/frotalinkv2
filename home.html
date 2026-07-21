@@ -688,37 +688,37 @@
 
         async function initHome() {
             try {
-                // Helper to bypass 1000 record limit
-                const fetchAll = async (table, selectStr) => {
-                    let all = [];
-                    let from = 0;
-                    const step = 1000;
-                    let done = false;
-                    while (!done) {
-                        const { data, error } = await supabaseClient
-                            .from(table)
-                            .select(selectStr)
-                            .range(from, from + step - 1);
-                        if (error) throw error;
-                        all = all.concat(data || []);
-                        if (!data || data.length < step) done = true;
-                        else from += step;
-                    }
-                    return all;
+                const canAccess = (modKey) => {
+                    if (window.currentUserRole === 'admin') return true;
+                    if (!window.currentUserPermissions) return true;
+                    return Object.keys(window.currentUserPermissions).some(key =>
+                        (key.startsWith(modKey + '_') || key === modKey) && window.currentUserPermissions[key].view
+                    );
                 };
 
-                const [vehicles, drivers, maints, fuelData, inventory, finLancamentos, comContratos, dpAsos, dpContratos, dpFerias] = await Promise.all([
-                    fetchAll('veiculos', '*'),
-                    fetchAll('motoristas', '*'),
-                    fetchAll('manutencoes', '*, manutencao_itens(*), manutencao_tipos(descricao)'),
-                    fetchAll('abastecimentos', '*, veiculos(placa, ignorar_media, tipo_combustivel)'),
-                    fetchAll('estoque', '*'),
-                    fetchAll('fin_lancamentos', '*'),
-                    fetchAll('com_contratos', '*'),
-                    fetchAll('dp_asos', 'id,data_vencimento,tipo'),
-                    fetchAll('dp_contratos_exp', 'id,data_fim_45,data_fim_90,status_45,status_90'),
-                    fetchAll('dp_ferias', 'id,periodo_conc_fim,status')
+                const [vehiclesRes, driversRes, maintsRes, fuelRes, inventoryRes, finRes, comRes, dpAsosRes, dpContrRes, dpFeriasRes] = await Promise.all([
+                    canAccess('frota') ? supabaseClient.from('veiculos').select('*') : Promise.resolve({ data: [] }),
+                    canAccess('frota') ? supabaseClient.from('motoristas').select('*') : Promise.resolve({ data: [] }),
+                    canAccess('manutencao') ? supabaseClient.from('manutencoes').select('*, manutencao_itens(*)') : Promise.resolve({ data: [] }),
+                    canAccess('abastecimento') ? supabaseClient.from('abastecimentos').select('*, veiculos(placa, ignorar_media, tipo_combustivel)') : Promise.resolve({ data: [] }),
+                    canAccess('estoque') ? supabaseClient.from('estoque').select('*') : Promise.resolve({ data: [] }),
+                    canAccess('financeiro') ? supabaseClient.from('fin_lancamentos').select('*') : Promise.resolve({ data: [] }),
+                    canAccess('comercial') ? supabaseClient.from('com_contratos').select('*') : Promise.resolve({ data: [] }),
+                    canAccess('dp') ? supabaseClient.from('dp_asos').select('id, data_vencimento, tipo') : Promise.resolve({ data: [] }),
+                    canAccess('dp') ? supabaseClient.from('dp_contratos_exp').select('id, data_fim_45, data_fim_90, status_45, status_90') : Promise.resolve({ data: [] }),
+                    canAccess('dp') ? supabaseClient.from('dp_ferias').select('id, periodo_conc_fim, status') : Promise.resolve({ data: [] })
                 ]);
+
+                const vehicles = vehiclesRes.data || [];
+                const drivers = driversRes.data || [];
+                const maints = maintsRes.data || [];
+                const fuelData = fuelRes.data || [];
+                const inventory = inventoryRes.data || [];
+                const finLancamentos = finRes.data || [];
+                const comContratos = comRes.data || [];
+                const dpAsos = dpAsosRes.data || [];
+                const dpContratos = dpContrRes.data || [];
+                const dpFerias = dpFeriasRes.data || [];
 
                 // Sort by date/time to ensure correct chronological sequence
                 fuelData.sort((a, b) => smartParseDate(a.data, a.horario) - smartParseDate(b.data, b.horario));

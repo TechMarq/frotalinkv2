@@ -31,12 +31,6 @@
             defaultPos: { left: '24px', top: '450px' }
         },
         {
-            id: 'news',
-            title: 'Notícias',
-            icon: 'newspaper',
-            defaultPos: { right: '270px', top: '120px' }
-        },
-        {
             id: 'reservations',
             title: 'Reservas de Salas',
             icon: 'calendar-days',
@@ -51,7 +45,7 @@
     const getMinKey = (id) => `frotalink_widget_minimized_${id}`;
 
     // Active state
-    let visibleWidgets = JSON.parse(localStorage.getItem(KEY_VISIBLE) || '{"notepad": false, "calendar": false, "calculator": false, "postits": false, "news": false, "reservations": false}');
+    let visibleWidgets = JSON.parse(localStorage.getItem(KEY_VISIBLE) || '{"notepad": false, "calendar": false, "calculator": false, "postits": false, "reservations": false}');
 
     // Resize observer logic
     let resizeTimeout = null;
@@ -174,8 +168,6 @@
                 initCalculatorWidget(body);
             } else if (w.id === 'postits') {
                 initPostitsWidget(body);
-            } else if (w.id === 'news') {
-                initNewsWidget(body);
             } else if (w.id === 'reservations') {
                 initReservationsWidget(body);
             }
@@ -811,214 +803,6 @@
         }
     }
 
-    // --- 5. News Widget Logic ---
-    const NEWS_FEEDS = {
-        veiculos: [
-            'https://g1.globo.com/rss/g1/carros/',
-            'https://rss.uol.com.br/feed/carros.xml',
-            'https://noticias.r7.com/carros/feed.xml'
-        ],
-        financas: [
-            'https://g1.globo.com/rss/g1/economia/',
-            'https://rss.uol.com.br/feed/economia.xml',
-            'https://noticias.r7.com/economia/feed.xml'
-        ],
-        negocios: [
-            'https://g1.globo.com/rss/g1/economia/negocios/',
-            'https://valor.globo.com/rss/valor/',
-            'https://rss.uol.com.br/feed/empreendedorismo.xml'
-        ],
-        tecnologia: [
-            'https://g1.globo.com/rss/g1/tecnologia/',
-            'https://rss.uol.com.br/feed/tecnologia.xml',
-            'https://noticias.r7.com/tecnologia-e-ciencia/feed.xml'
-        ],
-        geral: [
-            'https://g1.globo.com/rss/g1/',
-            'https://rss.uol.com.br/feed/noticias.xml',
-            'https://noticias.r7.com/feed.xml'
-        ]
-    };
-
-    function initNewsWidget(body) {
-        const container = document.createElement('div');
-        container.className = 'widget-news-container';
-
-        container.innerHTML = `
-            <div class="widget-news-controls">
-                <div class="widget-news-chips" id="news-chips-container">
-                    <span class="widget-news-chip" data-topic="veiculos">🚗 Carros</span>
-                    <span class="widget-news-chip" data-topic="financas">💰 Finanças</span>
-                    <span class="widget-news-chip" data-topic="negocios">📈 Negócios</span>
-                    <span class="widget-news-chip" data-topic="tecnologia">💻 Tech</span>
-                    <span class="widget-news-chip" data-topic="geral">📰 Geral</span>
-                </div>
-                <button class="widget-news-refresh-btn" title="Atualizar Notícias">
-                    <i data-lucide="rotate-cw" style="width: 14px; height: 14px;"></i>
-                </button>
-            </div>
-            <div class="widget-news-list" id="news-items-list">
-                <div class="widget-news-loading">Carregando notícias...</div>
-            </div>
-        `;
-        body.appendChild(container);
-
-        const chipsContainer = container.querySelector('#news-chips-container');
-        const refreshBtn = container.querySelector('.widget-news-refresh-btn');
-        const listContainer = container.querySelector('#news-items-list');
-
-        // Restore active topics array
-        let activeTopics = JSON.parse(localStorage.getItem('frotalink_widget_news_topics_multiselect') || '["veiculos"]');
-        
-        // Highlight active chips
-        const updateChipsUI = () => {
-            chipsContainer.querySelectorAll('.widget-news-chip').forEach(chip => {
-                const topic = chip.getAttribute('data-topic');
-                if (activeTopics.includes(topic)) {
-                    chip.classList.add('active');
-                } else {
-                    chip.classList.remove('active');
-                }
-            });
-        };
-
-        const loadNews = async () => {
-            if (activeTopics.length === 0) {
-                listContainer.innerHTML = '<div class="widget-news-error">Selecione pelo menos um assunto acima.</div>';
-                return;
-            }
-
-            listContainer.innerHTML = '<div class="widget-news-loading">Carregando notícias...</div>';
-
-            try {
-                // Collect active feeds with their source names
-                const activeFeeds = [];
-                activeTopics.forEach(topic => {
-                    const feeds = NEWS_FEEDS[topic];
-                    if (Array.isArray(feeds)) {
-                        feeds.forEach(url => {
-                            let source = "G1";
-                            if (url.includes("uol.com.br")) source = "UOL";
-                            else if (url.includes("r7.com")) source = "R7";
-                            else if (url.includes("valor.globo.com")) source = "Valor";
-                            activeFeeds.push({ url, source, topic });
-                        });
-                    }
-                });
-
-                // Fetch active feeds in parallel
-                const fetchPromises = activeFeeds.map(async (feed) => {
-                    try {
-                        const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}`);
-                        const data = await res.json();
-                        if (data.status === 'ok' && data.items) {
-                            return data.items.map(item => ({ ...item, source: feed.source, topic: feed.topic }));
-                        }
-                        return [];
-                    } catch (e) {
-                        console.warn(`Erro ao carregar feed ${feed.url}:`, e);
-                        return [];
-                    }
-                });
-
-                const results = await Promise.all(fetchPromises);
-                
-                // Merge and de-duplicate articles
-                let mergedItems = results.flat();
-                const seenLinks = new Set();
-                mergedItems = mergedItems.filter(item => {
-                    if (seenLinks.has(item.link)) return false;
-                    seenLinks.add(item.link);
-                    return true;
-                });
-
-                // Sort chronologically (newest first)
-                mergedItems.sort((a, b) => {
-                    const dateA = a.pubDate ? new Date(a.pubDate) : new Date(0);
-                    const dateB = b.pubDate ? new Date(b.pubDate) : new Date(0);
-                    return dateB - dateA;
-                });
-
-                const topicNames = {
-                    veiculos: 'Carros',
-                    financas: 'Finanças',
-                    negocios: 'Negócios',
-                    tecnologia: 'Tech',
-                    geral: 'Geral'
-                };
-
-                if (mergedItems.length > 0) {
-                    let html = '';
-                    // Display top 8 articles
-                    mergedItems.slice(0, 8).forEach(item => {
-                        const date = new Date(item.pubDate).toLocaleDateString('pt-BR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        });
-                        const thumb = item.thumbnail || '';
-                        const sourceClass = (item.source || 'G1').toLowerCase();
-                        const topicClass = (item.topic || 'geral');
-                        const topicLabel = topicNames[item.topic] || 'Geral';
-
-                        html += `
-                            <a href="${item.link}" target="_blank" class="widget-news-item">
-                                ${thumb ? `<img src="${thumb}" class="widget-news-thumb" alt="News Image">` : ''}
-                                <div class="widget-news-info">
-                                    <h4 class="widget-news-title">${item.title}</h4>
-                                    <div class="widget-news-meta">
-                                        <span>${date}</span>
-                                        <div style="display: flex; gap: 0.35rem; align-items: center;">
-                                            <span class="widget-news-category-tag topic-${topicClass}">${topicLabel}</span>
-                                            <span class="widget-news-source-tag source-${sourceClass}">${item.source || 'G1'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </a>
-                        `;
-                    });
-                    listContainer.innerHTML = html;
-                } else {
-                    listContainer.innerHTML = '<div class="widget-news-error">Nenhuma notícia encontrada.</div>';
-                }
-            } catch (err) {
-                console.error("Erro ao carregar notícias:", err);
-                listContainer.innerHTML = '<div class="widget-news-error">Erro ao carregar notícias.</div>';
-            }
-        };
-
-        // Chips click event handlers
-        chipsContainer.querySelectorAll('.widget-news-chip').forEach(chip => {
-            chip.addEventListener('click', () => {
-                const topic = chip.getAttribute('data-topic');
-                const index = activeTopics.indexOf(topic);
-
-                if (index > -1) {
-                    // Prevent unselecting all topics completely
-                    if (activeTopics.length > 1) {
-                        activeTopics.splice(index, 1);
-                    } else {
-                        // Optional: show a user warning or ignore unchecking
-                        return;
-                    }
-                } else {
-                    activeTopics.push(topic);
-                }
-
-                localStorage.setItem('frotalink_widget_news_topics_multiselect', JSON.stringify(activeTopics));
-                updateChipsUI();
-                loadNews();
-            });
-        });
-
-        refreshBtn.addEventListener('click', loadNews);
-
-        // Initial setup
-        updateChipsUI();
-        loadNews();
-        if (window.lucide) lucide.createIcons();
-    }
 
     // --- Reservations Widget ---
 

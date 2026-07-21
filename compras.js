@@ -5,7 +5,7 @@ const ADMIN_PASSWORD = "M@nu2398";
 
 let compras = [];
 let currentPage = 1;
-const pageSize = 200;
+const pageSize = 500;
 let editId = null;
 let config = {
     fornecedores: [],
@@ -68,10 +68,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadCompras(); 
     updateDropdowns();
     
-    // Initialize "All" filter by default
+    // Initialize "month" filter by default
     const datePreset = document.getElementById('filterDatePreset');
     if (datePreset) {
-        datePreset.value = 'all';
+        datePreset.value = 'month';
         handleDatePresetChange(datePreset);
     } else {
         renderCompras();
@@ -355,8 +355,13 @@ async function loadCompras() {
     console.log("📡 Carregando compras do Supabase...");
     
     try {
-        // 1. Fetch main records
-        const { data: cloudCompras, error: cErr } = await client.from('compras').select('*');
+        // Fetch up to 2000 recent purchases ordered by emission date
+        let { data: cloudCompras, error: cErr } = await client
+            .from('compras')
+            .select('*')
+            .order('data_emissao', { ascending: false })
+            .limit(2000);
+
         if (cErr) throw cErr;
 
         // 2. Fetch children
