@@ -946,6 +946,117 @@
 }
 
 
+/* 5. Reservations Widget */
+.res-input {
+    padding: 0.4rem;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 0.75rem;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.res-input:focus {
+    border-color: var(--widget-accent);
+}
+
+.res-input[type="date"],
+.res-input[type="time"] {
+    color-scheme: dark;
+}
+
+.res-filter-btn {
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    cursor: pointer;
+    font-weight: 600;
+    font-family: inherit;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+/* Todos Filter Button (Dark Mode) */
+.res-filter-btn[data-filter="todos"] {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+    color: var(--widget-muted);
+    opacity: 0.7;
+}
+.res-filter-btn[data-filter="todos"].active {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #fff;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+    opacity: 1;
+}
+
+/* Reunião Filter Button (Dark Mode) */
+.res-filter-btn[data-filter="reuniao"] {
+    background: rgba(59, 130, 246, 0.05);
+    border-color: rgba(59, 130, 246, 0.1);
+    color: #60a5fa;
+    opacity: 0.7;
+}
+.res-filter-btn[data-filter="reuniao"].active {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: #3b82f6;
+    color: #fff;
+    text-shadow: 0 0 5px #60a5fa;
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+    opacity: 1;
+}
+
+/* Treinamento Filter Button (Dark Mode) */
+.res-filter-btn[data-filter="treinamento"] {
+    background: rgba(168, 85, 247, 0.05);
+    border-color: rgba(168, 85, 247, 0.1);
+    color: #c084fc;
+    opacity: 0.7;
+}
+.res-filter-btn[data-filter="treinamento"].active {
+    background: rgba(168, 85, 247, 0.2);
+    border-color: #a855f7;
+    color: #fff;
+    text-shadow: 0 0 5px #c084fc;
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+    opacity: 1;
+}
+
+/* Reservation List Item (Dark Mode) */
+.res-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 0.5rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    margin-bottom: 2px;
+}
+
+.res-item-time {
+    color: #fff;
+    font-weight: 500;
+    margin-top: 0.25rem;
+}
+
+.res-tag-duration {
+    background: rgba(255, 255, 255, 0.08);
+    padding: 0.15rem 0.4rem;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    color: var(--widget-muted);
+}
+
+
 /* ──────────────────────────────────────────────────────
    🌿 WIDGETS — Tema Clean Verde (fundo branco, detalhes verdes)
    ────────────────────────────────────────────────────── */
@@ -1040,6 +1151,84 @@
 [data-theme="green_pastel"] .widget-news-list::-webkit-scrollbar-thumb:hover,
 [data-theme="green_pastel"] .widget-notepad-textarea::-webkit-scrollbar-thumb:hover {
     background: rgba(45, 158, 107, 0.5) !important;
+}
+
+/* 🌿 Clean Theme Overrides for Reservations Widget */
+[data-theme="green_pastel"] #reservation-form {
+    border-bottom-color: rgba(45, 158, 107, 0.15) !important;
+}
+
+[data-theme="green_pastel"] .res-input {
+    background: rgba(240, 247, 244, 0.8) !important;
+    border-color: rgba(45, 158, 107, 0.2) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .res-input[type="date"],
+[data-theme="green_pastel"] .res-input[type="time"] {
+    color-scheme: light !important;
+}
+
+/* Todos Filter Button (Light Mode) */
+[data-theme="green_pastel"] .res-filter-btn[data-filter="todos"] {
+    background: rgba(45, 158, 107, 0.05) !important;
+    border-color: rgba(45, 158, 107, 0.1) !important;
+    color: #5a7a6a !important;
+    opacity: 0.7;
+}
+[data-theme="green_pastel"] .res-filter-btn[data-filter="todos"].active {
+    background: rgba(45, 158, 107, 0.15) !important;
+    border-color: #2d9e6b !important;
+    color: #1a7a50 !important;
+    box-shadow: 0 0 8px rgba(45, 158, 107, 0.2) !important;
+    opacity: 1;
+}
+
+/* Reunião Filter Button (Light Mode) */
+[data-theme="green_pastel"] .res-filter-btn[data-filter="reuniao"] {
+    background: rgba(59, 130, 246, 0.05) !important;
+    border-color: rgba(59, 130, 246, 0.1) !important;
+    color: #2563eb !important;
+    opacity: 0.7;
+}
+[data-theme="green_pastel"] .res-filter-btn[data-filter="reuniao"].active {
+    background: rgba(59, 130, 246, 0.15) !important;
+    border-color: #3b82f6 !important;
+    color: #1d4ed8 !important;
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.2) !important;
+    text-shadow: none !important;
+    opacity: 1;
+}
+
+/* Treinamento Filter Button (Light Mode) */
+[data-theme="green_pastel"] .res-filter-btn[data-filter="treinamento"] {
+    background: rgba(168, 85, 247, 0.05) !important;
+    border-color: rgba(168, 85, 247, 0.1) !important;
+    color: #7c3aed !important;
+    opacity: 0.7;
+}
+[data-theme="green_pastel"] .res-filter-btn[data-filter="treinamento"].active {
+    background: rgba(168, 85, 247, 0.15) !important;
+    border-color: #a855f7 !important;
+    color: #6d28d9 !important;
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.2) !important;
+    text-shadow: none !important;
+    opacity: 1;
+}
+
+/* Reservation List Item (Light Mode) */
+[data-theme="green_pastel"] .res-item {
+    background: rgba(45, 158, 107, 0.04) !important;
+    border-color: rgba(45, 158, 107, 0.1) !important;
+}
+
+[data-theme="green_pastel"] .res-item-time {
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .res-tag-duration {
+    background: rgba(45, 158, 107, 0.08) !important;
+    color: #5a7a6a !important;
 }
 
 

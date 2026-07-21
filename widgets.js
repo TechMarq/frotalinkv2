@@ -1029,25 +1029,25 @@
                     <div style="display:flex; gap:0.5rem;">
                         <div style="flex:1; display:flex; flex-direction:column; gap:0.2rem;">
                             <label style="font-size:0.65rem; color:var(--widget-muted); font-weight:600;">SALA</label>
-                            <select id="res-sala" style="padding:0.4rem; background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.75rem; font-family:inherit; outline:none;">
+                            <select id="res-sala" class="res-input">
                                 <option value="Sala de Reunião">Sala de Reunião</option>
                                 <option value="Sala de Treinamento">Sala de Treinamento</option>
                             </select>
                         </div>
                         <div style="flex:1; display:flex; flex-direction:column; gap:0.2rem;">
                             <label style="font-size:0.65rem; color:var(--widget-muted); font-weight:600;">DATA</label>
-                            <input type="date" id="res-data" required style="padding:0.4rem; background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.75rem; font-family:inherit; outline:none; color-scheme: dark; cursor: pointer;">
+                            <input type="date" id="res-data" required class="res-input">
                         </div>
                     </div>
                     
                     <div style="display:flex; gap:0.5rem;">
                         <div style="flex:1; display:flex; flex-direction:column; gap:0.2rem;">
                             <label style="font-size:0.65rem; color:var(--widget-muted); font-weight:600;">HORÁRIO</label>
-                            <input type="time" id="res-horario" required style="padding:0.4rem; background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.75rem; font-family:inherit; outline:none; color-scheme: dark; cursor: pointer;">
+                            <input type="time" id="res-horario" required class="res-input">
                         </div>
                         <div style="flex:1; display:flex; flex-direction:column; gap:0.2rem;">
                             <label style="font-size:0.65rem; color:var(--widget-muted); font-weight:600;">DURAÇÃO</label>
-                            <select id="res-duracao" style="padding:0.4rem; background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.75rem; font-family:inherit; outline:none;">
+                            <select id="res-duracao" class="res-input">
                                 <option value="30 min">30 min</option>
                                 <option value="1 hora">1 hora</option>
                                 <option value="1h 30m">1h 30m</option>
@@ -1067,9 +1067,9 @@
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; gap:0.5rem; flex-wrap:wrap;">
                         <div style="font-size:0.7rem; font-weight:700; color:var(--widget-muted); text-transform:uppercase; letter-spacing:0.02em;">Filtro:</div>
                         <div class="res-filter-buttons" style="display:flex; gap:0.2rem;">
-                            <button type="button" class="res-filter-btn" data-filter="todos" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.3); color:#fff; padding:0.2rem 0.4rem; border-radius:4px; font-size:0.65rem; cursor:pointer; font-weight:600; font-family:inherit; transition:all 0.2s; box-shadow: 0 0 8px rgba(255,255,255,0.2);">Todos</button>
-                            <button type="button" class="res-filter-btn" data-filter="reuniao" style="background:rgba(59, 130, 246, 0.05); border:1px solid rgba(59, 130, 246, 0.1); color:#60a5fa; opacity:0.7; padding:0.2rem 0.4rem; border-radius:4px; font-size:0.65rem; cursor:pointer; font-weight:600; font-family:inherit; transition:all 0.2s;">Reunião</button>
-                            <button type="button" class="res-filter-btn" data-filter="treinamento" style="background:rgba(168, 85, 247, 0.05); border:1px solid rgba(168, 85, 247, 0.1); color:#c084fc; opacity:0.7; padding:0.2rem 0.4rem; border-radius:4px; font-size:0.65rem; cursor:pointer; font-weight:600; font-family:inherit; transition:all 0.2s;">Treino</button>
+                            <button type="button" class="res-filter-btn" data-filter="todos">Todos</button>
+                            <button type="button" class="res-filter-btn" data-filter="reuniao">Reunião</button>
+                            <button type="button" class="res-filter-btn" data-filter="treinamento">Treino</button>
                         </div>
                     </div>
                     <div id="res-list-loading" style="font-size:0.75rem; color:var(--widget-muted); text-align:center; padding:1rem;">Carregando reservas...</div>
@@ -1109,53 +1109,10 @@
             body.querySelectorAll('.res-filter-btn').forEach(btn => {
                 const filter = btn.getAttribute('data-filter');
                 const isActive = filter === activeFilter;
-                
-                if (filter === 'todos') {
-                    if (isActive) {
-                        btn.style.background = 'rgba(255,255,255,0.1)';
-                        btn.style.borderColor = 'rgba(255,255,255,0.3)';
-                        btn.style.color = '#fff';
-                        btn.style.boxShadow = '0 0 8px rgba(255,255,255,0.2)';
-                        btn.style.opacity = '1';
-                    } else {
-                        btn.style.background = 'rgba(255,255,255,0.03)';
-                        btn.style.borderColor = 'rgba(255,255,255,0.08)';
-                        btn.style.color = 'var(--widget-muted)';
-                        btn.style.boxShadow = 'none';
-                        btn.style.opacity = '0.7';
-                    }
-                } else if (filter === 'reuniao') {
-                    if (isActive) {
-                        btn.style.background = 'rgba(59, 130, 246, 0.2)';
-                        btn.style.borderColor = '#3b82f6';
-                        btn.style.color = '#fff';
-                        btn.style.textShadow = '0 0 5px #60a5fa';
-                        btn.style.boxShadow = '0 0 10px rgba(59, 130, 246, 0.5)';
-                        btn.style.opacity = '1';
-                    } else {
-                        btn.style.background = 'rgba(59, 130, 246, 0.05)';
-                        btn.style.borderColor = 'rgba(59, 130, 246, 0.1)';
-                        btn.style.color = '#60a5fa';
-                        btn.style.textShadow = 'none';
-                        btn.style.boxShadow = 'none';
-                        btn.style.opacity = '0.7';
-                    }
-                } else if (filter === 'treinamento') {
-                    if (isActive) {
-                        btn.style.background = 'rgba(168, 85, 247, 0.2)';
-                        btn.style.borderColor = '#a855f7';
-                        btn.style.color = '#fff';
-                        btn.style.textShadow = '0 0 5px #c084fc';
-                        btn.style.boxShadow = '0 0 10px rgba(168, 85, 247, 0.5)';
-                        btn.style.opacity = '1';
-                    } else {
-                        btn.style.background = 'rgba(168, 85, 247, 0.05)';
-                        btn.style.borderColor = 'rgba(168, 85, 247, 0.1)';
-                        btn.style.color = '#c084fc';
-                        btn.style.textShadow = 'none';
-                        btn.style.boxShadow = 'none';
-                        btn.style.opacity = '0.7';
-                    }
+                if (isActive) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
                 }
             });
         }
@@ -1179,6 +1136,7 @@
 
         // Set default date to today
         body.querySelector('#res-data').value = getLocalTodayStr();
+        updateFilterButtonsUI();
 
         async function loadReservations(attempts = 0) {
             if ((!window.authClient || !window.currentEmpresaId || !window.currentUser) && attempts < 30) {
@@ -1291,7 +1249,6 @@
                         const dateFormatted = new Date(r.data + 'T00:00:00').toLocaleDateString('pt-BR');
                         const item = document.createElement('div');
                         item.className = 'res-item';
-                        item.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); padding:0.5rem; border-radius:8px; font-size:0.75rem; margin-bottom: 2px;';
                         
                         const timeStr = r.horario.substring(0, 5);
                         const currentUserEmail = window.currentUser?.email || '';
@@ -1315,10 +1272,10 @@
                             <div style="display:flex; flex-direction:column; gap:0.15rem; flex:1;">
                                 <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
                                     <span style="font-weight:700; color:${salaColor}; background:${salaBg}; border:${salaBorder}; padding:0.15rem 0.4rem; border-radius:6px; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.02em;">${r.sala}</span>
-                                    <span style="background:rgba(255,255,255,0.08); padding:0.15rem 0.4rem; border-radius:6px; font-size:0.7rem; color:var(--widget-muted);">${r.duracao}</span>
+                                    <span class="res-tag-duration">${r.duracao}</span>
                                     <span style="background:${statusColorBg}; color:${statusColorText}; padding:0.15rem 0.4rem; border-radius:6px; font-size:0.7rem; font-weight:700; text-transform:uppercase;">${statusText}</span>
                                 </div>
-                                <div style="color:#fff; font-weight:500; margin-top:0.25rem;">📅 ${dateFormatted} das ${timeStr} às ${endTimeStr}</div>
+                                <div class="res-item-time">📅 ${dateFormatted} das ${timeStr} às ${endTimeStr}</div>
                                 <div style="font-size:0.65rem; color:var(--widget-muted);">Por: ${r.reservado_por}</div>
                             </div>
                             <div style="display:flex; align-items:center;">

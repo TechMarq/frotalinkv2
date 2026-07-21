@@ -83,7 +83,7 @@
             gap: 0.6rem;
             margin-bottom: 2rem;
             overflow-x: auto;
-            padding-bottom: 0.4rem;
+            padding: 8px 6px;
             scrollbar-width: thin;
             -webkit-overflow-scrolling: touch;
         }
@@ -178,17 +178,23 @@
 
         .class-tooltip {
             position: absolute;
-            bottom: -100%;
+            bottom: -110%;
             left: 0;
             width: 100%;
-            background: rgba(15, 23, 42, 0.95);
+            height: 100%;
+            background: rgba(15, 23, 42, 0.96);
             backdrop-filter: blur(8px);
-            padding: 1rem;
+            padding: 0.5rem 0.8rem;
+            box-sizing: border-box;
             border-top: 1px solid var(--border-card);
-            transition: all 0.3s ease;
+            transition: all 0.25s ease;
             opacity: 0;
             visibility: hidden;
             z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            color: #fff;
         }
 
         .kpi-card:hover .class-tooltip {
@@ -200,9 +206,10 @@
         .class-item {
             display: flex;
             justify-content: space-between;
-            font-size: 0.7rem;
-            margin-bottom: 0.2rem;
-            font-weight: 600;
+            font-size: 0.62rem;
+            margin-bottom: 0.15rem;
+            font-weight: 700;
+            text-transform: uppercase;
         }
 
         .section-title {

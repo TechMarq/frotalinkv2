@@ -2000,154 +2000,7 @@ body,
     color: #5a7a6a !important;
 }
 
-[data-theme="green_pastel"] .preset-btn:hover,
-[data-theme="green_pastel"] .preset-btn.active {
-    background: #2d9e6b !important;
-    color: white !important;
-    border-color: #2d9e6b !important;
-}
 
-
-/* Status colors — reajustados para fundo claro */
-[data-theme="green_pastel"] .status-disponivel { color: #1a7a50 !important; }
-[data-theme="green_pastel"] .status-garagem    { color: #2563eb !important; }
-[data-theme="green_pastel"] .status-manutencao { color: #dc2626 !important; }
-[data-theme="green_pastel"] .status-vinc       { color: #7c3aed !important; }
-
-/* KPI cards — fundo branco limpo */
-[data-theme="green_pastel"] .kpi-card {
-    background: rgba(255, 255, 255, 0.88) !important;
-    border-color: rgba(45, 158, 107, 0.18) !important;
-    box-shadow: 0 2px 16px rgba(45, 158, 107, 0.08) !important;
-    color: #1a2e25 !important;
-}
-
-[data-theme="green_pastel"] .kpi-card:hover {
-    border-color: var(--primary) !important;
-    box-shadow: 0 8px 28px rgba(45, 158, 107, 0.18) !important;
-}
-
-/* Module cards — estilo botão transparente com presença verde */
-[data-theme="green_pastel"] .module-card {
-    background: rgba(45, 158, 107, 0.13) !important;
-    border: 1.5px solid rgba(45, 158, 107, 0.4) !important;
-    box-shadow:
-        0 2px 12px rgba(45, 158, 107, 0.14),
-        inset 0 1px 0 rgba(255, 255, 255, 0.65),
-        inset 0 -1px 0 rgba(45, 158, 107, 0.08) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    color: #1a2e25 !important;
-}
-
-[data-theme="green_pastel"] .module-card:hover {
-    border-color: #2d9e6b !important;
-    background: rgba(45, 158, 107, 0.22) !important;
-    box-shadow:
-        0 8px 28px rgba(45, 158, 107, 0.28),
-        inset 0 1px 0 rgba(255, 255, 255, 0.8),
-        inset 0 -1px 0 rgba(45, 158, 107, 0.1) !important;
-    transform: scale(1.02) !important;
-}
-
-[data-theme="green_pastel"] .module-card h3 {
-    color: #1a2e25 !important;
-    -webkit-text-fill-color: #1a2e25 !important;
-    background: none !important;
-    font-size: 1.05rem;
-    font-weight: 700;
-}
-
-[data-theme="green_pastel"] .module-card p {
-    color: #5a7a6a !important;
-    font-size: 0.88rem;
-}
-
-[data-theme="green_pastel"] .module-card .module-icon {
-    background: rgba(45, 158, 107, 0.15) !important;
-    border-radius: 12px;
-}
-
-[data-theme="green_pastel"] .status-pill.pill-active {
-    background: rgba(45, 158, 107, 0.15) !important;
-    color: #1a7a50 !important;
-    border: 1px solid rgba(45, 158, 107, 0.3) !important;
-}
-
-[data-theme="green_pastel"] .kpi-label {
-    color: #5a7a6a !important;
-}
-
-[data-theme="green_pastel"] .kpi-value {
-    color: #1a2e25 !important;
-}
-
-[data-theme="green_pastel"] .kpi-trend.up   { color: #1a7a50 !important; }
-[data-theme="green_pastel"] .kpi-trend.warn { color: #a06010 !important; }
-[data-theme="green_pastel"] .kpi-trend.danger { color: #b83232 !important; }
-
-/* Notification badges */
-[data-theme="green_pastel"] .noti-btn {
-    background: rgba(45, 158, 107, 0.08) !important;
-    color: #1a7a50 !important;
-    border-color: rgba(45, 158, 107, 0.15) !important;
-}
-
-[data-theme="green_pastel"] .noti-panel {
-    background: #fff !important;
-    border-color: rgba(45, 158, 107, 0.15) !important;
-    box-shadow: 0 10px 30px rgba(45, 158, 107, 0.12) !important;
-    color: #1a2e25 !important;
-}
-
-/* Admin mode */
-[data-theme="green_pastel"] .admin-mode {
-    background: rgba(255, 255, 255, 0.9) !important;
-    border-color: rgba(45, 158, 107, 0.15) !important;
-    color: #1a2e25 !important;
-}
-
-/* Scrollbar personalizada — verde suave */
-[data-theme="green_pastel"] ::-webkit-scrollbar {
-    width: 8px !important;
-    height: 8px !important;
-}
-
-[data-theme="green_pastel"] ::-webkit-scrollbar-track {
-    background: rgba(45, 158, 107, 0.05) !important;
-}
-
-[data-theme="green_pastel"] ::-webkit-scrollbar-thumb {
-    background: rgba(45, 158, 107, 0.25) !important;
-    border-radius: 10px !important;
-}
-
-[data-theme="green_pastel"] ::-webkit-scrollbar-thumb:hover {
-    background: rgba(45, 158, 107, 0.5) !important;
-}
-
-/* Seleção de texto */
-[data-theme="green_pastel"] ::selection {
-    background: rgba(45, 158, 107, 0.2) !important;
-    color: #1a2e25 !important;
-}
-
-/* ─── Orb Menu — tema claro verde ─── */
-[data-theme="green_pastel"] .orb-main {
-    background: radial-gradient(circle at 30% 30%, #2d9e6b, #1a7a50) !important;
-    box-shadow:
-        0 10px 25px rgba(45, 158, 107, 0.35),
-        inset -5px -5px 15px rgba(0,0,0,0.2),
-        inset 5px 5px 15px rgba(255,255,255,0.2) !important;
-}
-
-[data-theme="green_pastel"] .orb-main:hover {
-    box-shadow: 0 15px 35px rgba(45, 158, 107, 0.55) !important;
-}
-
-[data-theme="green_pastel"] .orb-main.active {
-    background: radial-gradient(circle at 30% 30%, #e05252, #b91c1c) !important;
-}
 
 [data-theme="green_pastel"] .orb-satellite {
     background: rgba(255, 255, 255, 0.95) !important;
@@ -2479,15 +2332,177 @@ body,
     border-color: #dc2626 !important;
     color: #fff !important;
 }
+
 [data-theme="green_pastel"] .alert-chip.warning.active {
     background: #d97706 !important;
     border-color: #d97706 !important;
     color: #fff !important;
 }
+
 [data-theme="green_pastel"] .alert-chip.info.active {
     background: #2563eb !important;
     border-color: #2563eb !important;
     color: #fff !important;
 }
 
+/* ────────────────────────────────────────────────────────
+   TEMA CLARO (green_pastel) - OVERRIDES & CORREÇÕES
+   ──────────────────────────────────────────────────────── */
 
+[data-theme="green_pastel"] .preset-btn:hover,
+[data-theme="green_pastel"] .preset-btn.active {
+    background: #2d9e6b !important;
+    color: white !important;
+    border-color: #2d9e6b !important;
+}
+
+[data-theme="green_pastel"] .status-disponivel { color: #1a7a50 !important; }
+[data-theme="green_pastel"] .status-garagem    { color: #2563eb !important; }
+[data-theme="green_pastel"] .status-manutencao { color: #dc2626 !important; }
+[data-theme="green_pastel"] .status-vinc       { color: #7c3aed !important; }
+
+/* KPI cards — fundo branco limpo */
+[data-theme="green_pastel"] .kpi-card {
+    background: rgba(255, 255, 255, 0.88) !important;
+    border-color: rgba(45, 158, 107, 0.18) !important;
+    box-shadow: 0 2px 16px rgba(45, 158, 107, 0.08) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .kpi-card:hover {
+    border-color: var(--primary) !important;
+    box-shadow: 0 8px 28px rgba(45, 158, 107, 0.18) !important;
+}
+
+[data-theme="green_pastel"] .class-tooltip {
+    background: rgba(240, 247, 244, 0.98) !important;
+    border-top: 1px solid rgba(45, 158, 107, 0.18) !important;
+    color: #1a2e25 !important;
+}
+
+/* Module cards — estilo botão transparente com presença verde */
+[data-theme="green_pastel"] .module-card {
+    background: rgba(45, 158, 107, 0.13) !important;
+    border: 1.5px solid rgba(45, 158, 107, 0.4) !important;
+    box-shadow:
+        0 2px 12px rgba(45, 158, 107, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.65),
+        inset 0 -1px 0 rgba(45, 158, 107, 0.08) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .module-card:hover {
+    border-color: #2d9e6b !important;
+    background: rgba(45, 158, 107, 0.22) !important;
+    box-shadow:
+        0 8px 28px rgba(45, 158, 107, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8),
+        inset 0 -1px 0 rgba(45, 158, 107, 0.1) !important;
+    transform: scale(1.02) !important;
+}
+
+[data-theme="green_pastel"] .module-card h3 {
+    color: #1a2e25 !important;
+    -webkit-text-fill-color: #1a2e25 !important;
+    background: none !important;
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+[data-theme="green_pastel"] .module-card p {
+    color: #5a7a6a !important;
+    font-size: 0.88rem;
+}
+
+[data-theme="green_pastel"] .module-card .module-icon {
+    background: rgba(45, 158, 107, 0.15) !important;
+    border-radius: 12px;
+}
+
+[data-theme="green_pastel"] .status-pill.pill-active {
+    background: rgba(45, 158, 107, 0.15) !important;
+    color: #1a7a50 !important;
+    border: 1px solid rgba(45, 158, 107, 0.3) !important;
+}
+
+[data-theme="green_pastel"] .kpi-label {
+    color: #5a7a6a !important;
+}
+
+[data-theme="green_pastel"] .kpi-value {
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .kpi-trend.up {
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .kpi-trend.warn {
+    color: #a06010 !important;
+}
+
+[data-theme="green_pastel"] .kpi-trend.danger {
+    color: #b83232 !important;
+}
+
+/* Notification badges */
+[data-theme="green_pastel"] .noti-btn {
+    background: rgba(45, 158, 107, 0.08) !important;
+    color: #1a7a50 !important;
+    border-color: rgba(45, 158, 107, 0.15) !important;
+}
+
+[data-theme="green_pastel"] .noti-panel {
+    background: #fff !important;
+    border-color: rgba(45, 158, 107, 0.15) !important;
+    box-shadow: 0 10px 30px rgba(45, 158, 107, 0.12) !important;
+    color: #1a2e25 !important;
+}
+
+/* Admin mode */
+[data-theme="green_pastel"] .admin-mode {
+    background: rgba(255, 255, 255, 0.9) !important;
+    border-color: rgba(45, 158, 107, 0.15) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] ::-webkit-scrollbar {
+    width: 8px !important;
+    height: 8px !important;
+}
+
+[data-theme="green_pastel"] ::-webkit-scrollbar-track {
+    background: rgba(45, 158, 107, 0.05) !important;
+}
+
+[data-theme="green_pastel"] ::-webkit-scrollbar-thumb {
+    background: rgba(45, 158, 107, 0.25) !important;
+    border-radius: 10px !important;
+}
+
+[data-theme="green_pastel"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(45, 158, 107, 0.5) !important;
+}
+
+[data-theme="green_pastel"] ::selection {
+    background: rgba(45, 158, 107, 0.2) !important;
+    color: #1a2e25 !important;
+}
+
+/* Orb Menu */
+[data-theme="green_pastel"] .orb-main {
+    background: radial-gradient(circle at 30% 30%, #2d9e6b, #1a7a50) !important;
+    box-shadow: 0 10px 25px rgba(45, 158, 107, 0.35),
+        inset -5px -5px 15px rgba(0,0,0,0.2),
+        inset 5px 5px 15px rgba(255,255,255,0.2) !important;
+}
+
+[data-theme="green_pastel"] .orb-main:hover {
+    box-shadow: 0 15px 35px rgba(45, 158, 107, 0.55) !important;
+}
+
+[data-theme="green_pastel"] .orb-main.active {
+    background: radial-gradient(circle at 30% 30%, #e05252, #b91c1c) !important;
+}
