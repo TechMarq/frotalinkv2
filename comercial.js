@@ -432,6 +432,8 @@ function renderContratos() {
     const filterStatus = document.getElementById('filterStatus').value;
     const filterDemanda = document.getElementById('filterDemanda').value;
 
+    const statusVencidoObj = config.status.find(s => s.nome.toUpperCase().includes('VENCIDO'));
+
     let filtered = contratos.filter(c => {
         const clienteNome = c.cliente_nome || '';
         const clienteCnpj = c.cliente_cnpj_cpf || '';
@@ -441,7 +443,14 @@ function renderContratos() {
                               clienteCnpj.toLowerCase().includes(searchTerm) || 
                               descricao.toLowerCase().includes(searchTerm);
         
-        const matchesStatus = !filterStatus || c.status_id === filterStatus;
+        // Se o contrato estiver vencido por data, o status lógico vira "VENCIDO"
+        const isVencido = c.data_vencimento && new Date(c.data_vencimento + 'T00:00:00') < today;
+        let logicalStatusId = c.status_id;
+        if (isVencido && statusVencidoObj) {
+            logicalStatusId = statusVencidoObj.id;
+        }
+
+        const matchesStatus = !filterStatus || logicalStatusId === filterStatus;
         const matchesDemanda = !filterDemanda || c.tipo_demanda_id === filterDemanda;
 
         return matchesSearch && matchesStatus && matchesDemanda;
@@ -470,7 +479,7 @@ function renderContratos() {
     body.innerHTML = filtered.map(c => {
         let alertIcon = '';
         let rowHighlight = '';
-        let vencColor = '#fff';
+        let vencColor = 'var(--text-main)';
 
         if (c.data_vencimento) {
             const dVenc = new Date(c.data_vencimento + 'T00:00:00');
@@ -501,7 +510,7 @@ function renderContratos() {
 
         // Mapa de células por key
         const cellMap = {
-            cliente:     `<td data-label="Cliente"><div style="font-weight:800;color:#fff;">${c.cliente_nome || 'N/A'}</div><div style="font-size:0.7rem;color:var(--text-muted);">${c.vigencia || '-'}</div></td>`,
+            cliente:     `<td data-label="Cliente"><div style="font-weight:800;color:var(--text-main);">${c.cliente_nome || 'N/A'}</div><div style="font-size:0.7rem;color:var(--text-muted);">${c.vigencia || '-'}</div></td>`,
             cnpj:        `<td data-label="CNPJ">${c.cliente_cnpj_cpf || '-'}</td>`,
             descricao:   `<td data-label="Descrição"><div>${c.descricao_contrato || '-'}</div><div style="font-size:0.7rem;color:var(--primary);font-weight:700;">VERSÃO: ${c.versao_contrato || '-'}</div></td>`,
             versao:      `<td data-label="Versão"><span style="font-size:0.75rem;font-weight:700;color:var(--primary);">${c.versao_contrato || '-'}</span></td>`,
@@ -575,32 +584,74 @@ function renderAlertBanner() {
     }
 
     banner.style.display = 'block';
-    let html = '';
+    
+    // Container flex para os chips clicáveis
+    let html = `
+    <div class="alerts-toggle-row" style="display:flex; gap:0.6rem; align-items:center; margin-bottom: 0.6rem; flex-wrap:wrap;">
+    `;
 
     if (vencidos.length > 0) {
         html += `
-        <div style="display:flex;align-items:flex-start;gap:0.8rem;padding:0.9rem 1.2rem;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:12px;margin-bottom:0.6rem;">
-            <i data-lucide="alert-triangle" style="width:18px;color:#ef4444;flex-shrink:0;margin-top:1px;"></i>
+        <button type="button" onclick="toggleAlertDetails('vencidos')" class="alert-chip-toggle danger-toggle" style="cursor:pointer; display:inline-flex; align-items:center; gap:0.5rem; padding:0.45rem 1rem; border-radius:30px; font-weight:800; font-size:0.72rem; border:1px solid rgba(239,68,68,0.25); background:rgba(239,68,68,0.06); color:#ef4444; transition:all 0.2s; outline:none; font-family:'Inter', sans-serif;">
+            <i data-lucide="alert-triangle" style="width:14px;height:14px;"></i>
+            <span>${vencidos.length} contrato(s) VENCIDO(S)</span>
+            <i data-lucide="chevron-down" id="vencidosChevron" style="width:14px;height:14px;transition: transform 0.2s;"></i>
+        </button>
+        `;
+    }
+
+    if (aVencer.length > 0) {
+        html += `
+        <button type="button" onclick="toggleAlertDetails('avencer')" class="alert-chip-toggle warning-toggle" style="cursor:pointer; display:inline-flex; align-items:center; gap:0.5rem; padding:0.45rem 1rem; border-radius:30px; font-weight:800; font-size:0.72rem; border:1px solid rgba(245,158,11,0.25); background:rgba(245,158,11,0.06); color:#f59e0b; transition:all 0.2s; outline:none; font-family:'Inter', sans-serif;">
+            <i data-lucide="clock" style="width:14px;height:14px;"></i>
+            <span>${aVencer.length} contrato(s) vencem em 30 dias</span>
+            <i data-lucide="chevron-down" id="avencerChevron" style="width:14px;height:14px;transition: transform 0.2s;"></i>
+        </button>
+        `;
+    }
+
+    html += `</div>`;
+
+    // Painéis de detalhes ocultos por padrão (display: none)
+    if (vencidos.length > 0) {
+        html += `
+        <div id="vencidosDetailsPanel" class="comercial-alert-banner alert-danger-banner" style="display:none;align-items:flex-start;gap:0.8rem;padding:0.9rem 1.2rem;border-radius:12px;margin-bottom:0.6rem;animation:fadeIn 0.2s ease;">
             <div style="flex:1;">
-                <div style="font-size:0.8rem;font-weight:800;color:#ef4444;margin-bottom:0.3rem;">${vencidos.length} contrato(s) VENCIDO(S)</div>
-                <div style="font-size:0.72rem;color:var(--text-muted);line-height:1.5;">${vencidos.map(c => `<strong style="color:#fff;">${c.cliente_nome}</strong> (${c.data_vencimento ? new Date(c.data_vencimento+'T12:00:00').toLocaleDateString('pt-BR') : '-'})`).join(' &nbsp;·&nbsp; ')}</div>
+                <div class="banner-desc" style="font-size:0.72rem;line-height:1.5;">${vencidos.map(c => `<strong>${c.cliente_nome}</strong> (${c.data_vencimento ? new Date(c.data_vencimento+'T12:00:00').toLocaleDateString('pt-BR') : '-'})`).join(' &nbsp;·&nbsp; ')}</div>
             </div>
         </div>`;
     }
 
     if (aVencer.length > 0) {
         html += `
-        <div style="display:flex;align-items:flex-start;gap:0.8rem;padding:0.9rem 1.2rem;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:12px;">
-            <i data-lucide="clock" style="width:18px;color:#f59e0b;flex-shrink:0;margin-top:1px;"></i>
+        <div id="avencerDetailsPanel" class="comercial-alert-banner alert-warning-banner" style="display:none;align-items:flex-start;gap:0.8rem;padding:0.9rem 1.2rem;border-radius:12px;margin-bottom:0.6rem;animation:fadeIn 0.2s ease;">
             <div style="flex:1;">
-                <div style="font-size:0.8rem;font-weight:800;color:#f59e0b;margin-bottom:0.3rem;">${aVencer.length} contrato(s) vencem nos próximos 30 dias</div>
-                <div style="font-size:0.72rem;color:var(--text-muted);line-height:1.5;">${aVencer.map(c => { const d = new Date(c.data_vencimento+'T00:00:00'); const dias = Math.ceil((d - new Date().setHours(0,0,0,0)) / 86400000); return `<strong style="color:#fff;">${c.cliente_nome}</strong> (${dias}d)`; }).join(' &nbsp;·&nbsp; ')}</div>
+                <div class="banner-desc" style="font-size:0.72rem;line-height:1.5;">${aVencer.map(c => { const d = new Date(c.data_vencimento+'T00:00:00'); const dias = Math.ceil((d - new Date().setHours(0,0,0,0)) / 86400000); return `<strong>${c.cliente_nome}</strong> (${dias}d)`; }).join(' &nbsp;·&nbsp; ')}</div>
             </div>
         </div>`;
     }
 
     banner.innerHTML = html;
+    if (window.lucide) lucide.createIcons();
 }
+
+window.toggleAlertDetails = (type) => {
+    const panel = document.getElementById(type + 'DetailsPanel');
+    const chevron = document.getElementById(type + 'Chevron');
+    if (!panel) return;
+
+    if (panel.style.display === 'none') {
+        panel.style.display = 'flex';
+        if (chevron) {
+            chevron.style.transform = 'rotate(180deg)';
+        }
+    } else {
+        panel.style.display = 'none';
+        if (chevron) {
+            chevron.style.transform = 'rotate(0deg)';
+        }
+    }
+};
 
 function updateTabBadge() {
     const today = new Date();
@@ -626,25 +677,47 @@ function updateTabBadge() {
 
 function updateDashboard() {
     const today = new Date();
-    const in30Days = new Date();
+    today.setHours(0, 0, 0, 0);
+    const in30Days = new Date(today);
     in30Days.setDate(today.getDate() + 30);
 
-    const propAbertas = contratos.filter(c => c.proposta_step === 0 || c.proposta_step === null || c.proposta_step === undefined);
-    const propAnalise = contratos.filter(c => c.proposta_step === 1);
-    const ativos = contratos.filter(c => c.proposta_step === 2 && c.status?.nome?.toUpperCase() === 'ATIVO');
+    const statusVencidoObj = config.status.find(s => s.nome.toUpperCase().includes('VENCIDO'));
+
+    const totalContratos = contratos.length;
     
-    const vencidos = contratos.filter(c => c.proposta_step === 2 && c.data_vencimento && new Date(c.data_vencimento) < today);
-    const vencendo = contratos.filter(c => {
-        if (c.proposta_step !== 2 || !c.data_vencimento) return false;
-        const d = new Date(c.data_vencimento);
-        return d >= today && d <= in30Days;
+    // Contratos vencidos (por data ou por status)
+    const vencidos = contratos.filter(c => {
+        const isVencidoData = c.data_vencimento && new Date(c.data_vencimento + 'T00:00:00') < today;
+        const isVencidoStatus = statusVencidoObj && c.status_id === statusVencidoObj.id;
+        return isVencidoData || isVencidoStatus;
     });
 
-    const elAbertas = document.getElementById('dash_prop_abertas');
-    if (elAbertas) elAbertas.innerText = propAbertas.length;
+    // Contratos vencendo em 30 dias (e não vencidos)
+    const vencendo = contratos.filter(c => {
+        if (!c.data_vencimento) return false;
+        const d = new Date(c.data_vencimento + 'T00:00:00');
+        const isVencidoData = d < today;
+        return !isVencidoData && d <= in30Days;
+    });
 
-    const elAnalise = document.getElementById('dash_prop_analise');
-    if (elAnalise) elAnalise.innerText = propAnalise.length;
+    // Contratos ativos (não vencidos por data)
+    const ativos = contratos.filter(c => {
+        const isVencidoData = c.data_vencimento && new Date(c.data_vencimento + 'T00:00:00') < today;
+        return !isVencidoData;
+    });
+
+    // Valor Total da Carteira (soma dos valores declarados)
+    const valorTotal = contratos.reduce((acc, c) => acc + (parseFloat(c.valor_contrato) || 0), 0);
+
+    // Prazo Médio (em meses)
+    const prazosValidos = contratos.filter(c => c.prazo_meses && c.prazo_meses > 0);
+    const prazoMedio = prazosValidos.length > 0 
+        ? Math.round(prazosValidos.reduce((acc, c) => acc + (parseInt(c.prazo_meses) || 0), 0) / prazosValidos.length)
+        : 0;
+
+    // Atualiza KPIs no DOM
+    const elTotal = document.getElementById('dash_total_contratos');
+    if (elTotal) elTotal.innerText = totalContratos;
 
     const elAtivos = document.getElementById('dash_contratos_ativos');
     if (elAtivos) elAtivos.innerText = ativos.length;
@@ -655,66 +728,158 @@ function updateDashboard() {
     const elVencidos = document.getElementById('dash_vencidos');
     if (elVencidos) elVencidos.innerText = vencidos.length;
 
+    const elValorTotal = document.getElementById('dash_valor_total');
+    if (elValorTotal) elValorTotal.innerText = valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    const elPrazoMedio = document.getElementById('dash_prazo_medio');
+    if (elPrazoMedio) elPrazoMedio.innerText = `${prazoMedio} meses`;
+
     renderCharts();
 }
 
 function renderCharts() {
+    const isDark = (window.currentThemeId || 'green_pastel') === 'dark';
+    const textColor = isDark ? '#94a3b8' : '#5a7a6a';
+    const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+    const primaryColor = isDark ? '#6366f1' : '#2d9e6b';
+
+    // 1. Gráfico: Contratos por Vigência
     const ctxVig = document.getElementById('chartVigencia');
-    if (!ctxVig) return;
+    if (ctxVig) {
+        const vigMap = {};
+        contratos.forEach(c => {
+            const v = c.vigencia || 'Não Informada';
+            vigMap[v] = (vigMap[v] || 0) + 1;
+        });
+        
+        const labelsVig = Object.keys(vigMap);
+        const dataVig = Object.values(vigMap);
 
-    // Vigência (Example group by 5 top)
-    const vigMap = {};
-    contratos.forEach(c => {
-        const v = c.vigencia || 'N/D';
-        vigMap[v] = (vigMap[v] || 0) + 1;
-    });
-    
-    const labelsVig = Object.keys(vigMap);
-    const dataVig = Object.values(vigMap);
+        if (window.myChartVig) window.myChartVig.destroy();
+        window.myChartVig = new Chart(ctxVig, {
+            type: 'bar',
+            data: {
+                labels: labelsVig,
+                datasets: [{
+                    label: 'Quantidade',
+                    data: dataVig,
+                    backgroundColor: primaryColor,
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { 
+                    y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, precision: 0 } },
+                    x: { grid: { display: false }, ticks: { color: textColor } }
+                }
+            }
+        });
+    }
 
-    if (window.myChartVig) window.myChartVig.destroy();
-    window.myChartVig = new Chart(ctxVig, {
-        type: 'bar',
-        data: {
-            labels: labelsVig,
-            datasets: [{
-                label: 'Qtd Contratos',
-                data: dataVig,
-                backgroundColor: '#6366f1'
-            }]
-        },
-        options: {
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } } }
-        }
-    });
-
-    // Demanda
+    // 2. Gráfico: Mix por Tipo de Demanda
     const ctxDem = document.getElementById('chartDemanda');
-    if (!ctxDem) return;
+    if (ctxDem) {
+        const demMap = {};
+        contratos.forEach(c => {
+            const d = c.demanda?.nome || 'Não Informada';
+            demMap[d] = (demMap[d] || 0) + 1;
+        });
 
-    const demMap = {};
-    contratos.forEach(c => {
-        const d = c.demanda?.nome || 'N/D';
-        demMap[d] = (demMap[d] || 0) + 1;
-    });
+        if (window.myChartDem) window.myChartDem.destroy();
+        window.myChartDem = new Chart(ctxDem, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(demMap),
+                datasets: [{
+                    data: Object.values(demMap),
+                    backgroundColor: ['#2d9e6b', '#6366f1', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6']
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: { 
+                    legend: { position: 'bottom', labels: { color: textColor, boxWidth: 12, padding: 15 } } 
+                }
+            }
+        });
+    }
 
-    if (window.myChartDem) window.myChartDem.destroy();
-    window.myChartDem = new Chart(ctxDem, {
-        type: 'pie',
-        data: {
-            labels: Object.keys(demMap),
-            datasets: [{
-                data: Object.values(demMap),
-                backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#ef4444']
-            }]
-        },
-        options: {
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom' } }
-        }
-    });
+    // 3. Gráfico: Distribuição por Tabela de Preço
+    const ctxTab = document.getElementById('chartTabelaPreco');
+    if (ctxTab) {
+        const tabMap = {};
+        contratos.forEach(c => {
+            const t = c.tabela?.nome || 'Padrão';
+            tabMap[t] = (tabMap[t] || 0) + 1;
+        });
+
+        if (window.myChartTab) window.myChartTab.destroy();
+        window.myChartTab = new Chart(ctxTab, {
+            type: 'pie',
+            data: {
+                labels: Object.keys(tabMap),
+                datasets: [{
+                    data: Object.values(tabMap),
+                    backgroundColor: ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899']
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: { 
+                    legend: { position: 'bottom', labels: { color: textColor, boxWidth: 12, padding: 15 } } 
+                }
+            }
+        });
+    }
+
+    // 4. Gráfico: Cronograma de Vencimentos (Por Mês/Ano)
+    const ctxVenc = document.getElementById('chartVencimentosCronograma');
+    if (ctxVenc) {
+        const vencMap = {};
+        contratos.forEach(c => {
+            if (c.data_vencimento) {
+                const dateParts = c.data_vencimento.split('-');
+                if (dateParts.length >= 2) {
+                    const monthYear = `${dateParts[1]}/${dateParts[0]}`;
+                    vencMap[monthYear] = (vencMap[monthYear] || 0) + 1;
+                }
+            } else {
+                vencMap['Sem Data'] = (vencMap['Sem Data'] || 0) + 1;
+            }
+        });
+
+        const sortedKeys = Object.keys(vencMap).sort((a, b) => {
+            if (a === 'Sem Data') return 1;
+            if (b === 'Sem Data') return -1;
+            const [mA, yA] = a.split('/');
+            const [mB, yB] = b.split('/');
+            return (yA + mA) - (yB + mB);
+        });
+
+        if (window.myChartVenc) window.myChartVenc.destroy();
+        window.myChartVenc = new Chart(ctxVenc, {
+            type: 'bar',
+            data: {
+                labels: sortedKeys,
+                datasets: [{
+                    label: 'Vencimentos',
+                    data: sortedKeys.map(k => vencMap[k]),
+                    backgroundColor: '#f59e0b',
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { 
+                    y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, precision: 0 } },
+                    x: { grid: { display: false }, ticks: { color: textColor } }
+                }
+            }
+        });
+    }
 }
 
 // --- Modais e CRUD ---
@@ -743,8 +908,12 @@ window.openContratoModal = async (id = null) => {
     // Reset estado da proposta
     propostaAtual = { contratoId: id, propostaId: id, step: 0, itens: [], historico: [], proposta_versao: 1 };
 
+    const typeWrapper = document.getElementById('creationTypeWrapper');
+    const selectType = document.getElementById('creation_type');
+
     // Preenche campos de contrato existente
     if (id) {
+        if (typeWrapper) typeWrapper.style.display = 'none';
         const c = contratos.find(x => x.id === id);
         if (c) {
             document.getElementById('cliente_nome').value          = c.cliente_nome || '';
@@ -809,6 +978,8 @@ window.openContratoModal = async (id = null) => {
             }
         }
     } else {
+        if (typeWrapper) typeWrapper.style.display = 'flex';
+        if (selectType) selectType.value = 'proposta';
         // Nova proposta — inicializar campos
         document.getElementById('prop_data_proposta').value  = dataAtualISO();
         document.getElementById('prop_validade_dias').value  = 30;
@@ -832,6 +1003,30 @@ window.openContratoModal = async (id = null) => {
     calcularValidadeProposta();
     setPropostaVersao(propostaAtual.proposta_versao, false);
     renderItensProposta();
+    
+    if (!id) {
+        window.handleCreationTypeChange('proposta');
+    } else {
+        // Se for edição, ajusta exibição da timeline e botões dependendo se é contrato ativo
+        const c = contratos.find(x => x.id === id);
+        const isContratoDireto = c && c.proposta_step === 2; 
+        const timeline = document.getElementById('propostaTimelineBar');
+        const btnAvancar = document.getElementById('btnAvancarProposta');
+        const btnGerar = document.getElementById('btnGerarDocumentoProposta');
+        const propFieldsGroup = document.getElementById('propostaCamposExclusivosGroup');
+        if (isContratoDireto) {
+            if (timeline) timeline.style.display = 'none';
+            if (btnAvancar) btnAvancar.style.display = 'none';
+            if (btnGerar) btnGerar.style.display = 'none';
+            if (propFieldsGroup) propFieldsGroup.style.display = 'none';
+        } else {
+            if (timeline) timeline.style.display = 'block';
+            if (btnAvancar) btnAvancar.style.display = 'flex';
+            if (btnGerar) btnGerar.style.display = 'flex';
+            if (propFieldsGroup) propFieldsGroup.style.display = 'flex';
+        }
+    }
+
     updateTimelineUI(propostaAtual.step);
     renderHistoricoProposta();
 
@@ -843,6 +1038,49 @@ window.openContratoModal = async (id = null) => {
         const inputNome = document.getElementById('cliente_nome');
         if (inputNome) inputNome.focus();
     }, 100);
+};
+
+window.handleCreationTypeChange = (type) => {
+    const timeline = document.getElementById('propostaTimelineBar');
+    const btnAvancar = document.getElementById('btnAvancarProposta');
+    const btnGerar = document.getElementById('btnGerarDocumentoProposta');
+    const propFieldsGroup = document.getElementById('propostaCamposExclusivosGroup');
+
+    if (type === 'contrato_direto') {
+        propostaAtual.step = 2;
+        if (timeline) timeline.style.display = 'none';
+        if (btnAvancar) btnAvancar.style.display = 'none';
+        if (btnGerar) btnGerar.style.display = 'none';
+        if (propFieldsGroup) propFieldsGroup.style.display = 'none';
+        
+        // Auto-seleciona status ativo se estiver criando novo contrato ativo direto
+        const statusAtivo = config.status.find(s => {
+            const n = s.nome.toUpperCase();
+            return n.includes('ATIVO') || n.includes('APROVAD') || n.includes('CONTRATO');
+        });
+        const selectStatus = document.getElementById('status_id');
+        if (statusAtivo && selectStatus) {
+            selectStatus.value = statusAtivo.id;
+        }
+    } else {
+        propostaAtual.step = 0;
+        if (timeline) timeline.style.display = 'block';
+        if (btnAvancar) btnAvancar.style.display = 'flex';
+        if (btnGerar) btnGerar.style.display = 'flex';
+        if (propFieldsGroup) propFieldsGroup.style.display = 'flex';
+        
+        // Auto-seleciona status proposta aberta
+        const statusAberta = config.status.find(s =>
+            s.nome.toUpperCase().includes('PROPOSTA ABERTA') ||
+            s.nome.toUpperCase().includes('ABERTA')
+        );
+        const selectStatus = document.getElementById('status_id');
+        if (statusAberta && selectStatus) {
+            selectStatus.value = statusAberta.id;
+        }
+    }
+    
+    updateTimelineUI(propostaAtual.step);
 };
 
 window.closeContratoModal = (force = false) => {
@@ -989,49 +1227,53 @@ async function handleSaveContrato(e) {
         }
     }
 
-    if (!propostaAtual.itens || propostaAtual.itens.length === 0) {
-        alert("Adicione pelo menos 1 item na proposta.");
-        btn.disabled = false;
-        btn.innerHTML = origText;
-        return;
-    }
+    const creationType = document.getElementById('creation_type')?.value || (editId ? (contratos.find(x => x.id === editId)?.proposta_step === 2 ? 'contrato_direto' : 'proposta') : 'proposta');
 
-    let itemError = false;
-    propostaAtual.itens.forEach((it, idx) => {
-        const tr = document.querySelector(`#propostaItensBody tr[data-idx="${idx}"]`);
-        if (!tr) return;
-
-        const inputs = tr.querySelectorAll('.item-input');
-        if (propostaAtual.proposta_versao === 2) {
-            const origInput  = inputs[0];
-            const destInput  = inputs[1];
-            const qtdInput   = inputs[2];
-            const kmInput    = inputs[3];
-            const valKmInput = inputs[4];
-
-            if (!it.origem?.trim()) { highlightElement(origInput); itemError = true; }
-            if (!it.destino?.trim()) { highlightElement(destInput); itemError = true; }
-            if ((it.qtd_veiculos || 0) <= 0) { highlightElement(qtdInput); itemError = true; }
-            if ((it.total_km || 0) <= 0) { highlightElement(kmInput); itemError = true; }
-            if ((it.valor_km || 0) <= 0) { highlightElement(valKmInput); itemError = true; }
-        } else {
-            const descInput  = inputs[0];
-            const unInput    = inputs[1];
-            const qtdInput   = inputs[2];
-            const precoInput = inputs[3];
-
-            if (!it.descricao?.trim()) { highlightElement(descInput); itemError = true; }
-            if (!it.unidade?.trim())   { highlightElement(unInput); itemError = true; }
-            if ((it.quantidade || 0) <= 0) { highlightElement(qtdInput); itemError = true; }
-            if ((it.preco_unit || 0) <= 0) { highlightElement(precoInput); itemError = true; }
+    if (creationType !== 'contrato_direto') {
+        if (!propostaAtual.itens || propostaAtual.itens.length === 0) {
+            alert("Adicione pelo menos 1 item na proposta.");
+            btn.disabled = false;
+            btn.innerHTML = origText;
+            return;
         }
-    });
 
-    if (itemError) {
-        alert("Preencha todos os campos dos itens da proposta com valores válidos destacados em vermelho.");
-        btn.disabled = false;
-        btn.innerHTML = origText;
-        return;
+        let itemError = false;
+        propostaAtual.itens.forEach((it, idx) => {
+            const tr = document.querySelector(`#propostaItensBody tr[data-idx="${idx}"]`);
+            if (!tr) return;
+
+            const inputs = tr.querySelectorAll('.item-input');
+            if (propostaAtual.proposta_versao === 2) {
+                const origInput  = inputs[0];
+                const destInput  = inputs[1];
+                const qtdInput   = inputs[2];
+                const kmInput    = inputs[3];
+                const valKmInput = inputs[4];
+
+                if (!it.origem?.trim()) { highlightElement(origInput); itemError = true; }
+                if (!it.destino?.trim()) { highlightElement(destInput); itemError = true; }
+                if ((it.qtd_veiculos || 0) <= 0) { highlightElement(qtdInput); itemError = true; }
+                if ((it.total_km || 0) <= 0) { highlightElement(kmInput); itemError = true; }
+                if ((it.valor_km || 0) <= 0) { highlightElement(valKmInput); itemError = true; }
+            } else {
+                const descInput  = inputs[0];
+                const unInput    = inputs[1];
+                const qtdInput   = inputs[2];
+                const precoInput = inputs[3];
+
+                if (!it.descricao?.trim()) { highlightElement(descInput); itemError = true; }
+                if (!it.unidade?.trim())   { highlightElement(unInput); itemError = true; }
+                if ((it.quantidade || 0) <= 0) { highlightElement(qtdInput); itemError = true; }
+                if ((it.preco_unit || 0) <= 0) { highlightElement(precoInput); itemError = true; }
+            }
+        });
+
+        if (itemError) {
+            alert("Preencha todos os campos dos itens da proposta com valores válidos destacados em vermelho.");
+            btn.disabled = false;
+            btn.innerHTML = origText;
+            return;
+        }
     }
 
     try {
@@ -1076,33 +1318,67 @@ async function handleSaveContrato(e) {
                 window.registrarLog('comercial', 'ALTERAÇÃO', `Atualizou proposta/contrato ID ${savedId} de ${payload.cliente_nome}`);
             }
         } else {
-            // Nova proposta: inicializa com step=0, status_id de proposta aberta e grava histórico inicial
-            payload.proposta_step = 0;
-            const statusAberta = config.status.find(s =>
-                s.nome.toUpperCase().includes('PROPOSTA ABERTA') ||
-                s.nome.toUpperCase().includes('ABERTA')
-            );
-            if (statusAberta) {
-                payload.status_id = statusAberta.id;
-                const selectStatus = document.getElementById('status_id');
-                if (selectStatus) selectStatus.value = statusAberta.id;
-            }
-            const { data: inserted, error: errIns } = await supabaseClient
-                .from('com_contratos').insert([payload]).select().single();
-            if (errIns) throw errIns;
-            savedId = inserted.id;
-            res = { error: null };
+            // Nova proposta ou novo contrato ativo direto
+            const creationType = document.getElementById('creation_type')?.value || 'proposta';
+            
+            if (creationType === 'contrato_direto') {
+                payload.proposta_step = 2;
+                const statusAtivo = config.status.find(s => {
+                    const n = s.nome.toUpperCase();
+                    return n.includes('ATIVO') || n.includes('APROVAD') || n.includes('CONTRATO');
+                });
+                if (statusAtivo && !payload.status_id) {
+                    payload.status_id = statusAtivo.id;
+                    const selectStatus = document.getElementById('status_id');
+                    if (selectStatus) selectStatus.value = statusAtivo.id;
+                }
 
-            // Histórico inicial
-            await supabaseClient.from('com_proposta_historico').insert([{
-                contrato_id: savedId,
-                step: 0,
-                label: 'Proposta Aberta',
-                data: dataAtualISO()
-            }]);
+                const { data: inserted, error: errIns } = await supabaseClient
+                    .from('com_contratos').insert([payload]).select().single();
+                if (errIns) throw errIns;
+                savedId = inserted.id;
+                res = { error: null };
 
-            if (window.registrarLog) {
-                window.registrarLog('comercial', 'INCLUSÃO', `Criou nova proposta/contrato para ${payload.cliente_nome}`);
+                // Histórico inicial de contrato ativo direto
+                await supabaseClient.from('com_proposta_historico').insert([{
+                    contrato_id: savedId,
+                    step: 2,
+                    label: 'Contrato Ativo Criado Diretamente (Sem fluxo de Proposta)',
+                    data: dataAtualISO()
+                }]);
+
+                if (window.registrarLog) {
+                    window.registrarLog('comercial', 'INCLUSÃO', `Criou novo contrato ativo diretamente para ${payload.cliente_nome}`);
+                }
+            } else {
+                // Nova proposta convencional (inicia em step 0)
+                payload.proposta_step = 0;
+                const statusAberta = config.status.find(s =>
+                    s.nome.toUpperCase().includes('PROPOSTA ABERTA') ||
+                    s.nome.toUpperCase().includes('ABERTA')
+                );
+                if (statusAberta) {
+                    payload.status_id = statusAberta.id;
+                    const selectStatus = document.getElementById('status_id');
+                    if (selectStatus) selectStatus.value = statusAberta.id;
+                }
+                const { data: inserted, error: errIns } = await supabaseClient
+                    .from('com_contratos').insert([payload]).select().single();
+                if (errIns) throw errIns;
+                savedId = inserted.id;
+                res = { error: null };
+
+                // Histórico inicial
+                await supabaseClient.from('com_proposta_historico').insert([{
+                    contrato_id: savedId,
+                    step: 0,
+                    label: 'Proposta Aberta',
+                    data: dataAtualISO()
+                }]);
+
+                if (window.registrarLog) {
+                    window.registrarLog('comercial', 'INCLUSÃO', `Criou nova proposta comercial para ${payload.cliente_nome}`);
+                }
             }
         }
 
@@ -1441,9 +1717,12 @@ function getVisibleData() {
 
 // --- EXCEL ---
 window.exportExcel = () => {
-    const keys    = getExportColumns();
+    // Exporta todas as colunas existentes, exceto 'acoes'
+    const keys    = COL_DEFS.map(d => d.key).filter(k => k !== 'acoes');
     const headers = keys.map(k => COL_DEFS.find(d => d.key === k)?.label || k);
-    const data    = getVisibleData();
+    
+    // Exporta todos os registros (desconsiderando filtros da tela)
+    const data    = contratos;
     const rows    = data.map(c => keys.map(k => getCellValue(c, k)));
 
     const wsData = [headers, ...rows];
@@ -2615,4 +2894,10 @@ window.confirmPin = function() {
         alert('Código Incorreto! Tente novamente.');
     }
 };
+
+window.addEventListener('themechange', () => {
+    if (currentTab === 'dashboard') {
+        renderCharts();
+    }
+});
 

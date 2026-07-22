@@ -95,6 +95,9 @@
         // Salvar preferência
         localStorage.setItem(THEME_KEY, theme.id);
         window.currentThemeId = theme.id;
+        
+        // Despacha evento de mudança de tema
+        window.dispatchEvent(new CustomEvent('themechange', { detail: { theme, themeId } }));
     }
 
     function updateTabStyles(theme) {

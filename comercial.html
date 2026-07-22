@@ -8,10 +8,8 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="orb_menu.css">
     <link rel="icon" type="image/png" href="https://img.icons8.com/color/48/truck.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap"
         rel="stylesheet">
     <script defer src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -27,8 +25,8 @@
             --primary-hover: #4f46e5;
             --secondary: #1e293b;
             --bg-dark: #0f172a;
-            --card-bg: rgba(30, 41, 59, 0.7);
-            --border-color: rgba(255, 255, 255, 0.1);
+            --card-bg: var(--bg-card, rgba(30, 41, 59, 0.7));
+            --border-color: var(--border-card, rgba(255, 255, 255, 0.1));
             --text-main: #f1f5f9;
             --text-muted: #94a3b8;
         }
@@ -929,7 +927,7 @@
             width: 100%;
             outline: none;
             transition: border-color 0.2s;
-            font-family: 'Outfit', sans-serif;
+            font-family: 'Inter', sans-serif;
         }
 
         .item-input:focus {
@@ -1313,6 +1311,252 @@
                 padding: 20mm 25mm;
             }
         }
+
+        /* ===== CLEAN THEME OVERRIDES (green_pastel) ===== */
+        html[data-theme="green_pastel"] .custom-modal-content {
+            background: #ffffff !important;
+            border-color: rgba(45, 158, 107, 0.2) !important;
+            color: #1a2e25 !important;
+            box-shadow: 0 25px 50px -12px rgba(45, 158, 107, 0.15) !important;
+        }
+
+        html[data-theme="green_pastel"] .modal-header h2 {
+            color: #1a2e25 !important;
+        }
+
+        html[data-theme="green_pastel"] .com-input {
+            background: #f4f9f6 !important;
+            border-color: rgba(45, 158, 107, 0.2) !important;
+            color: #1a2e25 !important;
+        }
+
+        html[data-theme="green_pastel"] .com-input:focus {
+            border-color: #2d9e6b !important;
+            box-shadow: 0 0 0 3px rgba(45, 158, 107, 0.15) !important;
+        }
+
+        html[data-theme="green_pastel"] .com-input::placeholder {
+            color: #7fa494 !important;
+        }
+
+        html[data-theme="green_pastel"] .item-input {
+            background: #f4f9f6 !important;
+            border-color: rgba(45, 158, 107, 0.2) !important;
+            color: #1a2e25 !important;
+        }
+
+        html[data-theme="green_pastel"] .item-input:focus {
+            border-color: #2d9e6b !important;
+        }
+
+        html[data-theme="green_pastel"] .custom-modal-overlay {
+            background: rgba(240, 247, 244, 0.75) !important;
+        }
+
+        html[data-theme="green_pastel"] #propostaTimelineBar {
+            background: rgba(45, 158, 107, 0.05) !important;
+            border-color: rgba(45, 158, 107, 0.15) !important;
+        }
+
+        html[data-theme="green_pastel"] #creationTypeWrapper {
+            background: rgba(45, 158, 107, 0.05) !important;
+            border-color: rgba(45, 158, 107, 0.15) !important;
+        }
+
+        html[data-theme="green_pastel"] .timeline-step-label {
+            color: #1a2e25 !important;
+        }
+
+        html[data-theme="green_pastel"] .timeline-dot {
+            background: #f4f9f6 !important;
+            border-color: rgba(45, 158, 107, 0.3) !important;
+            color: #5a7a6a !important;
+        }
+
+        html[data-theme="green_pastel"] .timeline-step.active .timeline-dot {
+            background: #2d9e6b !important;
+            border-color: #2d9e6b !important;
+            color: #fff !important;
+        }
+
+        html[data-theme="green_pastel"] .timeline-step.done .timeline-dot {
+            background: rgba(45, 158, 107, 0.15) !important;
+            border-color: #2d9e6b !important;
+            color: #2d9e6b !important;
+        }
+        
+        html[data-theme="green_pastel"] .timeline-step.active .timeline-step-label,
+        html[data-theme="green_pastel"] .timeline-step.done .timeline-step-label {
+            color: #1a2e25 !important;
+        }
+
+        html[data-theme="green_pastel"] .timeline-connector {
+            background: rgba(45, 158, 107, 0.15) !important;
+        }
+
+        html[data-theme="green_pastel"] .timeline-connector.done {
+            background: #2d9e6b !important;
+        }
+
+        /* Default Alert Banners (Dark Theme) */
+        .alert-danger-banner {
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+        }
+        .alert-danger-banner i, .alert-danger-banner .banner-title {
+            color: #ef4444;
+        }
+        .alert-danger-banner .banner-desc {
+            color: var(--text-muted);
+        }
+        .alert-danger-banner .banner-desc strong {
+            color: #fff;
+        }
+
+        .alert-warning-banner {
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+        }
+        .alert-warning-banner i, .alert-warning-banner .banner-title {
+            color: #f59e0b;
+        }
+        .alert-warning-banner .banner-desc {
+            color: var(--text-muted);
+        }
+        .alert-warning-banner .banner-desc strong {
+            color: #fff;
+        }
+
+        /* Clean Theme Alert Banners (green_pastel) */
+        html[data-theme="green_pastel"] .alert-danger-banner {
+            background: #fef2f2 !important;
+            border-color: #fca5a5 !important;
+        }
+        html[data-theme="green_pastel"] .alert-danger-banner i,
+        html[data-theme="green_pastel"] .alert-danger-banner .banner-title {
+            color: #b91c1c !important;
+        }
+        html[data-theme="green_pastel"] .alert-danger-banner .banner-desc {
+            color: #991b1b !important;
+        }
+        html[data-theme="green_pastel"] .alert-danger-banner .banner-desc strong {
+            color: #7f1d1d !important;
+        }
+
+        html[data-theme="green_pastel"] .alert-warning-banner {
+            background: #fffbeb !important;
+            border-color: #fde68a !important;
+        }
+        html[data-theme="green_pastel"] .alert-warning-banner i,
+        html[data-theme="green_pastel"] .alert-warning-banner .banner-title {
+            color: #d97706 !important;
+        }
+        html[data-theme="green_pastel"] .alert-warning-banner .banner-desc {
+            color: #92400e !important;
+        }
+        html[data-theme="green_pastel"] .alert-warning-banner .banner-desc strong {
+            color: #78350f !important;
+        }
+
+        /* Clean Theme Column Organizer Panel (green_pastel) */
+        html[data-theme="green_pastel"] .col-organizer-panel {
+            background: rgba(255, 255, 255, 0.98) !important;
+            border-color: rgba(45, 158, 107, 0.15) !important;
+            box-shadow: 0 8px 32px rgba(45, 158, 107, 0.08) !important;
+        }
+
+        html[data-theme="green_pastel"] .col-chip {
+            background: #f4f9f6 !important;
+            border-color: rgba(45, 158, 107, 0.15) !important;
+            color: #1a2e25 !important;
+        }
+
+        html[data-theme="green_pastel"] .col-chip.pinned-col {
+            background: rgba(45, 158, 107, 0.1) !important;
+            border-color: rgba(45, 158, 107, 0.3) !important;
+            color: #2d9e6b !important;
+        }
+
+        html[data-theme="green_pastel"] .btn-reset-cols {
+            border-color: rgba(45, 158, 107, 0.2) !important;
+            color: #5a7a6a !important;
+        }
+
+        html[data-theme="green_pastel"] .btn-reset-cols:hover {
+            border-color: #2d9e6b !important;
+            color: #2d9e6b !important;
+        }
+
+        /* Align header left and style page title to match Abastecimento layout */
+        .comercial-container header {
+            text-align: left !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: flex-end !important;
+            margin-bottom: 2.5rem !important;
+        }
+
+        html[data-theme="green_pastel"] .comercial-container header h1 {
+            background: none !important;
+            -webkit-text-fill-color: initial !important;
+            color: #2d9e6b !important;
+        }
+
+        /* Clean theme table header overrides */
+        html[data-theme="green_pastel"] th {
+            background: #e2efe9 !important;
+            color: #1a2e25 !important;
+            border-bottom: 2px solid rgba(45, 158, 107, 0.15) !important;
+        }
+
+        html[data-theme="green_pastel"] th:hover {
+            background: rgba(45, 158, 107, 0.15) !important;
+            color: #2d9e6b !important;
+        }
+
+        /* Clean Theme Alert Chip Toggles */
+        html[data-theme="green_pastel"] .danger-toggle {
+            background: #fef2f2 !important;
+            border-color: #fca5a5 !important;
+            color: #b91c1c !important;
+        }
+        html[data-theme="green_pastel"] .danger-toggle:hover {
+            background: #fee2e2 !important;
+        }
+
+        html[data-theme="green_pastel"] .warning-toggle {
+            background: #fffbeb !important;
+            border-color: #fde68a !important;
+            color: #d97706 !important;
+        }
+        html[data-theme="green_pastel"] .warning-toggle:hover {
+            background: #fef3c7 !important;
+        }
+
+        /* Clean Theme KPI Cards & Content Cards Contrast Overrides */
+        html[data-theme="green_pastel"] .kpi-card {
+            background: #ffffff !important;
+            border: 1px solid rgba(45, 158, 107, 0.18) !important;
+            box-shadow: 0 4px 15px rgba(45, 158, 107, 0.05) !important;
+        }
+
+        html[data-theme="green_pastel"] .kpi-card .value {
+            color: #1a2e25 !important;
+        }
+
+        html[data-theme="green_pastel"] .kpi-card .label {
+            color: #5a7a6a !important;
+        }
+
+        html[data-theme="green_pastel"] .content-card {
+            background: #ffffff !important;
+            border: 1px solid rgba(45, 158, 107, 0.18) !important;
+            box-shadow: 0 4px 20px rgba(45, 158, 107, 0.05) !important;
+        }
+
+        html[data-theme="green_pastel"] .content-card h3 {
+            color: #1a2e25 !important;
+        }
     </style>
     <script src="config.js"></script>
 </head>
@@ -1322,16 +1566,22 @@
 
     <div class="comercial-container">
         <header style="margin-bottom: 2rem;">
-            <a href="home.html"
-                style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;"
-                onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
-                <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
-            </a>
-            <h1
-                style="font-size: 2.2rem; font-weight: 900; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
-                Comercial</h1>
-            <p style="color: var(--text-muted); font-size: 0.9rem; font-weight: 500; margin-top: 0.5rem;">Gestão
-                estratégica de contratos de clientes</p>
+            <div>
+                <a href="home.html"
+                    style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;"
+                    onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                    <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
+                </a>
+                <h1
+                    style="font-size: 2.2rem; font-weight: 900; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
+                    Comercial</h1>
+                <p style="color: var(--text-muted); font-size: 0.9rem; font-weight: 500; margin-top: 0.5rem;">Gestão
+                    estratégica de contratos de clientes</p>
+            </div>
+            <div id="connectionStatus" class="date-badge" style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); padding: 0.6rem 1rem; border-radius: 12px; font-size: 0.8rem; color: var(--text-muted);">
+                <div style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></div>
+                <span>Conectado</span>
+            </div>
         </header>
 
         <nav class="tabs-header">
@@ -1350,59 +1600,72 @@
 
         <!-- VIEW: DASHBOARD -->
         <section id="view-dashboard" class="view-section active">
-            <div class="kpi-grid">
+            <div class="kpi-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.2rem; margin-bottom: 2rem;">
                 <div class="kpi-card">
-                    <div class="kpi-icon-wrapper" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;"><i
-                            data-lucide="file-edit"></i></div>
+                    <div class="kpi-icon-wrapper" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6;"><i data-lucide="file-text"></i></div>
                     <div class="kpi-info">
-                        <span class="label">Propostas Abertas</span>
-                        <div id="dash_prop_abertas" class="value">0</div>
+                        <span class="label">Total de Contratos</span>
+                        <div id="dash_total_contratos" class="value">0</div>
                     </div>
                 </div>
                 <div class="kpi-card">
-                    <div class="kpi-icon-wrapper" style="background: rgba(99, 102, 241, 0.1); color: #6366f1;"><i
-                            data-lucide="clock"></i></div>
-                    <div class="kpi-info">
-                        <span class="label">Em Análise</span>
-                        <div id="dash_prop_analise" class="value">0</div>
-                    </div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon-wrapper" style="background: rgba(16, 185, 129, 0.1); color: #10b981;"><i
-                            data-lucide="check-circle"></i></div>
+                    <div class="kpi-icon-wrapper" style="background: rgba(16, 185, 129, 0.1); color: #10b981;"><i data-lucide="check-circle"></i></div>
                     <div class="kpi-info">
                         <span class="label">Contratos Ativos</span>
                         <div id="dash_contratos_ativos" class="value">0</div>
                     </div>
                 </div>
                 <div class="kpi-card">
-                    <div class="kpi-icon-wrapper" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;"><i
-                            data-lucide="alert-circle"></i></div>
+                    <div class="kpi-icon-wrapper" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;"><i data-lucide="clock"></i></div>
                     <div class="kpi-info">
                         <span class="label">Vencendo (30 dias)</span>
                         <div id="dash_vencendo" class="value">0</div>
                     </div>
                 </div>
                 <div class="kpi-card">
-                    <div class="kpi-icon-wrapper" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;"><i
-                            data-lucide="alert-triangle"></i></div>
+                    <div class="kpi-icon-wrapper" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;"><i data-lucide="alert-triangle"></i></div>
                     <div class="kpi-info">
-                        <span class="label">Vencidos</span>
+                        <span class="label">Vencidos / Expirados</span>
                         <div id="dash_vencidos" class="value">0</div>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon-wrapper" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6;"><i data-lucide="dollar-sign"></i></div>
+                    <div class="kpi-info">
+                        <span class="label">Valor Total Carteira</span>
+                        <div id="dash_valor_total" class="value" style="font-size: 1.3rem;">R$ 0,00</div>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon-wrapper" style="background: rgba(6, 182, 212, 0.1); color: #06b6d4;"><i data-lucide="calendar"></i></div>
+                    <div class="kpi-info">
+                        <span class="label">Prazo Médio</span>
+                        <div id="dash_prazo_medio" class="value">0 meses</div>
                     </div>
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;">
+            <!-- Dashboard Charts Row 1 -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
                 <div class="content-card">
-                    <h3 style="margin-bottom: 2rem; display: flex; align-items: center; gap: 0.8rem;"><i
-                            data-lucide="trending-up" style="color: var(--primary);"></i> Contratos por Vigência</h3>
-                    <div style="height: 400px;"><canvas id="chartVigencia"></canvas></div>
+                    <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.8rem; font-size: 1rem;"><i data-lucide="trending-up" style="color: var(--primary);"></i> Contratos por Vigência</h3>
+                    <div style="height: 320px;"><canvas id="chartVigencia"></canvas></div>
                 </div>
                 <div class="content-card">
-                    <h3 style="margin-bottom: 2rem; display: flex; align-items: center; gap: 0.8rem;"><i
-                            data-lucide="pie-chart" style="color: var(--primary);"></i> Mix de Demanda</h3>
-                    <div style="height: 400px;"><canvas id="chartDemanda"></canvas></div>
+                    <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.8rem; font-size: 1rem;"><i data-lucide="pie-chart" style="color: var(--primary);"></i> Mix por Tipo de Demanda</h3>
+                    <div style="height: 320px;"><canvas id="chartDemanda"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Dashboard Charts Row 2 -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
+                <div class="content-card">
+                    <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.8rem; font-size: 1rem;"><i data-lucide="layers" style="color: var(--primary);"></i> Distribuição por Tabela de Preço</h3>
+                    <div style="height: 320px;"><canvas id="chartTabelaPreco"></canvas></div>
+                </div>
+                <div class="content-card">
+                    <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.8rem; font-size: 1rem;"><i data-lucide="calendar-clock" style="color: var(--primary);"></i> Cronograma de Vencimentos</h3>
+                    <div style="height: 320px;"><canvas id="chartVencimentosCronograma"></canvas></div>
                 </div>
             </div>
         </section>
@@ -1567,6 +1830,15 @@
             <form id="contratoForm"
                 style="flex: 1; overflow-y: auto; padding: 2rem; display: flex; flex-direction: column; gap: 2rem;">
                 <input type="hidden" id="editId">
+
+                <!-- TIPO DE CADASTRO -->
+                <div id="creationTypeWrapper" style="display: flex; flex-direction: column; gap: 0.5rem; background: rgba(99,102,241,0.05); border: 1px solid rgba(99,102,241,0.2); padding: 1.2rem; border-radius: 14px; margin-bottom: 0.5rem;">
+                    <label style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px;">Tipo de Entrada do Cliente</label>
+                    <select id="creation_type" class="com-input" onchange="handleCreationTypeChange(this.value)" style="width: 100%;">
+                        <option value="proposta">Nova Proposta Comercial (Funil / Etapas)</option>
+                        <option value="contrato_direto">Cliente / Contrato Ativo Direto (Sem fluxo de Proposta)</option>
+                    </select>
+                </div>
 
                 <!-- LINHA DO TEMPO DA PROPOSTA -->
                 <div id="propostaTimelineBar"
@@ -1768,142 +2040,145 @@
                     </div>
                 </div>
 
-                <!-- Section 4: Dados da Proposta (endereço para documento) -->
-                <div>
-                    <div
-                        style="display:flex;align-items:center;gap:0.7rem;margin-bottom:1.5rem;padding-bottom:0.8rem;border-bottom:1px solid var(--border-color);">
-                        <i data-lucide="map-pin" style="width:16px;color:var(--primary);"></i>
-                        <span
-                            style="font-size:0.8rem;font-weight:800;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px;">Dados
-                            da Proposta</span>
+                <!-- GRUPO DE DADOS DA PROPOSTA (OCULTO PARA CADASTROS ATIVOS DIRETOS) -->
+                <div id="propostaCamposExclusivosGroup" style="display: flex; flex-direction: column; gap: 2rem;">
+                    <!-- Section 4: Dados da Proposta (endereço para documento) -->
+                    <div>
+                        <div
+                            style="display:flex;align-items:center;gap:0.7rem;margin-bottom:1.5rem;padding-bottom:0.8rem;border-bottom:1px solid var(--border-color);">
+                            <i data-lucide="map-pin" style="width:16px;color:var(--primary);"></i>
+                            <span
+                                style="font-size:0.8rem;font-weight:800;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px;">Dados
+                                da Proposta</span>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                            <div class="com-group" style="grid-column:span 2;">
+                                <label>Objeto / Escopo da Proposta</label>
+                                <textarea id="objeto_proposta" class="com-input" style="height:60px;resize:none;"
+                                    placeholder="Descreva o objeto da proposta..."></textarea>
+                            </div>
+                            <div class="com-group">
+                                <label>Endereço do Destinatário</label>
+                                <input type="text" id="endereco_proposta" class="com-input"
+                                    placeholder="Rua, número, bairro, cidade - UF">
+                            </div>
+                            <div class="com-group">
+                                <label>CEP</label>
+                                <input type="text" id="cep_proposta" class="com-input" placeholder="00000-000"
+                                    maxlength="9">
+                            </div>
+                            <div class="com-group">
+                                <label>Contato para a Proposta</label>
+                                <input type="text" id="contato_proposta" class="com-input" placeholder="Nome do contato">
+                            </div>
+                            <div class="com-group">
+                                <label>Assinatura do Documento</label>
+                                <input type="text" id="assinatura_proposta" class="com-input"
+                                    placeholder="Ex: New Cargo Transporte e Logística Ltda">
+                            </div>
+                        </div>
                     </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                        <div class="com-group" style="grid-column:span 2;">
-                            <label>Objeto / Escopo da Proposta</label>
-                            <textarea id="objeto_proposta" class="com-input" style="height:60px;resize:none;"
-                                placeholder="Descreva o objeto da proposta..."></textarea>
-                        </div>
-                        <div class="com-group">
-                            <label>Endereço do Destinatário</label>
-                            <input type="text" id="endereco_proposta" class="com-input"
-                                placeholder="Rua, número, bairro, cidade - UF">
-                        </div>
-                        <div class="com-group">
-                            <label>CEP</label>
-                            <input type="text" id="cep_proposta" class="com-input" placeholder="00000-000"
-                                maxlength="9">
-                        </div>
-                        <div class="com-group">
-                            <label>Contato para a Proposta</label>
-                            <input type="text" id="contato_proposta" class="com-input" placeholder="Nome do contato">
-                        </div>
-                        <div class="com-group">
-                            <label>Assinatura do Documento</label>
-                            <input type="text" id="assinatura_proposta" class="com-input"
-                                placeholder="Ex: New Cargo Transporte e Logística Ltda">
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Section 5: Validade e Condições de Pagamento -->
-                <div>
-                    <div
-                        style="display:flex;align-items:center;gap:0.7rem;margin-bottom:1.5rem;padding-bottom:0.8rem;border-bottom:1px solid var(--border-color);">
-                        <i data-lucide="calendar-clock" style="width:16px;color:var(--primary);"></i>
-                        <span
-                            style="font-size:0.8rem;font-weight:800;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px;">Validade
-                            e Condições de Pagamento</span>
+                    <!-- Section 5: Validade e Condições de Pagamento -->
+                    <div>
+                        <div
+                            style="display:flex;align-items:center;gap:0.7rem;margin-bottom:1.5rem;padding-bottom:0.8rem;border-bottom:1px solid var(--border-color);">
+                            <i data-lucide="calendar-clock" style="width:16px;color:var(--primary);"></i>
+                            <span
+                                style="font-size:0.8rem;font-weight:800;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px;">Validade
+                                e Condições de Pagamento</span>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1rem;">
+                            <div class="com-group">
+                                <label>Data da Proposta</label>
+                                <input type="date" id="prop_data_proposta" class="com-input"
+                                    oninput="calcularValidadeProposta()">
+                            </div>
+                            <div class="com-group">
+                                <label>Validade (dias)</label>
+                                <input type="number" id="prop_validade_dias" class="com-input" value="30" min="1"
+                                    oninput="calcularValidadeProposta()">
+                            </div>
+                            <div class="com-group" style="grid-column:span 2;">
+                                <label>Data de Validade (calculada)</label>
+                                <input type="date" id="prop_data_validade" class="com-input">
+                            </div>
+                            <div class="com-group" style="grid-column:span 2;">
+                                <label>Período de Medição</label>
+                                <input type="text" id="prop_periodo_medicao" class="com-input"
+                                    placeholder="Ex: Mensal (dia 01 a 30)">
+                            </div>
+                            <div class="com-group" style="grid-column:span 2;">
+                                <label>Condição de Pagamento</label>
+                                <input type="text" id="prop_forma_pagamento" class="com-input"
+                                    placeholder="Ex: 30 dias após medição">
+                            </div>
+                            <div class="com-group" style="grid-column:span 4;">
+                                <label>Observações da Proposta</label>
+                                <textarea id="prop_observacoes" class="com-input" style="height:55px;resize:none;"
+                                    placeholder="Notas finais do documento de proposta..."></textarea>
+                            </div>
+                        </div>
                     </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1rem;">
-                        <div class="com-group">
-                            <label>Data da Proposta</label>
-                            <input type="date" id="prop_data_proposta" class="com-input"
-                                oninput="calcularValidadeProposta()">
-                        </div>
-                        <div class="com-group">
-                            <label>Validade (dias)</label>
-                            <input type="number" id="prop_validade_dias" class="com-input" value="30" min="1"
-                                oninput="calcularValidadeProposta()">
-                        </div>
-                        <div class="com-group" style="grid-column:span 2;">
-                            <label>Data de Validade (calculada)</label>
-                            <input type="date" id="prop_data_validade" class="com-input">
-                        </div>
-                        <div class="com-group" style="grid-column:span 2;">
-                            <label>Período de Medição</label>
-                            <input type="text" id="prop_periodo_medicao" class="com-input"
-                                placeholder="Ex: Mensal (dia 01 a 30)">
-                        </div>
-                        <div class="com-group" style="grid-column:span 2;">
-                            <label>Condição de Pagamento</label>
-                            <input type="text" id="prop_forma_pagamento" class="com-input"
-                                placeholder="Ex: 30 dias após medição">
-                        </div>
-                        <div class="com-group" style="grid-column:span 4;">
-                            <label>Observações da Proposta</label>
-                            <textarea id="prop_observacoes" class="com-input" style="height:55px;resize:none;"
-                                placeholder="Notas finais do documento de proposta..."></textarea>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Section 6: Itens da Proposta -->
-                <div>
-                    <div
-                        style="display:flex;align-items:center;gap:0.7rem;margin-bottom:1.2rem;padding-bottom:0.8rem;border-bottom:1px solid var(--border-color);flex-wrap:wrap;">
-                        <i data-lucide="list" style="width:16px;color:var(--primary);"></i>
-                        <span
-                            style="font-size:0.8rem;font-weight:800;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px;">Itens
-                            da Proposta</span>
-                        
-                        <!-- Seletor de Versão do Layout de Itens -->
-                        <div class="version-selector-group" style="display:inline-flex; background:rgba(255,255,255,0.05); padding:3px; border-radius:10px; margin-left:1.5rem; border:1px solid var(--border-color);">
-                            <button type="button" id="btnVersao1" onclick="setPropostaVersao(1)" class="version-tab active" style="background:var(--primary); color:#fff; border:none; padding:0.35rem 0.8rem; border-radius:8px; font-size:0.75rem; font-weight:700; cursor:pointer; transition:all 0.3s; outline:none;">Versão 1 (Itens)</button>
-                            <button type="button" id="btnVersao2" onclick="setPropostaVersao(2)" class="version-tab" style="background:none; color:var(--text-muted); border:none; padding:0.35rem 0.8rem; border-radius:8px; font-size:0.75rem; font-weight:700; cursor:pointer; transition:all 0.3s; outline:none;">Versão 2 (Logística)</button>
-                        </div>
+                    <!-- Section 6: Itens da Proposta -->
+                    <div>
+                        <div
+                            style="display:flex;align-items:center;gap:0.7rem;margin-bottom:1.2rem;padding-bottom:0.8rem;border-bottom:1px solid var(--border-color);flex-wrap:wrap;">
+                            <i data-lucide="list" style="width:16px;color:var(--primary);"></i>
+                            <span
+                                style="font-size:0.8rem;font-weight:800;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px;">Itens
+                                da Proposta</span>
+                            
+                            <!-- Seletor de Versão do Layout de Itens -->
+                            <div class="version-selector-group" style="display:inline-flex; background:rgba(255,255,255,0.05); padding:3px; border-radius:10px; margin-left:1.5rem; border:1px solid var(--border-color);">
+                                <button type="button" id="btnVersao1" onclick="setPropostaVersao(1)" class="version-tab active" style="background:var(--primary); color:#fff; border:none; padding:0.35rem 0.8rem; border-radius:8px; font-size:0.75rem; font-weight:700; cursor:pointer; transition:all 0.3s; outline:none;">Versão 1 (Itens)</button>
+                                <button type="button" id="btnVersao2" onclick="setPropostaVersao(2)" class="version-tab" style="background:none; color:var(--text-muted); border:none; padding:0.35rem 0.8rem; border-radius:8px; font-size:0.75rem; font-weight:700; cursor:pointer; transition:all 0.3s; outline:none;">Versão 2 (Logística)</button>
+                            </div>
 
-                        <button type="button" onclick="addItemProposta()"
-                            style="margin-left:auto;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:var(--primary);padding:0.35rem 0.9rem;border-radius:8px;font-size:0.75rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:0.4rem;">
-                            <i data-lucide="plus" style="width:13px;"></i> Adicionar Item
-                        </button>
-                    </div>
-                    <div style="overflow-x:auto;">
-                        <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
-                            <thead id="propostaItensHeader">
-                                <tr style="background:rgba(255,255,255,0.04);">
-                                    <th
-                                        style="padding:0.6rem 0.5rem;text-align:center;color:var(--text-muted);font-weight:700;width:36px;">
-                                        #</th>
-                                    <th
-                                        style="padding:0.6rem 0.5rem;text-align:left;color:var(--text-muted);font-weight:700;">
-                                        Descrição</th>
-                                    <th
-                                        style="padding:0.6rem 0.5rem;text-align:center;color:var(--text-muted);font-weight:700;width:80px;">
-                                        Unidade</th>
-                                    <th
-                                        style="padding:0.6rem 0.5rem;text-align:right;color:var(--text-muted);font-weight:700;width:90px;">
-                                        Qtd.</th>
-                                    <th
-                                        style="padding:0.6rem 0.5rem;text-align:right;color:var(--text-muted);font-weight:700;width:110px;">
-                                        Preço Unit.</th>
-                                    <th
-                                        style="padding:0.6rem 0.5rem;text-align:right;color:var(--text-muted);font-weight:700;width:110px;">
-                                        Total</th>
-                                    <th style="width:36px;"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="propostaItensBody"></tbody>
-                            <tfoot>
-                                <tr style="border-top:2px solid rgba(99,102,241,0.3);">
-                                    <td colspan="5"
-                                        style="padding:0.7rem 0.5rem;text-align:right;font-weight:900;font-size:0.85rem;color:var(--text-muted);">
-                                        TOTAL GLOBAL</td>
-                                    <td style="padding:0.7rem 0.5rem;text-align:right;font-weight:900;font-size:0.95rem;color:#fff;"
-                                        id="propostaTotal">R$ 0,00</td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
-                        </table>
+                            <button type="button" onclick="addItemProposta()"
+                                style="margin-left:auto;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:var(--primary);padding:0.35rem 0.9rem;border-radius:8px;font-size:0.75rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:0.4rem;">
+                                <i data-lucide="plus" style="width:13px;"></i> Adicionar Item
+                            </button>
+                        </div>
+                        <div style="overflow-x:auto;">
+                            <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
+                                <thead id="propostaItensHeader">
+                                    <tr style="background:rgba(255,255,255,0.04);">
+                                        <th
+                                            style="padding:0.6rem 0.5rem;text-align:center;color:var(--text-muted);font-weight:700;width:36px;">
+                                            #</th>
+                                        <th
+                                            style="padding:0.6rem 0.5rem;text-align:left;color:var(--text-muted);font-weight:700;">
+                                            Descrição</th>
+                                        <th
+                                            style="padding:0.6rem 0.5rem;text-align:center;color:var(--text-muted);font-weight:700;width:80px;">
+                                            Unidade</th>
+                                        <th
+                                            style="padding:0.6rem 0.5rem;text-align:right;color:var(--text-muted);font-weight:700;width:90px;">
+                                            Qtd.</th>
+                                        <th
+                                            style="padding:0.6rem 0.5rem;text-align:right;color:var(--text-muted);font-weight:700;width:110px;">
+                                            Preço Unit.</th>
+                                        <th
+                                            style="padding:0.6rem 0.5rem;text-align:right;color:var(--text-muted);font-weight:700;width:110px;">
+                                            Total</th>
+                                        <th style="width:36px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="propostaItensBody"></tbody>
+                                <tfoot>
+                                    <tr style="border-top:2px solid rgba(99,102,241,0.3);">
+                                        <td colspan="5"
+                                            style="padding:0.7rem 0.5rem;text-align:right;font-weight:900;font-size:0.85rem;color:var(--text-muted);">
+                                            TOTAL GLOBAL</td>
+                                        <td style="padding:0.7rem 0.5rem;text-align:right;font-weight:900;font-size:0.95rem;color:#fff;"
+                                            id="propostaTotal">R$ 0,00</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
                     </div>
                 </div>
 

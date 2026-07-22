@@ -2467,11 +2467,19 @@ function closeModal() { editModal.style.display = 'none'; } // Generic close for
 // --- Real-time ---
 function subscribeToChanges() {
     if (!client) return;
-    client.channel('any').on('postgres_changes', { event: '*', schema: 'public' }, () => {
-        fetchVehicles();
-        fetchDrivers();
-        fetchInativoMotivos();
-    }).subscribe();
+    
+    // Inscreve especificamente nas tabelas de veículos e motoristas para evitar sobrecarga no banco de dados
+    client.channel('veiculos-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'veiculos' }, () => {
+            fetchVehicles();
+        })
+        .subscribe();
+
+    client.channel('motoristas-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'motoristas' }, () => {
+            fetchDrivers();
+        })
+        .subscribe();
 }
 
 // --- Init ---
