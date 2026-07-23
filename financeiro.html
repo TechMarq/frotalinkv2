@@ -58,9 +58,6 @@
             <button class="tab-item" onclick="switchMainTab('dre')">
                 <i data-lucide="file-spreadsheet"></i> DRE
             </button>
-            <button class="tab-item" onclick="switchMainTab('conciliacao')">
-                <i data-lucide="check-square"></i> Conciliação
-            </button>
             <button class="tab-item" onclick="switchMainTab('config')">
                 <i data-lucide="database"></i> CADASTRO
             </button>
@@ -117,7 +114,7 @@
                             <i data-lucide="settings-2"></i> Colunas
                         </button>
                         <button class="btn-primary-new" onclick="openEntryModal('PAGAR')">
-                            <i data-lucide="plus-circle"></i> Lançar Pagamento
+                            <i data-lucide="plus-circle"></i> Lançar Pagamento (F2)
                         </button>
                     </div>
                 </div>
@@ -227,7 +224,7 @@
                             <i data-lucide="download"></i> Excel
                         </button>
                         <button class="btn-primary-new" onclick="openEntryModal('RECEBER')">
-                            <i data-lucide="plus-circle"></i> Lançar Recebimento
+                            <i data-lucide="plus-circle"></i> Lançar Recebimento (F2)
                         </button>
                     </div>
                 </div>
@@ -306,27 +303,6 @@
                         </div>
                     </div>
                     <div id="dreContent"></div>
-                </div>
-            </section>
-
-            <!-- 6. CONCILIAÇÃO -->
-            <section id="tab-conciliacao" class="tab-content">
-                <div class="conciliacao-layout">
-                    <div class="conc-bank-list">
-                        <h3>Extrato Bancário</h3>
-                        <div class="conc-actions" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
-                            <select id="concContaSelect" class="financeiro-input" style="max-width: 220px;"></select>
-                            <input type="file" id="ofdImport" accept=".ofx,.csv" style="display:none"
-                                onchange="handleOFXUpload(this)">
-                            <button class="btn-outline" onclick="document.getElementById('ofdImport').click()"><i
-                                    data-lucide="upload"></i> Importar OFX</button>
-                        </div>
-                        <div id="extratoList" class="extrato-items"></div>
-                    </div>
-                    <div class="conc-match-list">
-                        <h3>Sugestões de Vínculo</h3>
-                        <div id="matchList" class="match-items"></div>
-                    </div>
                 </div>
             </section>
 
@@ -522,36 +498,39 @@
                     <div class="form-row grid-2">
                         <div class="input-group">
                             <label>Favorecido (Fornecedor/Cliente)</label>
-                            <div style="display:flex; gap:0.5rem; align-items:center;">
-                                <div class="input-with-chevron" style="flex:1;">
-                                    <input type="text" name="entidade_nome" id="entryEntidade" class="financeiro-input"
-                                        required placeholder="Digite ou selecione..." list="fornecedoresDatalist"
-                                        style="width:100%;">
-                                    <i data-lucide="chevron-down" class="chevron-icon"></i>
+                            <div class="input-with-btn">
+                                <div class="autocomplete-wrapper" style="flex: 1;">
+                                    <input type="text" id="entryEntidadeSearch" class="financeiro-input"
+                                        placeholder="Buscar favorecedor..." required autocomplete="off"
+                                        oninput="handleFinEntidadeSearch(this)" onfocus="handleFinEntidadeSearch(this)"
+                                        onkeydown="handleFinAutocompleteKeydown(event, this)"
+                                        style="width: 100%; box-sizing: border-box;">
+                                    <input type="hidden" name="entidade_nome" id="entryEntidade">
+                                    <div class="autocomplete-results"></div>
                                 </div>
-                                <button type="button" class="btn-quick-add" onclick="openModal('fornecedorModal')"
+                                <button type="button" class="btn-plus" onclick="openModal('fornecedorModal')"
                                     title="Novo Fornecedor" style="width:38px; height:38px;">
                                     <i data-lucide="plus"></i>
                                 </button>
                             </div>
-                            <datalist id="fornecedoresDatalist"></datalist>
                         </div>
                         <div class="input-group">
                             <label>Tipo Despesa (Plano de Contas)</label>
-                            <div style="display:flex; gap:0.5rem; align-items:center;">
-                                <div class="input-with-chevron" style="flex:1;">
-                                    <input type="text" id="entryCategoriaName" class="financeiro-input" required
-                                        placeholder="Digite o código ou nome..." list="categoriasDatalist"
-                                        style="width:100%;">
-                                    <i data-lucide="chevron-down" class="chevron-icon"></i>
+                            <div class="input-with-btn">
+                                <div class="autocomplete-wrapper" style="flex: 1;">
+                                    <input type="text" id="entryCategoriaSearch" class="financeiro-input"
+                                        placeholder="Buscar conta..." required autocomplete="off"
+                                        oninput="handleFinCategoriaSearch(this)" onfocus="handleFinCategoriaSearch(this)"
+                                        onkeydown="handleFinAutocompleteKeydown(event, this)"
+                                        style="width: 100%; box-sizing: border-box;">
+                                    <input type="hidden" name="categoria_id" id="entryCategoriaId">
+                                    <div class="autocomplete-results"></div>
                                 </div>
-                                <button type="button" class="btn-quick-add" onclick="openModal('planoModal')"
+                                <button type="button" class="btn-plus" onclick="openModal('planoModal')"
                                     title="Nova Conta" style="width:38px; height:38px;">
                                     <i data-lucide="plus"></i>
                                 </button>
                             </div>
-                            <datalist id="categoriasDatalist"></datalist>
-                            <input type="hidden" name="categoria_id" id="entryCategoriaId">
                         </div>
                     </div>
 
@@ -661,8 +640,8 @@
                         </button>
                     </div>
                     <div style="display: flex; gap: 1.5rem;">
-                        <button type="button" class="btn-secondary" onclick="closeModal('entryModal')" style="background: none; border: none; color: var(--text-muted); font-weight: 700; cursor: pointer;">CANCELAR</button>
-                        <button type="submit" class="btn-primary" style="background:#5c60f5; color:white; padding: 0.8rem 2rem; border-radius: 10px; border:none; font-weight:800; cursor:pointer;">SALVAR LANÇAMENTO</button>
+                        <button type="button" class="btn-secondary" onclick="closeModal('entryModal')" style="background: none; border: none; color: var(--text-muted); font-weight: 700; cursor: pointer;">CANCELAR (ESC)</button>
+                        <button type="submit" class="btn-primary" style="background:#5c60f5; color:white; padding: 0.8rem 2rem; border-radius: 10px; border:none; font-weight:800; cursor:pointer;">SALVAR LANÇAMENTO (Ctrl+Enter)</button>
                     </div>
                 </div>
             </form>

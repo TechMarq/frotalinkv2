@@ -1032,6 +1032,18 @@ function updateStatusCounts() {
     }
 }
 
+/**
+ * Atualiza um veículo no array em memória sem rebuscar o banco.
+ * Chame após operações simples de escrita para evitar re-fetch completo.
+ */
+function updateVehicleInMemory(vehicleId, partialData) {
+    const idx = vehicles.findIndex(v => v.id === vehicleId);
+    if (idx !== -1) {
+        vehicles[idx] = { ...vehicles[idx], ...partialData };
+        renderAll();
+    }
+}
+
 async function updateVehicleDriver(vehicleId, driverId) {
     if (!client) return;
 
@@ -1064,23 +1076,35 @@ async function updateVehicleDriver(vehicleId, driverId) {
         if (error) {
             console.error(error);
             alert('Erro ao atualizar');
-        } else {
-            if (window.registrarLog) {
-                const v = vehicles.find(item => item.id === vehicleId);
-                const placa = v ? v.placa : vehicleId;
-                let descLog = '';
-                if (driverId === "GARAGEM" || driverId === "DISPONIVEL") {
-                    descLog = `Alterou alocação do veículo ${placa} para ${driverId}`;
-                } else {
-                    const d = drivers.find(item => item.id === driverId);
-                    const motoristaNome = d ? d.nome_completo : driverId;
-                    descLog = `Alocou motorista ${motoristaNome} no veículo ${placa}`;
-                }
-                window.registrarLog('frota', 'ALTERAÇÃO', descLog);
-            }
+            return;
         }
 
-        fetchVehicles(); // Recarrega para atualizar a UI
+        // Log de auditoria
+        if (window.registrarLog) {
+            const v = vehicles.find(item => item.id === vehicleId);
+            const placa = v ? v.placa : vehicleId;
+            let descLog = '';
+            if (driverId === "GARAGEM" || driverId === "DISPONIVEL") {
+                descLog = `Alterou alocação do veículo ${placa} para ${driverId}`;
+            } else {
+                const d = drivers.find(item => item.id === driverId);
+                const motoristaNome = d ? d.nome_completo : driverId;
+                descLog = `Alocou motorista ${motoristaNome} no veículo ${placa}`;
+            }
+            window.registrarLog('frota', 'ALTERAÇÃO', descLog);
+        }
+
+        // Atualiza apenas o veículo afetado em memória (sem re-fetch completo)
+        const motorista = driverId && !['GARAGEM', 'DISPONIVEL'].includes(driverId)
+            ? drivers.find(d => d.id === driverId)
+            : null;
+        updateVehicleInMemory(vehicleId, {
+            ...updateData,
+            motorista_alocado: motorista
+                ? { nome_completo: motorista.nome_completo, contato_whatsapp: motorista.contato_whatsapp }
+                : null
+        });
+
     } catch (err) {
         console.error(err);
     }
@@ -1154,9 +1178,10 @@ async function fetchMaintLogs(vehicleId) {
     try {
         const { data, error } = await client
             .from('veiculo_situacoes_log')
-            .select('*')
+            .select('id, data, descricao, usuario_email')  // apenas campos usados em renderMaintLogs()
             .eq('veiculo_id', vehicleId)
-            .order('data', { ascending: false });
+            .order('data', { ascending: false })
+            .limit(50);  // histórico recente é suficiente para exibir em tela
 
         if (error) throw error;
 
@@ -1290,7 +1315,13 @@ async function addMaintLog() {
 
         document.getElementById('newLogDesc').value = '';
         fetchMaintLogs(vehicleId);
-        fetchVehicles(); // 🔄 Atualiza o dashboard para mostrar a nova situação imediatamente
+        // Atualiza o log do veículo em memória para refletir no tooltip do dashboard
+        const vMem = vehicles.find(item => item.id === vehicleId);
+        if (vMem) {
+            if (!vMem.veiculo_situacoes_log) vMem.veiculo_situacoes_log = [];
+            vMem.veiculo_situacoes_log.unshift({ id: Date.now().toString(), data, descricao: desc });
+            renderAll();
+        }
     } catch (err) {
         alert('Erro ao salvar log: ' + err.message);
     }
@@ -1304,6 +1335,7 @@ async function deleteMaintLog(logId) {
     const hasDelete = window.canDo ? window.canDo('frota_alocacoes', 'delete') : true;
     const isAdmin = window.currentUserRole === 'admin';
     const currentUserEmail = window.currentUser?.email || '';
+
     const isOwner = log.usuario_email && log.usuario_email.toLowerCase() === currentUserEmail.toLowerCase();
     
     if (!hasDelete || (!isOwner && !isAdmin && log.usuario_email)) {
@@ -1324,7 +1356,12 @@ async function deleteMaintLog(logId) {
         }
 
         fetchMaintLogs(vehicleId);
-        fetchVehicles(); // 🔄 Atualiza o dashboard
+        // Remove o log do veículo em memória
+        const vMem = vehicles.find(item => item.id === vehicleId);
+        if (vMem && vMem.veiculo_situacoes_log) {
+            vMem.veiculo_situacoes_log = vMem.veiculo_situacoes_log.filter(l => l.id !== logId);
+            renderAll();
+        }
     } catch (err) {
         alert('Erro ao excluir: ' + err.message);
     }
@@ -1364,7 +1401,13 @@ async function editMaintLog(logId) {
         }
 
         fetchMaintLogs(vehicleId);
-        fetchVehicles(); // 🔄 Atualiza o dashboard
+        // Atualiza o log em memória
+        const vMem = vehicles.find(item => item.id === vehicleId);
+        if (vMem && vMem.veiculo_situacoes_log) {
+            const logIdx = vMem.veiculo_situacoes_log.findIndex(l => l.id === logId);
+            if (logIdx !== -1) vMem.veiculo_situacoes_log[logIdx].descricao = novaDesc;
+            renderAll();
+        }
     } catch (err) {
         alert('Erro ao editar: ' + err.message);
     }
@@ -1405,7 +1448,14 @@ async function handleMaintenanceSubmit(e) {
         alert('Informações atualizadas com sucesso!');
         document.getElementById('maintPendingStatus').value = '';
         document.getElementById('maintenanceModal').style.display = 'none';
-        fetchVehicles();
+        // Atualiza o veículo em memória com os novos dados de manutenção
+        updateVehicleInMemory(vehicleId, {
+            status_alocacao: newStatus,
+            motorista_alocado_id: newStatus === 'MANUTENCAO' ? null : (v ? v.motorista_alocado_id : null),
+            manutencao_oficina_id: oficinaNome || null,
+            manutencao_motivo: motivo
+        });
+        renderAll();
     } catch (err) {
         console.error('Erro ao salvar manutenção:', err);
         alert('Falha ao salvar: ' + err.message);
@@ -1432,7 +1482,7 @@ async function fetchOficinas() {
     try {
         const { data, error } = await client
             .from('fornecedores')
-            .select('*')
+            .select('id, nome, cidade')  // apenas campos usados no dropdown e modal
             .eq('categoria', 'OFICINA')
             .order('nome');
         
@@ -1672,12 +1722,21 @@ async function fetchDrivers() {
     if (!client) return;
     try {
         console.log('Buscando motoristas...');
+        // Campos necessários para dashboard, notificações e dropdowns
+        const DRIVER_FIELDS = 'id, nome_completo, cpf, contato_whatsapp, registro_cnh, categoria_cnh, vencimento_cnh, data_nascimento, status, quantidade_vinculo_seguro';
+
         // Tenta buscar da View que tem o contador de seguros caso exista
-        let { data, error } = await client.from('view_motoristas_vinculos').select('*').order('nome_completo');
+        let { data, error } = await client
+            .from('view_motoristas_vinculos')
+            .select(DRIVER_FIELDS)
+            .order('nome_completo');
         
         if (error) {
             console.warn('View de vínculos não encontrada, tentando tabela simples...', error.message);
-            const fallback = await client.from('motoristas').select('*').order('nome_completo');
+            const fallback = await client
+                .from('motoristas')
+                .select('id, nome_completo, cpf, contato_whatsapp, registro_cnh, categoria_cnh, vencimento_cnh, data_nascimento, status')
+                .order('nome_completo');
             if (fallback.error) throw fallback.error;
             data = fallback.data;
         }
@@ -1694,28 +1753,34 @@ async function fetchVehicles() {
     if (!client) return;
     try {
         console.log('Buscando veículos...');
-        // Seleção robusta que busca tanto o seguro quanto a alocação
-        // Removido o join 'fornecedores:manutencao_oficina_id(nome)' que causava erro se a coluna fosse texto puro
+
+        // Colunas necessárias para o dashboard, listagens, notificações e modais
+        // Campos pesados e raros (chassi, motor, FIPE, dados de NF) são buscados
+        // individualmente ao abrir o modal de edição, não nesta query geral.
+        const VEICULOS_FIELDS = `
+            id, placa, modelo, marca, proprietario, classificacao, status,
+            tipo_combustivel, cor, ano_fabricacao, ano_modelo, renavam,
+            vencimento_seguro, seguradora, numero_apolice, corretor_seguro,
+            valor_premio, valor_franquia, parcelas_pagamento, forma_pagamento,
+            proponente_seguro, endosso_proposta, ci_seguro,
+            condutor_principal_id, motorista_alocado_id, status_alocacao,
+            manutencao_oficina_id, manutencao_motivo, ignorar_media,
+            inativo_motivo, inativo_data, inativo_beneficiario, inativo_valor,
+            motoristas:condutor_principal_id(nome_completo, contato_whatsapp),
+            motorista_alocado:motorista_alocado_id(nome_completo, contato_whatsapp),
+            veiculo_situacoes_log(id, data, descricao)
+        `;
+
         let { data, error } = await client
             .from('veiculos')
-            .select(`
-                *, 
-                motoristas:condutor_principal_id(nome_completo, contato_whatsapp), 
-                motorista_alocado:motorista_alocado_id(nome_completo, contato_whatsapp),
-                veiculo_situacoes_log(id, data, descricao)
-            `)
+            .select(VEICULOS_FIELDS)
             .order('placa', { ascending: true });
 
         if (error) {
             console.warn('Erro na busca principal, tentando fallback com logs...', error.message);
             const fallback = await client
                 .from('veiculos')
-                .select(`
-                    *, 
-                    motoristas:condutor_principal_id(nome_completo, contato_whatsapp),
-                    motorista_alocado:motorista_alocado_id(nome_completo, contato_whatsapp),
-                    veiculo_situacoes_log(id, data, descricao)
-                `)
+                .select(VEICULOS_FIELDS)
                 .order('placa', { ascending: true });
             
             if (fallback.error) throw fallback.error;
@@ -1724,44 +1789,44 @@ async function fetchVehicles() {
 
         vehicles = data || [];
 
-        // --- Injeção do KM Atual Baseado no Último Abastecimento ---
+        // --- Injeção do KM Atual via View otimizada (1 única query no lugar do loop) ---
         try {
-            let allAbastecimentos = [];
-            let from = 0;
-            let to = 999;
-            let finished = false;
+            // Tenta usar a view view_veiculo_km_atual (criada em 18_performance_views_indexes.sql)
+            const { data: kmData, error: kmError } = await client
+                .from('view_veiculo_km_atual')
+                .select('veiculo_id, km_atual');
 
-            while (!finished) {
-                const { data, error: kmError } = await client
-                    .from('abastecimentos')
-                    .select('veiculo_id, km_atual, data, horario')
-                    .order('data', { ascending: true })
-                    .order('horario', { ascending: true })
-                    .range(from, to);
-
-                if (kmError) {
-                    console.warn('Erro ao buscar KM dos abastecimentos:', kmError);
-                    finished = true;
-                } else if (!data || data.length === 0) {
-                    finished = true;
-                } else {
-                    allAbastecimentos = allAbastecimentos.concat(data);
-                    if (data.length < 1000) finished = true;
-                    else { from += 1000; to += 1000; }
-                }
-            }
-
-            if (allAbastecimentos.length > 0) {
-                const kmMap = {};
-                allAbastecimentos.forEach(ab => {
-                    const kmVal = parseFloat(ab.km_atual) || 0;
-                    kmMap[ab.veiculo_id] = kmVal;
-                });
-
+            if (!kmError && kmData && kmData.length > 0) {
+                const kmMap = Object.fromEntries(kmData.map(r => [r.veiculo_id, parseFloat(r.km_atual) || 0]));
                 vehicles.forEach(v => {
-                    v.km_atual = kmMap[v.id] || v.km_atual || 0;
+                    v.km_atual = kmMap[v.id] ?? v.km_atual ?? 0;
                 });
-                console.log('KM Atual injetado nos veículos (cronológico):', Object.keys(kmMap).length, 'vínculos encontrados.');
+                console.log('KM Atual injetado via view (1 query):', Object.keys(kmMap).length, 'vínculos.');
+            } else if (kmError) {
+                // Fallback: busca paginada caso a view ainda não exista
+                console.warn('view_veiculo_km_atual não encontrada, usando fallback paginado. Execute sql/18_performance_views_indexes.sql no Supabase.');
+                let allAbastecimentos = [];
+                let from = 0;
+                let finished = false;
+                while (!finished) {
+                    const { data: page, error: pageErr } = await client
+                        .from('abastecimentos')
+                        .select('veiculo_id, km_atual, data, horario')
+                        .order('data', { ascending: true })
+                        .order('horario', { ascending: true })
+                        .range(from, from + 999);
+                    if (pageErr || !page || page.length === 0) { finished = true; break; }
+                    allAbastecimentos = allAbastecimentos.concat(page);
+                    if (page.length < 1000) finished = true;
+                    else from += 1000;
+                }
+                if (allAbastecimentos.length > 0) {
+                    const kmMap = {};
+                    allAbastecimentos.forEach(ab => {
+                        kmMap[ab.veiculo_id] = parseFloat(ab.km_atual) || 0;
+                    });
+                    vehicles.forEach(v => { v.km_atual = kmMap[v.id] || v.km_atual || 0; });
+                }
             }
         } catch (kmErr) {
             console.error('Falha na injeção de KM:', kmErr);
@@ -1780,7 +1845,7 @@ async function fetchFuelTypes() {
     try {
         const { data, error } = await client
             .from('tipos_combustivel')
-            .select('*')
+            .select('id, descricao, unidade')  // apenas campos usados no dropdown
             .order('descricao');
         if (error) throw error;
         fuelTypes = data || [];
@@ -2863,13 +2928,16 @@ window.testWhatsAppMessage = () => {
 async function fetchInativoMotivos() {
     if (!client) return;
     try {
-        const { data, error } = await client.from('veiculo_motivos_inativacao').select('*').order('nome');
+        const { data, error } = await client
+            .from('veiculo_motivos_inativacao')
+            .select('id, nome')  // apenas campos usados no dropdown e lista
+            .order('nome');
         if (error) throw error;
         inativoMotivos = data || [];
         renderInativoMotivos();
         updateInativoMotivosDropdown();
     } catch (err) {
-        console.error('Erro ao buscar motivos de inativação:', err);
+        console.error('Erro ao buscar motivos de ativação:', err);
     }
 }
 

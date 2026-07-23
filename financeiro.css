@@ -1388,3 +1388,251 @@ th.active-sort i {
     color: var(--primary) !important;
     opacity: 1 !important;
 }
+
+/* 🌿 Clean Theme Overrides for modal-v2 (Entrada de Nota / Despesa) */
+[data-theme="green_pastel"] .modal-overlay {
+    background: rgba(10, 40, 25, 0.6) !important;
+}
+
+[data-theme="green_pastel"] .modal-v2 {
+    background: #ffffff !important;
+    border-color: rgba(45, 158, 107, 0.18) !important;
+    box-shadow: 0 20px 60px rgba(45, 158, 107, 0.15) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .modal-v2 h2,
+[data-theme="green_pastel"] .modal-v2 h3,
+[data-theme="green_pastel"] .modal-v2 .modal-title {
+    color: #1a7a50 !important;
+    -webkit-text-fill-color: #1a7a50 !important;
+    background: none !important;
+}
+
+[data-theme="green_pastel"] .modal-v2 label {
+    color: #5a7a6a !important;
+}
+
+[data-theme="green_pastel"] .modal-v2 input,
+[data-theme="green_pastel"] .modal-v2 select,
+[data-theme="green_pastel"] .modal-v2 textarea {
+    background: #ffffff !important;
+    border: 1px solid rgba(45, 158, 107, 0.25) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .modal-v2 input:focus,
+[data-theme="green_pastel"] .modal-v2 select:focus,
+[data-theme="green_pastel"] .modal-v2 textarea:focus {
+    border-color: #2d9e6b !important;
+    box-shadow: 0 0 0 2px rgba(45, 158, 107, 0.18) !important;
+}
+
+[data-theme="green_pastel"] .modal-v2 .direct-select {
+    background: #ffffff !important;
+    border-color: rgba(45, 158, 107, 0.2) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .modal-v2 .modal-body-scroll::-webkit-scrollbar-thumb {
+    background: rgba(45, 158, 107, 0.2);
+}
+
+[data-theme="green_pastel"] .modal-v2 button.btn-cancel,
+[data-theme="green_pastel"] .modal-v2 .btn-cancel {
+    color: #5a7a6a !important;
+}
+
+[data-theme="green_pastel"] .modal-v2 button.btn-cancel:hover,
+[data-theme="green_pastel"] .modal-v2 .btn-cancel:hover {
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .modal-v2 button[type="submit"],
+[data-theme="green_pastel"] .modal-v2 .btn-save {
+    background: #2d9e6b !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(45, 158, 107, 0.3) !important;
+}
+
+[data-theme="green_pastel"] .modal-v2 button[type="submit"]:hover,
+[data-theme="green_pastel"] .modal-v2 .btn-save:hover {
+    background: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .modal-v2 .btn-plus {
+    background: #2d9e6b !important;
+    color: #ffffff !important;
+}
+
+[data-theme="green_pastel"] .modal-v2 .btn-plus:hover {
+    background: #1a7a50 !important;
+}
+
+/* 🌿 Overrides adicionais do Tema Clean Verde para a listagem de itens e resumo */
+[data-theme="green_pastel"] .item-row-v2 {
+    background: rgba(240, 247, 244, 0.6) !important;
+    border-color: rgba(45, 158, 107, 0.2) !important;
+}
+
+[data-theme="green_pastel"] .item-row-v2:hover {
+    border-color: rgba(45, 158, 107, 0.4) !important;
+}
+
+[data-theme="green_pastel"] .item-tabs-bar {
+    border-bottom-color: rgba(45, 158, 107, 0.15) !important;
+}
+
+[data-theme="green_pastel"] .item-tab {
+    border-color: rgba(45, 158, 107, 0.25) !important;
+    color: #5a7a6a !important;
+}
+
+[data-theme="green_pastel"] .item-tab:hover {
+    color: #1a7a50 !important;
+    border-color: rgba(45, 158, 107, 0.4) !important;
+}
+
+[data-theme="green_pastel"] .item-tab.active {
+    background: #2d9e6b !important;
+    color: #ffffff !important;
+    border-color: #2d9e6b !important;
+}
+
+[data-theme="green_pastel"] .item-secondary-row {
+    background: rgba(45, 158, 107, 0.08) !important;
+    border-top-color: rgba(45, 158, 107, 0.15) !important;
+}
+
+[data-theme="green_pastel"] .item-secondary-label {
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .item-total-display {
+    background: rgba(45, 158, 107, 0.06) !important;
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .item-search-icon {
+    color: #5a7a6a !important;
+}
+
+[data-theme="green_pastel"] .btn-add-item {
+    border-color: rgba(45, 158, 107, 0.3) !important;
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .btn-add-item:hover {
+    background: rgba(45, 158, 107, 0.08) !important;
+    border-color: #2d9e6b !important;
+}
+
+/* Resumo Financeiro Bottom */
+[data-theme="green_pastel"] .financial-summary-box {
+    background: rgba(45, 158, 107, 0.06) !important;
+    border-color: rgba(45, 158, 107, 0.22) !important;
+}
+
+[data-theme="green_pastel"] .financial-summary-box p#summaryText {
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .total-display h2 {
+    color: #1a7a50 !important;
+}
+
+/* 🌿 Clean Theme Overrides for KPI cards */
+[data-theme="green_pastel"] .kpi-card {
+    background: #ffffff !important;
+    border-color: rgba(45, 158, 107, 0.15) !important;
+    box-shadow: 0 4px 15px rgba(45, 158, 107, 0.05) !important;
+}
+
+[data-theme="green_pastel"] .kpi-card:hover {
+    background: #fbfdfc !important;
+    border-color: rgba(45, 158, 107, 0.25) !important;
+}
+
+[data-theme="green_pastel"] .kpi-info .value {
+    color: #1a2e25 !important; /* Verde escuro para contraste no fundo claro */
+}
+
+[data-theme="green_pastel"] .kpi-info .label {
+    color: #5a7a6a !important;
+}
+
+/* ==========================================================================
+   🌿 AUTOCOMPLETE STYLES COPIED EXACTLY FROM COMPRAS.HTML / STYLE.CSS
+   ========================================================================== */
+
+.autocomplete-wrapper {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.autocomplete-results {
+    position: fixed;
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    z-index: 99999;
+    max-height: 250px;
+    overflow-y: auto;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8);
+    display: none;
+}
+
+.autocomplete-item {
+    padding: 0.8rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    transition: background 0.2s;
+    text-align: left;
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.autocomplete-item:hover {
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.autocomplete-item .prod-name {
+    display: block;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #fff;
+}
+
+.autocomplete-item .prod-meta {
+    display: block;
+    font-size: 0.65rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    margin-top: 0.2rem;
+}
+
+/* 🌿 Clean Theme overrides for Autocomplete dropdown */
+[data-theme="green_pastel"] .autocomplete-results {
+    background: #ffffff !important;
+    border-color: rgba(45, 158, 107, 0.2) !important;
+    box-shadow: 0 10px 30px rgba(45, 158, 107, 0.15) !important;
+}
+
+[data-theme="green_pastel"] .autocomplete-item {
+    border-bottom-color: rgba(45, 158, 107, 0.08) !important;
+}
+
+[data-theme="green_pastel"] .autocomplete-item:hover {
+    background: rgba(45, 158, 107, 0.1) !important;
+}
+
+[data-theme="green_pastel"] .autocomplete-item .prod-name {
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .autocomplete-item .prod-meta {
+    color: #5a7a6a !important;
+}

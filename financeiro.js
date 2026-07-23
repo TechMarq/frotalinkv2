@@ -997,6 +997,10 @@ async function openEntryModal(tipo, id = null) {
     } else {
         document.getElementById('entryVencimento').value = new Date().toISOString().split('T')[0];
         document.getElementById('entryEmissao').value = new Date().toISOString().split('T')[0];
+        document.getElementById('entryEntidadeSearch').value = '';
+        document.getElementById('entryEntidade').value = '';
+        document.getElementById('entryCategoriaSearch').value = '';
+        document.getElementById('entryCategoriaId').value = '';
         addFinItemRow(); // Inicia com uma linha vazia
     }
 
@@ -1027,11 +1031,12 @@ async function editEntry(id, tipo) {
 function populateForm(form, item) {
     document.getElementById('entryId').value = item.id;
     document.getElementById('entryEntidade').value = item.entidade_nome || '';
+    document.getElementById('entryEntidadeSearch').value = item.entidade_nome || '';
 
     // Configura Categoria (Nome e ID)
     const cat = state.categorias.find(c => c.id === item.categoria_id);
     document.getElementById('entryCategoriaId').value = item.categoria_id || '';
-    document.getElementById('entryCategoriaName').value = cat ? `${cat.codigo} - ${cat.nome}` : '';
+    document.getElementById('entryCategoriaSearch').value = cat ? `${cat.codigo} - ${cat.nome}` : '';
 
     document.getElementById('entryVencimento').value = item.data_vencimento;
     document.getElementById('entryConta').value = item.conta_bancaria_id || '';
@@ -2114,9 +2119,31 @@ function setupEventListeners() {
     if (recPrazo) recPrazo.addEventListener('input', calculateReceberForecast);
 
     document.addEventListener('keydown', (e) => {
+        // 1. ESC: Fechar qualquer modal ativo
         if (e.key === 'Escape') {
             const activeModal = document.querySelector('.modal-overlay.active');
-            if (activeModal) closeModal(activeModal.id);
+            if (activeModal) {
+                closeModal(activeModal.id);
+            }
+        }
+        // 2. F2: Abrir o modal de lançamento rápido dependendo da aba ativa
+        if (e.key === 'F2') {
+            e.preventDefault();
+            // Verifica a aba ativa no sistema
+            const activeTab = document.querySelector('.tab-btn.active');
+            const isReceber = activeTab && activeTab.textContent.toLowerCase().includes('receber');
+            openEntryModal(isReceber ? 'RECEBER' : 'PAGAR');
+        }
+        // 3. Ctrl + Enter: Salvar / Enviar o formulário de Entrada de Nota
+        if (e.ctrlKey && e.key === 'Enter') {
+            const activeModal = document.getElementById('entryModal');
+            if (activeModal && activeModal.classList.contains('active')) {
+                e.preventDefault();
+                const entryForm = document.getElementById('entryForm');
+                if (entryForm) {
+                    entryForm.requestSubmit();
+                }
+            }
         }
     });
 
@@ -3469,5 +3496,229 @@ window.exportPlano = function(format) {
         }
     }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🌿 LOGICA DE AUTOCOMPLETE PARA ENTRADA DE NOTAS (COMPRAS DESIGN HARMONIZADO)
+// ─────────────────────────────────────────────────────────────────────────────
+
+let currentFinAutocompleteIndex = -1;
+
+function positionFinDropdown(inputEl, resultsDiv) {
+    const rect = inputEl.getBoundingClientRect();
+    resultsDiv.style.top    = (rect.bottom + window.scrollY + 4) + 'px';
+    resultsDiv.style.left   = (rect.left + window.scrollX) + 'px';
+    resultsDiv.style.width  = rect.width + 'px';
+}
+
+window.handleFinAutocompleteKeydown = (e, inputEl) => {
+    const resultsDiv = inputEl.parentElement.querySelector('.autocomplete-results');
+    if (!resultsDiv || resultsDiv.style.display === 'none') return;
+
+    const items = resultsDiv.querySelectorAll('.autocomplete-item');
+    if (items.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        currentFinAutocompleteIndex++;
+        if (currentFinAutocompleteIndex >= items.length) currentFinAutocompleteIndex = 0;
+        updateFinAutocompleteHighlight(items);
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        currentFinAutocompleteIndex--;
+        if (currentFinAutocompleteIndex < 0) currentFinAutocompleteIndex = items.length - 1;
+        updateFinAutocompleteHighlight(items);
+    } else if (e.key === 'Enter') {
+        if (currentFinAutocompleteIndex >= 0) {
+            e.preventDefault();
+            items[currentFinAutocompleteIndex].click();
+            currentFinAutocompleteIndex = -1;
+        }
+    } else if (e.key === 'Escape') {
+        e.preventDefault();
+        resultsDiv.style.display = 'none';
+        currentFinAutocompleteIndex = -1;
+    }
+};
+
+function updateFinAutocompleteHighlight(items) {
+    items.forEach((item, idx) => {
+        if (idx === currentFinAutocompleteIndex) {
+            item.style.background = 'rgba(45, 158, 107, 0.2)';
+            item.scrollIntoView({ block: 'nearest' });
+        } else {
+            item.style.background = 'transparent';
+        }
+    });
+}
+
+window.handleFinEntidadeSearch = (el) => {
+    currentFinAutocompleteIndex = -1;
+    const query = el.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const resultsDiv = el.parentElement.querySelector('.autocomplete-results');
+    const hiddenId = document.getElementById('entryEntidade');
+    
+    if (el.value.trim() === '') {
+        if (hiddenId) hiddenId.value = '';
+    }
+
+    // Busca unificada de fornecedores e clientes
+    const allPartners = [
+        ...(state.fornecedores || []).map(f => ({ id: f.nome, nome: f.nome, doc: f.cnpj_cpf, desc: 'Fornecedor' })),
+        ...(state.clientes || []).map(c => ({ id: c.nome, nome: c.nome, doc: c.cnpj_cpf, desc: 'Cliente' }))
+    ];
+
+    const matches = query.length === 0
+        ? allPartners.slice(0, 30)
+        : allPartners.filter(p => {
+            const nameNorm = (p.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const doc = (p.doc || '').replace(/\D/g, '');
+            const cleanQuery = query.replace(/\D/g, '');
+            return nameNorm.includes(query) || (cleanQuery.length > 0 && doc.includes(cleanQuery));
+          }).slice(0, 30);
+
+    if (matches.length === 0) {
+        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.75rem;">Nenhum favorecido encontrado...</div>';
+    } else {
+        resultsDiv.innerHTML = matches.map(p => `
+            <div class="autocomplete-item" onclick="selectFinEntidade('${p.nome.replace(/'/g, "\\'")}', this)">
+                <span class="prod-name">${p.nome}</span>
+                <span class="prod-meta">${p.desc} ${p.doc ? `• Doc: ${p.doc}` : ''}</span>
+            </div>
+        `).join('');
+    }
+    
+    positionFinDropdown(el, resultsDiv);
+    resultsDiv.style.display = 'block';
+};
+
+window.selectFinEntidade = (nome, itemEl) => {
+    const wrapper = itemEl.closest('.autocomplete-wrapper');
+    const searchInput = document.getElementById('entryEntidadeSearch');
+    const hiddenId = document.getElementById('entryEntidade');
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
+
+    searchInput.value = nome;
+    hiddenId.value = nome;
+    resultsDiv.style.display = 'none';
+    resultsDiv.innerHTML = '';
+};
+
+window.handleFinCategoriaSearch = (el) => {
+    currentFinAutocompleteIndex = -1;
+    const query = el.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const resultsDiv = el.parentElement.querySelector('.autocomplete-results');
+    const hiddenId = document.getElementById('entryCategoriaId');
+    
+    if (el.value.trim() === '') {
+        if (hiddenId) hiddenId.value = '';
+    }
+
+    let matches = [];
+    if (query.length === 0) {
+        matches = (state.categorias || []).slice(0, 200);
+        matches.sort((a, b) => {
+            const aCod = a.codigo || '';
+            const bCod = b.codigo || '';
+            return aCod.localeCompare(bCod, undefined, { numeric: true, sensitivity: 'base' });
+        });
+    } else {
+        // 1. Encontrar correspondências diretas
+        const directMatches = (state.categorias || []).filter(c => {
+            const nameNorm = (c.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const cod = (c.codigo || '').toLowerCase();
+            return nameNorm.includes(query) || cod.includes(query);
+        });
+
+        // 2. Coletar IDs de correspondências diretas, seus descendentes E todos os seus ancestrais (pais/grupos)
+        const matchedIds = new Set();
+        directMatches.forEach(dm => {
+            matchedIds.add(dm.id);
+
+            // Adiciona ancestrais
+            if (dm.codigo) {
+                const parts = dm.codigo.split('.');
+                for (let i = 1; i < parts.length; i++) {
+                    const parentCode = parts.slice(0, i).join('.');
+                    const parentCat = (state.categorias || []).find(cat => cat.codigo === parentCode);
+                    if (parentCat) {
+                        matchedIds.add(parentCat.id);
+                    }
+                }
+            }
+
+            // Adiciona subcategorias descendentes
+            if (dm.codigo) {
+                (state.categorias || []).forEach(cat => {
+                    if (cat.codigo && cat.codigo.startsWith(dm.codigo + '.')) {
+                        matchedIds.add(cat.id);
+                    }
+                });
+            }
+        });
+
+        matches = (state.categorias || []).filter(c => matchedIds.has(c.id));
+        
+        // Ordena hierarquicamente por código
+        matches.sort((a, b) => {
+            const aCod = a.codigo || '';
+            const bCod = b.codigo || '';
+            return aCod.localeCompare(bCod, undefined, { numeric: true, sensitivity: 'base' });
+        });
+    }
+
+    if (matches.length === 0) {
+        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.75rem;">Nenhuma categoria encontrada...</div>';
+    } else {
+        resultsDiv.innerHTML = matches.map(c => {
+            const label = (c.codigo ? `${c.codigo} - ` : '') + c.nome;
+            const level = c.codigo ? c.codigo.split('.').length - 1 : 0;
+            const indentStyle = `padding-left: ${1 + level * 1.2}rem;`;
+            
+            // Check if this category has children (is parent)
+            const isParent = (state.categorias || []).some(cat => cat.parent_id === c.id || (cat.codigo && c.codigo && cat.codigo.startsWith(c.codigo + '.')));
+            
+            if (isParent) {
+                return `
+                    <div class="autocomplete-item" style="opacity: 0.6; cursor: not-allowed; background: rgba(255,255,255,0.02); font-weight: bold; border-left: 3px solid rgba(255,255,255,0.1); ${indentStyle}" onclick="event.stopPropagation();">
+                        <span class="prod-name" style="color: var(--text-muted);">${label} (Grupo)</span>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="autocomplete-item" style="${indentStyle}" onclick="selectFinCategoria('${c.id}', '${label.replace(/'/g, "\\'")}', this)">
+                        <span class="prod-name">${label}</span>
+                    </div>
+                `;
+            }
+        }).join('');
+    }
+    
+    positionFinDropdown(el, resultsDiv);
+    resultsDiv.style.display = 'block';
+};
+
+window.selectFinCategoria = (id, label, itemEl) => {
+    const wrapper = itemEl.closest('.autocomplete-wrapper');
+    const searchInput = document.getElementById('entryCategoriaSearch');
+    const hiddenId = document.getElementById('entryCategoriaId');
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
+
+    searchInput.value = label;
+    hiddenId.value = id;
+    resultsDiv.style.display = 'none';
+    resultsDiv.innerHTML = '';
+};
+
+// Fecha drop downs ao clicar fora
+document.addEventListener('click', (e) => {
+    document.querySelectorAll('.autocomplete-wrapper').forEach(wrapper => {
+        const resultsDiv = wrapper.querySelector('.autocomplete-results');
+        const input = wrapper.querySelector('input[type="text"]');
+        if (resultsDiv && input && !input.contains(e.target) && !resultsDiv.contains(e.target)) {
+            resultsDiv.style.display = 'none';
+        }
+    });
+});
+
 
 

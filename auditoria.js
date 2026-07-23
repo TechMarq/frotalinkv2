@@ -9,15 +9,15 @@ let auditState = {
 
 let supabaseClient = null;
 
-// Initialize
+// Initialize — aguarda auth:ready sem polling
 function startInit() {
-    // Wait for auth to complete loading user details and permissions
-    const checkAuthInterval = setInterval(async () => {
-        if (window.currentUser && window.currentUserPermissions) {
-            clearInterval(checkAuthInterval);
-            initAuditoria();
-        }
-    }, 100);
+    // Se auth j\u00e1 carregou antes deste script, inicializar diretamente
+    if (window.currentUser && window.currentUserPermissions) {
+        initAuditoria();
+        return;
+    }
+    // Caso contr\u00e1rio, aguardar o evento disparado pelo auth.js (sem setInterval)
+    window.addEventListener('auth:ready', () => initAuditoria(), { once: true });
 }
 
 if (document.readyState === 'loading') {

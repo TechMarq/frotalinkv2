@@ -154,7 +154,7 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
         // Verificar permissão de acesso na tabela user_access
         const { data: accessData, error: accessError } = await window.authClient
             .from('user_access')
-            .select('*')
+            .select('id, email, role, modules, permissions, active, empresa_id, temp_reset, nome_completo')
             .eq('email', session.user.email)
             .eq('active', true)
             .single();
@@ -182,7 +182,7 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
         if (window.currentEmpresaId) {
             const { data: empresaData } = await window.authClient
                 .from('empresas')
-                .select('*')
+                .select('id, razao_social, nome_fantasia, cnpj, logo_url, cor_primaria, plano, ativo, setup_completo, setor, cidade, estado')
                 .eq('id', window.currentEmpresaId)
                 .single();
 
@@ -255,19 +255,7 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
         }
 
         // Injetar UI de usuário logado quando o DOM estiver pronto
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                injectAuthUI();
-                if (window.currentUserRole === 'gerencial') {
-                    document.querySelectorAll('.back-link, a[href="home.html"]').forEach(el => el.style.display = 'none');
-                }
-                if (requiredModule && requiredModule !== 'admin') {
-                    applyPermissions(requiredModule);
-                }
-                preventSearchAutofill();
-                initInactivityTracker();
-            });
-        } else {
+        const _afterAuthReady = () => {
             injectAuthUI();
             if (window.currentUserRole === 'gerencial') {
                 document.querySelectorAll('.back-link, a[href="home.html"]').forEach(el => el.style.display = 'none');
@@ -277,6 +265,22 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
             }
             preventSearchAutofill();
             initInactivityTracker();
+
+            // 🚀 Disparar evento global para outros módulos reagirem sem polling
+            window.dispatchEvent(new CustomEvent('auth:ready', {
+                detail: {
+                    user: window.currentUser,
+                    role: window.currentUserRole,
+                    permissions: window.currentUserPermissions,
+                    empresaId: window.currentEmpresaId
+                }
+            }));
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', _afterAuthReady);
+        } else {
+            _afterAuthReady();
         }
     });
 })();

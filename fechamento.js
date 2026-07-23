@@ -30,28 +30,32 @@ function togglePeriodType() {
 }
 window.togglePeriodType = togglePeriodType;
 
+// Utilitário: debounce genérico para evitar chamadas repetidas ao banco
+function debounce(fn, delay = 400) {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), delay);
+    };
+}
+
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', async () => {
     if (window.supabase) {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         await loadInitialData();
-        
-        // Add listener to period change to update supplier filter
-        document.getElementById('filter_period').addEventListener('change', async () => {
+
+        // Versão debounced do filtro de fornecedores:
+        // aguarda 400ms após a última interação antes de consultar o banco
+        const debouncedSupplierFilter = debounce(async () => {
             if (state.currentModuleTab === 'fornecedores') {
                 await updateIntelligentSupplierFilter();
             }
-        });
-        document.getElementById('filter_start_date').addEventListener('change', async () => {
-            if (state.currentModuleTab === 'fornecedores') {
-                await updateIntelligentSupplierFilter();
-            }
-        });
-        document.getElementById('filter_end_date').addEventListener('change', async () => {
-            if (state.currentModuleTab === 'fornecedores') {
-                await updateIntelligentSupplierFilter();
-            }
-        });
+        }, 400);
+
+        document.getElementById('filter_period').addEventListener('change', debouncedSupplierFilter);
+        document.getElementById('filter_start_date').addEventListener('change', debouncedSupplierFilter);
+        document.getElementById('filter_end_date').addEventListener('change', debouncedSupplierFilter);
     }
 });
 
@@ -74,12 +78,13 @@ async function updateIntelligentSupplierFilter() {
 
     showLoading(true, 'Atualizando lista de fornecedores...');
     try {
-        // Light fetch only for suppliers with faturado in period
+        // Busca otimizada: apenas fornecedor e forma de pagamento (sem join desnecessário)
         const { data: activePurchases, error } = await supabaseClient
             .from('compras')
-            .select('fornecedores:fornecedor_id(nome), formas_pagamento:forma_pagamento_id(nome)')
+            .select('fornecedor_id, forma_pagamento_id, fornecedores:fornecedor_id(nome)')
             .gte('data_emissao', startDate)
-            .lte('data_emissao', endDate);
+            .lte('data_emissao', endDate)
+            .not('fornecedor_id', 'is', null);
 
         if (error) throw error;
 
