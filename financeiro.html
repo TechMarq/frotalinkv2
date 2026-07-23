@@ -46,10 +46,7 @@
 
         <!-- Main Navigation Tabs -->
         <nav class="tabs-header scrollable-tabs">
-            <button class="tab-item active" onclick="switchMainTab('dashboard')">
-                <i data-lucide="layout-dashboard"></i> Dashboard
-            </button>
-            <button class="tab-item" onclick="switchMainTab('pagar')">
+            <button class="tab-item active" onclick="switchMainTab('pagar')">
                 <i data-lucide="arrow-up-circle"></i> Contas a Pagar
             </button>
             <button class="tab-item" onclick="switchMainTab('receber')">
@@ -71,63 +68,8 @@
 
         <!-- Content Area -->
         <main id="mainContent">
-            <!-- 1. DASHBOARD -->
-            <section id="tab-dashboard" class="tab-content active">
-                <div class="kpi-grid">
-                    <div class="kpi-card income">
-                        <div class="kpi-icon-wrapper">
-                            <i data-lucide="trending-up"></i>
-                        </div>
-                        <div class="kpi-info">
-                            <span class="label">Receber (Mês)</span>
-                            <div class="value" id="kpi-receber">R$ 0,00</div>
-                            <div class="trend up">+12% vs mês ant.</div>
-                        </div>
-                    </div>
-                    <div class="kpi-card expense">
-                        <div class="kpi-icon-wrapper">
-                            <i data-lucide="trending-down"></i>
-                        </div>
-                        <div class="kpi-info">
-                            <span class="label">Pagar (Mês)</span>
-                            <div class="value" id="kpi-pagar">R$ 0,00</div>
-                            <div class="trend down">-5% vs mês ant.</div>
-                        </div>
-                    </div>
-                    <div class="kpi-card balance">
-                        <div class="kpi-icon-wrapper">
-                            <i data-lucide="wallet"></i>
-                        </div>
-                        <div class="kpi-info">
-                            <span class="label">Saldo Atual</span>
-                            <div class="value" id="kpi-saldo">R$ 0,00</div>
-                        </div>
-                    </div>
-                    <div class="kpi-card projections">
-                        <div class="kpi-icon-wrapper">
-                            <i data-lucide="calendar"></i>
-                        </div>
-                        <div class="kpi-info">
-                            <span class="label">Previsto (30d)</span>
-                            <div class="value" id="kpi-previsto">R$ 0,00</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="charts-row">
-                    <div class="chart-card glass">
-                        <h3><i data-lucide="bar-chart-3"></i> Entradas vs Saídas (Áltimos 12 Meses)</h3>
-                        <canvas id="cashflowChart"></canvas>
-                    </div>
-                    <div class="chart-card glass">
-                        <h3><i data-lucide="pie-chart"></i> Despesas por Categoria</h3>
-                        <canvas id="categoryChart"></canvas>
-                    </div>
-                </div>
-            </section>
-
             <!-- 2. CONTAS A PAGAR -->
-            <section id="tab-pagar" class="tab-content">
+            <section id="tab-pagar" class="tab-content active">
                 <div class="kpi-grid">
                     <div class="kpi-card expense">
                         <div class="kpi-icon-wrapper"><i data-lucide="dollar-sign"></i></div>
@@ -191,6 +133,7 @@
                         <label>Status</label>
                         <select id="filterStatusPagar" class="filter-select"
                             onchange="filterStatus('PAGAR', this.value)">
+                            <option value="UNPAID" selected>Não Pagas (Em Aberto)</option>
                             <option value="">Todos os Status</option>
                             <option value="ABERTO">Aberto</option>
                             <option value="PAGO">Pago</option>
@@ -299,6 +242,7 @@
                         <label>Status</label>
                         <select id="filterStatusReceber" class="filter-select"
                             onchange="filterStatus('RECEBER', this.value)">
+                            <option value="UNPAID" selected>Não Recebidas (Em Aberto)</option>
                             <option value="">Todos os Status</option>
                             <option value="ABERTO">Aberto</option>
                             <option value="PAGO">Pago</option>

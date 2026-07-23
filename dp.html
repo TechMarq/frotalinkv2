@@ -536,10 +536,7 @@
     <!-- Tabs -->
     <div class="tabs-wrapper">
         <nav class="tabs-header">
-            <button class="tab-item active" onclick="switchTab('dashboard')" id="tab-dashboard">
-                <i data-lucide="layout-dashboard" style="width:18px;"></i> Dashboard
-            </button>
-            <button class="tab-item" onclick="switchTab('funcionarios')" id="tab-funcionarios" data-perm="dp:view">
+            <button class="tab-item active" onclick="switchTab('funcionarios')" id="tab-funcionarios" data-perm="dp:view">
                 <i data-lucide="users" style="width:18px;"></i> Funcionários
             </button>
             <button class="tab-item" onclick="switchTab('aso')" id="tab-aso" data-perm="dp_aso:view">
@@ -567,112 +564,9 @@
     </div>
 
     <!-- ════════════════════════════════════════════
-         TAB: DASHBOARD
-    ════════════════════════════════════════════ -->
-    <div id="view-dashboard" class="view-section active">
-
-        <!-- KPIs -->
-        <div class="kpi-row">
-            <div class="kpi-box" onclick="switchTab('funcionarios')">
-                <div class="kpi-box-icon" style="background:rgba(14,165,233,0.12); color:#38bdf8;">
-                    <i data-lucide="users"></i>
-                </div>
-                <div class="kpi-box-info">
-                    <div class="kpi-box-value" id="kpi-total-func">0</div>
-                    <div class="kpi-box-label">Funcionários Ativos</div>
-                    <div class="kpi-box-sub" style="color:var(--text-muted);" id="kpi-total-func-sub">Carregando...</div>
-                </div>
-            </div>
-            <div class="kpi-box" onclick="switchTab('aso')">
-                <div class="kpi-box-icon" style="background:rgba(239,68,68,0.12); color:#f87171;">
-                    <i data-lucide="stethoscope"></i>
-                </div>
-                <div class="kpi-box-info">
-                    <div class="kpi-box-value" id="kpi-asos-venc">0</div>
-                    <div class="kpi-box-label">ASOs Vencidos/Vencendo</div>
-                    <div class="kpi-box-sub" style="color:#f87171;" id="kpi-asos-sub">Em 30 dias</div>
-                </div>
-            </div>
-            <div class="kpi-box" onclick="switchTab('contratos')">
-                <div class="kpi-box-icon" style="background:rgba(245,158,11,0.12); color:#fcd34d;">
-                    <i data-lucide="file-text"></i>
-                </div>
-                <div class="kpi-box-info">
-                    <div class="kpi-box-value" id="kpi-contr-venc">0</div>
-                    <div class="kpi-box-label">Contratos Experiência</div>
-                    <div class="kpi-box-sub" style="color:#fcd34d;" id="kpi-contr-sub">Vencendo em 15 dias</div>
-                </div>
-            </div>
-            <div class="kpi-box" onclick="switchTab('ferias')">
-                <div class="kpi-box-icon" style="background:rgba(16,185,129,0.12); color:#34d399;">
-                    <i data-lucide="umbrella"></i>
-                </div>
-                <div class="kpi-box-info">
-                    <div class="kpi-box-value" id="kpi-ferias-hoje">0</div>
-                    <div class="kpi-box-label">Em Férias Hoje</div>
-                    <div class="kpi-box-sub" style="color:#34d399;" id="kpi-ferias-sub">Funcionários ausentes</div>
-                </div>
-            </div>
-            <div class="kpi-box" onclick="switchTab('ponto')">
-                <div class="kpi-box-icon" style="background:rgba(245,158,11,0.12); color:#fcd34d;">
-                    <i data-lucide="activity"></i>
-                </div>
-                <div class="kpi-box-info">
-                    <div class="kpi-box-value" id="kpi-afastados">0</div>
-                    <div class="kpi-box-label">Afastados</div>
-                    <div class="kpi-box-sub" style="color:#fcd34d;" id="kpi-afastados-sub">INSS / Atestado</div>
-                </div>
-            </div>
-            <div class="kpi-box" onclick="switchTab('epis')">
-                <div class="kpi-box-icon" style="background:rgba(139,92,246,0.12); color:#a78bfa;">
-                    <i data-lucide="hard-hat"></i>
-                </div>
-                <div class="kpi-box-info">
-                    <div class="kpi-box-value" id="kpi-epis-venc">0</div>
-                    <div class="kpi-box-label">EPIs / CA Vencendo</div>
-                    <div class="kpi-box-sub" style="color:#a78bfa;" id="kpi-epis-sub">Próximos 60 dias</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Aniversariantes + Alertas -->
-        <div class="dash-grid">
-            <div class="dash-card">
-                <div class="dash-card-title">
-                    <i data-lucide="cake" style="width:16px; color:#ec4899;"></i>
-                    Aniversariantes do Mês
-                </div>
-                <div class="aniv-list" id="dash-aniversariantes">
-                    <div style="text-align:center; color:var(--text-muted); padding:1rem; font-size:0.85rem;">Carregando...</div>
-                </div>
-            </div>
-            <div class="dash-card">
-                <div class="dash-card-title">
-                    <i data-lucide="bell-ring" style="width:16px; color:#f87171;"></i>
-                    Alertas e Pendências
-                </div>
-                <div class="alert-list" id="dash-alertas">
-                    <div style="text-align:center; color:var(--text-muted); padding:1rem; font-size:0.85rem;">Carregando...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Férias Programadas -->
-        <div class="dash-card" style="margin-top:1.5rem;">
-            <div class="dash-card-title">
-                <i data-lucide="calendar-range" style="width:16px; color:#38bdf8;"></i>
-                Férias Programadas (próximos 60 dias)
-            </div>
-            <div id="dash-ferias-prog" style="margin-top:0.5rem;">
-                <div style="text-align:center; color:var(--text-muted); padding:1rem; font-size:0.85rem;">Carregando...</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ════════════════════════════════════════════
          TAB: FUNCIONÁRIOS
     ════════════════════════════════════════════ -->
-    <div id="view-funcionarios" class="view-section">
+    <div id="view-funcionarios" class="view-section active">
         <div class="section-header">
             <div class="section-title-text"><i data-lucide="users"></i> Lista de Funcionários</div>
             <div style="display:flex; gap:0.5rem;">

@@ -59,170 +59,180 @@ let currentSort = { key: 'data', dir: 'desc' };
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (typeof window.showLoader === 'function') window.showLoader();
-    await loadInventoryProducts(); 
-    await loadVehicles(); 
-    await loadDrivers();
-    await loadSuppliers(); 
-    await loadMaintenanceConfigs(); 
-    await loadConfigFromSupabase(); 
-    await loadCompras(); 
-    updateDropdowns();
-    
-    // Initialize "month" filter by default
-    const datePreset = document.getElementById('filterDatePreset');
-    if (datePreset) {
-        datePreset.value = 'month';
-        handleDatePresetChange(datePreset);
-    } else {
-        renderCompras();
-    }
-    
-    // Force text input fields and textareas to be uppercase (database-level & visually consistent)
-    document.addEventListener('input', (e) => {
-        const target = e.target;
-        const isTextInput = target && (
-            target.tagName === 'TEXTAREA' || 
-            (target.tagName === 'INPUT' && (target.type === 'text' || !target.type))
-        );
-        if (isTextInput) {
-            const start = target.selectionStart;
-            const end = target.selectionEnd;
-            target.value = target.value.toUpperCase();
-            target.setSelectionRange(start, end);
+    try {
+        await loadInventoryProducts(); 
+        await loadVehicles(); 
+        await loadDrivers();
+        await loadSuppliers(); 
+        await loadMaintenanceConfigs(); 
+        await loadConfigFromSupabase(); 
+        
+        // Initialize "month" filter by default BEFORE loading compras so start/end inputs are ready
+        const datePreset = document.getElementById('filterDatePreset');
+        if (datePreset) {
+            datePreset.value = 'month';
+            handleDatePresetChange(datePreset, false);
         }
-    });
-    
-    document.getElementById('compraForm').addEventListener('submit', handleSaveCompra);
-    
-    // Centralized listener for immediate check of similar recent items
-    const triggerCheckAllRecent = () => {
-        setTimeout(() => {
+
+        await loadCompras(); 
+        updateDropdowns();
+        handleIntelligentFilter('filterDatePreset');
+        
+        // Force text input fields and textareas to be uppercase (database-level & visually consistent)
+        document.addEventListener('input', (e) => {
+            const target = e.target;
+            const isTextInput = target && (
+                target.tagName === 'TEXTAREA' || 
+                (target.tagName === 'INPUT' && (target.type === 'text' || !target.type))
+            );
+            if (isTextInput) {
+                const start = target.selectionStart;
+                const end = target.selectionEnd;
+                target.value = target.value.toUpperCase();
+                target.setSelectionRange(start, end);
+            }
+        });
+        
+        document.getElementById('compraForm')?.addEventListener('submit', handleSaveCompra);
+        
+        // Centralized listener for immediate check of similar recent items
+        const triggerCheckAllRecent = () => {
+            setTimeout(() => {
+                document.querySelectorAll('.item-row').forEach(row => {
+                    if (window.checkSimilarRecentItem) window.checkSimilarRecentItem(row);
+                });
+            }, 150);
+        };
+        document.getElementById('compraForm')?.addEventListener('input', triggerCheckAllRecent);
+        document.getElementById('compraForm')?.addEventListener('change', triggerCheckAllRecent);
+        document.getElementById('compraForm')?.addEventListener('click', triggerCheckAllRecent);
+
+        document.getElementById('compraSearch')?.addEventListener('input', renderCompras);
+        document.getElementById('genericSearch')?.addEventListener('input', () => renderGenericTab(currentSubTab));
+        document.getElementById('fornecedorForm')?.addEventListener('submit', handleSaveFornecedor);
+        document.getElementById('custoForm')?.addEventListener('submit', handleSaveCusto);
+        document.getElementById('genericForm')?.addEventListener('submit', handleSaveGeneric);
+        
+        // Vencimento automático para pagamento FATURADO (dia 10 do mês seguinte)
+        const updateVencimentoFaturado = () => {
+            const selectedPgtoId = document.getElementById('tipoPgtoId')?.value;
+            const pgto = (config.tiposPgto || []).find(p => p.id == selectedPgtoId);
+            if (pgto && pgto.nome && pgto.nome.toUpperCase().includes('FATURADO')) {
+                const dataCompraValue = document.getElementById('dataCompra')?.value;
+                if (dataCompraValue) {
+                    const parts = dataCompraValue.split('-');
+                    const year = parseInt(parts[0], 10);
+                    const month = parseInt(parts[1], 10);
+                    
+                    let nextMonth = month + 1;
+                    let nextYear = year;
+                    if (nextMonth > 12) {
+                        nextMonth = 1;
+                        nextYear++;
+                    }
+                    
+                    const monthStr = String(nextMonth).padStart(2, '0');
+                    const vencInput = document.getElementById('vencimentoNota');
+                    if (vencInput) vencInput.value = `${nextYear}-${monthStr}-10`;
+                }
+            }
+        };
+        document.getElementById('tipoPgtoId')?.addEventListener('change', updateVencimentoFaturado);
+        document.getElementById('dataCompra')?.addEventListener('change', () => {
+            updateVencimentoFaturado();
             document.querySelectorAll('.item-row').forEach(row => {
                 if (window.checkSimilarRecentItem) window.checkSimilarRecentItem(row);
             });
-        }, 150);
-    };
-    document.getElementById('compraForm').addEventListener('input', triggerCheckAllRecent);
-    document.getElementById('compraForm').addEventListener('change', triggerCheckAllRecent);
-    document.getElementById('compraForm').addEventListener('click', triggerCheckAllRecent);
-
-    document.getElementById('compraSearch').addEventListener('input', renderCompras);
-    document.getElementById('genericSearch').addEventListener('input', () => renderGenericTab(currentSubTab));
-    document.getElementById('fornecedorForm').addEventListener('submit', handleSaveFornecedor);
-    document.getElementById('custoForm').addEventListener('submit', handleSaveCusto);
-    document.getElementById('genericForm').addEventListener('submit', handleSaveGeneric);
-    
-    // Vencimento automático para pagamento FATURADO (dia 10 do mês seguinte)
-    const updateVencimentoFaturado = () => {
-        const selectedPgtoId = document.getElementById('tipoPgtoId').value;
-        const pgto = (config.tiposPgto || []).find(p => p.id == selectedPgtoId);
-        if (pgto && pgto.nome && pgto.nome.toUpperCase().includes('FATURADO')) {
-            const dataCompraValue = document.getElementById('dataCompra').value;
-            if (dataCompraValue) {
-                const parts = dataCompraValue.split('-');
-                const year = parseInt(parts[0], 10);
-                const month = parseInt(parts[1], 10);
-                
-                let nextMonth = month + 1;
-                let nextYear = year;
-                if (nextMonth > 12) {
-                    nextMonth = 1;
-                    nextYear++;
-                }
-                
-                const monthStr = String(nextMonth).padStart(2, '0');
-                document.getElementById('vencimentoNota').value = `${nextYear}-${monthStr}-10`;
-            }
-        }
-    };
-    document.getElementById('tipoPgtoId').addEventListener('change', updateVencimentoFaturado);
-    document.getElementById('dataCompra').addEventListener('change', () => {
-        updateVencimentoFaturado();
-        document.querySelectorAll('.item-row').forEach(row => {
-            if (window.checkSimilarRecentItem) window.checkSimilarRecentItem(row);
         });
-    });
-    
-    // Aplicar máscaras de CPF/CNPJ e Telefone no Fornecedor
-    applyMask(document.getElementById('fDoc'), maskCnpjCpf);
-    applyMask(document.getElementById('fTel'), maskTelefone);
-    
-    if (window.lucide) lucide.createIcons();
+        
+        // Aplicar máscaras de CPF/CNPJ e Telefone no Fornecedor
+        const fDocEl = document.getElementById('fDoc');
+        if (fDocEl) applyMask(fDocEl, maskCnpjCpf);
+        const fTelEl = document.getElementById('fTel');
+        if (fTelEl) applyMask(fTelEl, maskTelefone);
+        
+        if (window.lucide) lucide.createIcons();
 
-    // Verificação proativa de duplicidade
-    document.getElementById('numNota').addEventListener('change', window.checkDuplicateNota);
-    document.getElementById('fornecedorId').addEventListener('change', window.checkDuplicateNota);
-
-    // Atalhos de Teclado Globais
-    window.addEventListener('keydown', (e) => {
-        // F2: Lançar Compra
-        if (e.key === 'F2') {
-            e.preventDefault();
-            const modal = document.getElementById('compraModal');
-            if (modal && !modal.classList.contains('active')) {
-                openCompraModal();
-            }
-            return;
+        // Verificação proativa de duplicidade
+        if (window.checkDuplicateNota) {
+            document.getElementById('numNota')?.addEventListener('change', window.checkDuplicateNota);
+            document.getElementById('fornecedorId')?.addEventListener('change', window.checkDuplicateNota);
         }
 
-        const activeModal = document.querySelector('.modal-overlay.active');
-        if (!activeModal) return;
-
-        // ESC: Sair/Fechar
-        if (e.key === 'Escape') {
-            // Se for o modal de visualizar (leitura), fecha sempre
-            if (activeModal.id === 'viewCompraModal') {
-                closeViewModal();
+        // Atalhos de Teclado Globais
+        window.addEventListener('keydown', (e) => {
+            // F2: Lançar Compra
+            if (e.key === 'F2') {
+                e.preventDefault();
+                const modal = document.getElementById('compraModal');
+                if (modal && !modal.classList.contains('active')) {
+                    openCompraModal();
+                }
                 return;
             }
 
-            // Para modais de formulário, só fecha se estiver vazio
-            const form = activeModal.querySelector('form');
-            let hasData = false;
-            if (form) {
-                const inputs = form.querySelectorAll('input:not([type="hidden"]), select, textarea');
-                inputs.forEach(i => {
-                    if (i.value && i.value !== i.defaultValue && i.type !== 'radio' && i.type !== 'checkbox') hasData = true;
-                    if ((i.type === 'radio' || i.type === 'checkbox') && i.checked !== i.defaultChecked) hasData = true;
-                });
-                
-                // Especial para Itens da Nota
-                if (activeModal.id === 'compraModal') {
-                    const rows = document.querySelectorAll('.item-row');
-                    if (rows.length > 1) hasData = true; // Mais de um item já é dado
-                    const firstRow = rows[0];
-                    if (firstRow) {
-                        const q = firstRow.querySelector('.item-qtd')?.value;
-                        const u = firstRow.querySelector('.item-unit')?.value;
-                        if ((q && q > 0) || (u && u > 0)) hasData = true;
+            const activeModal = document.querySelector('.modal-overlay.active');
+            if (!activeModal) return;
+
+            // ESC: Sair/Fechar
+            if (e.key === 'Escape') {
+                // Se for o modal de visualizar (leitura), fecha sempre
+                if (activeModal.id === 'viewCompraModal') {
+                    closeViewModal();
+                    return;
+                }
+
+                // Para modais de formulário, só fecha se estiver vazio
+                const form = activeModal.querySelector('form');
+                let hasData = false;
+                if (form) {
+                    const inputs = form.querySelectorAll('input:not([type="hidden"]), select, textarea');
+                    inputs.forEach(i => {
+                        if (i.value && i.value !== i.defaultValue && i.type !== 'radio' && i.type !== 'checkbox') hasData = true;
+                        if ((i.type === 'radio' || i.type === 'checkbox') && i.checked !== i.defaultChecked) hasData = true;
+                    });
+                    
+                    // Especial para Itens da Nota
+                    if (activeModal.id === 'compraModal') {
+                        const rows = document.querySelectorAll('.item-row');
+                        if (rows.length > 1) hasData = true; // Mais de um item já é dado
+                        const firstRow = rows[0];
+                        if (firstRow) {
+                            const q = firstRow.querySelector('.item-qtd')?.value;
+                            const u = firstRow.querySelector('.item-unit')?.value;
+                            if ((q && q > 0) || (u && u > 0)) hasData = true;
+                        }
                     }
+                }
+
+                if (!hasData || confirm("Há dados preenchidos no formulário. Tem certeza de que deseja sair e perder as alterações não salvas?")) {
+                    if (activeModal.id === 'compraModal') closeCompraModal();
+                    else if (activeModal.id === 'fornecedorModal') closeFornecedorModal();
+                    else if (activeModal.id === 'custoModal') closeCustoModal();
+                    else if (activeModal.id === 'genericModal') closeGenericModal();
                 }
             }
 
-            if (!hasData || confirm("Há dados preenchidos no formulário. Tem certeza de que deseja sair e perder as alterações não salvas?")) {
-                if (activeModal.id === 'compraModal') closeCompraModal();
-                else if (activeModal.id === 'fornecedorModal') closeFornecedorModal();
-                else if (activeModal.id === 'custoModal') closeCustoModal();
-                else if (activeModal.id === 'genericModal') closeGenericModal();
+            // CTRL + ENTER: Salvar
+            if (e.key === 'Enter' && e.ctrlKey) {
+                const saveBtn = activeModal.querySelector('.btn-save');
+                if (saveBtn && !saveBtn.disabled && activeModal.id !== 'viewCompraModal') {
+                    e.preventDefault();
+                    saveBtn.click();
+                }
+            } else if (e.key === 'Enter') {
+                // Impedir envio do formulário com Enter simples, permitindo apenas se autocomplete estiver aberto para seleção
+                const isAutocompleteOpen = document.querySelector('.autocomplete-results[style*="block"]');
+                if (!isAutocompleteOpen) {
+                    e.preventDefault();
+                }
             }
-        }
-
-        // CTRL + ENTER: Salvar
-        if (e.key === 'Enter' && e.ctrlKey) {
-            const saveBtn = activeModal.querySelector('.btn-save');
-            if (saveBtn && !saveBtn.disabled && activeModal.id !== 'viewCompraModal') {
-                e.preventDefault();
-                saveBtn.click();
-            }
-        } else if (e.key === 'Enter') {
-            // Impedir envio do formulário com Enter simples, permitindo apenas se autocomplete estiver aberto para seleção
-            const isAutocompleteOpen = document.querySelector('.autocomplete-results[style*="block"]');
-            if (!isAutocompleteOpen) {
-                e.preventDefault();
-            }
-        }
-    });
-    if (typeof window.hideLoader === 'function') window.hideLoader();
+        });
+    } catch (initErr) {
+        console.error("❌ Erro durante a inicialização do módulo de compras:", initErr);
+    } finally {
+        if (typeof window.hideLoader === 'function') window.hideLoader();
+    }
 });
 
 
@@ -349,38 +359,82 @@ async function loadConfigFromSupabase() {
     }
 }
 
-async function loadCompras() {
+async function loadCompras(startDate, endDate) {
     const client = window.authClient || supabaseClient;
     if (!client) return;
     console.log("📡 Carregando compras do Supabase...");
     
     try {
-        // Fetch up to 2000 recent purchases ordered by emission date
-        let { data: cloudCompras, error: cErr } = await client
-            .from('compras')
-            .select('*')
-            .order('data_emissao', { ascending: false })
-            .limit(2000);
+        const startInput = document.getElementById('filterDateStart');
+        const endInput = document.getElementById('filterDateEnd');
+        const sDate = startDate !== undefined ? startDate : (startInput ? startInput.value : '');
+        const eDate = endDate !== undefined ? endDate : (endInput ? endInput.value : '');
 
+        let query = client.from('compras').select('*').order('data_emissao', { ascending: false });
+
+        if (sDate) {
+            query = query.gte('data_emissao', sDate);
+        }
+        if (eDate) {
+            query = query.lte('data_emissao', eDate);
+        }
+
+        if (!sDate && !eDate) {
+            query = query.limit(500);
+        } else {
+            query = query.limit(2000);
+        }
+
+        let { data: cloudCompras, error: cErr } = await query;
         if (cErr) throw cErr;
 
-        // 2. Fetch children
-        const { data: cloudItens } = await client.from('compra_itens').select('*');
-        const { data: cloudAdds } = await client.from('compra_adicionais').select('*');
-        const { data: cloudParcs } = await client.from('compra_parcelas').select('*');
+        // Se a busca pelo mês atual não trouxer registros (ex: início do mês sem notas),
+        // busca automaticamente as compras mais recentes para não deixar a tela em branco
+        if ((!cloudCompras || cloudCompras.length === 0) && sDate && eDate) {
+            console.log("ℹ️ Nenhuma compra encontrada no mês selecionado. Carregando as compras mais recentes...");
+            const { data: recentCompras } = await client
+                .from('compras')
+                .select('*')
+                .order('data_emissao', { ascending: false })
+                .limit(500);
+                
+            if (recentCompras && recentCompras.length > 0) {
+                cloudCompras = recentCompras;
+                if (startInput && endInput) {
+                    startInput.value = '';
+                    endInput.value = '';
+                    const datePreset = document.getElementById('filterDatePreset');
+                    if (datePreset) datePreset.value = 'all';
+                }
+            }
+        }
+
+        // 2. Fetch children only for retrieved compras to minimize payload & DB load
+        const compraIds = (cloudCompras || []).map(c => c.id);
+        let cloudItens = [], cloudAdds = [], cloudParcs = [];
+
+        if (compraIds.length > 0) {
+            const [itensRes, addsRes, parcsRes] = await Promise.all([
+                client.from('compra_itens').select('*').in('compra_id', compraIds),
+                client.from('compra_adicionais').select('*').in('compra_id', compraIds),
+                client.from('compra_parcelas').select('*').in('compra_id', compraIds)
+            ]);
+            cloudItens = itensRes.data || [];
+            cloudAdds = addsRes.data || [];
+            cloudParcs = parcsRes.data || [];
+        }
 
         // 3. Map to internal format
         const mappedCompras = (cloudCompras || []).map(c => {
             return {
                 ...c,
-                id: c.id,
-                data: c.data_emissao,
+                data: toStandardYYYYMMDD(c.data_emissao),
                 numeroNota: c.numero_nota,
                 especieId: c.especie_id,
                 fornecedorId: c.fornecedor_id,
                 formaPgtoId: c.forma_pagamento_id,
                 categoriaId: c.categoria_id,
-                vencimento: c.data_vencimento,
+                vencimento: toStandardYYYYMMDD(c.data_vencimento),
                 valorTotal: parseFloat(c.valor_total),
                 qtdParcelas: c.qtd_parcelas,
                 financeiro: c.financeiro_parcelado,
@@ -2820,8 +2874,9 @@ function renderCompras() {
     const filterPgto = document.getElementById('filterPagamento').value;
 
     filtered = filtered.filter(c => {
-        if (filterStart && c.data < filterStart) return false;
-        if (filterEnd && c.data > filterEnd) return false;
+        const cDate = toStandardYYYYMMDD(c.data || c.data_emissao);
+        if (filterStart && cDate < filterStart) return false;
+        if (filterEnd && cDate > filterEnd) return false;
         if (filterEsp && c.especieId != filterEsp) return false;
         if (filterForn && c.fornecedorId != filterForn) return false;
         if (filterPgto && c.formaPgtoId != filterPgto) return false;
@@ -2848,8 +2903,8 @@ function renderCompras() {
 
         switch (currentSort.key) {
             case 'data':
-                valA = new Date(a.data + 'T12:00:00');
-                valB = new Date(b.data + 'T12:00:00');
+                valA = parseDateRobust(a.data);
+                valB = parseDateRobust(b.data);
                 break;
             case 'valorTotal':
                 valA = parseFloat(a.valorTotal) || 0;
@@ -2912,7 +2967,7 @@ function renderCompras() {
         };
 
         const cells = activeCols.map(col => {
-            if (col.key === 'data') return `<td data-label="Data">${new Date(c.data + 'T12:00:00').toLocaleDateString('pt-BR')}</td>`;
+            if (col.key === 'data') return `<td data-label="Data">${formatDateBR(c.data)}</td>`;
             if (col.key === 'numeroNota') {
                 let badge = '';
                 if (c.consolidadoVales || c.consolidado_vales) {
@@ -3025,14 +3080,17 @@ function updateDropdowns() {
 
     // Initial populate of Quick Filters
     updateFilterOptionsDynamically();
-    updateDashFilterOptionsDynamically();
+    
+    if (document.getElementById('dash_date_start')) {
+        updateDashFilterOptionsDynamically();
 
-    // Set default dashboard period (Current Month)
-    const btnMonth = Array.from(document.querySelectorAll('.preset-btn')).find(b => b.innerText.includes('Mês Atual'));
-    if (btnMonth) {
-        setDashPeriod('month', btnMonth);
-    } else {
-        applyDashboardFilters();
+        // Set default dashboard period (Current Month)
+        const btnMonth = Array.from(document.querySelectorAll('.preset-btn')).find(b => b.innerText.includes('Mês Atual'));
+        if (btnMonth) {
+            setDashPeriod('month', btnMonth);
+        } else {
+            applyDashboardFilters();
+        }
     }
 
     // New: Update all item cost centers in rows to reflect new data
@@ -3549,8 +3607,9 @@ function updateFilterOptionsDynamically(originId = null) {
         const currentVal = el.value;
 
         const availableRecords = compras.filter(c => {
-            if (filters.start && c.data < filters.start) return false;
-            if (filters.end && c.data > filters.end) return false;
+            const cDate = toStandardYYYYMMDD(c.data || c.data_emissao);
+            if (filters.start && cDate < filters.start) return false;
+            if (filters.end && cDate > filters.end) return false;
             if (id !== 'filterEspecie' && filters.especie && c.especieId != filters.especie) return false;
             if (id !== 'filterFornecedor' && filters.fornecedor && c.fornecedorId != filters.fornecedor) return false;
             if (id !== 'filterPagamento' && filters.pagamento && c.formaPgtoId != filters.pagamento) return false;
@@ -3632,24 +3691,26 @@ window.setDashPeriod = (days, btn) => {
         start.setDate(end.getDate() - days);
     }
 
-    document.getElementById('dash_date_start').value = start.toISOString().split('T')[0];
-    document.getElementById('dash_date_end').value = end.toISOString().split('T')[0];
+    const startEl = document.getElementById('dash_date_start');
+    const endEl = document.getElementById('dash_date_end');
+    if (startEl) startEl.value = start.toISOString().split('T')[0];
+    if (endEl) endEl.value = end.toISOString().split('T')[0];
 
     document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    if (btn) btn.classList.add('active');
 
     applyDashboardFilters();
 };
 
 window.applyDashboardFilters = () => {
-    const start = document.getElementById('dash_date_start').value;
-    const end = document.getElementById('dash_date_end').value;
-    const esp = document.getElementById('dash_filter_especie').value;
-    const forn = document.getElementById('dash_filter_fornecedor').value;
-    const placa = document.getElementById('dash_filter_placa').value;
-    const pai = document.getElementById('dash_filter_centro_pai').value;
-    const cc = document.getElementById('dash_filter_custo').value;
-    const pgto = document.getElementById('dash_filter_pagamento').value;
+    const start = document.getElementById('dash_date_start')?.value;
+    const end = document.getElementById('dash_date_end')?.value;
+    const esp = document.getElementById('dash_filter_especie')?.value;
+    const forn = document.getElementById('dash_filter_fornecedor')?.value;
+    const placa = document.getElementById('dash_filter_placa')?.value;
+    const pai = document.getElementById('dash_filter_centro_pai')?.value;
+    const cc = document.getElementById('dash_filter_custo')?.value;
+    const pgto = document.getElementById('dash_filter_pagamento')?.value;
 
     const filtered = compras.filter(c => {
         if (start && c.data < start) return false;
@@ -3892,8 +3953,8 @@ window.deleteCompra = async (id) => {
     });
 };
 
-window.handleDatePresetChange = (el) => {
-    const val = el.value;
+window.handleDatePresetChange = (el, triggerFetch = true) => {
+    const val = el ? el.value : 'month';
     const container = document.getElementById('customDateContainer');
     const startInput = document.getElementById('filterDateStart');
     const endInput = document.getElementById('filterDateEnd');
@@ -3908,25 +3969,43 @@ window.handleDatePresetChange = (el) => {
             endInput.value = '';
         } else {
             const today = new Date();
-            let start = new Date();
-            let end = new Date();
+            let startStr = '';
+            let endStr = '';
             
             if (val === 'month') {
-                start = new Date(today.getFullYear(), today.getMonth(), 1);
-                end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                const y = today.getFullYear();
+                const m = today.getMonth();
+                const lastDay = new Date(y, m + 1, 0).getDate();
+                startStr = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+                endStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
             } else if (val === '15days') {
+                const start = new Date();
                 start.setDate(today.getDate() - 15);
+                startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+                endStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
             } else if (val === 'lastMonth') {
-                start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-                end = new Date(today.getFullYear(), today.getMonth(), 0);
+                const y = today.getFullYear();
+                const m = today.getMonth();
+                const prevDate = new Date(y, m - 1, 1);
+                const py = prevDate.getFullYear();
+                const pm = prevDate.getMonth();
+                const lastDay = new Date(py, pm + 1, 0).getDate();
+                startStr = `${py}-${String(pm + 1).padStart(2, '0')}-01`;
+                endStr = `${py}-${String(pm + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
             }
             
-            startInput.value = start.toISOString().split('T')[0];
-            endInput.value = end.toISOString().split('T')[0];
+            startInput.value = startStr;
+            endInput.value = endStr;
         }
     }
     
-    handleIntelligentFilter('filterDatePreset');
+    if (triggerFetch && val !== 'custom') {
+        loadCompras().then(() => {
+            handleIntelligentFilter('filterDatePreset');
+        });
+    } else {
+        handleIntelligentFilter('filterDatePreset');
+    }
 };
 
 console.log("🛠️ Compras.js: CARREGAMENTO CONCLUÍDO COM SUCESSO!");
@@ -3936,10 +4015,40 @@ console.log("🛠️ Compras.js: CARREGAMENTO CONCLUÍDO COM SUCESSO!");
 // MÓDULO DE INTEGRAÇÃO COM FINANCEIRO
 // ==========================================
 // Helpers de formatação locais
+function toStandardYYYYMMDD(dateStr) {
+    if (!dateStr) return '';
+    const cleanStr = String(dateStr).trim();
+    if (!cleanStr) return '';
+    
+    // DD/MM/YYYY -> YYYY-MM-DD
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(cleanStr)) {
+        const parts = cleanStr.split('/');
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
+    
+    // YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}/.test(cleanStr)) {
+        return cleanStr.substring(0, 10);
+    }
+    
+    // Fallback using parseDateRobust
+    try {
+        const d = parseDateRobust(cleanStr);
+        if (!d || isNaN(d.getTime())) return '';
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    } catch (e) {
+        return '';
+    }
+}
+
 function formatDateBR(dateStr) {
     if (!dateStr) return '';
-    const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00');
-    return date.toLocaleDateString('pt-BR');
+    const d = parseDateRobust(dateStr);
+    if (!d || isNaN(d.getTime())) return String(dateStr);
+    return d.toLocaleDateString('pt-BR');
 }
 
 function formatCurrency(value) {

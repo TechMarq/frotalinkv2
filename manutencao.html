@@ -751,10 +751,6 @@
                 <i data-lucide="wrench" style="width: 18px;"></i>
                 Ordens de Serviço
             </div>
-            <div class="tab-item" onclick="switchMainTab('dashboard')" data-perm="manutencao_os:view">
-                <i data-lucide="pie-chart" style="width: 18px;"></i>
-                Dashboard
-            </div>
             <div class="tab-item" onclick="switchMainTab('setup')" data-perm="manutencao_cadastros:view">
                 <i data-lucide="settings" style="width: 18px;"></i>
                 Cadastros
@@ -951,32 +947,6 @@
                     <button id="btnPrevMaintPage" class="btn-icon" onclick="changeMaintPage(-1)" style="padding: 0.4rem 0.8rem; font-size: 0.75rem; border-radius: 6px; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-card); cursor: pointer;">Anterior</button>
                     <span id="maintPageNum" style="font-size: 0.8rem; font-weight: 700; background: var(--primary); padding: 0.3rem 0.7rem; border-radius: 6px; color: white;">1</span>
                     <button id="btnNextMaintPage" class="btn-icon" onclick="changeMaintPage(1)" style="padding: 0.4rem 0.8rem; font-size: 0.75rem; border-radius: 6px; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-card); cursor: pointer;">Próxima</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="dashboardSection" class="dashboard-container">
-            <div class="charts-row"
-                style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
-                <div class="card-kpi" style="height: 350px; flex-direction: column; align-items: flex-start;">
-                    <h3 style="font-size: 0.9rem; margin-bottom: 1rem;">Volume de Serviços Mensal (Últimos 12 Meses)
-                    </h3>
-                    <canvas id="maintChart"></canvas>
-                </div>
-                <div class="card-kpi" style="height: 350px; flex-direction: column; align-items: flex-start;">
-                    <h3 style="font-size: 0.9rem; margin-bottom: 1rem;">Distribuição por Tipo</h3>
-                    <canvas id="maintTypeChart"></canvas>
-                </div>
-            </div>
-
-            <div class="charts-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-                <div class="card-kpi" style="height: 350px; flex-direction: column; align-items: flex-start;">
-                    <h3 style="font-size: 0.9rem; margin-bottom: 1rem;">Top 5 Veículos (Mais Atendimentos)</h3>
-                    <canvas id="topVehiclesChart"></canvas>
-                </div>
-                <div class="card-kpi" style="height: 350px; flex-direction: column; align-items: flex-start;">
-                    <h3 style="font-size: 0.9rem; margin-bottom: 1rem;">Utilização de Oficinas / Parceiros</h3>
-                    <canvas id="topSuppliersChart"></canvas>
                 </div>
             </div>
         </div>

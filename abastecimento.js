@@ -369,38 +369,83 @@ function updatePresetUI(activeId) {
     }
 }
 
-window.setDashRange = (days) => {
+window.fetchAbastecimentosRange = async (startDate, endDate) => {
+    if (!supabaseClient) return [];
+    try {
+        let query = supabaseClient
+            .from('abastecimentos')
+            .select('*, veiculos(placa, modelo, classificacao, ignorar_media, tipo_combustivel), motoristas(nome_completo), postos(nome), categorias_posto(descricao)')
+            .order('data', { ascending: false });
+
+        if (startDate) query = query.gte('data', startDate);
+        if (endDate) query = query.lte('data', endDate);
+        if (!startDate && !endDate) query = query.limit(500);
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
+    } catch (e) {
+        console.error("❌ Erro ao buscar abastecimentos por período:", e);
+        return [];
+    }
+};
+
+window.setDashRange = async (days) => {
     const end = new Date();
     const start = new Date();
     start.setDate(end.getDate() - days);
     
-    document.getElementById('dash_start').value = start.toISOString().split('T')[0];
-    document.getElementById('dash_end').value = end.toISOString().split('T')[0];
+    const startStr = start.toISOString().split('T')[0];
+    const endStr = end.toISOString().split('T')[0];
+
+    document.getElementById('dash_start').value = startStr;
+    document.getElementById('dash_end').value = endStr;
     
     updatePresetUI(`preset_${days}`);
+
+    const fetched = await fetchAbastecimentosRange(startStr, endStr);
+    if (fetched && fetched.length > 0) {
+        state.fuelingRecords = fetched;
+    }
     updateDashboard();
 };
 
-window.setDashPreviousMonth = () => {
+window.setDashPreviousMonth = async () => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const end = new Date(now.getFullYear(), now.getMonth(), 0);
     
-    document.getElementById('dash_start').value = start.toISOString().split('T')[0];
-    document.getElementById('dash_end').value = end.toISOString().split('T')[0];
+    const startStr = start.toISOString().split('T')[0];
+    const endStr = end.toISOString().split('T')[0];
+
+    document.getElementById('dash_start').value = startStr;
+    document.getElementById('dash_end').value = endStr;
     
     updatePresetUI('preset_prev');
+
+    const fetched = await fetchAbastecimentosRange(startStr, endStr);
+    if (fetched && fetched.length > 0) {
+        state.fuelingRecords = fetched;
+    }
     updateDashboard();
 };
 
-window.setDashCurrentMonth = () => {
+window.setDashCurrentMonth = async () => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     
-    document.getElementById('dash_start').value = start.toISOString().split('T')[0];
-    document.getElementById('dash_end').value = now.toISOString().split('T')[0];
+    const startStr = start.toISOString().split('T')[0];
+    const endStr = now.toISOString().split('T')[0];
+
+    document.getElementById('dash_start').value = startStr;
+    document.getElementById('dash_end').value = endStr;
     
     updatePresetUI('preset_curr');
+
+    const fetched = await fetchAbastecimentosRange(startStr, endStr);
+    if (fetched && fetched.length > 0) {
+        state.fuelingRecords = fetched;
+    }
     updateDashboard();
 };
 

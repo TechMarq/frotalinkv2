@@ -1585,10 +1585,7 @@
         </header>
 
         <nav class="tabs-header">
-            <button class="tab-item active" onclick="switchTab('dashboard')">
-                <i data-lucide="layout-dashboard"></i> Dashboard
-            </button>
-            <button class="tab-item" onclick="switchTab('contratos')">
+            <button class="tab-item active" onclick="switchTab('contratos')">
                 <i data-lucide="file-text"></i> Contratos
                 <span id="contratosTabBadge"
                     style="display:none;align-items:center;justify-content:center;background:#ef4444;color:#fff;font-size:0.6rem;font-weight:900;border-radius:50%;min-width:18px;height:18px;padding:0 4px;margin-left:6px;line-height:1;"></span>
@@ -1598,80 +1595,8 @@
             </button>
         </nav>
 
-        <!-- VIEW: DASHBOARD -->
-        <section id="view-dashboard" class="view-section active">
-            <div class="kpi-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.2rem; margin-bottom: 2rem;">
-                <div class="kpi-card">
-                    <div class="kpi-icon-wrapper" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6;"><i data-lucide="file-text"></i></div>
-                    <div class="kpi-info">
-                        <span class="label">Total de Contratos</span>
-                        <div id="dash_total_contratos" class="value">0</div>
-                    </div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon-wrapper" style="background: rgba(16, 185, 129, 0.1); color: #10b981;"><i data-lucide="check-circle"></i></div>
-                    <div class="kpi-info">
-                        <span class="label">Contratos Ativos</span>
-                        <div id="dash_contratos_ativos" class="value">0</div>
-                    </div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon-wrapper" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;"><i data-lucide="clock"></i></div>
-                    <div class="kpi-info">
-                        <span class="label">Vencendo (30 dias)</span>
-                        <div id="dash_vencendo" class="value">0</div>
-                    </div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon-wrapper" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;"><i data-lucide="alert-triangle"></i></div>
-                    <div class="kpi-info">
-                        <span class="label">Vencidos / Expirados</span>
-                        <div id="dash_vencidos" class="value">0</div>
-                    </div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon-wrapper" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6;"><i data-lucide="dollar-sign"></i></div>
-                    <div class="kpi-info">
-                        <span class="label">Valor Total Carteira</span>
-                        <div id="dash_valor_total" class="value" style="font-size: 1.3rem;">R$ 0,00</div>
-                    </div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon-wrapper" style="background: rgba(6, 182, 212, 0.1); color: #06b6d4;"><i data-lucide="calendar"></i></div>
-                    <div class="kpi-info">
-                        <span class="label">Prazo Médio</span>
-                        <div id="dash_prazo_medio" class="value">0 meses</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Dashboard Charts Row 1 -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
-                <div class="content-card">
-                    <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.8rem; font-size: 1rem;"><i data-lucide="trending-up" style="color: var(--primary);"></i> Contratos por Vigência</h3>
-                    <div style="height: 320px;"><canvas id="chartVigencia"></canvas></div>
-                </div>
-                <div class="content-card">
-                    <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.8rem; font-size: 1rem;"><i data-lucide="pie-chart" style="color: var(--primary);"></i> Mix por Tipo de Demanda</h3>
-                    <div style="height: 320px;"><canvas id="chartDemanda"></canvas></div>
-                </div>
-            </div>
-
-            <!-- Dashboard Charts Row 2 -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
-                <div class="content-card">
-                    <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.8rem; font-size: 1rem;"><i data-lucide="layers" style="color: var(--primary);"></i> Distribuição por Tabela de Preço</h3>
-                    <div style="height: 320px;"><canvas id="chartTabelaPreco"></canvas></div>
-                </div>
-                <div class="content-card">
-                    <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.8rem; font-size: 1rem;"><i data-lucide="calendar-clock" style="color: var(--primary);"></i> Cronograma de Vencimentos</h3>
-                    <div style="height: 320px;"><canvas id="chartVencimentosCronograma"></canvas></div>
-                </div>
-            </div>
-        </section>
-
         <!-- VIEW: CONTRATOS -->
-        <section id="view-contratos" class="view-section">
+        <section id="view-contratos" class="view-section active">
             <div class="content-card">
                 <div class="header-actions">
                     <div class="search-box" style="position: relative; width: 400px;">

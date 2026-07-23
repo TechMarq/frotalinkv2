@@ -17,8 +17,8 @@ const state = {
     formasPagamento: [],
     periodoFluxo: new Date(),
     filtros: {
-        PAGAR: { status: '', busca: '', categoria: '' },
-        RECEBER: { status: '', busca: '', categoria: '' }
+        PAGAR: { status: 'UNPAID', busca: '', categoria: '' },
+        RECEBER: { status: 'UNPAID', busca: '', categoria: '' }
     },
     sort: {
         PAGAR: { key: 'data_vencimento', dir: 'asc' },
@@ -31,20 +31,25 @@ const state = {
 // --- Inicialização ---
 document.addEventListener('DOMContentLoaded', async () => {
     if (typeof window.showLoader === 'function') window.showLoader();
-    initSupabase();
-    await loadInitialData();
-    renderAll();
-    setupEventListeners();
-    setupSearchableInputs();
-    
-    // Abrir aba específica pelo hash da URL (ex: financeiro.html#pagar)
-    const hash = window.location.hash.replace('#', '');
-    if (hash && ['dashboard', 'pagar', 'receber', 'fluxo', 'dre', 'conciliacao', 'config'].includes(hash)) {
-        switchMainTab(hash);
+    try {
+        initSupabase();
+        await loadInitialData();
+        renderAll();
+        setupEventListeners();
+        setupSearchableInputs();
+        
+        // Abrir aba específica pelo hash da URL (ex: financeiro.html#pagar)
+        const hash = window.location.hash.replace('#', '');
+        if (hash && ['dashboard', 'pagar', 'receber', 'fluxo', 'dre', 'conciliacao', 'config'].includes(hash)) {
+            switchMainTab(hash);
+        }
+        
+        if (window.lucide) lucide.createIcons();
+    } catch (err) {
+        console.error("❌ Erro durante a inicialização do módulo financeiro:", err);
+    } finally {
+        if (typeof window.hideLoader === 'function') window.hideLoader();
     }
-    
-    if (window.lucide) lucide.createIcons();
-    if (typeof window.hideLoader === 'function') window.hideLoader();
 });
 
 function setupSearchableInputs() {
@@ -99,8 +104,16 @@ async function loadInitialData() {
             }
         };
 
+        // Otimização de Performance: Por padrão, carrega apenas contas não totalmente pagas (ABERTO / PARCIAL / PENDENTE)
+        // para minimizar a carga no banco de dados e acelerar o tempo de resposta
+        let lancQuery = supabaseClient.from('fin_lancamentos')
+            .select('*')
+            .neq('status', 'PAGO')
+            .order('data_vencimento', { ascending: false })
+            .limit(2000);
+
         const [l, c, cat, cc, forn, cl, formas] = await Promise.all([
-            supabaseClient.from('fin_lancamentos').select('*'),
+            lancQuery,
             supabaseClient.from('fin_contas_bancarias').select('*'),
             supabaseClient.from('fin_plano_contas').select('*').order('codigo'),
             supabaseClient.from('fin_centros_custo').select('*').order('codigo'),
@@ -268,7 +281,9 @@ function renderLancamentos(tipo) {
     let filtered = state.lancamentos.filter(l => l.tipo === tipo);
 
     if (filter.status) {
-        if (filter.status === 'ATRASADO') {
+        if (filter.status === 'UNPAID') {
+            filtered = filtered.filter(l => l.status !== 'PAGO' && l.status !== 'CANCELADO');
+        } else if (filter.status === 'ATRASADO') {
             const hoje = new Date();
             hoje.setHours(0, 0, 0, 0);
             filtered = filtered.filter(l => {
@@ -444,10 +459,14 @@ function renderDashboard() {
     const pagar30d = entries30d.filter(l => l.tipo === 'PAGAR').reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
     const kpiPrevistoVal = saldoTotal + receber30d - pagar30d;
 
-    document.getElementById('kpi-pagar').innerText = formatCurrency(totalPagar);
-    document.getElementById('kpi-receber').innerText = formatCurrency(totalReceber);
-    document.getElementById('kpi-saldo').innerText = formatCurrency(saldoTotal);
-    document.getElementById('kpi-previsto').innerText = formatCurrency(kpiPrevistoVal);
+    const elPagar = document.getElementById('kpi-pagar');
+    if (elPagar) elPagar.innerText = formatCurrency(totalPagar);
+    const elReceber = document.getElementById('kpi-receber');
+    if (elReceber) elReceber.innerText = formatCurrency(totalReceber);
+    const elSaldo = document.getElementById('kpi-saldo');
+    if (elSaldo) elSaldo.innerText = formatCurrency(saldoTotal);
+    const elPrevisto = document.getElementById('kpi-previsto');
+    if (elPrevisto) elPrevisto.innerText = formatCurrency(kpiPrevistoVal);
 
     initCharts();
 }
@@ -1821,8 +1840,33 @@ function filterFinancial(tipo, val) {
     renderLancamentos(tipo);
 }
 
-function filterStatus(tipo, val) {
+async function filterStatus(tipo, val) {
     state.filtros[tipo].status = val;
+    
+    // Se o usuário solicitou ver contas PAGAS ou TODOS e ainda não carregamos itens pagos no estado:
+    const needsFetch = (val === 'PAGO' || val === '' || val === 'TODOS') && state.lancamentos.every(l => l.status !== 'PAGO');
+    if (needsFetch && supabaseClient) {
+        if (typeof window.showLoader === 'function') window.showLoader();
+        try {
+            let query = supabaseClient.from('fin_lancamentos').select('*').order('data_vencimento', { ascending: false });
+            if (val === 'PAGO') {
+                query = query.eq('status', 'PAGO').limit(2000);
+            } else {
+                query = query.limit(2000);
+            }
+            const { data } = await query;
+            if (data && data.length > 0) {
+                const existingIds = new Set(state.lancamentos.map(l => l.id));
+                const newItems = data.filter(d => !existingIds.has(d.id));
+                state.lancamentos = [...state.lancamentos, ...newItems];
+            }
+        } catch (e) {
+            console.error("❌ Erro ao buscar lançamentos por status sob demanda:", e);
+        } finally {
+            if (typeof window.hideLoader === 'function') window.hideLoader();
+        }
+    }
+    
     renderLancamentos(tipo);
 }
 
@@ -2058,8 +2102,10 @@ function setupEventListeners() {
     if (bulkPaymentForm) bulkPaymentForm.addEventListener('submit', handleBulkPayment);
 
     // Aplicar máscaras de CPF/CNPJ e Telefone no Fornecedor
-    applyMask(document.getElementById('fDoc'), maskCnpjCpf);
-    applyMask(document.getElementById('fTel'), maskTelefone);
+    const fDocEl = document.getElementById('fDoc');
+    if (fDocEl) applyMask(fDocEl, maskCnpjCpf);
+    const fTelEl = document.getElementById('fTel');
+    if (fTelEl) applyMask(fTelEl, maskTelefone);
 
     // Listeners para automação do Receber
     const recData = document.getElementById('receberData');
