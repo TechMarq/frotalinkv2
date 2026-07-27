@@ -160,7 +160,8 @@ async function carregarTodos() {
 async function carregarFinanceiro(inicio, fim) {
     try {
         const [{ data: lancamentos, error: e1 }, { data: contas, error: e2 }] = await Promise.all([
-            sb.from('fin_lancamentos').select('tipo, valor_total, valor_pago, status, data_vencimento, data_pagamento, fin_plano_contas(nome)').order('data_vencimento', { ascending: false }).limit(2000),
+            // VIEW: view_fin_lancamentos_plano já inclui plano_conta_nome via JOIN com fin_plano_contas
+            sb.from('view_fin_lancamentos_plano').select('tipo, valor_total, valor_pago, status, data_vencimento, data_pagamento, plano_conta_nome').order('data_vencimento', { ascending: false }).limit(2000),
             sb.from('fin_contas_bancarias').select('saldo_atual, nome'),
         ]);
         if (e1) console.warn('[fin_lancamentos]', e1.message);
@@ -241,7 +242,8 @@ async function carregarEstoque() {
 
 async function carregarComercial() {
     try {
-        const { data } = await sb.from('com_contratos').select('id, cliente_nome, valor_contrato, data_vencimento, com_status(nome)');
+        // VIEW: view_com_contratos_status já inclui status_nome, tabela_preco_nome e tipo_demanda_nome
+        const { data } = await sb.from('view_com_contratos_status').select('id, cliente_nome, valor_contrato, data_vencimento, status_nome');
         dadosBrutos.contratos = data || [];
     } catch (e) { console.warn('[Gerencial] Comercial:', e); dadosBrutos.contratos = []; }
 }
@@ -399,11 +401,11 @@ function renderEstoque() {
 
 function renderComercial() {
     const contratos = dadosBrutos.contratos || [];
-    const ativos = contratos.filter(c => c.com_status?.nome === 'ATIVO');
+    const ativos = contratos.filter(c => c.status_nome === 'ATIVO');
     const valorAtivos = ativos.reduce((s, c) => s + (c.valor_contrato || 0), 0);
     const hoje = new Date().toISOString().slice(0, 10);
     const vencendo = ativos.filter(c => c.data_vencimento && c.data_vencimento >= hoje && c.data_vencimento <= dataAddDias(hoje, 30)).length;
-    const vencidos = contratos.filter(c => c.data_vencimento && c.data_vencimento < hoje && c.com_status?.nome !== 'CANCELADO').length;
+    const vencidos = contratos.filter(c => c.data_vencimento && c.data_vencimento < hoje && c.status_nome !== 'CANCELADO').length;
     setKPI('kpi-comercial-ativos', ativos.length);
     setKPI('kpi-comercial-valor', fmtBRL(valorAtivos));
     setKPI('kpi-comercial-vencendo', vencendo);
@@ -430,7 +432,7 @@ function renderAlertas() {
     const manutPend = (dadosBrutos.manutPendentes || []).length;
     if (manutPend) alertas.push({ tipo: 'info', icon: 'wrench', msg: `${manutPend} manutenção(ões) pendente(s) na frota`, link: 'manutencao.html' });
 
-    const comercVenc = (dadosBrutos.contratos || []).filter(c => c.data_vencimento && c.data_vencimento >= hoje && c.data_vencimento <= dataAddDias(hoje, 30) && c.com_status?.nome === 'ATIVO').length;
+    const comercVenc = (dadosBrutos.contratos || []).filter(c => c.data_vencimento && c.data_vencimento >= hoje && c.data_vencimento <= dataAddDias(hoje, 30) && c.status_nome === 'ATIVO').length;
     if (comercVenc) alertas.push({ tipo: 'info', icon: 'briefcase', msg: `${comercVenc} contrato(s) comercial(is) vencem em 30 dias`, link: 'comercial.html' });
 
     const alertEl = document.getElementById('alertas-list');
@@ -536,7 +538,7 @@ function atualizarGraficos() {
     const lancamentos = dadosBrutos.lancamentos || [];
     const porCateg = {};
     lancamentos.filter(l => l.tipo === 'PAGAR' && ['PAGO', 'PARCIAL'].includes(l.status)).forEach(l => {
-        const cat = l.fin_plano_contas?.nome || 'Outros';
+        const cat = l.plano_conta_nome || 'Outros';
         porCateg[cat] = (porCateg[cat] || 0) + (l.valor_pago || l.valor_total || 0);
     });
     const categSorted = Object.entries(porCateg).sort(([, a], [, b]) => b - a).slice(0, 7);

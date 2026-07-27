@@ -1760,6 +1760,7 @@ async function fetchVehicles() {
         const VEICULOS_FIELDS = `
             id, placa, modelo, marca, proprietario, classificacao, status,
             tipo_combustivel, cor, ano_fabricacao, ano_modelo, renavam,
+            chassi, numero_motor, codigo_fipe, valor_fipe_mes,
             vencimento_seguro, seguradora, numero_apolice, corretor_seguro,
             valor_premio, valor_franquia, parcelas_pagamento, forma_pagamento,
             proponente_seguro, endosso_proposta, ci_seguro,

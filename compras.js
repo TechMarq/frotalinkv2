@@ -5,7 +5,7 @@ const ADMIN_PASSWORD = "M@nu2398";
 
 let compras = [];
 let currentPage = 1;
-const pageSize = 500;
+const pageSize = 100;
 let editId = null;
 let config = {
     fornecedores: [],
@@ -3941,6 +3941,12 @@ window.deleteCompra = async (id) => {
                     const sId = String(id);
                     // Cascading delete is set in SQL for items, additions and installments
                     await supabaseClient.from('compras').delete().eq('id', sId);
+                    
+                    const fornObj = config.fornecedores.find(f => f.id == compra.fornecedorId);
+                    const fornNome = fornObj ? fornObj.nome : 'Fornecedor';
+                    if (typeof window.registrarLog === 'function') {
+                        window.registrarLog('compras', 'EXCLUSÃO', `DETALHE: Excluiu Nota Fiscal Nº ${compra.numeroNota || id} - Fornecedor: ${fornNome} (Valor: R$ ${compra.valorTotal})`);
+                    }
                 } catch (err) {
                     console.error("❌ Erro ao deletar no Supabase:", err);
                 }
@@ -4168,6 +4174,8 @@ window.integrarAoFinanceiro = async () => {
                             status: 'ABERTO',
                             status_aprovacao: 'PENDENTE',
                             compra_id: comp.id,
+                            origem_modulo: 'COMPRAS',
+                            setor_origem: comp.setor_origem || 'Setor de Compras',
                             forma_pagamento: comp.forma_pagamento_id,
                             centro_custo_id: comp.centro_custo_id,
                             categoria_id: comp.categoria_id
@@ -4198,6 +4206,8 @@ window.integrarAoFinanceiro = async () => {
                             status: 'ABERTO',
                             status_aprovacao: 'PENDENTE',
                             compra_id: comp.id,
+                            origem_modulo: 'COMPRAS',
+                            setor_origem: comp.setor_origem || 'Setor de Compras',
                             forma_pagamento: comp.forma_pagamento_id,
                             centro_custo_id: comp.centro_custo_id,
                             categoria_id: comp.categoria_id
@@ -4213,6 +4223,8 @@ window.integrarAoFinanceiro = async () => {
                         status: 'ABERTO',
                         status_aprovacao: 'PENDENTE',
                         compra_id: comp.id,
+                        origem_modulo: 'COMPRAS',
+                        setor_origem: comp.setor_origem || 'Setor de Compras',
                         forma_pagamento: comp.forma_pagamento_id,
                         centro_custo_id: comp.centro_custo_id,
                         categoria_id: comp.categoria_id
@@ -4229,6 +4241,8 @@ window.integrarAoFinanceiro = async () => {
                     status: 'ABERTO',
                     status_aprovacao: 'PENDENTE',
                     compra_id: comp.id,
+                    origem_modulo: 'COMPRAS',
+                    setor_origem: comp.setor_origem || 'Setor de Compras',
                     forma_pagamento: comp.forma_pagamento_id,
                     centro_custo_id: comp.centro_custo_id,
                     categoria_id: comp.categoria_id

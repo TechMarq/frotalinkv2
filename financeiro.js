@@ -17,8 +17,8 @@ const state = {
     formasPagamento: [],
     periodoFluxo: new Date(),
     filtros: {
-        PAGAR: { status: 'UNPAID', busca: '', categoria: '' },
-        RECEBER: { status: 'UNPAID', busca: '', categoria: '' }
+        PAGAR: { status: 'UNPAID', busca: '', categoria: '', origem: '' },
+        RECEBER: { status: 'UNPAID', busca: '', categoria: '', origem: '' }
     },
     sort: {
         PAGAR: { key: 'data_vencimento', dir: 'asc' },
@@ -27,6 +27,12 @@ const state = {
     adminMode: true,
     importedXmlCnpj: ""
 };
+
+// --- Paginação do Módulo Financeiro (Alinhada com Compras) ---
+let currentPagePagar = 1;
+let currentPageReceber = 1;
+let currentPageFhist = 1;
+const financialPageSize = 50;
 
 // --- Inicialização ---
 document.addEventListener('DOMContentLoaded', async () => {
@@ -80,28 +86,43 @@ async function loadInitialData() {
 
     try {
         const fetchClientesSafely = async () => {
+            let listaClientes = [];
             try {
-                const { data, error } = await supabaseClient.from('clientes').select('*').order('nome');
-                if (error) throw error;
-                return { data };
-            } catch (err) {
-                console.warn('Erro ao carregar tabela clientes, tentando com_contratos:', err);
-                try {
-                    const { data, error } = await supabaseClient.from('com_contratos').select('*').order('cliente_nome');
-                    if (error) throw error;
-                    return {
-                        data: (data || []).map(item => ({
-                            id: item.id,
-                            nome: item.cliente_nome,
-                            cnpj_cpf: item.cliente_cnpj_cpf,
-                            email: item.cliente_email,
-                            contato: item.cliente_telefone
-                        }))
-                    };
-                } catch (e2) {
-                    return { data: [] };
+                const { data: d1 } = await supabaseClient.from('clientes').select('*');
+                if (d1 && d1.length) {
+                    d1.forEach(item => {
+                        const nome = item.nome || item.cliente_nome;
+                        if (nome) {
+                            listaClientes.push({
+                                id: item.id,
+                                nome: nome,
+                                cnpj_cpf: item.cnpj_cpf || item.cliente_cnpj_cpf,
+                                email: item.email || item.cliente_email,
+                                contato: item.contato || item.cliente_telefone
+                            });
+                        }
+                    });
                 }
-            }
+            } catch (err) {}
+
+            try {
+                const { data: d2 } = await supabaseClient.from('com_contratos').select('*');
+                if (d2 && d2.length) {
+                    d2.forEach(item => {
+                        if (item.cliente_nome && !listaClientes.some(c => (c.nome || '').toLowerCase() === item.cliente_nome.toLowerCase())) {
+                            listaClientes.push({
+                                id: item.id,
+                                nome: item.cliente_nome,
+                                cnpj_cpf: item.cliente_cnpj_cpf,
+                                email: item.cliente_email,
+                                contato: item.cliente_telefone
+                            });
+                        }
+                    });
+                }
+            } catch (err) {}
+
+            return { data: listaClientes.sort((a,b) => (a.nome||'').localeCompare(b.nome||'')) };
         };
 
         // Otimização de Performance: Por padrão, carrega apenas contas não totalmente pagas (ABERTO / PARCIAL / PENDENTE)
@@ -110,7 +131,7 @@ async function loadInitialData() {
             .select('*')
             .neq('status', 'PAGO')
             .order('data_vencimento', { ascending: false })
-            .limit(2000);
+            .limit(500);
 
         const [l, c, cat, cc, forn, cl, formas] = await Promise.all([
             lancQuery,
@@ -167,6 +188,7 @@ function switchMainTab(tabId) {
     if (tabId === 'fluxo') renderFluxo();
     if (tabId === 'dre') renderDRE();
     if (tabId === 'conciliacao') renderConciliacao();
+    if (tabId === 'relatorios' || tabId === 'historico') fhistPopulateSelects();
 }
 
 function toggleAdminMode(tipo) {
@@ -281,25 +303,44 @@ function renderLancamentos(tipo) {
     let filtered = state.lancamentos.filter(l => l.tipo === tipo);
 
     if (filter.status) {
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0);
+
         if (filter.status === 'UNPAID') {
             filtered = filtered.filter(l => l.status !== 'PAGO' && l.status !== 'CANCELADO');
         } else if (filter.status === 'ATRASADO') {
-            const hoje = new Date();
-            hoje.setHours(0, 0, 0, 0);
             filtered = filtered.filter(l => {
                 const dataVenc = new Date((l.data_vencimento || l.previsao_pagamento || l.data_emissao) + 'T00:00:00');
                 return dataVenc < hoje && l.status === 'ABERTO';
+            });
+        } else if (filter.status === 'ABERTO') {
+            filtered = filtered.filter(l => {
+                const dataVenc = new Date((l.data_vencimento || l.previsao_pagamento || l.data_emissao) + 'T00:00:00');
+                return dataVenc >= hoje && l.status === 'ABERTO';
             });
         } else {
             filtered = filtered.filter(l => l.status === filter.status);
         }
     }
     if (filter.categoria) filtered = filtered.filter(l => l.centro_custo_id === filter.categoria);
+    if (filter.origem) {
+        if (filter.origem === 'COMPRAS') {
+            filtered = filtered.filter(l => l.origem_modulo === 'COMPRAS' || l.compra_id != null);
+        } else if (filter.origem === 'MANUTENCAO') {
+            filtered = filtered.filter(l => l.origem_modulo === 'MANUTENCAO' || l.manutencao_id != null);
+        } else if (filter.origem === 'MANUAL') {
+            filtered = filtered.filter(l => (!l.origem_modulo || l.origem_modulo === 'MANUAL') && !l.compra_id && !l.manutencao_id);
+        } else {
+            filtered = filtered.filter(l => l.origem_modulo === filter.origem);
+        }
+    }
     if (filter.busca) {
         const b = filter.busca.toLowerCase();
         filtered = filtered.filter(l =>
-            l.descricao.toLowerCase().includes(b) ||
-            (l.entidade_nome || '').toLowerCase().includes(b)
+            (l.descricao || '').toLowerCase().includes(b) ||
+            (l.entidade_nome || '').toLowerCase().includes(b) ||
+            (l.codigo_sequencial || '').toLowerCase().includes(b) ||
+            (l.num_nf || '').toLowerCase().includes(b)
         );
     }
 
@@ -326,8 +367,24 @@ function renderLancamentos(tipo) {
         return 0;
     });
 
-    // 2. Render Table
-    tbody.innerHTML = filtered.map(l => {
+    // 2. Lógica de Paginação (Client-Side Pagination)
+    const totalRecords = filtered.length;
+    let page = tipo === 'PAGAR' ? currentPagePagar : currentPageReceber;
+    const totalPages = Math.ceil(totalRecords / financialPageSize) || 1;
+    if (page > totalPages) page = totalPages;
+    if (page < 1) page = 1;
+
+    if (tipo === 'PAGAR') currentPagePagar = page;
+    else currentPageReceber = page;
+
+    const startIdx = (page - 1) * financialPageSize;
+    const endIdx = startIdx + financialPageSize;
+    const pageRecords = filtered.slice(startIdx, endIdx);
+
+    updateFinancialPaginationUI(tipo, totalRecords, startIdx, endIdx, totalPages, page);
+
+    // 3. Render Table
+    tbody.innerHTML = pageRecords.map(l => {
         const cat = state.categorias.find(c => c.id === l.categoria_id);
         const cc = state.centrosCusto.find(c => c.id === l.centro_custo_id);
         
@@ -366,6 +423,7 @@ function renderLancamentos(tipo) {
                         <div style="font-weight:600">${l.entidade_nome || '-'}</div>
                     </td>
                     <td data-label="Descrição">
+                        ${l.num_nf ? `<div style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px;">NF/Doc: ${l.num_nf}${l.serie_nf ? ' (Série ' + l.serie_nf + ')' : ''}</div>` : ''}
                         <div style="font-size:0.85rem">${l.descricao}</div>
                     </td>
                     <td data-label="Vlr. Bruto" style="text-align:right; font-weight:700">${formatCurrency(vBruto)}</td>
@@ -377,7 +435,10 @@ function renderLancamentos(tipo) {
                     <td class="actions-cell">
                         <div style="display:flex; justify-content:center; gap:0.4rem">
                             <button class="btn-action view" onclick="viewEntry('${l.id}')" title="Visualizar"><i data-lucide="eye"></i></button>
-                            ${l.status !== 'PAGO' ? `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar/Receber"><i data-lucide="check-square"></i></button>` : ''}
+                            ${l.status === 'PAGO' || l.status === 'PARCIAL'
+                                ? `<button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar / Voltar para Pendente" style="background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#f59e0b;"><i data-lucide="rotate-ccw"></i></button>`
+                                : `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar / Receber"><i data-lucide="check-square"></i></button>`
+                            }
                             <button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>
                             <button class="btn-action delete" onclick="deleteEntry('${l.id}')" title="Excluir"><i data-lucide="trash-2"></i></button>
                         </div>
@@ -403,7 +464,19 @@ function renderLancamentos(tipo) {
                     <div style="font-size:0.7rem; color:var(--text-muted)">${l.recorrencia !== 'NAO' ? '<i data-lucide="repeat" style="width:10px"></i> Recorrência' : ''}</div>
                 </td>
                 <td data-label="Descrição">
+                    ${l.num_nf ? `<div style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px;">NF/Doc: ${l.num_nf}${l.serie_nf ? ' (Série ' + l.serie_nf + ')' : ''}</div>` : ''}
                     <div>${l.descricao}</div>
+                    ${(() => {
+                        if (l.origem_modulo === 'COMPRAS' || l.compra_id) {
+                            const setor = l.setor_origem ? ` • ${l.setor_origem}` : '';
+                            return `<div style="margin-top:4px;"><span class="badge-origem-compras" style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:700; padding:2px 7px; border-radius:12px; background:rgba(79, 70, 229, 0.12); color:#4f46e5; border:1px solid rgba(79, 70, 229, 0.25);" title="Integrado via Módulo de Compras"><i data-lucide="shopping-cart" style="width:11px; height:11px;"></i> Compras${setor}</span></div>`;
+                        } else if (l.origem_modulo === 'MANUTENCAO' || l.manutencao_id) {
+                            return `<div style="margin-top:4px;"><span class="badge-origem-manutencao" style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:700; padding:2px 7px; border-radius:12px; background:rgba(217, 119, 6, 0.12); color:#d97706; border:1px solid rgba(217, 119, 6, 0.25);" title="Integrado via Módulo de Manutenção"><i data-lucide="wrench" style="width:11px; height:11px;"></i> Manutenção</span></div>`;
+                        } else if (l.origem_modulo && l.origem_modulo !== 'MANUAL') {
+                            return `<div style="margin-top:4px;"><span class="badge-origem-outros" style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:700; padding:2px 7px; border-radius:12px; background:rgba(107, 114, 128, 0.12); color:#4b5563; border:1px solid rgba(107, 114, 128, 0.25);"><i data-lucide="link" style="width:11px; height:11px;"></i> ${l.origem_modulo}</span></div>`;
+                        }
+                        return '';
+                    })()}
                 </td>
                 <td data-label="Total" style="text-align:right; font-weight:700">${formatCurrency(l.valor_total)}</td>
                 <td data-label="Pago" style="text-align:right; color:var(--success)">${formatCurrency(l.valor_pago)}</td>
@@ -414,8 +487,10 @@ function renderLancamentos(tipo) {
                 <td class="actions-cell">
                     <div style="display:flex; justify-content:center; gap:0.4rem">
                         <button class="btn-action view" onclick="viewEntry('${l.id}')" title="Visualizar"><i data-lucide="eye"></i></button>
-                        ${l.status !== 'PAGO' ? `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar/Pagar"><i data-lucide="check-square"></i></button>` : ''}
-                        
+                        ${l.status === 'PAGO' || l.status === 'PARCIAL'
+                            ? `<button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar / Voltar para Pendente" style="background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#f59e0b;"><i data-lucide="rotate-ccw"></i></button>`
+                            : `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar / Pagar"><i data-lucide="check-square"></i></button>`
+                        }
                         <button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>
                         <button class="btn-action duplicate" onclick="duplicateEntry('${l.id}')" title="Duplicar"><i data-lucide="copy"></i></button>
                         <button class="btn-action delete" onclick="deleteEntry('${l.id}')" title="Excluir"><i data-lucide="trash-2"></i></button>
@@ -429,6 +504,55 @@ function renderLancamentos(tipo) {
     renderDashboardPagar();
     renderDashboardReceber();
     updateBulkActionBar(tipo);
+}
+
+// --- Funções de Paginação da Tabela (Sync com Compras) ---
+function changePageFinancial(tipo, delta) {
+    if (tipo === 'PAGAR') {
+        currentPagePagar += delta;
+    } else if (tipo === 'RECEBER') {
+        currentPageReceber += delta;
+    }
+    renderTable(tipo);
+}
+
+function setPageFinancial(tipo, page) {
+    if (tipo === 'PAGAR') {
+        currentPagePagar = page;
+    } else if (tipo === 'RECEBER') {
+        currentPageReceber = page;
+    }
+    renderTable(tipo);
+}
+
+function updateFinancialPaginationUI(tipo, totalRecords, startIdx, endIdx, totalPages, currentPage) {
+    const infoEl = document.getElementById(tipo === 'PAGAR' ? 'paginationInfoPagar' : 'paginationInfoReceber');
+    const prevBtn = document.getElementById(tipo === 'PAGAR' ? 'btnPrevPagePagar' : 'btnPrevPageReceber');
+    const nextBtn = document.getElementById(tipo === 'PAGAR' ? 'btnNextPagePagar' : 'btnNextPageReceber');
+    const numbersEl = document.getElementById(tipo === 'PAGAR' ? 'pageNumbersPagar' : 'pageNumbersReceber');
+
+    if (infoEl) {
+        infoEl.innerText = totalRecords === 0
+            ? 'Mostrando 0-0 de 0 registros'
+            : `Mostrando ${startIdx + 1}-${Math.min(endIdx, totalRecords)} de ${totalRecords} registros`;
+    }
+    if (prevBtn) prevBtn.disabled = currentPage <= 1;
+    if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
+
+    if (numbersEl) {
+        let html = '';
+        const maxButtons = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+        let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+        if (endPage - startPage + 1 < maxButtons) {
+            startPage = Math.max(1, endPage - maxButtons + 1);
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            html += `<button class="page-num ${i === currentPage ? 'active' : ''}" onclick="setPageFinancial('${tipo}', ${i})">${i}</button>`;
+        }
+        numbersEl.innerHTML = html;
+    }
 }
 
 // --- Dashboard Logic ---
@@ -1051,12 +1175,12 @@ function populateForm(form, item) {
 
 // --- Filters ---
 function filterFinancial(tipo, val) {
-    state.filtros.busca = val;
+    state.filtros[tipo].busca = val;
     renderLancamentos(tipo);
 }
 
-function filterStatus(tipo, val) {
-    state.filtros.status = val;
+function filterOrigem(tipo, val) {
+    state.filtros[tipo].origem = val;
     renderLancamentos(tipo);
 }
 
@@ -1492,13 +1616,41 @@ async function handleEntrySubmit(e) {
         let lancamentoId = id;
 
         if (id) {
+            // Edição de registro existente
             const { error: upErr } = await supabaseClient.from('fin_lancamentos').update(mainRecord).eq('id', id);
             if (upErr) throw upErr;
             if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Editou lançamento (${mainRecord.tipo}): ${mainRecord.descricao} - Fornecedor/Entidade: ${mainRecord.entidade_nome} (Valor: R$ ${mainRecord.valor_total})`);
             await supabaseClient.from('fin_lancamento_itens').delete().eq('lancamento_id', id);
             await supabaseClient.from('fin_lancamento_adicionais').delete().eq('lancamento_id', id);
             await supabaseClient.from('fin_lancamento_parcelas').delete().eq('lancamento_id', id);
+        } else if (isParcelado) {
+            // Novo lançamento parcelado: cria 1 registro individual em fin_lancamentos para cada parcela
+            const installmentRows = document.querySelectorAll('#installmentsContainer .installment-row');
+            const totalParcs = installmentRows.length || qtdParcelas;
+            const recordsToInsert = [];
+
+            installmentRows.forEach((row, idx) => {
+                const parcNum = idx + 1;
+                const parcVenc = row.querySelector('.parc-date').value;
+                const parcVal = parseFloat(row.querySelector('.parc-val').value) || (finalTotal / totalParcs);
+
+                recordsToInsert.push({
+                    ...mainRecord,
+                    descricao: `${firstItemDesc} (Parc ${parcNum}/${totalParcs})`,
+                    data_vencimento: parcVenc,
+                    valor_total: parcVal,
+                    is_parcelado: true,
+                    qtd_parcelas: totalParcs,
+                    status: 'ABERTO'
+                });
+            });
+
+            const { data: insertedList, error: inErr } = await supabaseClient.from('fin_lancamentos').insert(recordsToInsert).select();
+            if (inErr) throw inErr;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Lançou ${recordsToInsert.length} parcelas para (${mainRecord.tipo.toLowerCase()}): ${firstItemDesc} - Entidade: ${mainRecord.entidade_nome}`);
+            if (insertedList && insertedList.length > 0) lancamentoId = insertedList[0].id;
         } else {
+            // Novo lançamento único (não parcelado)
             const { data: inserted, error: inErr } = await supabaseClient.from('fin_lancamentos').insert([mainRecord]).select().single();
             if (inErr) throw inErr;
             if (typeof registrarLog === 'function') registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Lançou ${mainRecord.tipo.toLowerCase()}: ${mainRecord.descricao} - Fornecedor/Entidade: ${mainRecord.entidade_nome} (Valor: R$ ${mainRecord.valor_total})`);
@@ -1581,6 +1733,8 @@ async function handleEntrySubmit(e) {
 }
 
 // --- Payment (Baixa) ---
+let currentModalParcelas = [];
+
 async function openPaymentModal(id) {
     const l = state.lancamentos.find(item => item.id === id);
     if (!l) return;
@@ -1592,16 +1746,61 @@ async function openPaymentModal(id) {
     }
 
     document.getElementById('payLancamentoId').value = l.id;
-    document.getElementById('payValor').value = l.valor_total - l.valor_pago;
     document.getElementById('payData').value = new Date().toISOString().split('T')[0];
 
     const selectConta = document.getElementById('payConta');
     selectConta.innerHTML = state.contas.map(c => `<option value="${c.id}">${c.nome} (Saldo: ${formatCurrency(c.saldo_atual)})</option>`).join('');
     if (l.conta_bancaria_id) selectConta.value = l.conta_bancaria_id;
 
+    // Verificar se possui parcelas no banco
+    currentModalParcelas = [];
+    const parcelaGroup = document.getElementById('payParcelaGroup');
+    const parcelaSelect = document.getElementById('payParcelaSelect');
+
+    try {
+        const { data: parc } = await supabaseClient
+            .from('fin_lancamento_parcelas')
+            .select('*')
+            .eq('lancamento_id', l.id)
+            .order('numero_parcela');
+
+        if (parc && parc.length > 0) {
+            currentModalParcelas = parc;
+            const parcelasAbertas = parc.filter(p => p.status !== 'PAGO');
+
+            if (parcelasAbertas.length > 0) {
+                parcelaGroup.style.display = 'block';
+                parcelaSelect.innerHTML = `<option value="">-- Quitar Lançamento / Valor Livre --</option>` +
+                    parcelasAbertas.map(p => `<option value="${p.id}" data-val="${p.valor}">Parcela #${p.numero_parcela} - Venc: ${formatDate(p.data_vencimento)} (${formatCurrency(p.valor)})</option>`).join('');
+
+                // Selecionar a primeira parcela em aberto por padrão
+                parcelaSelect.value = parcelasAbertas[0].id;
+                document.getElementById('payValor').value = parcelasAbertas[0].valor;
+            } else {
+                parcelaGroup.style.display = 'none';
+                document.getElementById('payValor').value = l.valor_total - l.valor_pago;
+            }
+        } else {
+            parcelaGroup.style.display = 'none';
+            document.getElementById('payValor').value = l.valor_total - l.valor_pago;
+        }
+    } catch (errParc) {
+        console.warn('Erro ao carregar parcelas:', errParc);
+        parcelaGroup.style.display = 'none';
+        document.getElementById('payValor').value = l.valor_total - l.valor_pago;
+    }
+
     const modal = document.getElementById('paymentModal');
     if (modal) modal.classList.add('active');
 }
+
+window.handleParcelaBaixaChange = () => {
+    const sel = document.getElementById('payParcelaSelect');
+    const selectedOption = sel.options[sel.selectedIndex];
+    if (selectedOption && selectedOption.dataset.val) {
+        document.getElementById('payValor').value = selectedOption.dataset.val;
+    }
+};
 
 async function handlePayment(e) {
     e.preventDefault();
@@ -1610,6 +1809,7 @@ async function handlePayment(e) {
     const dataPagamento = document.getElementById('payData').value;
     const contaId = document.getElementById('payConta').value;
     const forma = document.getElementById('payForma').value;
+    const parcelaId = document.getElementById('payParcelaSelect')?.value || null;
 
     try {
         const l = state.lancamentos.find(item => item.id === id);
@@ -1618,9 +1818,24 @@ async function handlePayment(e) {
         if (!l || !conta) throw new Error('Dados inválidos');
 
         const novoValorPago = (parseFloat(l.valor_pago) || 0) + valorPagoInput;
-        const novoStatus = novoValorPago >= l.valor_total ? 'PAGO' : 'PARCIAL';
+        const novoStatus = novoValorPago >= (l.valor_total - 0.01) ? 'PAGO' : 'PARCIAL';
 
-        // 1. Atualiza Lançamento
+        // 1. Se uma parcela específica foi selecionada, marca ela como PAGO no banco
+        if (parcelaId) {
+            const { error: errParc } = await supabaseClient
+                .from('fin_lancamento_parcelas')
+                .update({ status: 'PAGO' })
+                .eq('id', parcelaId);
+            if (errParc) console.error("Erro ao atualizar parcela:", errParc);
+        } else if (currentModalParcelas.length > 0 && novoStatus === 'PAGO') {
+            // Se baixou o valor total sem escolher parcela única, marca todas como PAGO
+            await supabaseClient
+                .from('fin_lancamento_parcelas')
+                .update({ status: 'PAGO' })
+                .eq('lancamento_id', id);
+        }
+
+        // 2. Atualiza Lançamento mestre
         const { error: errL } = await supabaseClient.from('fin_lancamentos').update({
             valor_pago: novoValorPago,
             status: novoStatus,
@@ -1630,7 +1845,7 @@ async function handlePayment(e) {
         }).eq('id', id);
         if (errL) throw errL;
 
-        // 2. Atualiza Saldo da Conta
+        // 3. Atualiza Saldo da Conta Bancária
         const fator = l.tipo === 'PAGAR' ? -1 : 1;
         const novoSaldo = parseFloat(conta.saldo_atual) + (valorPagoInput * fator);
         const { error: errC } = await supabaseClient.from('fin_contas_bancarias').update({
@@ -1643,7 +1858,7 @@ async function handlePayment(e) {
         closeModal('paymentModal');
         await loadInitialData();
         renderAll();
-        showToast('Pagamento registrado!', 'success');
+        showToast('Pagamento registrado com sucesso!', 'success');
     } catch (err) {
         showToast('Erro: ' + err.message, 'error');
     }
@@ -1677,6 +1892,70 @@ async function duplicateEntry(id) {
         showToast('Duplicado!', 'success');
     } catch (err) {
         showToast('Erro: ' + err.message, 'error');
+    }
+}
+
+/** Estorna / Reverte baixa de pagamento ou recebimento */
+async function reverterPagamento(id) {
+    const l = state.lancamentos.find(item => item.id === id);
+    if (!l) return;
+
+    const mod = l.tipo === 'RECEBER' ? 'financeiro_receber' : 'financeiro_pagar';
+    if (typeof canDo === 'function' && !canDo(mod, 'edit')) {
+        showToast('Você não tem permissão para esta ação.', 'error');
+        return;
+    }
+
+    const tipoText = l.tipo === 'PAGAR' ? 'o pagamento' : 'o recebimento';
+    const confirmMsg = `Deseja estornar ${tipoText} do lançamento "${l.descricao}" (${formatCurrency(l.valor_pago || l.valor_total)})?\n\n- O status retornará para ABERTO.\n- O valor pago será estornado da conta bancária.`;
+
+    if (!confirm(confirmMsg)) return;
+
+    try {
+        if (typeof window.showLoader === 'function') window.showLoader();
+
+        const valorPagoAtual = parseFloat(l.valor_pago) || parseFloat(l.valor_total) || 0;
+        const contaId = l.conta_bancaria_id;
+
+        // 1. Estorna saldo da Conta Bancária (se houve conta vinculada)
+        if (contaId && valorPagoAtual > 0) {
+            const { data: contaObj } = await supabaseClient.from('fin_contas_bancarias').select('*').eq('id', contaId).single();
+            if (contaObj) {
+                // Para PAGAR (saída), a reversão DEVOLVE o saldo (+). Para RECEBER (entrada), SUBTRAI (-).
+                const fator = l.tipo === 'PAGAR' ? 1 : -1;
+                const novoSaldo = parseFloat(contaObj.saldo_atual || 0) + (valorPagoAtual * fator);
+                await supabaseClient.from('fin_contas_bancarias').update({
+                    saldo_atual: novoSaldo
+                }).eq('id', contaId);
+            }
+        }
+
+        // 2. Reseta status das parcelas se existirem
+        await supabaseClient
+            .from('fin_lancamento_parcelas')
+            .update({ status: 'PENDENTE' })
+            .eq('lancamento_id', id);
+
+        // 3. Atualiza o lançamento mestre para ABERTO
+        const { error: errL } = await supabaseClient.from('fin_lancamentos').update({
+            valor_pago: 0,
+            status: 'ABERTO',
+            data_pagamento: null
+        }).eq('id', id);
+        if (errL) throw errL;
+
+        if (typeof registrarLog === 'function') {
+            registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Estornou/Reverteu pagamento do lançamento (${l.tipo}): ${l.descricao} - Status retornado para ABERTO.`);
+        }
+
+        await loadInitialData();
+        renderAll();
+        showToast(`Estorno realizado com sucesso! O lançamento retornou para ABERTO.`, 'success');
+    } catch (err) {
+        console.error('Erro ao estornar:', err);
+        showToast('Erro ao estornar lançamento: ' + err.message, 'error');
+    } finally {
+        if (typeof window.hideLoader === 'function') window.hideLoader();
     }
 }
 
@@ -1816,8 +2095,10 @@ function updateDropdowns() {
 
     const clientesDatalist = document.getElementById('clientesDatalist');
     if (clientesDatalist) {
-        datalist.innerHTML = state.clientes.map(f => `<option value="${f.nome}">`).join('');
+        clientesDatalist.innerHTML = state.clientes.map(f => `<option value="${f.nome}">`).join('');
     }
+
+    populateFhistEntidadesSelect();
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
@@ -1881,17 +2162,18 @@ function filterByCategory(tipo, val) {
 }
 
 function clearFilters(tipo) {
-    state.filtros[tipo] = { status: '', busca: '', categoria: '' };
+    state.filtros[tipo] = { status: '', busca: '', categoria: '', origem: '' };
 
     // Reset inputs
     if (tipo === 'PAGAR') {
-        document.getElementById('pagarSearch').value = '';
-        document.getElementById('filterStatusPagar').value = '';
-        document.getElementById('filterFornecedorPagar').value = '';
-        document.getElementById('filterCCPagar').value = '';
+        if (document.getElementById('pagarSearch')) document.getElementById('pagarSearch').value = '';
+        if (document.getElementById('filterStatusPagar')) document.getElementById('filterStatusPagar').value = '';
+        if (document.getElementById('filterFornecedorPagar')) document.getElementById('filterFornecedorPagar').value = '';
+        if (document.getElementById('filterCCPagar')) document.getElementById('filterCCPagar').value = '';
+        if (document.getElementById('filterOrigemPagar')) document.getElementById('filterOrigemPagar').value = '';
     } else {
-        document.getElementById('receberSearch').value = '';
-        document.getElementById('filterStatusReceber').value = '';
+        if (document.getElementById('receberSearch')) document.getElementById('receberSearch').value = '';
+        if (document.getElementById('filterStatusReceber')) document.getElementById('filterStatusReceber').value = '';
     }
 
     renderLancamentos(tipo);
@@ -3048,11 +3330,15 @@ window.deleteBulkSelected = async () => {
         try {
             let countSucesso = 0;
             const comprasParaReverter = new Set();
+            const detalhesExcluidos = [];
             
             for (const id of ids) {
                 const l = state.lancamentos.find(item => item.id === id);
-                if (l && l.compra_id) {
-                    comprasParaReverter.add(l.compra_id);
+                if (l) {
+                    if (l.compra_id) comprasParaReverter.add(l.compra_id);
+                    const cod = l.codigo_sequencial ? `Cód: ${l.codigo_sequencial}` : 'S/C';
+                    const valStr = formatCurrency(l.valor_total || 0);
+                    detalhesExcluidos.push(`[${cod}] ${l.tipo || ''}: ${l.descricao || 'Sem descrição'} (${l.entidade_nome || 'Favorecido N/I'} - ${valStr})`);
                 }
                 const { error } = await supabaseClient.from('fin_lancamentos').delete().eq('id', id);
                 if (!error) countSucesso++;
@@ -3076,7 +3362,11 @@ window.deleteBulkSelected = async () => {
             await loadInitialData();
             renderAll();
             showToast(`${countSucesso} lançamentos excluídos!`, 'success');
-            if (typeof registrarLog === 'function') registrarLog('financeiro', 'EXCLUSÃO EM LOTE', `DETALHE: Excluiu ${countSucesso} lançamentos em lote`);
+
+            if (typeof registrarLog === 'function') {
+                const descLog = `DETALHE: Excluiu ${countSucesso} lançamento(s) em lote:\n• ` + detalhesExcluidos.join('\n• ');
+                registrarLog('financeiro', 'EXCLUSÃO EM LOTE', descLog);
+            }
             
             const bar = document.getElementById('bulkActionsBar');
             if (bar) bar.style.display = 'none';
@@ -3505,10 +3795,26 @@ let currentFinAutocompleteIndex = -1;
 
 function positionFinDropdown(inputEl, resultsDiv) {
     const rect = inputEl.getBoundingClientRect();
-    resultsDiv.style.top    = (rect.bottom + window.scrollY + 4) + 'px';
-    resultsDiv.style.left   = (rect.left + window.scrollX) + 'px';
-    resultsDiv.style.width  = rect.width + 'px';
+    const stylePos = window.getComputedStyle(resultsDiv).position;
+    if (stylePos === 'fixed') {
+        resultsDiv.style.top   = (rect.bottom + 4) + 'px';
+        resultsDiv.style.left  = rect.left + 'px';
+    } else {
+        resultsDiv.style.top   = (rect.bottom + window.scrollY + 4) + 'px';
+        resultsDiv.style.left  = (rect.left + window.scrollX) + 'px';
+    }
+    resultsDiv.style.width = rect.width + 'px';
 }
+
+window.addEventListener('scroll', () => {
+    document.querySelectorAll('.autocomplete-wrapper').forEach(wrapper => {
+        const resultsDiv = wrapper.querySelector('.autocomplete-results');
+        const input = wrapper.querySelector('input');
+        if (resultsDiv && resultsDiv.style.display !== 'none' && input) {
+            positionFinDropdown(input, resultsDiv);
+        }
+    });
+}, { passive: true });
 
 window.handleFinAutocompleteKeydown = (e, inputEl) => {
     const resultsDiv = inputEl.parentElement.querySelector('.autocomplete-results');
@@ -3595,12 +3901,77 @@ window.selectFinEntidade = (nome, itemEl) => {
     const wrapper = itemEl.closest('.autocomplete-wrapper');
     const searchInput = document.getElementById('entryEntidadeSearch');
     const hiddenId = document.getElementById('entryEntidade');
-    const resultsDiv = wrapper.querySelector('.autocomplete-results');
+    const resultsDiv = wrapper ? wrapper.querySelector('.autocomplete-results') : null;
 
-    searchInput.value = nome;
-    hiddenId.value = nome;
-    resultsDiv.style.display = 'none';
-    resultsDiv.innerHTML = '';
+    if (searchInput) searchInput.value = nome;
+    if (hiddenId) hiddenId.value = nome;
+    if (resultsDiv) {
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+    }
+};
+
+window.handleFhistEntidadeSearch = (el) => {
+    currentFinAutocompleteIndex = -1;
+    const query = el.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const wrapper = el.closest('.autocomplete-wrapper');
+    if (!wrapper) return;
+    let resultsDiv = wrapper.querySelector('.autocomplete-results');
+    if (!resultsDiv) return;
+
+    const allPartners = [
+        ...(state.fornecedores || []).map(f => ({ nome: f.nome, doc: f.cnpj_cpf || f.cpf || f.cnpj || '', type: 'FORNECEDOR' })),
+        ...(state.clientes || []).map(c => ({ nome: c.nome, doc: c.cnpj_cpf || c.cpf || c.cnpj || '', type: 'CLIENTE' }))
+    ];
+
+    const partnerMap = new Map();
+    allPartners.forEach(p => {
+        if (!p.nome) return;
+        const key = p.nome.toLowerCase().trim();
+        if (!partnerMap.has(key) || (p.doc && !partnerMap.get(key).doc)) {
+            partnerMap.set(key, p);
+        }
+    });
+    const uniquePartners = Array.from(partnerMap.values()).sort((a,b) => a.nome.localeCompare(b.nome));
+
+    const matches = query.length === 0
+        ? uniquePartners.slice(0, 35)
+        : uniquePartners.filter(p => {
+            const nameNorm = p.nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const docClean = (p.doc || '').replace(/\D/g, '');
+            const queryClean = query.replace(/\D/g, '');
+            return nameNorm.includes(query) || (queryClean.length > 0 && docClean.includes(queryClean));
+          }).slice(0, 35);
+
+    if (matches.length === 0) {
+        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.78rem; padding:0.8rem 1rem;">Nenhum favorecido encontrado...</div>';
+    } else {
+        resultsDiv.innerHTML = matches.map(p => {
+            const escName = p.nome.replace(/'/g, "\\'");
+            const docStr = p.doc ? ` • DOC: ${p.doc}` : '';
+            return `
+                <div class="autocomplete-item" onclick="selectFhistEntidade('${escName}', this)">
+                    <span class="prod-name" style="font-weight:800; font-size:0.85rem;">${p.nome}</span>
+                    <span class="prod-meta" style="font-size:0.7rem; font-weight:700; text-transform:uppercase; margin-top:3px;">${p.type}${docStr}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    positionFinDropdown(el, resultsDiv);
+    resultsDiv.style.display = 'block';
+};
+
+window.selectFhistEntidade = (nome, itemEl) => {
+    const wrapper = itemEl.closest('.autocomplete-wrapper');
+    const input = wrapper ? wrapper.querySelector('input') : null;
+    const resultsDiv = wrapper ? wrapper.querySelector('.autocomplete-results') : null;
+
+    if (input) input.value = nome;
+    if (resultsDiv) {
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+    }
 };
 
 window.handleFinCategoriaSearch = (el) => {
@@ -3722,3 +4093,432 @@ document.addEventListener('click', (e) => {
 
 
 
+
+// ============================================================
+//  RELATÓRIOS FINANCEIROS — CONSULTA SOB DEMANDA
+// ============================================================
+
+let fhistData = [];
+let fhistFiltros = {};
+let _fhistSortKey = null, _fhistSortDir = 'asc';
+
+/** Atalhos de período rápido (Este Mês, Mês Passado, Ano Atual) */
+function fhistSetPeriod(modo) {
+    const dataIni = document.getElementById('fhist-data-ini');
+    const dataFim = document.getElementById('fhist-data-fim');
+    if (!dataIni || !dataFim) return;
+
+    const hoje = new Date();
+    if (modo === 'mes_atual') {
+        const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+        const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+        dataIni.value = primeiroDia.toISOString().split('T')[0];
+        dataFim.value = ultimoDia.toISOString().split('T')[0];
+    } else if (modo === 'mes_anterior') {
+        const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+        const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
+        dataIni.value = primeiroDia.toISOString().split('T')[0];
+        dataFim.value = ultimoDia.toISOString().split('T')[0];
+    } else if (modo === 'ano_atual') {
+        dataIni.value = `${hoje.getFullYear()}-01-01`;
+        dataFim.value = `${hoje.getFullYear()}-12-31`;
+    } else if (modo === 'limpar') {
+        dataIni.value = '';
+        dataFim.value = '';
+    }
+}
+
+/** Popula os selects de categoria, CC e conta ao entrar na aba */
+function fhistPopulateSelects() {
+    // Categorias
+    const selCat = document.getElementById('fhist-categoria');
+    if (selCat && selCat.options.length === 1) {
+        (state.categorias || []).sort((a,b)=> (a.codigo||'').localeCompare(b.codigo||'')).forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = `${c.codigo ? c.codigo + ' — ' : ''}${c.nome}`;
+            selCat.appendChild(opt);
+        });
+    }
+    // Centros de Custo
+    const selCC = document.getElementById('fhist-cc');
+    if (selCC && selCC.options.length === 1) {
+        (state.centrosCusto || []).sort((a,b)=> (a.nome||'').localeCompare(b.nome||'')).forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = `${c.codigo ? c.codigo + ' — ' : ''}${c.nome}`;
+            selCC.appendChild(opt);
+        });
+    }
+    // Contas Bancárias
+    const selConta = document.getElementById('fhist-conta');
+    if (selConta && selConta.options.length === 1) {
+        (state.contas || []).forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.nome;
+            selConta.appendChild(opt);
+        });
+    }
+
+    // Populate Select de Favorecido no Relatório
+    populateFhistEntidadesSelect();
+
+    if (window.lucide) lucide.createIcons();
+}
+
+function populateFhistEntidadesSelect() {
+    const selEntidade = document.getElementById('fhist-entidade');
+    if (!selEntidade) return;
+    const currentVal = selEntidade.value;
+    
+    const allPartners = [
+        ...(state.fornecedores || []).map(f => ({ nome: f.nome, doc: f.cnpj_cpf || f.cpf || f.cnpj || '', type: 'Fornecedor' })),
+        ...(state.clientes || []).map(c => ({ nome: c.nome, doc: c.cnpj_cpf || c.cpf || c.cnpj || '', type: 'Cliente' }))
+    ];
+
+    const partnerMap = new Map();
+    allPartners.forEach(p => {
+        if (!p.nome) return;
+        const key = p.nome.toLowerCase().trim();
+        if (!partnerMap.has(key) || (p.doc && !partnerMap.get(key).doc)) {
+            partnerMap.set(key, p);
+        }
+    });
+    const uniquePartners = Array.from(partnerMap.values()).sort((a,b) => a.nome.localeCompare(b.nome));
+
+    let html = '<option value="">Todos os Favorecidos (Clientes e Fornecedores)</option>';
+    uniquePartners.forEach(p => {
+        const docStr = p.doc ? ` — Doc: ${p.doc}` : '';
+        html += `<option value="${p.nome.replace(/"/g, '&quot;')}">${p.nome} [${p.type}]${docStr}</option>`;
+    });
+    selEntidade.innerHTML = html;
+    if (currentVal) selEntidade.value = currentVal;
+}
+
+/** Limpa todos os filtros e reset da área de resultado */
+function fhistLimpar() {
+    ['fhist-tipo','fhist-date-field','fhist-status','fhist-entidade','fhist-data-ini','fhist-data-fim','fhist-categoria','fhist-cc','fhist-conta'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.borderColor = '';
+        if (el.tagName === 'SELECT') el.selectedIndex = 0;
+        else el.value = '';
+    });
+    fhistData = [];
+    fhistFiltros = {};
+    const area = document.getElementById('fhist-result-area');
+    if (area) area.innerHTML = `
+        <div class="glass-table-container">
+            <div class="fhist-empty">
+                <div class="fhist-empty-icon"><i data-lucide="file-bar-chart"></i></div>
+                <div class="fhist-empty-title">Configure os filtros e gere o relatório</div>
+                <div class="fhist-empty-sub">Selecione o período (início/fim), tipo de lançamento, status e demais opções, depois clique em <strong>Gerar Relatório</strong> para consultar os dados.</div>
+            </div>
+        </div>`;
+    if (window.lucide) lucide.createIcons();
+}
+
+/** Formata data para exibição */
+function fhistFmtDate(val) {
+    if (!val) return '—';
+    try { return new Date(val + 'T00:00:00').toLocaleDateString('pt-BR'); } catch { return val; }
+}
+
+/** Formata valor monetário */
+function fhistFmtCurrency(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return '—';
+    return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+/** Status badge para financeiro */
+function fhistBadge(status) {
+    const map = {
+        PAGO:      { cls: 'background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.25)', label: 'PAGO' },
+        ABERTO:    { cls: 'background:rgba(245,158,11,0.15);color:#fcd34d;border:1px solid rgba(245,158,11,0.25)', label: 'ABERTO' },
+        CANCELADO: { cls: 'background:rgba(100,116,139,0.15);color:#94a3b8;border:1px solid rgba(100,116,139,0.25)', label: 'CANCELADO' },
+        PARCIAL:   { cls: 'background:rgba(14,165,233,0.15);color:#38bdf8;border:1px solid rgba(14,165,233,0.25)', label: 'PARCIAL' },
+        ATRASADO:  { cls: 'background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.25)', label: 'ATRASADO' },
+    };
+    const d = map[status] || { cls: 'background:rgba(99,102,241,0.15);color:#818cf8;border:1px solid rgba(99,102,241,0.25)', label: status || '—' };
+    return `<span style="display:inline-flex;align-items:center;padding:0.2rem 0.65rem;border-radius:50px;font-size:0.68rem;font-weight:700;letter-spacing:0.04rem;${d.cls}">${d.label}</span>`;
+}
+
+/** Executa a query on-demand no Supabase */
+async function fhistGerar() {
+    if (!supabaseClient) { console.warn('[fhist] supabaseClient not ready'); return; }
+
+    const tipo      = document.getElementById('fhist-tipo')?.value         || '';
+    const dateField = document.getElementById('fhist-date-field')?.value   || 'data_vencimento';
+    const dataIni   = document.getElementById('fhist-data-ini')?.value     || '';
+    const dataFim   = document.getElementById('fhist-data-fim')?.value     || '';
+    const status    = document.getElementById('fhist-status')?.value       || '';
+    const entidade  = document.getElementById('fhist-entidade')?.value     || '';
+    const catId     = document.getElementById('fhist-categoria')?.value    || '';
+    const ccId      = document.getElementById('fhist-cc')?.value           || '';
+    const contaId   = document.getElementById('fhist-conta')?.value        || '';
+
+    // Validação de Período Obrigatório
+    if (!dataIni || !dataFim) {
+        showToast('É obrigatório selecionar o período (Data Início e Data Fim) antes de gerar o relatório.', 'error');
+        const elIni = document.getElementById('fhist-data-ini');
+        const elFim = document.getElementById('fhist-data-fim');
+        if (elIni) elIni.style.borderColor = !dataIni ? '#ef4444' : '';
+        if (elFim) elFim.style.borderColor = !dataFim ? '#ef4444' : '';
+        if (!dataIni && elIni) elIni.focus();
+        else if (!dataFim && elFim) elFim.focus();
+        return;
+    } else {
+        const elIni = document.getElementById('fhist-data-ini');
+        const elFim = document.getElementById('fhist-data-fim');
+        if (elIni) elIni.style.borderColor = '';
+        if (elFim) elFim.style.borderColor = '';
+    }
+
+    if (dataIni > dataFim) {
+        showToast('A Data Início não pode ser posterior à Data Fim.', 'error');
+        return;
+    }
+
+    fhistFiltros = { tipo, dateField, dataIni, dataFim, status, entidade, catId, ccId, contaId };
+
+    const btn = document.getElementById('btn-fhist-gerar');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="fhist-spinner"></span> Consultando...'; }
+    const area = document.getElementById('fhist-result-area');
+    if (area) area.innerHTML = '<div class="glass-table-container"><div class="fhist-empty"><span class="fhist-spinner"></span><div class="fhist-empty-title" style="margin-top:0">Buscando dados...</div></div></div>';
+
+    try {
+        let query = supabaseClient.from('fin_lancamentos').select('*');
+
+        if (tipo)    query = query.eq('tipo', tipo);
+        if (status)  query = query.eq('status', status);
+        if (dataIni) query = query.gte(dateField, dataIni);
+        if (dataFim) query = query.lte(dateField, dataFim);
+        if (entidade) query = query.ilike('entidade_nome', `%${entidade}%`);
+        if (catId)   query = query.eq('categoria_id', catId);
+        if (ccId)    query = query.eq('centro_custo_id', ccId);
+        if (contaId) query = query.eq('conta_id', contaId);
+
+        const { data, error } = await query.order(dateField, { ascending: false }).limit(2000);
+        if (error) throw error;
+
+        fhistData = data || [];
+        fhistRenderTabela();
+
+    } catch (err) {
+        console.error('[fhist]', err);
+        if (area) area.innerHTML = `
+            <div class="glass-table-container">
+                <div class="fhist-empty">
+                    <div class="fhist-empty-icon" style="background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.2)"><i data-lucide="alert-triangle" style="color:#ef4444"></i></div>
+                    <div class="fhist-empty-title">Erro ao consultar dados</div>
+                    <div class="fhist-empty-sub">${err.message || 'Verifique os filtros e tente novamente.'}</div>
+                </div>
+            </div>`;
+        if (window.lucide) lucide.createIcons();
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="file-text" style="width:16px"></i> Gerar Relatório'; if (window.lucide) lucide.createIcons(); }
+    }
+}
+
+/** Renderiza tabela de resultados */
+function fhistRenderTabela() {
+    const area = document.getElementById('fhist-result-area');
+    if (!area) return;
+
+    if (!fhistData.length) {
+        area.innerHTML = `
+            <div class="glass-table-container">
+                <div class="fhist-empty">
+                    <div class="fhist-empty-icon" style="background:rgba(245,158,11,0.08);border-color:rgba(245,158,11,0.2)"><i data-lucide="search-x" style="color:#f59e0b"></i></div>
+                    <div class="fhist-empty-title">Nenhum lançamento encontrado</div>
+                    <div class="fhist-empty-sub">Tente ajustar os filtros e gerar novamente.</div>
+                </div>
+            </div>`;
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+
+    // KPI totais da consulta
+    const totalPagar   = fhistData.filter(l=>l.tipo==='PAGAR').reduce((s,l)=>s+(parseFloat(l.valor_total)||0),0);
+    const totalReceber = fhistData.filter(l=>l.tipo==='RECEBER').reduce((s,l)=>s+(parseFloat(l.valor_total)||0),0);
+    const totalPago    = fhistData.reduce((s,l)=>s+(parseFloat(l.valor_pago)||0),0);
+    const saldo        = totalReceber - totalPagar;
+
+    const kpis = `
+        <div class="fhist-kpi-strip">
+            <div class="fhist-kpi qtd"><div class="fhist-kpi-label">Lançamentos</div><div class="fhist-kpi-value">${fhistData.length}</div></div>
+            <div class="fhist-kpi pagar"><div class="fhist-kpi-label">Total a Pagar</div><div class="fhist-kpi-value">${fhistFmtCurrency(totalPagar)}</div></div>
+            <div class="fhist-kpi receber"><div class="fhist-kpi-label">Total a Receber</div><div class="fhist-kpi-value">${fhistFmtCurrency(totalReceber)}</div></div>
+            <div class="fhist-kpi"><div class="fhist-kpi-label">Total Pago/Recebido</div><div class="fhist-kpi-value" style="color:#94a3b8">${fhistFmtCurrency(totalPago)}</div></div>
+            <div class="fhist-kpi saldo"><div class="fhist-kpi-label">Saldo Resultado</div><div class="fhist-kpi-value" style="color:${saldo>=0?'#10b981':'#ef4444'}">${fhistFmtCurrency(saldo)}</div></div>
+        </div>`;
+
+    // Chips de filtros ativos
+    const dateFieldLabels = { data_vencimento:'Vencimento', data_pagamento:'Pagamento', data_emissao:'Emissão', data_competencia:'Competência' };
+    const chips = Object.entries(fhistFiltros).filter(([,v])=>v).map(([k,v]) => {
+        const labelMap = { tipo:'Tipo', dateField:'Campo Data', dataIni:'De', dataFim:'Até', status:'Status', entidade:'Entidade', catId:'Categoria', ccId:'C. Custo', contaId:'Conta' };
+        let display = v;
+        if (k === 'tipo') display = v === 'PAGAR' ? 'Contas a Pagar' : 'Contas a Receber';
+        if (k === 'dateField') display = dateFieldLabels[v] || v;
+        if (k === 'catId') { const c = (state.categorias||[]).find(x=>x.id===v); display = c ? `${c.codigo||''} ${c.nome}`.trim() : v; }
+        if (k === 'ccId')  { const c = (state.centrosCusto||[]).find(x=>x.id===v); display = c ? c.nome : v; }
+        if (k === 'contaId') { const c = (state.contas||[]).find(x=>x.id===v); display = c ? c.nome : v; }
+        return `<span class="fhist-chip">● ${labelMap[k]||k}: <strong>${display}</strong></span>`;
+    }).join('');
+
+    const sortIco = `<i data-lucide="chevrons-up-down" style="width:11px;opacity:0.25;vertical-align:middle;margin-left:3px;"></i>`;
+    const thead = `<thead><tr>
+        <th onclick="fhistSort('codigo_sequencial')" style="cursor:pointer">Cód.${sortIco}</th>
+        <th onclick="fhistSort('tipo')" style="cursor:pointer">Tipo${sortIco}</th>
+        <th onclick="fhistSort('data_vencimento')" style="cursor:pointer">Vencimento${sortIco}</th>
+        <th onclick="fhistSort('data_pagamento')" style="cursor:pointer">Pagamento${sortIco}</th>
+        <th onclick="fhistSort('entidade_nome')" style="cursor:pointer">Favorecido${sortIco}</th>
+        <th onclick="fhistSort('descricao')" style="cursor:pointer">Descrição${sortIco}</th>
+        <th onclick="fhistSort('valor_total')" style="cursor:pointer;text-align:right">Valor Total${sortIco}</th>
+        <th onclick="fhistSort('valor_pago')" style="cursor:pointer;text-align:right">Valor Pago${sortIco}</th>
+        <th onclick="fhistSort('status')" style="cursor:pointer">Status${sortIco}</th>
+    </tr></thead>`;
+
+    // Lógica de Paginação do Relatório
+    const totalRecords = fhistData.length;
+    const totalPages = Math.ceil(totalRecords / financialPageSize) || 1;
+    if (currentPageFhist > totalPages) currentPageFhist = totalPages;
+    if (currentPageFhist < 1) currentPageFhist = 1;
+
+    const startIdx = (currentPageFhist - 1) * financialPageSize;
+    const endIdx = startIdx + financialPageSize;
+    const pageRecords = fhistData.slice(startIdx, endIdx);
+
+    const tbody = `<tbody>${pageRecords.map(l => {
+        const hoje = new Date(); hoje.setHours(0,0,0,0);
+        const venc = l.data_vencimento ? new Date(l.data_vencimento+'T00:00:00') : null;
+        const isAtrasado = venc && venc < hoje && l.status === 'ABERTO';
+        const statusDisplay = isAtrasado ? 'ATRASADO' : l.status;
+        const tipoIcon = l.tipo === 'PAGAR'
+            ? '<i data-lucide="arrow-up-circle" style="width:13px;color:#ef4444;vertical-align:middle"></i>'
+            : '<i data-lucide="arrow-down-circle" style="width:13px;color:#10b981;vertical-align:middle"></i>';
+        return `<tr>
+            <td style="font-weight:800;color:#6366f1;font-family:'JetBrains Mono',monospace;font-size:0.78rem">${l.codigo_sequencial||'—'}</td>
+            <td>${tipoIcon} <span style="font-size:0.78rem;font-weight:600">${l.tipo==='PAGAR'?'Pagar':'Receber'}</span></td>
+            <td>${fhistFmtDate(l.data_vencimento)}</td>
+            <td style="color:${l.data_pagamento?'#10b981':'#94a3b8'}">${fhistFmtDate(l.data_pagamento)}</td>
+            <td style="font-weight:600">${l.entidade_nome||'—'}</td>
+            <td style="font-size:0.83rem;color:#94a3b8;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(l.descricao||'').replace(/"/g,'&quot;')}">${l.descricao||'—'}</td>
+            <td style="text-align:right;font-weight:700;color:${l.tipo==='PAGAR'?'#ef4444':'#10b981'}">${fhistFmtCurrency(l.valor_total)}</td>
+            <td style="text-align:right;color:#94a3b8">${fhistFmtCurrency(l.valor_pago)}</td>
+            <td>${fhistBadge(statusDisplay)}</td>
+        </tr>`;
+    }).join('')}</tbody>`;
+
+    // Botões de navegação de páginas do relatório
+    let pageButtonsHtml = '';
+    const maxButtons = 5;
+    let startPage = Math.max(1, currentPageFhist - Math.floor(maxButtons / 2));
+    let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+    if (endPage - startPage + 1 < maxButtons) {
+        startPage = Math.max(1, endPage - maxButtons + 1);
+    }
+    for (let i = startPage; i <= endPage; i++) {
+        pageButtonsHtml += `<button class="page-num ${i === currentPageFhist ? 'active' : ''}" onclick="setPageFhist(${i})">${i}</button>`;
+    }
+
+    const paginationFooter = `
+        <div class="pagination-footer" style="margin-top:1rem">
+            <div class="pagination-info">Mostrando ${startIdx + 1}-${Math.min(endIdx, totalRecords)} de ${totalRecords} registros</div>
+            <div class="pagination-controls">
+                <button class="btn-page" onclick="changePageFhist(-1)" ${currentPageFhist <= 1 ? 'disabled' : ''}>Anterior</button>
+                <div class="page-numbers">${pageButtonsHtml}</div>
+                <button class="btn-page" onclick="changePageFhist(1)" ${currentPageFhist >= totalPages ? 'disabled' : ''}>Próxima</button>
+            </div>
+        </div>`;
+
+    area.innerHTML = `
+        ${kpis}
+        ${chips ? `<div class="fhist-chips">${chips}</div>` : ''}
+        <div class="fhist-result-header">
+            <div class="fhist-result-count"><strong>${fhistData.length}</strong> lançamento(s) encontrado(s)</div>
+            <div style="display:flex;gap:0.5rem">
+                <button class="btn-secondary-new" onclick="fhistExcelExport()" style="font-size:0.8rem;padding:0.5rem 1rem;display:flex;align-items:center;gap:0.4rem">
+                    <i data-lucide="file-spreadsheet" style="width:14px"></i> Excel
+                </button>
+                <button class="btn-secondary-new" onclick="fhistPdfExport()" style="font-size:0.8rem;padding:0.5rem 1rem;display:flex;align-items:center;gap:0.4rem">
+                    <i data-lucide="file-text" style="width:14px"></i> PDF
+                </button>
+            </div>
+        </div>
+        <div class="glass-table-container" style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:0.85rem">${thead}${tbody}</table>
+        </div>
+        ${paginationFooter}`;
+    if (window.lucide) lucide.createIcons();
+}
+
+function changePageFhist(delta) {
+    currentPageFhist += delta;
+    fhistRenderTabela();
+}
+
+function setPageFhist(page) {
+    currentPageFhist = page;
+    fhistRenderTabela();
+}
+
+/** Ordena a tabela por coluna (toggle) */
+function fhistSort(key) {
+    _fhistSortDir = _fhistSortKey === key ? (_fhistSortDir === 'asc' ? 'desc' : 'asc') : 'asc';
+    _fhistSortKey = key;
+    fhistData.sort((a,b) => {
+        let vA = a[key], vB = b[key];
+        if (['valor_total','valor_pago','valor_tributo_total'].includes(key)) { vA=parseFloat(vA)||0; vB=parseFloat(vB)||0; }
+        else { vA=(vA||'').toString().toLowerCase(); vB=(vB||'').toString().toLowerCase(); }
+        return vA<vB ? (_fhistSortDir==='asc'?-1:1) : vA>vB ? (_fhistSortDir==='asc'?1:-1) : 0;
+    });
+    fhistRenderTabela();
+}
+
+/** Exporta para Excel */
+function fhistExcelExport() {
+    if (!fhistData.length) return;
+    if (typeof XLSX === 'undefined') { alert('Biblioteca Excel não carregada.'); return; }
+    const rows = fhistData.map(l => ({
+        Código: l.codigo_sequencial, Tipo: l.tipo,
+        Vencimento: fhistFmtDate(l.data_vencimento), Pagamento: fhistFmtDate(l.data_pagamento),
+        Favorecido: l.entidade_nome, Descrição: l.descricao,
+        'Valor Total': parseFloat(l.valor_total)||0, 'Valor Pago': parseFloat(l.valor_pago)||0,
+        Status: l.status, 'NF/Doc': l.num_nf
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Histórico Financeiro');
+    XLSX.writeFile(wb, `historico_financeiro_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+/** Exporta para PDF */
+function fhistPdfExport() {
+    if (!fhistData.length) return;
+    if (typeof window.jspdf === 'undefined') { alert('Biblioteca PDF não carregada.'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape' });
+    doc.setFontSize(13);
+    doc.text('Histórico Financeiro — FrotaLink', 14, 15);
+    doc.setFontSize(9);
+    doc.setTextColor(150);
+    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')} • ${fhistData.length} registros`, 14, 21);
+    doc.autoTable({
+        head: [['Cód.','Tipo','Vencimento','Pagamento','Favorecido','Descrição','Valor Total','Valor Pago','Status']],
+        body: fhistData.map(l => [
+            l.codigo_sequencial||'', l.tipo,
+            fhistFmtDate(l.data_vencimento), fhistFmtDate(l.data_pagamento),
+            l.entidade_nome||'', l.descricao||'',
+            fhistFmtCurrency(l.valor_total), fhistFmtCurrency(l.valor_pago), l.status
+        ]),
+        startY: 26,
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [99,102,241], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [15,23,42] },
+        theme: 'striped'
+    });
+    doc.save(`historico_financeiro_${new Date().toISOString().slice(0,10)}.pdf`);
+}

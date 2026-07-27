@@ -17,7 +17,7 @@ const state = {
     showRowColors: false, // 🎨 Controle de visualização de cores nas linhas
     statusFilter: 'TODOS',
     currentPage: 1,
-    pageSize: 500
+    pageSize: 100
 };
 
 // --- Global Utilities ---
@@ -175,7 +175,7 @@ async function loadInitialData() {
         renderMaintTable();
         calculateMaintStats();
         renderMaintAlerts();
-        renderSetupTables();
+        // renderSetupTables() removido do init — só carrega ao clicar na aba Setup (lazy loading)
     } catch (err) {
         console.error('Erro crítico ao carregar dados:', err);
         showToast('Erro ao carregar dados: ' + err.message, 'error');

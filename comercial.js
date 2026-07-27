@@ -341,14 +341,10 @@ async function loadConfig() {
 
 async function loadContratos() {
     try {
+        // VIEW: view_com_contratos_status já inclui status_nome, tabela_preco_nome e tipo_demanda_nome
         const { data, error } = await supabaseClient
-            .from('com_contratos')
-            .select(`
-                *,
-                status:com_status(nome),
-                tabela:com_tabelas_preco(nome),
-                demanda:com_tipos_demanda(nome)
-            `);
+            .from('view_com_contratos_status')
+            .select('*');
         
         if (error) throw error;
         contratos = data || [];
@@ -506,7 +502,7 @@ function renderContratos() {
             return '#f59e0b'; // Padrão
         };
         const isVencido = c.data_vencimento && new Date(c.data_vencimento + 'T00:00:00') < today;
-        const statusColor = isVencido ? '#ef4444' : getStatusColor(c.status?.nome);
+        const statusColor = isVencido ? '#ef4444' : getStatusColor(c.status_nome);
 
         // Mapa de células por key
         const cellMap = {
@@ -516,12 +512,12 @@ function renderContratos() {
             versao:      `<td data-label="Versão"><span style="font-size:0.75rem;font-weight:700;color:var(--primary);">${c.versao_contrato || '-'}</span></td>`,
             referencia:  `<td data-label="Referência"><span style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;">${c.referencia || '-'}</span></td>`,
             vigencia:    `<td data-label="Vigência">${c.vigencia || '-'}</td>`,
-            demanda:     `<td data-label="Demanda">${c.demanda?.nome || '-'}</td>`,
-            tabela:      `<td data-label="Tabela">${c.tabela?.nome || '-'}</td>`,
+            demanda:     `<td data-label="Demanda">${c.tipo_demanda_nome || '-'}</td>`,
+            tabela:      `<td data-label="Tabela">${c.tabela_preco_nome || '-'}</td>`,
             assinatura:  `<td data-label="Assinatura">${c.data_assinatura ? new Date(c.data_assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}</td>`,
             prazo:       `<td data-label="Prazo">${c.prazo_meses ? c.prazo_meses + ' meses' : '-'}</td>`,
             vencimento:  `<td data-label="Vencimento"><div style="font-weight:700;color:${vencColor};display:flex;align-items:center;flex-wrap:wrap;gap:4px;">${c.data_vencimento ? new Date(c.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}${alertIcon}</div><div style="font-size:0.65rem;color:var(--text-muted);">${c.prazo_meses || 0} meses</div></td>`,
-            status:      `<td data-label="Status"><span style="background:${statusColor}22;color:${statusColor};padding:0.2rem 0.6rem;border-radius:6px;font-size:0.65rem;font-weight:800;border:1px solid ${statusColor}44;">${isVencido ? 'VENCIDO' : (c.status?.nome || 'N/A')}</span></td>`,
+            status:      `<td data-label="Status"><span style="background:${statusColor}22;color:${statusColor};padding:0.2rem 0.6rem;border-radius:6px;font-size:0.65rem;font-weight:800;border:1px solid ${statusColor}44;">${isVencido ? 'VENCIDO' : (c.status_nome || 'N/A')}</span></td>`,
             email:       `<td data-label="Email"><span style="font-size:0.78rem;">${c.cliente_email || '-'}</span></td>`,
             telefone:    `<td data-label="Telefone">${c.cliente_telefone || '-'}</td>`,
             responsavel: `<td data-label="Responsável">${c.nome_responsavel || '-'}</td>`,
@@ -783,7 +779,7 @@ function renderCharts() {
     if (ctxDem) {
         const demMap = {};
         contratos.forEach(c => {
-            const d = c.demanda?.nome || 'Não Informada';
+            const d = c.tipo_demanda_nome || 'Não Informada';
             demMap[d] = (demMap[d] || 0) + 1;
         });
 
@@ -811,7 +807,7 @@ function renderCharts() {
     if (ctxTab) {
         const tabMap = {};
         contratos.forEach(c => {
-            const t = c.tabela?.nome || 'Padrão';
+            const t = c.tabela_preco_nome || 'Padrão';
             tabMap[t] = (tabMap[t] || 0) + 1;
         });
 
@@ -1665,12 +1661,12 @@ function getCellValue(c, key) {
         versao:      c.versao_contrato || '',
         referencia:  c.referencia || '',
         vigencia:    c.vigencia || '',
-        demanda:     c.demanda?.nome || '',
-        tabela:      c.tabela?.nome || '',
+        demanda:     c.tipo_demanda_nome || '',
+        tabela:      c.tabela_preco_nome || '',
         assinatura:  c.data_assinatura ? new Date(c.data_assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : '',
         prazo:       c.prazo_meses ? `${c.prazo_meses} meses` : '',
         vencimento:  c.data_vencimento ? new Date(c.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '',
-        status:      isVencido ? 'VENCIDO' : (c.status?.nome || ''),
+        status:      isVencido ? 'VENCIDO' : (c.status_nome || ''),
         email:       c.cliente_email || '',
         telefone:    c.cliente_telefone || '',
         responsavel: c.nome_responsavel || '',

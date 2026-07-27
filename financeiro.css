@@ -1636,3 +1636,128 @@ th.active-sort i {
 [data-theme="green_pastel"] .autocomplete-item .prod-meta {
     color: #5a7a6a !important;
 }
+
+/* 🌿 Clean Theme overrides para os Filtros Rápidos */
+[data-theme="green_pastel"] .quick-filters {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-color: rgba(45, 158, 107, 0.18) !important;
+    box-shadow: 0 4px 20px rgba(45, 158, 107, 0.08) !important;
+}
+
+[data-theme="green_pastel"] .filter-group label {
+    color: #5a7a6a !important;
+}
+
+[data-theme="green_pastel"] .filter-select {
+    background: #ffffff !important;
+    border-color: rgba(45, 158, 107, 0.25) !important;
+    color: #1a2e25 !important;
+    font-weight: 600 !important;
+}
+
+[data-theme="green_pastel"] .filter-select:focus {
+    border-color: #2d9e6b !important;
+    box-shadow: 0 0 0 2px rgba(45, 158, 107, 0.15) !important;
+}
+
+[data-theme="green_pastel"] .filter-select option {
+    background: #ffffff !important;
+    color: #1a2e25 !important;
+}
+
+/* Rodapé de Paginação Moderno (Sync com Compras) */
+.pagination-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding: 0.8rem 1rem;
+    background: var(--bg-card, rgba(30, 41, 59, 0.4));
+    border-radius: 12px;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+}
+
+.pagination-info {
+    font-size: 0.8rem;
+    color: var(--text-muted, #94a3b8);
+    font-weight: 500;
+}
+
+.pagination-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.btn-page {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.75rem;
+    border-radius: 6px;
+    background: var(--bg-main, #1e293b);
+    color: var(--text-main, #fff);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.btn-page:hover:not(:disabled) {
+    background: #10b981;
+    color: white;
+    border-color: #10b981;
+}
+
+.btn-page:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.page-numbers {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+}
+
+.page-num {
+    font-size: 0.8rem;
+    font-weight: 700;
+    background: var(--bg-main, #1e293b);
+    color: var(--text-main, #fff);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.page-num.active {
+    background: #10b981;
+    color: white;
+    border-color: #10b981;
+}
+
+/* Container de Tabela com Limite de Altura e Rolar Interno (Viewport Fit) */
+.glass-table-container {
+    max-height: calc(100vh - 360px);
+    min-height: 280px;
+    overflow-y: auto;
+    overflow-x: auto;
+    position: relative;
+    border-radius: 14px;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+}
+
+/* Cabeçalho Fixo (Sticky) ao Rolar a Tabela Internamente */
+.glass-table-container table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #0f172a;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="green_pastel"] .glass-table-container table thead th {
+    background: #ffffff !important;
+    color: #1a2e25 !important;
+    box-shadow: 0 1px 0 rgba(45, 158, 107, 0.15);
+}

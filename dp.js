@@ -2,7 +2,7 @@
  * dp.js — Módulo Departamento Pessoal
  * FrotaLink
  *
- * Abas: Dashboard, Funcionários, ASO, Férias, Ponto, EPIs, Uniformes, Benefícios, Contratos, Checklist, Cargos
+ * Abas: Dashboard, Funcionários, ASO, Férias, Ponto, EPIs, Uniformes, Benefícios, Contratos, Checklist, Cargos, Histórico
  */
 
 // ============================================================
@@ -26,6 +26,10 @@ let dpChecklist = [];
 let dpCargos = [];
 let dpEstoqueItens = [];
 let dpEstoqueMovs = [];
+
+// Histórico — dados da última consulta on-demand
+let histData = [];
+let histFiltrosAtivos = {};
 
 // Paginação
 const PER_PAGE = 200;
@@ -200,110 +204,92 @@ async function loadCargos() {
 }
 
 async function loadAsos() {
-    const { data, error } = await sb.from('dp_asos')
-        .select('*, dp_funcionarios(nome_completo)')
+    // VIEW: view_dp_asos já inclui funcionario_nome via JOIN com dp_funcionarios
+    const { data, error } = await sb.from('view_dp_asos')
+        .select('*')
         .order('data_exame', { ascending: false });
     if (!error) {
-        dpAsos = (data || []).map(r => ({
-            ...r,
-            funcionario_nome: r.dp_funcionarios?.nome_completo || ''
-        }));
+        dpAsos = data || [];
     }
 }
 
 async function loadFerias() {
-    const { data, error } = await sb.from('dp_ferias')
-        .select('*, dp_funcionarios(nome_completo)')
+    // VIEW: view_dp_ferias já inclui funcionario_nome via JOIN com dp_funcionarios
+    const { data, error } = await sb.from('view_dp_ferias')
+        .select('*')
         .order('periodo_aq_inicio', { ascending: false });
     if (!error) {
-        dpFerias = (data || []).map(r => ({
-            ...r,
-            funcionario_nome: r.dp_funcionarios?.nome_completo || ''
-        }));
+        dpFerias = data || [];
     }
 }
 
 async function loadPonto() {
-    const { data, error } = await sb.from('dp_ponto')
-        .select('*, dp_funcionarios(nome_completo)')
+    // VIEW: view_dp_ponto já inclui funcionario_nome via JOIN com dp_funcionarios
+    const { data, error } = await sb.from('view_dp_ponto')
+        .select('*')
         .order('data', { ascending: false });
     if (!error) {
-        dpPonto = (data || []).map(r => ({
-            ...r,
-            funcionario_nome: r.dp_funcionarios?.nome_completo || ''
-        }));
+        dpPonto = data || [];
     }
 }
 
 async function loadAtestados() {
-    const { data, error } = await sb.from('dp_atestados')
-        .select('*, dp_funcionarios(nome_completo)')
+    // VIEW: view_dp_atestados já inclui funcionario_nome via JOIN com dp_funcionarios
+    const { data, error } = await sb.from('view_dp_atestados')
+        .select('*')
         .order('data_inicio', { ascending: false });
     if (!error) {
-        dpAtestados = (data || []).map(r => ({
-            ...r,
-            funcionario_nome: r.dp_funcionarios?.nome_completo || ''
-        }));
+        dpAtestados = data || [];
     }
 }
 
 async function loadEpis() {
-    const { data, error } = await sb.from('dp_epis')
-        .select('*, dp_funcionarios(nome_completo)')
+    // VIEW: view_dp_epis já inclui funcionario_nome via JOIN com dp_funcionarios
+    const { data, error } = await sb.from('view_dp_epis')
+        .select('*')
         .order('data_entrega', { ascending: false });
     if (!error) {
-        dpEpis = (data || []).map(r => ({
-            ...r,
-            funcionario_nome: r.dp_funcionarios?.nome_completo || ''
-        }));
+        dpEpis = data || [];
     }
 }
 
 async function loadUniformes() {
-    const { data, error } = await sb.from('dp_uniformes')
-        .select('*, dp_funcionarios(nome_completo)')
+    // VIEW: view_dp_uniformes já inclui funcionario_nome via JOIN com dp_funcionarios
+    const { data, error } = await sb.from('view_dp_uniformes')
+        .select('*')
         .order('data_entrega', { ascending: false });
     if (!error) {
-        dpUniformes = (data || []).map(r => ({
-            ...r,
-            funcionario_nome: r.dp_funcionarios?.nome_completo || ''
-        }));
+        dpUniformes = data || [];
     }
 }
 
 async function loadBeneficios() {
-    const { data, error } = await sb.from('dp_beneficios')
-        .select('*, dp_funcionarios(nome_completo)')
+    // VIEW: view_dp_beneficios já inclui funcionario_nome via JOIN com dp_funcionarios
+    const { data, error } = await sb.from('view_dp_beneficios')
+        .select('*')
         .order('tipo', { ascending: true });
     if (!error) {
-        dpBeneficios = (data || []).map(r => ({
-            ...r,
-            funcionario_nome: r.dp_funcionarios?.nome_completo || ''
-        }));
+        dpBeneficios = data || [];
     }
 }
 
 async function loadContratos() {
-    const { data, error } = await sb.from('dp_contratos_exp')
-        .select('*, dp_funcionarios(nome_completo)')
+    // VIEW: view_dp_contratos_exp já inclui funcionario_nome via JOIN com dp_funcionarios
+    const { data, error } = await sb.from('view_dp_contratos_exp')
+        .select('*')
         .order('data_inicio', { ascending: false });
     if (!error) {
-        dpContratos = (data || []).map(r => ({
-            ...r,
-            funcionario_nome: r.dp_funcionarios?.nome_completo || ''
-        }));
+        dpContratos = data || [];
     }
 }
 
 async function loadChecklist() {
-    const { data, error } = await sb.from('dp_checklist_exp')
-        .select('*, dp_funcionarios(nome_completo)')
+    // VIEW: view_dp_checklist_exp já inclui funcionario_nome via JOIN com dp_funcionarios
+    const { data, error } = await sb.from('view_dp_checklist_exp')
+        .select('*')
         .order('data_avaliacao', { ascending: false });
     if (!error) {
-        dpChecklist = (data || []).map(r => ({
-            ...r,
-            funcionario_nome: r.dp_funcionarios?.nome_completo || ''
-        }));
+        dpChecklist = data || [];
     }
 }
 
@@ -384,6 +370,20 @@ function populateFuncSelects() {
     if (selSetor) {
         selSetor.innerHTML = '<option value="">Todos os Setores</option>';
         setoresUnicos.forEach(s => selSetor.innerHTML += `<option value="${s}">${s}</option>`);
+    }
+
+    // Populate hist-func-id (todos os funcionários)
+    const histFuncSel = document.getElementById('hist-func-id');
+    if (histFuncSel) {
+        const cur = histFuncSel.value;
+        histFuncSel.innerHTML = '<option value="">Todos</option>';
+        [...dpFuncionarios].sort((a,b) => a.nome_completo.localeCompare(b.nome_completo)).forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f.id;
+            opt.textContent = `${f.nome_completo}${f.matricula ? ' [' + f.matricula + ']' : ''}`;
+            histFuncSel.appendChild(opt);
+        });
+        if (cur) histFuncSel.value = cur;
     }
 }
 
@@ -2255,6 +2255,7 @@ function switchTab(tabId) {
             switchSubTab('contratos', 'exp');
         },
         cargos: renderCargos,
+        historico: renderHistorico,
     };
     if (renderMap[tabId]) renderMap[tabId]();
     if (window.lucide) lucide.createIcons();
@@ -3086,4 +3087,323 @@ async function processarMovimentacaoEstoque(tipoItem, oldRecord, newPayload) {
     renderEstoque();
     return true;
 }
+
+// ============================================================
+//  HISTÓRICO — CONSULTA SOB DEMANDA
+// ============================================================
+
+/** Inicializa a aba (sem query) */
+function renderHistorico() {
+    histData = [];
+    histFiltrosAtivos = {};
+    const area = document.getElementById('hist-result-area');
+    if (area) area.innerHTML = `
+        <div class="table-container">
+            <div class="hist-empty-state">
+                <div class="hist-empty-icon"><i data-lucide="history"></i></div>
+                <div class="hist-empty-title">Configure os filtros e gere o histórico</div>
+                <div class="hist-empty-sub">Selecione o tipo de registro, defina o período e clique em <strong>Gerar Histórico</strong> para consultar os dados.</div>
+            </div>
+        </div>`;
+    if (window.lucide) lucide.createIcons();
+}
+
+/** Atualiza filtros dinâmicos conforme o tipo selecionado */
+function histAtualizarFiltrosDinamicos(tipo) {
+    const container = document.getElementById('hist-dynamic-filters');
+    if (!container) return;
+
+    const configs = {
+        funcionarios: [
+            { id: 'hist-f-status', label: 'Status', type: 'select', opts: [['','Todos os Status'],['ATIVO','Ativo'],['FERIAS','Em Férias'],['AFASTADO','Afastado'],['DESLIGADO','Desligado']] },
+            { id: 'hist-f-tipo',   label: 'Cargo',  type: 'select', opts: [['','Todos os Cargos'], ...dpCargos.map(c=>[c.nome, c.nome])] },
+        ],
+        asos: [
+            { id: 'hist-f-tipo',      label: 'Tipo ASO',  type: 'select', opts: [['','Todos'],['ADMISSIONAL','Admissional'],['PERIODICO','Periódico'],['MUDANCA_FUNCAO','Mudança de Função'],['RETORNO_TRABALHO','Retorno ao Trabalho'],['DEMISSIONAL','Demissional']] },
+            { id: 'hist-f-resultado', label: 'Resultado', type: 'select', opts: [['','Todos'],['APTO','Apto'],['INAPTO','Inapto'],['APTO_COM_RESTRICOES','Apto c/ Restrições']] },
+        ],
+        ferias: [
+            { id: 'hist-f-status', label: 'Status', type: 'select', opts: [['','Todos'],['AQUISITIVO','Aquisitivo'],['PROGRAMADA','Programada'],['EM_GOZO','Em Gozo'],['CONCLUIDA','Concluída'],['VENCIDA','Vencida']] },
+        ],
+        ponto: [
+            { id: 'hist-f-tipo',        label: 'Tipo',        type: 'select', opts: [['','Todos'],['FALTA','Falta'],['ATRASO','Atraso'],['HORA_EXTRA','Hora Extra'],['SAIDA_ANTECIPADA','Saída Antecipada']] },
+            { id: 'hist-f-justificado', label: 'Justificado', type: 'select', opts: [['','Todos'],['true','Sim'],['false','Não']] },
+        ],
+        atestados: [
+            { id: 'hist-f-tipo',   label: 'Tipo',   type: 'select', opts: [['','Todos'],['ATESTADO_MEDICO','Atestado Médico'],['AFASTAMENTO_INSS','Afastamento INSS'],['ACIDENTE_TRABALHO','Acidente de Trabalho'],['LICENCA_MATERNIDADE','Lic. Maternidade'],['LICENCA_PATERNIDADE','Lic. Paternidade'],['OUTROS','Outros']] },
+            { id: 'hist-f-status', label: 'Status', type: 'select', opts: [['','Todos'],['ATIVO','Ativo'],['ENCERRADO','Encerrado'],['INDEFERIDO','Indeferido']] },
+        ],
+        epis: [
+            { id: 'hist-f-nome',    label: 'Nome do EPI',     type: 'text',   placeholder: 'Filtrar por nome...' },
+            { id: 'hist-f-assinado',label: 'Recibo Assinado', type: 'select', opts: [['','Todos'],['true','Sim'],['false','Não']] },
+        ],
+        uniformes: [
+            { id: 'hist-f-item',   label: 'Item',   type: 'text',   placeholder: 'Ex: Camisa, Bota...' },
+            { id: 'hist-f-estado', label: 'Estado', type: 'select', opts: [['','Todos'],['NOVO','Novo'],['BOM','Bom'],['DESGASTADO','Desgastado'],['DANIFICADO','Danificado']] },
+        ],
+        beneficios: [
+            { id: 'hist-f-tipo',  label: 'Tipo',  type: 'select', opts: [['','Todos'],['VT','VT'],['VA','VA'],['VR','VR'],['PLANO_SAUDE','Plano de Saúde'],['PLANO_ODONTO','Plano Odonto'],['SEGURO_VIDA','Seguro de Vida'],['OUTROS','Outros']] },
+            { id: 'hist-f-ativo', label: 'Ativo', type: 'select', opts: [['','Todos'],['true','Sim'],['false','Não']] },
+        ],
+        contratos: [
+            { id: 'hist-f-resultado', label: 'Resultado Final', type: 'select', opts: [['','Todos'],['EFETIVADO','Efetivado'],['DESLIGADO','Desligado']] },
+        ],
+    };
+
+    const fields = configs[tipo] || [];
+    if (!fields.length) { container.innerHTML = ''; container.classList.add('hidden'); return; }
+
+    container.classList.remove('hidden');
+    container.innerHTML = fields.map(f => {
+        if (f.type === 'text') return `<div class="hist-dynamic-group"><label class="hist-filter-label">${f.label}</label><input type="text" id="${f.id}" class="hist-filter-input" placeholder="${f.placeholder || ''}"></div>`;
+        const opts = (f.opts || []).map(([v,t]) => `<option value="${v}">${t}</option>`).join('');
+        return `<div class="hist-dynamic-group"><label class="hist-filter-label">${f.label}</label><select id="${f.id}" class="hist-filter-select">${opts}</select></div>`;
+    }).join('');
+    if (window.lucide) lucide.createIcons();
+}
+
+/** Limpa todos os filtros */
+function histLimparFiltros() {
+    ['hist-tipo','hist-data-ini','hist-data-fim','hist-func-id'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const dyn = document.getElementById('hist-dynamic-filters');
+    if (dyn) { dyn.innerHTML = ''; dyn.classList.add('hidden'); }
+    renderHistorico();
+}
+
+/** Monta chips com os filtros ativos */
+function histBuildChips(filtros) {
+    const tipoLabels = { funcionarios:'Funcionários', asos:'ASO / Saúde', ferias:'Férias', ponto:'Ponto', atestados:'Atestados', epis:'EPIs', uniformes:'Uniformes', beneficios:'Benefícios', contratos:'Contratos' };
+    const labelMap   = { tipo:'Tipo', dataIni:'De', dataFim:'Até', funcId:'Funcionário', status:'Status', tipoEsp:'Tipo Esp.', resultado:'Resultado' };
+    const chips = Object.entries(filtros).filter(([,v]) => v).map(([k,v]) => {
+        const display = k === 'tipo' ? (tipoLabels[v] || v) : (k === 'funcId' ? (dpFuncionarios.find(f=>f.id===v)?.nome_completo || v) : v);
+        return `<span class="hist-chip"><i data-lucide="tag"></i> ${labelMap[k] || k}: <strong>${display}</strong></span>`;
+    }).join('');
+    return chips ? `<div class="hist-chips">${chips}</div>` : '';
+}
+
+/** Executa a query on-demand no Supabase */
+async function histGerarRelatorio() {
+    const tipo = document.getElementById('hist-tipo')?.value;
+    if (!tipo) { toast('Selecione o Tipo de Registro para continuar.', 'error'); return; }
+
+    const dataIni    = document.getElementById('hist-data-ini')?.value      || '';
+    const dataFim    = document.getElementById('hist-data-fim')?.value      || '';
+    const funcId     = document.getElementById('hist-func-id')?.value       || '';
+    const status     = document.getElementById('hist-f-status')?.value      || '';
+    const tipoEsp    = document.getElementById('hist-f-tipo')?.value         || '';
+    const resultado  = document.getElementById('hist-f-resultado')?.value    || '';
+    const justific   = document.getElementById('hist-f-justificado')?.value  || '';
+    const assinado   = document.getElementById('hist-f-assinado')?.value     || '';
+    const ativo      = document.getElementById('hist-f-ativo')?.value        || '';
+    const nomeEpi    = document.getElementById('hist-f-nome')?.value         || '';
+    const itemUnif   = document.getElementById('hist-f-item')?.value         || '';
+    const estadoUnif = document.getElementById('hist-f-estado')?.value       || '';
+
+    histFiltrosAtivos = { tipo, dataIni, dataFim, funcId, status, tipoEsp, resultado };
+
+    const btn = document.getElementById('btn-hist-gerar');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="hist-spinner"></span> Consultando...'; }
+    const area = document.getElementById('hist-result-area');
+    if (area) area.innerHTML = '<div class="table-container"><div class="hist-loading"><span class="hist-spinner"></span> Buscando dados...</div></div>';
+
+    try {
+        const tableMap = {
+            funcionarios: { table: 'dp_funcionarios',       dateField: 'data_admissao'     },
+            asos:         { table: 'view_dp_asos',          dateField: 'data_exame'        },
+            ferias:       { table: 'view_dp_ferias',        dateField: 'periodo_aq_inicio' },
+            ponto:        { table: 'view_dp_ponto',         dateField: 'data'              },
+            atestados:    { table: 'view_dp_atestados',     dateField: 'data_inicio'       },
+            epis:         { table: 'view_dp_epis',          dateField: 'data_entrega'      },
+            uniformes:    { table: 'view_dp_uniformes',     dateField: 'data_entrega'      },
+            beneficios:   { table: 'view_dp_beneficios',    dateField: 'data_inicio'       },
+            contratos:    { table: 'view_dp_contratos_exp', dateField: 'data_inicio'       },
+        };
+        const cfg = tableMap[tipo];
+        let query = sb.from(cfg.table).select('*');
+
+        if (dataIni) query = query.gte(cfg.dateField, dataIni);
+        if (dataFim) query = query.lte(cfg.dateField, dataFim);
+        if (funcId && tipo !== 'funcionarios') query = query.eq('funcionario_id', funcId);
+        if (funcId && tipo === 'funcionarios') query = query.eq('id', funcId);
+
+        if (tipo === 'funcionarios') {
+            if (status)  query = query.eq('status', status);
+            if (tipoEsp) query = query.ilike('cargo_nome', `%${tipoEsp}%`);
+        } else if (tipo === 'asos') {
+            if (tipoEsp)   query = query.eq('tipo', tipoEsp);
+            if (resultado) query = query.eq('resultado', resultado);
+        } else if (tipo === 'ferias') {
+            if (status) query = query.eq('status', status);
+        } else if (tipo === 'ponto') {
+            if (tipoEsp)        query = query.eq('tipo', tipoEsp);
+            if (justific !== '') query = query.eq('justificado', justific === 'true');
+        } else if (tipo === 'atestados') {
+            if (tipoEsp) query = query.eq('tipo', tipoEsp);
+            if (status)  query = query.eq('status', status);
+        } else if (tipo === 'epis') {
+            if (nomeEpi)        query = query.ilike('nome_epi', `%${nomeEpi}%`);
+            if (assinado !== '') query = query.eq('assinatura_recebido', assinado === 'true');
+        } else if (tipo === 'uniformes') {
+            if (itemUnif)   query = query.ilike('item', `%${itemUnif}%`);
+            if (estadoUnif) query = query.eq('estado', estadoUnif);
+        } else if (tipo === 'beneficios') {
+            if (tipoEsp)   query = query.eq('tipo', tipoEsp);
+            if (ativo !== '') query = query.eq('ativo', ativo === 'true');
+        } else if (tipo === 'contratos') {
+            if (resultado) query = query.eq('resultado_final', resultado);
+        }
+
+        const { data, error } = await query.order(cfg.dateField, { ascending: false }).limit(1000);
+        if (error) throw error;
+        histData = data || [];
+        histRenderTabela(tipo);
+
+    } catch (err) {
+        console.error('[Histórico]', err);
+        toast('Erro ao consultar dados. Tente novamente.', 'error');
+        renderHistorico();
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="search"></i> Gerar Histórico'; if (window.lucide) lucide.createIcons(); }
+    }
+}
+
+/** Renderiza a tabela de resultados dinamicamente por tipo */
+function histRenderTabela(tipo) {
+    const area = document.getElementById('hist-result-area');
+    if (!area) return;
+
+    if (!histData.length) {
+        area.innerHTML = `<div class="table-container"><div class="hist-empty-state"><div class="hist-empty-icon"><i data-lucide="search-x"></i></div><div class="hist-empty-title">Nenhum registro encontrado</div><div class="hist-empty-sub">Tente ajustar os filtros e gerar novamente.</div></div></div>`;
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+
+    const colDefs = {
+        funcionarios: [
+            {key:'matricula',label:'Matrícula'},{key:'nome_completo',label:'Nome'},{key:'cargo_nome',label:'Cargo'},
+            {key:'setor',label:'Setor'},{key:'data_admissao',label:'Admissão',fmt:'date'},{key:'data_demissao',label:'Demissão',fmt:'date'},
+            {key:'status',label:'Status',fmt:'badge'},{key:'tipo_contrato',label:'Contrato'},
+        ],
+        asos: [
+            {key:'funcionario_nome',label:'Funcionário'},{key:'tipo',label:'Tipo ASO',fmt:'badge'},
+            {key:'data_exame',label:'Data Exame',fmt:'date'},{key:'data_vencimento',label:'Vencimento',fmt:'date'},
+            {key:'medico_nome',label:'Médico'},{key:'clinica',label:'Clínica'},{key:'resultado',label:'Resultado',fmt:'badge'},
+        ],
+        ferias: [
+            {key:'funcionario_nome',label:'Funcionário'},{key:'periodo_aq_inicio',label:'Início Aquis.',fmt:'date'},
+            {key:'periodo_aq_fim',label:'Fim Aquis.',fmt:'date'},{key:'data_inicio_gozo',label:'Início Gozo',fmt:'date'},
+            {key:'data_fim_gozo',label:'Fim Gozo',fmt:'date'},{key:'dias_gozados',label:'Dias'},{key:'status',label:'Status',fmt:'badge'},
+        ],
+        ponto: [
+            {key:'funcionario_nome',label:'Funcionário'},{key:'data',label:'Data',fmt:'date'},{key:'tipo',label:'Tipo',fmt:'badge'},
+            {key:'minutos',label:'Minutos'},{key:'justificativa',label:'Justificativa'},{key:'justificado',label:'Justificado',fmt:'bool'},
+        ],
+        atestados: [
+            {key:'funcionario_nome',label:'Funcionário'},{key:'tipo',label:'Tipo',fmt:'badge'},
+            {key:'data_inicio',label:'Início',fmt:'date'},{key:'data_fim',label:'Fim',fmt:'date'},
+            {key:'dias',label:'Dias'},{key:'cid',label:'CID'},{key:'status',label:'Status',fmt:'badge'},
+        ],
+        epis: [
+            {key:'funcionario_nome',label:'Funcionário'},{key:'nome_epi',label:'EPI'},{key:'ca_numero',label:'Nº CA'},
+            {key:'data_entrega',label:'Entrega',fmt:'date'},{key:'data_vencimento_epi',label:'Vencimento',fmt:'date'},
+            {key:'quantidade',label:'Qtd'},{key:'assinatura_recebido',label:'Assinado',fmt:'bool'},
+        ],
+        uniformes: [
+            {key:'funcionario_nome',label:'Funcionário'},{key:'item',label:'Item'},{key:'tamanho',label:'Tamanho'},
+            {key:'quantidade',label:'Qtd'},{key:'data_entrega',label:'Entrega',fmt:'date'},{key:'estado',label:'Estado',fmt:'badge'},
+        ],
+        beneficios: [
+            {key:'funcionario_nome',label:'Funcionário'},{key:'tipo',label:'Tipo',fmt:'badge'},{key:'descricao',label:'Descrição'},
+            {key:'valor',label:'Valor',fmt:'moeda'},{key:'data_inicio',label:'Início',fmt:'date'},{key:'data_fim',label:'Fim',fmt:'date'},
+            {key:'ativo',label:'Ativo',fmt:'bool'},
+        ],
+        contratos: [
+            {key:'funcionario_nome',label:'Funcionário'},{key:'data_inicio',label:'Início',fmt:'date'},
+            {key:'data_fim_45',label:'Fim 45d',fmt:'date'},{key:'status_45',label:'Status 45d',fmt:'badge'},
+            {key:'data_fim_90',label:'Fim 90d',fmt:'date'},{key:'status_90',label:'Status 90d',fmt:'badge'},
+            {key:'resultado_final',label:'Resultado',fmt:'badge'},
+        ],
+    };
+
+    const cols  = colDefs[tipo] || [];
+    const chips = histBuildChips(histFiltrosAtivos);
+    const sortIco = `<i data-lucide="chevrons-up-down" style="width:11px;opacity:0.3;vertical-align:middle;margin-left:3px;"></i>`;
+    const thead = `<thead><tr>${cols.map(c=>`<th onclick="histSortData('${c.key}')" style="cursor:pointer;user-select:none;">${c.label}${sortIco}</th>`).join('')}</tr></thead>`;
+    const tbody = `<tbody>${histData.map(row=>`<tr>${cols.map(c=>`<td>${histFormatCell(row[c.key],c.fmt)}</td>`).join('')}</tr>`).join('')}</tbody>`;
+
+    area.innerHTML = `
+        ${chips}
+        <div class="hist-result-header">
+            <div class="hist-result-count"><strong>${histData.length}</strong> registro(s) encontrado(s)</div>
+            <div class="hist-export-btns">
+                <button class="btn btn-secondary btn-sm" onclick="histExportarExcel()"><i data-lucide="file-spreadsheet"></i> Excel</button>
+                <button class="btn btn-secondary btn-sm" onclick="histExportarPdf()"><i data-lucide="file-text"></i> PDF</button>
+            </div>
+        </div>
+        <div class="table-container"><div class="scroll-wrap"><table>${thead}${tbody}</table></div></div>`;
+    if (window.lucide) lucide.createIcons();
+}
+
+/** Formata células */
+function histFormatCell(val, fmt) {
+    if (val === null || val === undefined || val === '') return '<span style="color:var(--text-muted)">—</span>';
+    if (fmt === 'date')  { try { return new Date(val+'T00:00:00').toLocaleDateString('pt-BR'); } catch { return val; } }
+    if (fmt === 'moeda') { return Number(val).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
+    if (fmt === 'bool')  { return (val===true||val==='true') ? '<span class="badge badge-ativo">Sim</span>' : '<span class="badge badge-desligado">Não</span>'; }
+    if (fmt === 'badge') {
+        const cls = {
+            ATIVO:'badge-ativo',FERIAS:'badge-ferias',AFASTADO:'badge-afastado',DESLIGADO:'badge-desligado',
+            APTO:'badge-apto',INAPTO:'badge-inapto',APTO_COM_RESTRICOES:'badge-pendente',
+            PENDENTE:'badge-pendente',APROVADO:'badge-ativo',REPROVADO:'badge-desligado',
+            EFETIVADO:'badge-ativo',CONCLUIDA:'badge-ok',VENCIDA:'badge-vencido',
+            PROGRAMADA:'badge-info',EM_GOZO:'badge-ferias',AQUISITIVO:'badge-purple',
+            FALTA:'badge-desligado',ATRASO:'badge-afastado',HORA_EXTRA:'badge-ativo',SAIDA_ANTECIPADA:'badge-pendente',
+            ENCERRADO:'badge-desligado',INDEFERIDO:'badge-desligado',
+            NOVO:'badge-ativo',BOM:'badge-ok',DESGASTADO:'badge-pendente',DANIFICADO:'badge-desligado',
+            ADMISSIONAL:'badge-info',PERIODICO:'badge-purple',MUDANCA_FUNCAO:'badge-afastado',
+            RETORNO_TRABALHO:'badge-ok',DEMISSIONAL:'badge-desligado',
+        }[val] || 'badge-info';
+        return `<span class="badge ${cls}">${String(val).replace(/_/g,' ')}</span>`;
+    }
+    return String(val);
+}
+
+/** Ordena os dados pelo campo clicado */
+let _histSortKey = null, _histSortDir = 'asc';
+function histSortData(key) {
+    _histSortDir = _histSortKey === key ? (_histSortDir === 'asc' ? 'desc' : 'asc') : 'asc';
+    _histSortKey = key;
+    histData.sort((a,b) => {
+        let vA = a[key], vB = b[key];
+        if (typeof vA === 'boolean') { vA = vA?1:0; vB = vB?1:0; }
+        else { vA=(vA||'').toString().toLowerCase(); vB=(vB||'').toString().toLowerCase(); }
+        return vA<vB ? (_histSortDir==='asc'?-1:1) : vA>vB ? (_histSortDir==='asc'?1:-1) : 0;
+    });
+    histRenderTabela(histFiltrosAtivos.tipo);
+}
+
+/** Exporta para Excel */
+function histExportarExcel() {
+    if (!histData.length) { toast('Nenhum dado para exportar.','error'); return; }
+    if (typeof XLSX === 'undefined') { toast('Biblioteca Excel não carregada.','error'); return; }
+    const ws = XLSX.utils.json_to_sheet(histData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Histórico');
+    XLSX.writeFile(wb, `historico_dp_${histFiltrosAtivos.tipo}_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+/** Exporta para PDF */
+function histExportarPdf() {
+    if (!histData.length) { toast('Nenhum dado para exportar.','error'); return; }
+    if (typeof window.jspdf === 'undefined') { toast('Biblioteca PDF não carregada.','error'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:'landscape' });
+    const cols = Object.keys(histData[0]);
+    const rows = histData.map(r => cols.map(k => r[k] ?? ''));
+    doc.setFontSize(13);
+    doc.text(`Histórico DP — ${histFiltrosAtivos.tipo}`, 14, 15);
+    doc.autoTable({ head:[cols], body:rows, startY:22, styles:{fontSize:7}, theme:'striped' });
+    doc.save(`historico_dp_${histFiltrosAtivos.tipo}_${new Date().toISOString().slice(0,10)}.pdf`);
+}
+
 

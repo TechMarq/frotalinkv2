@@ -23,7 +23,7 @@ let state = {
         ranking: null
     },
     currentPage: 1,
-    pageSize: 1000,
+    pageSize: 100,
     activeAlertFilter: null,
     fuelFilters: {
         categoria: '',
@@ -196,7 +196,7 @@ window.exportFuelToPDF = () => {
 
         return [
             fullDateStr,
-            r.veiculos?.placa || '-',
+            r.veiculo_placa || '-',
             r.km_atual.toLocaleString('pt-BR'),
             kmRodado.toLocaleString('pt-BR'),
             r.litros.toLocaleString('pt-BR'),
@@ -373,13 +373,13 @@ window.fetchAbastecimentosRange = async (startDate, endDate) => {
     if (!supabaseClient) return [];
     try {
         let query = supabaseClient
-            .from('abastecimentos')
-            .select('*, veiculos(placa, modelo, classificacao, ignorar_media, tipo_combustivel), motoristas(nome_completo), postos(nome), categorias_posto(descricao)')
+            .from('view_abastecimentos_completo')
+            .select('*')
             .order('data', { ascending: false });
 
         if (startDate) query = query.gte('data', startDate);
         if (endDate) query = query.lte('data', endDate);
-        if (!startDate && !endDate) query = query.limit(500);
+        if (!startDate && !endDate) query = query.limit(5000);
 
         const { data, error } = await query;
         if (error) throw error;
@@ -541,7 +541,7 @@ window.updateDashboard = (manualChange = false) => {
         
         const vId = group[0].veiculo_id;
         const vehicle = state.vehicles.find(v => v.id === vId);
-        const isIgnored = vehicle?.ignorar_media || group[0].veiculos?.ignorar_media;
+        const isIgnored = vehicle?.ignorar_media || group[0].veiculo_ignorar_media;
         if (isIgnored) return; 
 
         // Total KM for the group (KPI still needs this)
@@ -557,7 +557,7 @@ window.updateDashboard = (manualChange = false) => {
                 
                 if (diff > 0 && litros > 0) {
                     const entryAvg = diff / litros;
-                    const vehicleFuel = (curr.veiculos?.tipo_combustivel || vehicle?.tipo_combustivel || '').trim().toLowerCase();
+                    const vehicleFuel = (curr.veiculo_tipo_combustivel || vehicle?.tipo_combustivel || '').trim().toLowerCase();
                     const entryFuel = (curr.tipo_combustivel || '').trim().toLowerCase();
 
                     if (vehicleFuel && entryFuel === vehicleFuel) {
@@ -705,7 +705,7 @@ window.renderDashboardCharts = (records) => {
     // --- 3. Vehicle Ranking (Spending) ---
     const vehicleSpend = {};
     records.forEach(r => {
-        const label = r.veiculos?.placa || 'Desconhecido';
+        const label = r.veiculo_placa || 'Desconhecido';
         vehicleSpend[label] = (vehicleSpend[label] || 0) + (r.valor_total || 0);
     });
 
@@ -750,7 +750,7 @@ window.renderDashboardCharts = (records) => {
     // --- 4. Driver Ranking ---
     const driverSpend = {};
     records.forEach(r => {
-        const label = r.motoristas?.nome_completo || 'Sem Condutor';
+        const label = r.motorista_nome || 'Sem Condutor';
         driverSpend[label] = (driverSpend[label] || 0) + (r.valor_total || 0);
     });
 
@@ -808,7 +808,7 @@ window.renderDashboardCharts = (records) => {
             
             // --- Ignorar veículos marcados para não controlar média ---
             const vehicle = state.vehicles.find(v => v.id === vid);
-            const isIgnored = vehicle?.ignorar_media || grp[0].veiculos?.ignorar_media;
+            const isIgnored = vehicle?.ignorar_media || grp[0].veiculo_ignorar_media;
             if (isIgnored) return; 
 
             grp.sort((a,b) => smartParseDate(a.data, a.horario) - smartParseDate(b.data, b.horario));
@@ -816,7 +816,7 @@ window.renderDashboardCharts = (records) => {
             const qty = grp.reduce((acc, curr) => acc + curr.litros, 0);
             if (km > 0 && qty > 0) {
                 efficiencyList.push({
-                    placa: grp[0].veiculos?.placa || vid,
+                    placa: grp[0].veiculo_placa || vid,
                     media: km / qty
                 });
             }
@@ -854,7 +854,7 @@ function renderPostoAnalyst(records) {
         const type = r.tipo_combustivel || 'Não Inf.';
         const val = parseFloat(r.valor_total) || 0;
         const qty = parseFloat(r.litros) || 0;
-        const pId = r.postos?.nome || r.posto_id || 'Não Inf.';
+        const pId = r.posto_nome || r.posto_id || 'Não Inf.';
 
         if (!byFuelType[type]) byFuelType[type] = { totalVal: 0, totalQty: 0, stations: {} };
         byFuelType[type].totalVal += val;
@@ -1531,27 +1531,38 @@ async function loadInitialData() {
         } catch (e) { console.warn("Erro ao carregar alertas ignorados do Supabase:", e); }
         state.dismissedAlerts = localDismissed;
 
-        // Carregar abastecimentos do mês atual
+        // Busca em lotes para superar o limite padrão de 1000 linhas do PostgREST (max_rows do servidor)
+        // Cada lote usa .range() para paginar e combinamos client-side
         const now = new Date();
         const firstDayOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+        const BATCH_SIZE = 1000;
+        const MAX_REGISTROS = 2000;
+        let allAbastecimentos = [];
 
-        const { data: monthFuelData, error: fuelErr } = await supabaseClient
-            .from('abastecimentos')
-            .select('*, veiculos(placa, modelo, classificacao, ignorar_media, tipo_combustivel), motoristas(nome_completo), postos(nome), categorias_posto(descricao)')
-            .gte('data', firstDayOfMonth)
-            .order('km_atual', { ascending: false });
+        for (let offset = 0; offset < MAX_REGISTROS; offset += BATCH_SIZE) {
+            const { data: batchData, error: batchErr } = await supabaseClient
+                .from('view_abastecimentos_completo')
+                .select('*')
+                .gte('data', firstDayOfMonth)
+                .order('km_atual', { ascending: false })
+                .range(offset, offset + BATCH_SIZE - 1);
 
-        if (fuelErr) throw fuelErr;
-        let allAbastecimentos = monthFuelData || [];
+            if (batchErr) throw batchErr;
+            if (!batchData || batchData.length === 0) break;
 
-        // Se o mês atual não tiver registros (ex: início de mês), carregar os últimos 500 mais recentes
+            allAbastecimentos = allAbastecimentos.concat(batchData);
+            if (batchData.length < BATCH_SIZE) break; // Não há mais registros
+        }
+
+        // Se o mês atual não tiver registros (ex: início de mês), carregar os últimos 2000 mais recentes
         if (allAbastecimentos.length === 0) {
-            const { data: recentFuelData } = await supabaseClient
-                .from('abastecimentos')
-                .select('*, veiculos(placa, modelo, classificacao, ignorar_media, tipo_combustivel), motoristas(nome_completo), postos(nome), categorias_posto(descricao)')
-                .order('created_at', { ascending: false })
-                .limit(500);
-            allAbastecimentos = recentFuelData || [];
+            const [batch1, batch2] = await Promise.all([
+                supabaseClient.from('view_abastecimentos_completo').select('*')
+                    .order('created_at', { ascending: false }).range(0, 999),
+                supabaseClient.from('view_abastecimentos_completo').select('*')
+                    .order('created_at', { ascending: false }).range(1000, 1999),
+            ]);
+            allAbastecimentos = [...(batch1.data || []), ...(batch2.data || [])];
         }
 
         console.log(`Total de abastecimentos carregados (mês atual): ${allAbastecimentos.length}`);
@@ -1590,7 +1601,7 @@ async function loadInitialData() {
         renderFuelTable();
         calculateStats();
         populateDropdowns();
-        renderSetupTables();
+        // renderSetupTables() removido do init — só carrega quando o usuário clicar na aba Setup (lazy loading)
         checkFuelAlerts();
 
     } catch (err) {
@@ -1784,11 +1795,11 @@ function getFilteredRecords() {
             .map(imp => imp.id);
 
         filteredRecords = filteredRecords.filter(f => 
-            (f.veiculos?.placa || '').toLowerCase().includes(searchTerm) ||
+            (f.veiculo_placa || '').toLowerCase().includes(searchTerm) ||
             (f.veiculo_id || '').toLowerCase().includes(searchTerm) ||
-            (f.motoristas?.nome_completo || '').toLowerCase().includes(searchTerm) ||
+            (f.motorista_nome || '').toLowerCase().includes(searchTerm) ||
             (searchTerm.length > 3 && (
-                (f.postos?.nome || '').toLowerCase().includes(searchTerm) ||
+                (f.posto_nome || '').toLowerCase().includes(searchTerm) ||
                 (f.cidade_posto || '').toLowerCase().includes(searchTerm)
             )) ||
             (f.tipo_combustivel || '').toLowerCase().includes(searchTerm) ||
@@ -2037,7 +2048,7 @@ function findAlterationLogForRecord(record, logs, userMap) {
         const pts = d.split('-');
         return pts.length === 3 ? `${pts[2]}/${pts[1]}/${pts[0]}` : d;
     };
-    const recordPlaca = record.veiculos?.placa || '';
+    const recordPlaca = record.veiculo_placa || '';
     const recordDataBR = formatarDataBR(record.data);
     const recordHorario = record.horario ? record.horario.substring(0, 5) : '';
 
@@ -2131,8 +2142,8 @@ function renderFuelTable() {
             valA = smartParseDate(a.data, a.horario).getTime();
             valB = smartParseDate(b.data, b.horario).getTime();
         } else if (sort.col === 'veiculo') {
-            valA = (a.veiculos?.placa || '').toLowerCase();
-            valB = (b.veiculos?.placa || '').toLowerCase();
+            valA = (a.veiculo_placa || '').toLowerCase();
+            valB = (b.veiculo_placa || '').toLowerCase();
         } else if (sort.col === 'km') {
             valA = parseFloat(a.km_atual) || 0;
             valB = parseFloat(b.km_atual) || 0;
@@ -2258,15 +2269,15 @@ function renderFuelTable() {
                     <div style="font-size: 0.75rem; color: var(--text-muted);">${formatTime24h(f.data, f.horario)}</div>
                 </td>
                 <td data-label="Veículo / Cat." data-column="veiculo">
-                    <div style="font-weight: 700; cursor: pointer; color: var(--primary-light); text-decoration: underline; text-underline-offset: 2px;" onclick="filterByPlate('${f.veiculos?.placa || ''}')" title="Filtrar este veículo">
-                        ${f.veiculos?.placa || '---'}
+                    <div style="font-weight: 700; cursor: pointer; color: var(--primary-light); text-decoration: underline; text-underline-offset: 2px;" onclick="filterByPlate('${f.veiculo_placa || ''}')" title="Filtrar este veículo">
+                        ${f.veiculo_placa || '---'}
                     </div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">${f.veiculos?.modelo || ''}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">${f.veiculo_modelo || ''}</div>
                     <div style="font-size: 0.7rem; color: #818cf8; font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 4px;">
                         <i data-lucide="user" style="width: 12px; height: 12px;"></i>
-                        ${f.motoristas?.nome_completo || 'NÃO INFORMADO'}
+                        ${f.motorista_nome || 'NÃO INFORMADO'}
                     </div>
-                    <span class="type-badge" style="background: rgba(99, 102, 241, 0.1); color: var(--primary); font-size: 0.65rem; border: none; margin-top: 4px;">${f.veiculos?.classificacao || '---'}</span>
+                    <span class="type-badge" style="background: rgba(99, 102, 241, 0.1); color: var(--primary); font-size: 0.65rem; border: none; margin-top: 4px;">${f.veiculo_classificacao || '---'}</span>
                 </td>
                 <td data-label="KM Atual" data-column="km" class="${state.highlightId === f.id && state.highlightField === 'km' ? 'highlight-alert' : ''}">${f.km_atual.toLocaleString('pt-BR')} km</td>
                 <td data-label="KM Rodado" data-column="rodado" style="font-weight: 600; color: ${previousRecord && (f.km_atual - previousRecord.km_atual) < 0 ? '#ef4444' : 'inherit'};">
@@ -2282,11 +2293,11 @@ function renderFuelTable() {
                     </div>
                 </td>
                 <td data-label="Posto / Local" data-column="posto">
-                    <div style="font-weight: 600; font-size: 0.85rem;">${f.postos?.nome || 'Não inf.' }</div>
+                    <div style="font-weight: 600; font-size: 0.85rem;">${f.posto_nome || 'Não inf.' }</div>
                     <div style="font-size: 0.7rem; color: var(--text-muted);">${f.cidade_posto || ''} ${f.estado_posto ? '- '+f.estado_posto : ''}</div>
                     <div style="margin-top: 4px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
                         <span class="type-badge" style="background: rgba(255,255,255,0.03); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.08); font-size: 0.6rem; padding: 0.1rem 0.4rem;">
-                            ${f.categorias_posto?.descricao || 'N/I'}
+                            ${f.categoria_posto_descricao || 'N/I'}
                         </span>
                         ${importDisplayId ? `
                             <span class="type-badge" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.2); font-size: 0.6rem; padding: 0.1rem 0.4rem; font-weight: 600;">
@@ -2340,7 +2351,7 @@ function calculateStats(filteredRecords = null) {
             
             // Check if vehicle is ignored
             const vehicle = state.vehicles.find(v => v.id === vid);
-            const isIgnored = vehicle?.ignorar_media || group[0]?.veiculos?.ignorar_media;
+            const isIgnored = vehicle?.ignorar_media || group[0]?.veiculo_ignorar_media;
             if (isIgnored) continue;
 
             group.forEach((curr, idx) => {
@@ -2352,7 +2363,7 @@ function calculateStats(filteredRecords = null) {
                     if (diff > 0 && litros > 0) {
                         const entryAvg = diff / litros;
                         
-                        const vehicleFuel = (curr.veiculos?.tipo_combustivel || '').trim().toLowerCase();
+                        const vehicleFuel = (curr.veiculo_tipo_combustivel || '').trim().toLowerCase();
                         const entryFuel = (curr.tipo_combustivel || '').trim().toLowerCase();
                         
                         if (vehicleFuel && entryFuel === vehicleFuel) {
@@ -2887,7 +2898,7 @@ window.deleteRecord = async (table, id) => {
     const rec = state.fuelingRecords.find(r => r.id === id);
     const dataBR = rec ? formatarDataBR(rec.data) : '';
     const horarioBR = rec ? (rec.horario || '') : '';
-    const placaStr = rec ? (rec.veiculos?.placa || rec.veiculo_id || '') : '';
+    const placaStr = rec ? (rec.veiculo_placa || rec.veiculo_id || '') : '';
     const valorStr = rec ? (rec.valor_total || 0) : '';
 
     const descLog = rec 
@@ -2971,7 +2982,12 @@ window.deleteSelectedRecords = async () => {
         alert("O motivo da exclusão é obrigatório para auditoria!");
         return;
     }
-    const motivoTxt = motivo.trim();
+    const itemsToDelete = state.fuelingRecords.filter(r => selected.includes(r.id));
+    const itemsDetails = itemsToDelete.map((r, i) => {
+        const v = state.vehicles.find(veh => veh.id === r.veiculo_id);
+        const placa = v ? v.placa : (r.veiculo_id || 'Veículo');
+        return `Veículo ${placa} (Data: ${r.data || 'S/D'}, R$ ${r.valor_total || 0})`;
+    }).join(' | ');
 
     try {
         if (supabaseClient) {
@@ -3000,7 +3016,7 @@ window.deleteSelectedRecords = async () => {
                 if (successCount > 0) {
                     showToast(`${successCount} registros excluídos. ${failCount} falharam.`, 'success');
                     if (window.registrarLog) {
-                        window.registrarLog('abastecimento', 'EXCLUSÃO EM LOTE', `Excluiu ${successCount} de ${selected.length} abastecimentos em lote. Motivo: ${motivoTxt}`);
+                        window.registrarLog('abastecimento', 'EXCLUSÃO EM LOTE', `Excluiu ${successCount} de ${selected.length} abastecimentos em lote. Motivo: ${motivoTxt} | Itens: ${itemsDetails}`);
                     }
                     await loadInitialData();
                 } else {
@@ -3009,7 +3025,7 @@ window.deleteSelectedRecords = async () => {
             } else {
                 showToast(`${selected.length} registros excluídos com sucesso!`, 'success');
                 if (window.registrarLog) {
-                    window.registrarLog('abastecimento', 'EXCLUSÃO EM LOTE', `Excluiu ${selected.length} abastecimentos em lote. Motivo: ${motivoTxt}`);
+                    window.registrarLog('abastecimento', 'EXCLUSÃO EM LOTE', `Excluiu ${selected.length} abastecimento(s) em lote. Motivo: ${motivoTxt} | Itens: ${itemsDetails}`);
                 }
                 await loadInitialData();
             }
@@ -3020,7 +3036,7 @@ window.deleteSelectedRecords = async () => {
             refreshUI();
             showToast(`${selected.length} registros excluídos localmente!`, 'success');
             if (window.registrarLog) {
-                window.registrarLog('abastecimento', 'EXCLUSÃO EM LOTE', `Excluiu ${selected.length} abastecimentos em lote (Modo Local). Motivo: ${motivoTxt}`);
+                window.registrarLog('abastecimento', 'EXCLUSÃO EM LOTE', `Excluiu ${selected.length} abastecimento(s) em lote (Modo Local). Motivo: ${motivoTxt} | Itens: ${itemsDetails}`);
             }
         }
     } catch (err) {
@@ -3062,14 +3078,14 @@ window.checkFuelAlerts = (includeDismissed = false) => {
     for (const vid in vehicleGroups) {
         const group = vehicleGroups[vid];
         const vehicle = state.vehicles.find(v => v.id === vid);
-        const isIgnored = vehicle?.ignorar_media || (group.length > 0 && group[0].veiculos?.ignorar_media);
+        const isIgnored = vehicle?.ignorar_media || (group.length > 0 && group[0].veiculo_ignorar_media);
 
         group.forEach((f, idx) => {
             const previousRecord = group[idx - 1];
-            const plate = f.veiculos?.placa || 'Veículo';
+            const plate = f.veiculo_placa || 'Veículo';
 
             // 1. Incompatible Fuel Alert
-            const vehicleFuelType = vehicle?.tipo_combustivel || f.veiculos?.tipo_combustivel;
+            const vehicleFuelType = vehicle?.tipo_combustivel || f.veiculo_tipo_combustivel;
             if (vehicleFuelType && f.tipo_combustivel && vehicleFuelType.trim().toUpperCase() !== f.tipo_combustivel.trim().toUpperCase()) {
                 alerts.push({
                     type: 'danger',
@@ -3352,7 +3368,7 @@ window.focusFuelItem = (id, field = null) => {
     state.activeAlertFilter = null; // Clear filter to show the focused item
     
     if (record && searchInput) {
-        searchInput.value = record.veiculos?.placa || record.veiculo_id;
+        searchInput.value = record.veiculo_placa || record.veiculo_id;
         renderFuelTable();
         
         // Scroll até a informação grifada
@@ -3847,7 +3863,7 @@ window.renderCustoTotalList = (baseRecords, mode, maxKmDiff) => {
             if (!driverBreakdown[mId]) {
                 const driverObj = state.drivers.find(d => d.id === mId);
                 driverBreakdown[mId] = {
-                    name: driverObj ? driverObj.nome_completo : (r.motoristas?.nome_completo || 'NÃO INFORMADO'),
+                    name: driverObj ? driverObj.nome_completo : (r.motorista_nome || 'NÃO INFORMADO'),
                     litros: 0
                 };
             }
@@ -4100,7 +4116,7 @@ window.updateComparativo = () => {
             if (!driverBreakdown[mId]) {
                 const driverObj = state.drivers.find(d => d.id === mId);
                 driverBreakdown[mId] = {
-                    name: driverObj ? driverObj.nome_completo : (r.motoristas?.nome_completo || 'NÃO INFORMADO'),
+                    name: driverObj ? driverObj.nome_completo : (r.motorista_nome || 'NÃO INFORMADO'),
                     litros: 0,
                     gasto: 0
                 };
@@ -4113,8 +4129,8 @@ window.updateComparativo = () => {
             if (!vehicleBreakdown[vId]) {
                 const vehicleObj = state.vehicles.find(v => v.id === vId);
                 vehicleBreakdown[vId] = {
-                    placa: vehicleObj ? vehicleObj.placa : (r.veiculos?.placa || 'PLACA N/A'),
-                    modelo: vehicleObj ? vehicleObj.modelo : (r.veiculos?.modelo || ''),
+                    placa: vehicleObj ? vehicleObj.placa : (r.veiculo_placa || 'PLACA N/A'),
+                    modelo: vehicleObj ? vehicleObj.modelo : (r.veiculo_modelo || ''),
                     litros: 0,
                     gasto: 0
                 };
@@ -4492,7 +4508,7 @@ window.exportCustoTotalToPDF = (baseRecords, mode, maxKmDiff, startStr, endStr) 
             if (!driverBreakdown[mId]) {
                 const driverObj = state.drivers.find(d => d.id === mId);
                 driverBreakdown[mId] = {
-                    name: driverObj ? driverObj.nome_completo : (r.motoristas?.nome_completo || 'NÃO INFORMADO'),
+                    name: driverObj ? driverObj.nome_completo : (r.motorista_nome || 'NÃO INFORMADO'),
                     litros: 0
                 };
             }
@@ -4743,7 +4759,7 @@ window.exportComparativoToPDF = () => {
             if (!driverBreakdown[mId]) {
                 const driverObj = state.drivers.find(d => d.id === mId);
                 driverBreakdown[mId] = {
-                    name: driverObj ? driverObj.nome_completo : (r.motoristas?.nome_completo || 'NÃO INFORMADO'),
+                    name: driverObj ? driverObj.nome_completo : (r.motorista_nome || 'NÃO INFORMADO'),
                     litros: 0,
                     gasto: 0
                 };
@@ -4756,8 +4772,8 @@ window.exportComparativoToPDF = () => {
             if (!vehicleBreakdown[vId]) {
                 const vehicleObj = state.vehicles.find(v => v.id === vId);
                 vehicleBreakdown[vId] = {
-                    placa: vehicleObj ? vehicleObj.placa : (r.veiculos?.placa || 'PLACA N/A'),
-                    modelo: vehicleObj ? vehicleObj.modelo : (r.veiculos?.modelo || ''),
+                    placa: vehicleObj ? vehicleObj.placa : (r.veiculo_placa || 'PLACA N/A'),
+                    modelo: vehicleObj ? vehicleObj.modelo : (r.veiculo_modelo || ''),
                     litros: 0,
                     gasto: 0
                 };

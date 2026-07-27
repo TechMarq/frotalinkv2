@@ -1149,11 +1149,7 @@ async function registrarLog(modulo, acao, descricao) {
     const acaoUpper = String(acao || '').toUpperCase();
     const moduloLower = String(modulo || '').toLowerCase();
 
-    // Ignorar registros de INCLUSÃO/IMPORTAÇÃO para abastecimento e importações (registrar apenas ALTERAÇÃO e EXCLUSÃO)
-    if ((moduloLower === 'abastecimento' || moduloLower === 'importacao' || moduloLower === 'importação') && 
-        (acaoUpper === 'INCLUSÃO' || acaoUpper === 'INSERÇÃO' || acaoUpper === 'IMPORTAÇÃO')) {
-        return;
-    }
+    // Logs habilitados para todos os módulos (Abastecimento, Compras, Financeiro, Frota, etc.)
 
     // No módulo Frota, registrar APENAS cadastro/alteração/exclusão de veículos e equipe (ignorando histórico interno de manutenção)
     if (moduloLower === 'frota') {

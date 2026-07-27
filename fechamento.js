@@ -78,10 +78,10 @@ async function updateIntelligentSupplierFilter() {
 
     showLoading(true, 'Atualizando lista de fornecedores...');
     try {
-        // Busca otimizada: apenas fornecedor e forma de pagamento (sem join desnecessário)
+        // VIEW: view_compras_fornecedor já inclui fornecedor_nome via JOIN com fornecedores
         const { data: activePurchases, error } = await supabaseClient
-            .from('compras')
-            .select('fornecedor_id, forma_pagamento_id, fornecedores:fornecedor_id(nome)')
+            .from('view_compras_fornecedor')
+            .select('fornecedor_id, forma_pagamento_id, fornecedor_nome')
             .gte('data_emissao', startDate)
             .lte('data_emissao', endDate)
             .not('fornecedor_id', 'is', null);
@@ -96,7 +96,7 @@ async function updateIntelligentSupplierFilter() {
             const joinedNome = (p.formas_pagamento?.nome || '').toUpperCase().trim();
             const pgtoId = p.forma_pagamento_id;
             return joinedNome.includes('FATURADO') || (pgtoId && faturadoIds.includes(pgtoId));
-        }).map(p => p.fornecedores?.nome))].filter(Boolean).sort();
+        }).map(p => p.fornecedor_nome))].filter(Boolean).sort();
 
         // Save current selection for restoration
         const currentSelected = Array.from(document.querySelectorAll('#fornDropdown input:checked')).map(cb => cb.value);
@@ -774,7 +774,7 @@ function processData(fuel, maint, vehicles, purchases, sales) {
                     quantidade: parseFloat(it.quantidade) || 1,
                     servicos: `${it.produto}${it.marca ? ' ('+it.marca+')' : ''}`,
                     tipo: it.tipo === 'servico' ? 'SERVIÇO (COMPRAS)' : 'PEÇA (COMPRAS)',
-                    fornecedor: p.fornecedores?.nome || 'Fornecedor não inf.',
+                    fornecedor: p.fornecedor_nome || 'Fornecedor não inf.',
                     valor: val
                 });
                 
@@ -832,7 +832,7 @@ function processData(fuel, maint, vehicles, purchases, sales) {
                         quantidade: parseFloat(it.quantidade) || 1,
                         servicos: `${it.produto}${it.marca ? ' ('+it.marca+')' : ''}`,
                         tipo: it.tipo === 'servico' ? 'SERVIÇO (COMPRAS)' : 'PEÇA (COMPRAS)',
-                        fornecedor: p.fornecedores?.nome || 'Fornecedor não inf.',
+                        fornecedor: p.fornecedor_nome || 'Fornecedor não inf.',
                         valor: val
                     });
                     
@@ -911,7 +911,7 @@ function processSupplierData(purchases) {
     console.log(`📈 Total de compras faturadas encontradas: ${faturadas.length}`);
 
     faturadas.forEach(p => {
-        const supplier = p.fornecedores?.nome || p.fornecedor_nome || 'NÃO INFORMADO';
+        const supplier = p.fornecedor_nome || 'NÃO INFORMADO';
         if (!grouped[supplier]) {
             grouped[supplier] = {
                 purchases: [],
