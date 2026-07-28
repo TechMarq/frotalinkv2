@@ -55,9 +55,6 @@
             <button class="tab-item" onclick="switchMainTab('fluxo')">
                 <i data-lucide="line-chart"></i> Fluxo de Caixa
             </button>
-            <button class="tab-item" onclick="switchMainTab('dre')">
-                <i data-lucide="file-spreadsheet"></i> DRE
-            </button>
             <button class="tab-item" onclick="switchMainTab('config')">
                 <i data-lucide="database"></i> CADASTRO
             </button>
@@ -302,21 +299,6 @@
                     </div>
                 </div>
                 <div id="fluxoGrid" class="fluxo-grid-view"></div>
-            </section>
-
-            <!-- 5. DRE -->
-            <section id="tab-dre" class="tab-content">
-                <div class="dre-container glass">
-                    <div class="dre-header">
-                        <h2>Demonstrativo de Resultados (DRE)</h2>
-                        <div class="dre-filters">
-                            <select id="dre-year"></select>
-                            <button class="btn-secondary" onclick="exportDRE()"><i data-lucide="download"></i>
-                                Exportar</button>
-                        </div>
-                    </div>
-                    <div id="dreContent"></div>
-                </div>
             </section>
 
             <!-- 7. CADASTRO (Contas, Fornecedores, Plano Contas, Centros Custo) -->
@@ -994,37 +976,37 @@
         </div>
     </div>
 
-    <!-- NOVO MODAL DE RECEBIMENTO (SEQUÊNCIA ESPECÍFICA SOLICITADA) -->
+    <!-- MODAL DE RECEBIMENTO -->
     <div id="receberModal" class="modal-overlay">
-        <div class="modal-v2" style="max-width: 950px;">
-            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div class="modal-v2" style="max-width: 950px; border-radius: 16px;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08);">
                 <div style="display: flex; align-items: center; gap: 1rem;">
-                    <h2 class="modal-title" style="background: linear-gradient(to right, #10b981, #3b82f6); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin: 0;">
+                    <h2 class="modal-title" style="background: linear-gradient(to right, #10b981, #3b82f6); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin: 0; font-weight: 800;">
                         Lançar Recebimento
                     </h2>
-                    <div class="cod-badge" id="receberCodUnico">NOVO REGISTRO</div>
+                    <div class="cod-badge" id="receberCodUnico" style="border-radius: 8px;">NOVO REGISTRO</div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                     <input type="file" id="receberXmlImport" accept=".xml" style="display:none" onchange="handleReceberXMLUpload(this)">
-                    <button type="button" class="btn-outline" onclick="document.getElementById('receberXmlImport').click()" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.2); padding: 0.5rem 1rem; border-radius: 8px; font-weight: 700; display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: all 0.2s;">
+                    <button type="button" class="btn-outline" onclick="document.getElementById('receberXmlImport').click()" style="background: rgba(59, 130, 246, 0.12); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.25); padding: 0.6rem 1.2rem; border-radius: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: all 0.2s;">
                         <i data-lucide="file-up" style="width:16px; height:16px;"></i> Importar XML
                     </button>
                 </div>
             </div>
 
-            <form id="receberForm" style="display:flex; flex-direction:column; gap: 1.2rem; padding: 0 1rem;">
+            <form id="receberForm" style="display:flex; flex-direction:column; gap: 1.2rem; padding: 1rem 0 0 0;">
                 <input type="hidden" id="receberId">
 
                 <!-- LINHA 1: BÁSICOS -->
-                <div class="form-row grid-3" style="grid-template-columns: 1fr 2fr 1fr;">
+                <div class="form-row grid-4" style="grid-template-columns: 1fr 1.8fr 1.4fr 1fr; gap: 0.8rem;">
                     <div class="input-group">
                         <label>DATA</label>
-                        <input type="date" id="receberData" name="data_emissao" class="financeiro-input" required>
+                        <input type="date" id="receberData" name="data_emissao" class="financeiro-input" required style="border-radius: 8px;">
                     </div>
                     <div class="input-group">
                         <label>Cliente / Contratante</label>
                         <input type="text" name="entidade_nome" id="receberEntidade" class="financeiro-input"
-                            required placeholder="Nome do cliente ou empresa..." style="width:100%;" list="clientesDatalist">
+                            required placeholder="Nome do cliente ou empresa..." style="width:100%; border-radius: 8px;" list="clientesDatalist" oninput="updateReceberClientCnpjInfo()">
                         <datalist id="clientesDatalist"></datalist>
                         <div id="receberClienteWarning" style="display:none; color:#ef4444; font-size:0.75rem; font-weight:700; margin-top:0.3rem;">
                             <i data-lucide="alert-circle" style="width:12px; height:12px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
@@ -1032,33 +1014,37 @@
                         </div>
                     </div>
                     <div class="input-group">
+                        <label>CNPJ DO CLIENTE <span style="font-size:0.65rem; opacity:0.7; font-weight:normal;">(Apenas Leitura)</span></label>
+                        <input type="text" id="receberCNPJ" class="financeiro-input" readonly placeholder="00.000.000/0000-00" style="background: rgba(0,0,0,0.12); opacity: 0.85; cursor: not-allowed; font-weight: 700; color: var(--primary); border-radius: 8px;">
+                    </div>
+                    <div class="input-group">
                         <label>Nº NOTA FISCAL</label>
-                        <input type="text" id="receberNumNF" name="num_nf" class="financeiro-input" placeholder="000.000">
+                        <input type="text" id="receberNumNF" name="num_nf" class="financeiro-input" placeholder="000.000" style="border-radius: 8px;">
                     </div>
                 </div>
 
                 <!-- LINHA 2: DESCRIÇÃO (DESTAQUE) -->
                 <div class="input-group">
                     <label>DESCRIÇÃO</label>
-                    <textarea id="receberDescricao" name="descricao" class="financeiro-input" required placeholder="Ex: Prestação de serviço de transporte executivo..." rows="3" style="resize: vertical; height: auto; padding: 0.8rem;"></textarea>
+                    <textarea id="receberDescricao" name="descricao" class="financeiro-input" required placeholder="Ex: Prestação de serviço de transporte executivo..." rows="3" style="resize: vertical; height: auto; padding: 0.8rem; border-radius: 8px;"></textarea>
                 </div>
 
                 <!-- LINHA 3: FISCAL E VALOR -->
-                <div class="form-row grid-3" style="grid-template-columns: 1fr 1fr 1.5fr;">
+                <div class="form-row grid-3" style="grid-template-columns: 1fr 1fr 1.5fr; gap: 0.8rem;">
                     <div class="input-group">
                         <label>COMPETÊNCIA</label>
-                        <input type="month" id="receberCompetencia" name="data_competencia" class="financeiro-input" required>
+                        <input type="month" id="receberCompetencia" name="data_competencia" class="financeiro-input" required style="border-radius: 8px;">
                     </div>
                     <div class="input-group">
                         <label>TIPO</label>
-                        <select id="receberTipoServico" name="tipo_servico_produto" class="financeiro-input">
+                        <select id="receberTipoServico" name="tipo_servico_produto" class="financeiro-input" style="border-radius: 8px;">
                             <option value="SERVICO">Serviço</option>
                             <option value="PRODUTO">Produto</option>
                         </select>
                     </div>
                     <div class="input-group">
                         <label>VALOR BRUTO</label>
-                        <div class="input-money">
+                        <div class="input-money" style="border-radius: 8px;">
                             <span>R$</span>
                             <input type="number" step="0.01" id="receberValorBruto" name="valor_total" class="financeiro-input" style="border:none; background:transparent;" oninput="calculateReceberTaxes()">
                         </div>
@@ -1069,48 +1055,45 @@
                 <div class="form-row grid-3" style="background: rgba(0,0,0,0.15); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); gap: 1rem;">
                     <div class="input-group">
                         <label style="color:#94a3b8">VALOR INSS</label>
-                        <input type="number" step="0.01" id="receberValorINSS" name="valor_inss" class="financeiro-input" value="0.00" oninput="calculateReceberTaxes()">
+                        <input type="number" step="0.01" id="receberValorINSS" name="valor_inss" class="financeiro-input" value="0.00" oninput="calculateReceberTaxes()" style="border-radius: 8px;">
                     </div>
                     <div class="input-group">
                         <label style="color:#94a3b8">VALOR ISS</label>
-                        <input type="number" step="0.01" id="receberValorISS" name="valor_iss" class="financeiro-input" value="0.00" oninput="calculateReceberTaxes()">
+                        <input type="number" step="0.01" id="receberValorISS" name="valor_iss" class="financeiro-input" value="0.00" oninput="calculateReceberTaxes()" style="border-radius: 8px;">
                     </div>
                     <div class="input-group">
                         <label style="color:#94a3b8">VALOR IR</label>
-                        <input type="number" step="0.01" id="receberValorIR" name="valor_ir" class="financeiro-input" value="0.00" oninput="calculateReceberTaxes()">
+                        <input type="number" step="0.01" id="receberValorIR" name="valor_ir" class="financeiro-input" value="0.00" oninput="calculateReceberTaxes()" style="border-radius: 8px;">
                     </div>
                 </div>
 
                 <!-- LINHA 5: TOTAIS E PRAZOS -->
-                <div class="form-row grid-4" style="grid-template-columns: 1fr 1fr 0.8fr 1fr;">
+                <div class="form-row grid-4" style="grid-template-columns: 1fr 1fr 0.8fr 1fr; gap: 0.8rem;">
                     <div class="input-group">
                         <label>TOTAL TRIBUTO</label>
-                        <input type="text" id="receberTotalTributo" class="financeiro-input" readonly style="background: rgba(255,255,255,0.03); color:#94a3b8;">
+                        <input type="text" id="receberTotalTributo" class="financeiro-input" readonly style="background: rgba(255,255,255,0.03); color:#94a3b8; border-radius: 8px;">
                     </div>
                     <div class="input-group">
                         <label style="color:#10b981">VALOR LÍQUIDO</label>
-                        <div class="input-money" style="border-color:rgba(16,185,129,0.3)">
+                        <div class="input-money" style="border-color:rgba(16,185,129,0.3); border-radius: 8px;">
                             <span style="color:#10b981">R$</span>
                             <input type="number" step="0.01" id="receberValorLiquido" class="financeiro-input" readonly style="border:none; background:transparent; color:#10b981; font-weight:800;">
                         </div>
                     </div>
                     <div class="input-group">
                         <label>PRAZO (DIAS)</label>
-                        <input type="number" id="receberPrazo" name="prazo_pagamento" class="financeiro-input" required min="0" oninput="calculateReceberForecast()">
+                        <input type="number" id="receberPrazo" name="prazo_pagamento" class="financeiro-input" required min="0" oninput="calculateReceberForecast()" style="border-radius: 8px;">
                     </div>
                     <div class="input-group">
                         <label>PREVISÃO PAGAMENTO</label>
-                        <input type="date" id="receberPrevisao" name="previsao_pagamento" class="financeiro-input">
+                        <input type="date" id="receberPrevisao" name="previsao_pagamento" class="financeiro-input" style="border-radius: 8px;">
                     </div>
                 </div>
 
-                <div class="modal-footer" style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
-                    <button type="button" class="btn-secondary" onclick="closeModal('receberModal')" style="background:none; border:none; color:var(--text-muted); font-weight:700;">CANCELAR</button>
-                    <div style="display: flex; gap: 1rem;">
-                        <button type="button" id="btnGerarNF" class="btn-primary" onclick="generateNF()" style="background:#8b5cf6; display: flex; align-items: center; gap: 0.5rem;">
-                            <i data-lucide="file-text" style="width:18px;"></i> GERAR NF
-                        </button>
-                        <button type="submit" class="btn-primary" style="background:#10b981;">SALVAR RECEBIMENTO</button>
+                <div class="modal-footer" style="margin-top: 1.2rem; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 1rem;">
+                    <button type="button" class="btn-secondary" onclick="closeModal('receberModal')" style="background: none; border: none; color: var(--text-muted); font-weight: 700; cursor: pointer;">CANCELAR (ESC)</button>
+                    <div style="display: flex; gap: 1.5rem;">
+                        <button type="submit" class="btn-primary" style="background: #10b981; color: white; padding: 0.8rem 2rem; border-radius: 10px; border: none; font-weight: 800; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);">SALVAR RECEBIMENTO (Ctrl+Enter)</button>
                     </div>
                 </div>
             </form>

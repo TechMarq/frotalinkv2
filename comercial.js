@@ -28,16 +28,26 @@ function dataAtualISO() {
     return new Date().toISOString().split('T')[0];
 }
 
+function clearHighlights(scope = document) {
+    scope.querySelectorAll('.field-error').forEach(el => {
+        el.classList.remove('field-error');
+        el.style.borderColor = '';
+        el.style.boxShadow = '';
+    });
+}
+
 function highlightElement(el) {
     if (!el) return;
-    el.style.borderColor = '#ef4444';
-    el.style.boxShadow = '0 0 0 2px rgba(239, 68, 68, 0.2)';
+    el.classList.add('field-error');
     const resetFn = () => {
+        el.classList.remove('field-error');
         el.style.borderColor = '';
         el.style.boxShadow = '';
         el.removeEventListener('input', resetFn);
+        el.removeEventListener('change', resetFn);
     };
     el.addEventListener('input', resetFn);
+    el.addEventListener('change', resetFn);
 }
 
 function formatarDataExtenso(dateStr) {
@@ -901,7 +911,9 @@ window.openContratoModal = async (id = null) => {
     // Título dinâmico
     document.getElementById('modalTitle').innerText = id ? 'Proposta / Contrato' : 'Nova Proposta';
 
-    // Reset estado da proposta
+    // Reset estado da proposta e limpa marcas de erro
+    const modal = document.getElementById('contratoModal');
+    clearHighlights(modal);
     propostaAtual = { contratoId: id, propostaId: id, step: 0, itens: [], historico: [], proposta_versao: 1 };
 
     const typeWrapper = document.getElementById('creationTypeWrapper');
@@ -948,8 +960,7 @@ window.openContratoModal = async (id = null) => {
             propostaAtual.proposta_versao = c.proposta_versao ?? 1;
 
             // Carrega itens e histórico do Supabase
-            const modal = document.getElementById('contratoModal');
-            modal.classList.add('active');
+            if (modal) modal.classList.add('active');
             const painel = document.querySelector('#contratoModal form');
             painel.style.opacity = '0.4';
             painel.style.pointerEvents = 'none';
@@ -1014,7 +1025,7 @@ window.openContratoModal = async (id = null) => {
             if (timeline) timeline.style.display = 'none';
             if (btnAvancar) btnAvancar.style.display = 'none';
             if (btnGerar) btnGerar.style.display = 'none';
-            if (propFieldsGroup) propFieldsGroup.style.display = 'none';
+            if (propFieldsGroup) propFieldsGroup.style.display = 'flex';
         } else {
             if (timeline) timeline.style.display = 'block';
             if (btnAvancar) btnAvancar.style.display = 'flex';
@@ -1025,6 +1036,12 @@ window.openContratoModal = async (id = null) => {
 
     updateTimelineUI(propostaAtual.step);
     renderHistoricoProposta();
+
+    // Snapshot do estado inicial do formulário para auditoria precisa de alterações
+    propostaOriginal = {
+        header: getPropostaFormPayload(),
+        itens: (propostaAtual.itens || []).map(it => ({ ...it }))
+    };
 
     document.getElementById('contratoModal').classList.add('active');
     if (window.lucide) lucide.createIcons();
@@ -1047,7 +1064,7 @@ window.handleCreationTypeChange = (type) => {
         if (timeline) timeline.style.display = 'none';
         if (btnAvancar) btnAvancar.style.display = 'none';
         if (btnGerar) btnGerar.style.display = 'none';
-        if (propFieldsGroup) propFieldsGroup.style.display = 'none';
+        if (propFieldsGroup) propFieldsGroup.style.display = 'flex';
         
         // Auto-seleciona status ativo se estiver criando novo contrato ativo direto
         const statusAtivo = config.status.find(s => {
@@ -1089,6 +1106,41 @@ window.closeContratoModal = (force = false) => {
     }
 };
 
+function getPropostaFormPayload() {
+    return {
+        cliente_nome:         document.getElementById('cliente_nome')?.value || '',
+        cliente_cnpj_cpf:     document.getElementById('cliente_cnpj_cpf')?.value || '',
+        cliente_email:        document.getElementById('cliente_email')?.value || '',
+        cliente_telefone:     document.getElementById('cliente_telefone')?.value || '',
+        vigencia:             document.getElementById('vigencia')?.value || '',
+        descricao_contrato:   document.getElementById('descricao_contrato')?.value || '',
+        versao_contrato:      document.getElementById('versao_contrato')?.value || '',
+        referencia:           document.getElementById('referencia')?.value || '',
+        data_assinatura:      document.getElementById('data_assinatura')?.value || null,
+        prazo_meses:          parseInt(document.getElementById('prazo_meses')?.value) || 0,
+        data_vencimento:      document.getElementById('data_vencimento')?.value || null,
+        tipo_demanda_id:      document.getElementById('tipo_demanda_id')?.value || null,
+        tabela_preco_id:      document.getElementById('tabela_preco_id')?.value || null,
+        status_id:            document.getElementById('status_id')?.value || null,
+        nome_responsavel:     document.getElementById('nome_responsavel')?.value || '',
+        contato_responsavel:  document.getElementById('contato_responsavel')?.value || '',
+        observacao:           document.getElementById('observacao')?.value || '',
+        proposta_step:        propostaAtual.step,
+        objeto_proposta:      document.getElementById('objeto_proposta')?.value || '',
+        endereco_proposta:    document.getElementById('endereco_proposta')?.value || '',
+        cep_proposta:         document.getElementById('cep_proposta')?.value || '',
+        contato_proposta:     document.getElementById('contato_proposta')?.value || '',
+        assinatura_proposta:  document.getElementById('assinatura_proposta')?.value || '',
+        data_proposta:        document.getElementById('prop_data_proposta')?.value || null,
+        validade_dias:        parseInt(document.getElementById('prop_validade_dias')?.value) || 30,
+        data_validade:        document.getElementById('prop_data_validade')?.value || null,
+        periodo_medicao:      document.getElementById('prop_periodo_medicao')?.value || '',
+        forma_pagamento:      document.getElementById('prop_forma_pagamento')?.value || '',
+        observacoes_proposta: document.getElementById('prop_observacoes')?.value || '',
+        proposta_versao:      propostaAtual.proposta_versao || 1
+    };
+}
+
 async function handleSaveContrato(e) {
     e.preventDefault();
     const btn = document.getElementById('btnSaveContrato');
@@ -1096,112 +1148,48 @@ async function handleSaveContrato(e) {
     const origText = btn.innerHTML;
     btn.innerHTML = 'SALVANDO...';
 
-    const payload = {
-        // Campos do contrato existentes
-        cliente_nome:         document.getElementById('cliente_nome').value,
-        cliente_cnpj_cpf:     document.getElementById('cliente_cnpj_cpf').value,
-        cliente_email:        document.getElementById('cliente_email').value,
-        cliente_telefone:     document.getElementById('cliente_telefone').value,
-        vigencia:             document.getElementById('vigencia').value,
-        descricao_contrato:   document.getElementById('descricao_contrato').value,
-        versao_contrato:      document.getElementById('versao_contrato').value,
-        referencia:           document.getElementById('referencia').value,
-        data_assinatura:      document.getElementById('data_assinatura').value || null,
-        prazo_meses:          parseInt(document.getElementById('prazo_meses').value) || 0,
-        data_vencimento:      document.getElementById('data_vencimento').value || null,
-        tipo_demanda_id:      document.getElementById('tipo_demanda_id').value || null,
-        tabela_preco_id:      document.getElementById('tabela_preco_id').value || null,
-        status_id:            document.getElementById('status_id').value || null,
-        nome_responsavel:     document.getElementById('nome_responsavel').value,
-        contato_responsavel:  document.getElementById('contato_responsavel').value,
-        observacao:           document.getElementById('observacao').value,
-        // Campos da proposta
-        proposta_step:        propostaAtual.step,
-        objeto_proposta:      document.getElementById('objeto_proposta').value,
-        endereco_proposta:    document.getElementById('endereco_proposta').value,
-        cep_proposta:         document.getElementById('cep_proposta').value,
-        contato_proposta:     document.getElementById('contato_proposta').value,
-        assinatura_proposta:  document.getElementById('assinatura_proposta').value,
-        data_proposta:        document.getElementById('prop_data_proposta').value || null,
-        validade_dias:        parseInt(document.getElementById('prop_validade_dias').value) || 30,
-        data_validade:        document.getElementById('prop_data_validade').value || null,
-        periodo_medicao:      document.getElementById('prop_periodo_medicao').value,
-        forma_pagamento:      document.getElementById('prop_forma_pagamento').value,
-        observacoes_proposta: document.getElementById('prop_observacoes').value,
-        proposta_versao:      propostaAtual.proposta_versao || 1
-    };
+    const payload = getPropostaFormPayload();
 
     // Limpa realces vermelhos anteriores
-    document.querySelectorAll('.com-input, .item-input').forEach(el => {
-        el.style.borderColor = '';
-        el.style.boxShadow = '';
-    });
+    clearHighlights(document.getElementById('propostaModal') || document);
 
     let hasErrors = false;
 
-    if (!payload.cliente_nome?.trim()) {
-        highlightElement(document.getElementById('cliente_nome'));
-        hasErrors = true;
-    }
-    if (!payload.cliente_cnpj_cpf?.trim()) {
-        highlightElement(document.getElementById('cliente_cnpj_cpf'));
-        hasErrors = true;
-    }
-    if (!payload.nome_responsavel?.trim()) {
-        highlightElement(document.getElementById('nome_responsavel'));
-        hasErrors = true;
-    }
-    if (!payload.objeto_proposta?.trim()) {
-        highlightElement(document.getElementById('objeto_proposta'));
-        hasErrors = true;
-    }
-    if (!payload.periodo_medicao?.trim()) {
-        highlightElement(document.getElementById('prop_periodo_medicao'));
-        hasErrors = true;
-    }
-    if (!payload.forma_pagamento?.trim()) {
-        highlightElement(document.getElementById('prop_forma_pagamento'));
-        hasErrors = true;
-    }
+    const checkRequired = (elId, value) => {
+        const el = document.getElementById(elId);
+        if (!el) return;
+        const isVisible = !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length || el.offsetParent !== null);
+        if (isVisible && (!value || !String(value).trim())) {
+            highlightElement(el);
+            hasErrors = true;
+        }
+    };
+
+    checkRequired('cliente_nome', payload.cliente_nome);
+    checkRequired('cliente_cnpj_cpf', payload.cliente_cnpj_cpf);
+    checkRequired('nome_responsavel', payload.nome_responsavel);
 
     // Se a proposta estiver aprovada/contrato (step === 2), os campos do contrato tornam-se obrigatórios
     if (propostaAtual.step === 2) {
-        if (!payload.descricao_contrato?.trim()) {
-            highlightElement(document.getElementById('descricao_contrato'));
-            hasErrors = true;
-        }
-        if (!payload.versao_contrato?.trim()) {
-            highlightElement(document.getElementById('versao_contrato'));
-            hasErrors = true;
-        }
-        if (!payload.referencia?.trim()) {
-            highlightElement(document.getElementById('referencia'));
-            hasErrors = true;
-        }
-        if (!payload.vigencia?.trim()) {
-            highlightElement(document.getElementById('vigencia'));
-            hasErrors = true;
-        }
-        if (!payload.tipo_demanda_id) {
-            highlightElement(document.getElementById('tipo_demanda_id'));
-            hasErrors = true;
-        }
-        if (!payload.data_assinatura) {
-            highlightElement(document.getElementById('data_assinatura'));
-            hasErrors = true;
-        }
-        if (!payload.prazo_meses || payload.prazo_meses <= 0) {
-            highlightElement(document.getElementById('prazo_meses'));
-            hasErrors = true;
-        }
-        if (!payload.tabela_preco_id) {
-            highlightElement(document.getElementById('tabela_preco_id'));
-            hasErrors = true;
-        }
+        checkRequired('descricao_contrato', payload.descricao_contrato);
+        checkRequired('versao_contrato', payload.versao_contrato);
+        checkRequired('vigencia', payload.vigencia);
+        checkRequired('tipo_demanda_id', payload.tipo_demanda_id);
+        checkRequired('data_assinatura', payload.data_assinatura);
+        checkRequired('prazo_meses', payload.prazo_meses);
+        checkRequired('tabela_preco_id', payload.tabela_preco_id);
     }
 
 
     if (hasErrors) {
+        const firstErrorEl = document.querySelector('#propostaModal .field-error, .field-error');
+        if (firstErrorEl) {
+            firstErrorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => { try { firstErrorEl.focus(); } catch(e){} }, 300);
+        }
+        if (typeof showToast === 'function') {
+            showToast("Preencha todos os campos obrigatórios em destaque vermelho.", "error");
+        }
         alert("Preencha todos os campos obrigatórios em destaque vermelho.");
         btn.disabled = false;
         btn.innerHTML = origText;
@@ -1223,54 +1211,7 @@ async function handleSaveContrato(e) {
         }
     }
 
-    const creationType = document.getElementById('creation_type')?.value || (editId ? (contratos.find(x => x.id === editId)?.proposta_step === 2 ? 'contrato_direto' : 'proposta') : 'proposta');
-
-    if (creationType !== 'contrato_direto') {
-        if (!propostaAtual.itens || propostaAtual.itens.length === 0) {
-            alert("Adicione pelo menos 1 item na proposta.");
-            btn.disabled = false;
-            btn.innerHTML = origText;
-            return;
-        }
-
-        let itemError = false;
-        propostaAtual.itens.forEach((it, idx) => {
-            const tr = document.querySelector(`#propostaItensBody tr[data-idx="${idx}"]`);
-            if (!tr) return;
-
-            const inputs = tr.querySelectorAll('.item-input');
-            if (propostaAtual.proposta_versao === 2) {
-                const origInput  = inputs[0];
-                const destInput  = inputs[1];
-                const qtdInput   = inputs[2];
-                const kmInput    = inputs[3];
-                const valKmInput = inputs[4];
-
-                if (!it.origem?.trim()) { highlightElement(origInput); itemError = true; }
-                if (!it.destino?.trim()) { highlightElement(destInput); itemError = true; }
-                if ((it.qtd_veiculos || 0) <= 0) { highlightElement(qtdInput); itemError = true; }
-                if ((it.total_km || 0) <= 0) { highlightElement(kmInput); itemError = true; }
-                if ((it.valor_km || 0) <= 0) { highlightElement(valKmInput); itemError = true; }
-            } else {
-                const descInput  = inputs[0];
-                const unInput    = inputs[1];
-                const qtdInput   = inputs[2];
-                const precoInput = inputs[3];
-
-                if (!it.descricao?.trim()) { highlightElement(descInput); itemError = true; }
-                if (!it.unidade?.trim())   { highlightElement(unInput); itemError = true; }
-                if ((it.quantidade || 0) <= 0) { highlightElement(qtdInput); itemError = true; }
-                if ((it.preco_unit || 0) <= 0) { highlightElement(precoInput); itemError = true; }
-            }
-        });
-
-        if (itemError) {
-            alert("Preencha todos os campos dos itens da proposta com valores válidos destacados em vermelho.");
-            btn.disabled = false;
-            btn.innerHTML = origText;
-            return;
-        }
-    }
+    // Validação de itens da proposta tornada opcional conforme solicitado
 
     try {
         let res, savedId;
@@ -1380,10 +1321,18 @@ async function handleSaveContrato(e) {
 
         if (res.error) throw res.error;
 
-        // Salva itens da proposta
+        // Salva apenas itens preenchidos da proposta (se houver)
         await supabaseClient.from('com_proposta_itens').delete().eq('contrato_id', savedId);
-        if (propostaAtual.itens.length > 0) {
-            const itensPayload = propostaAtual.itens.map((it, idx) => {
+        const validItens = (propostaAtual.itens || []).filter(it => {
+            if (propostaAtual.proposta_versao === 2) {
+                return (it.origem && it.origem.trim()) || (it.destino && it.destino.trim()) || (it.qtd_veiculos > 0) || (it.total_km > 0);
+            } else {
+                return (it.descricao && it.descricao.trim()) || (it.unidade && it.unidade.trim()) || (it.quantidade > 0) || (it.preco_unit > 0);
+            }
+        });
+
+        if (validItens.length > 0) {
+            const itensPayload = validItens.map((it, idx) => {
                 if (propostaAtual.proposta_versao === 2) {
                     return {
                         contrato_id: savedId,
@@ -1579,9 +1528,9 @@ function renderAdminLists() {
     const listStatus = document.getElementById('list_status');
 
     const renderItem = (item, table) => `
-        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); padding: 0.5rem 0.8rem; border-radius: 8px;">
-            <span style="font-size: 0.8rem; font-weight: 600;">${item.nome}</span>
-            <button onclick="deleteAdminItem('${table}', '${item.id}')" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.2rem;"><i data-lucide="trash-2" style="width: 14px;"></i></button>
+        <div class="admin-item-card" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color, rgba(255,255,255,0.12)); padding: 0.85rem 1.2rem; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); transition: all 0.2s ease;">
+            <span style="font-size: 0.88rem; font-weight: 700; color: var(--text-main);">${item.nome}</span>
+            <button onclick="deleteAdminItem('${table}', '${item.id}')" title="Excluir" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); color: #ef4444; cursor: pointer; padding: 0.4rem 0.6rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 700; transition: all 0.2s;"><i data-lucide="trash-2" style="width: 15px; height: 15px;"></i> Excluir</button>
         </div>
     `;
 
@@ -2232,7 +2181,7 @@ function formatHistoryLabel(label) {
     
     if (motivoText) {
         result += `
-            <div style="margin-top: 0.35rem; padding: 0.35rem 0.6rem; background: rgba(99,102,241,0.05); border-left: 2.5px solid var(--primary); border-radius: 4px; font-size: 0.72rem; color: #cbd5e1; font-weight: 500; font-style: italic;">
+            <div style="margin-top: 0.5rem; padding: 0.6rem 0.9rem; background: rgba(99,102,241,0.08); border-left: 3px solid var(--primary); border-radius: 6px; font-size: 0.82rem; color: var(--text-main); font-weight: 500; font-style: italic;">
                 <strong>Motivo:</strong> ${motivoText}
             </div>
         `;
@@ -2240,10 +2189,10 @@ function formatHistoryLabel(label) {
     
     if (alteracoesText) {
         // Format each line as an item
-        const lines = alteracoesText.split('\n').map(l => `<div style="margin-bottom: 2px;">${l}</div>`).join('');
+        const lines = alteracoesText.split('\n').map(l => `<div style="margin-bottom: 4px; line-height: 1.4;">${l}</div>`).join('');
         result += `
-            <div style="margin-top: 0.5rem; padding: 0.5rem 0.75rem; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px; font-size: 0.7rem; color: var(--text-muted); font-family: sans-serif; max-height: 150px; overflow-y: auto;">
-                <strong style="color: var(--primary); display: block; margin-bottom: 4px; font-size: 0.72rem;">O que foi alterado exatamente:</strong>
+            <div style="margin-top: 0.6rem; padding: 0.8rem 1rem; background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.12); border-radius: 8px; font-size: 0.82rem; color: var(--text-muted); font-family: sans-serif; max-height: 300px; overflow-y: auto;">
+                <strong style="color: var(--primary); display: block; margin-bottom: 6px; font-size: 0.85rem;">O que foi alterado exatamente:</strong>
                 ${lines}
             </div>
         `;
@@ -2284,6 +2233,8 @@ function detectarAlteracoesHeader(oldH, newH) {
         observacoes_proposta: 'Observações da Proposta'
     };
 
+    const phoneOrCnpjKeys = ['cliente_cnpj_cpf', 'cliente_telefone', 'contato_responsavel'];
+
     for (const key in fieldsMap) {
         let oldVal = oldH[key];
         let newVal = newH[key];
@@ -2291,10 +2242,20 @@ function detectarAlteracoesHeader(oldH, newH) {
         // Normaliza nulos/indefinidos
         if (oldVal === undefined || oldVal === null) oldVal = '';
         if (newVal === undefined || newVal === null) newVal = '';
-        
-        if (String(oldVal).trim() !== String(newVal).trim()) {
-            alteracoes.push(`- Alterou ${fieldsMap[key]} de "${oldVal || 'vazio'}" para "${newVal || 'vazio'}"`);
+
+        const strOld = String(oldVal).trim();
+        const strNew = String(newVal).trim();
+
+        // Se for telefone ou CNPJ/CPF, compara apenas os dígitos numéricos
+        if (phoneOrCnpjKeys.includes(key)) {
+            const digitsOld = strOld.replace(/\D/g, '');
+            const digitsNew = strNew.replace(/\D/g, '');
+            if (digitsOld === digitsNew) continue;
+        } else {
+            if (strOld === strNew) continue;
         }
+
+        alteracoes.push(`- Alterou ${fieldsMap[key]} de "${strOld || 'vazio'}" para "${strNew || 'vazio'}"`);
     }
     return alteracoes;
 }

@@ -1751,7 +1751,8 @@ body,
 
 /* Cards e containers — brancos com sombra leve */
 [data-theme="green_pastel"] .controls,
-[data-theme="green_pastel"] .table-container {
+[data-theme="green_pastel"] .table-container,
+[data-theme="green_pastel"] .cadastro-wrapper {
     background: rgba(255, 255, 255, 0.92) !important;
     border-color: rgba(45, 158, 107, 0.15) !important;
     box-shadow: 0 2px 12px rgba(45, 158, 107, 0.08) !important;
@@ -2590,4 +2591,32 @@ body,
 
 [data-theme="green_pastel"] .orb-main.active {
     background: radial-gradient(circle at 30% 30%, #e05252, #b91c1c) !important;
+}
+
+/* Highlighting de campos obrigatórios com erro */
+.field-error,
+input.field-error,
+select.field-error,
+textarea.field-error {
+    border: 2px solid #ef4444 !important;
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.4) !important;
+    background-color: rgba(239, 68, 68, 0.08) !important;
+    outline: none !important;
+}
+
+/* Cards da Aba Cadastro (Comercial) */
+.admin-item-card {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+[data-theme="green_pastel"] .admin-item-card {
+    background: #ffffff !important;
+    border: 1.5px solid #d1fae5 !important;
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.08) !important;
+}
+
+[data-theme="green_pastel"] .admin-item-card:hover {
+    border-color: #10b981 !important;
+    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.15) !important;
 }

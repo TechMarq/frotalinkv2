@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Abrir aba específica pelo hash da URL (ex: financeiro.html#pagar)
         const hash = window.location.hash.replace('#', '');
-        if (hash && ['dashboard', 'pagar', 'receber', 'fluxo', 'dre', 'conciliacao', 'config'].includes(hash)) {
+        if (hash && ['dashboard', 'pagar', 'receber', 'fluxo', 'conciliacao', 'config'].includes(hash)) {
             switchMainTab(hash);
         }
         
@@ -109,14 +109,21 @@ async function loadInitialData() {
                 const { data: d2 } = await supabaseClient.from('com_contratos').select('*');
                 if (d2 && d2.length) {
                     d2.forEach(item => {
-                        if (item.cliente_nome && !listaClientes.some(c => (c.nome || '').toLowerCase() === item.cliente_nome.toLowerCase())) {
-                            listaClientes.push({
-                                id: item.id,
-                                nome: item.cliente_nome,
-                                cnpj_cpf: item.cliente_cnpj_cpf,
-                                email: item.cliente_email,
-                                contato: item.cliente_telefone
-                            });
+                        const name = item.cliente_nome;
+                        const doc = item.cliente_cnpj_cpf;
+                        if (name || doc) {
+                            const existing = listaClientes.find(c => (c.nome || '').toLowerCase().trim() === (name || '').toLowerCase().trim());
+                            if (existing) {
+                                if (!existing.cnpj_cpf && doc) existing.cnpj_cpf = doc;
+                            } else {
+                                listaClientes.push({
+                                    id: item.id,
+                                    nome: name || doc,
+                                    cnpj_cpf: doc,
+                                    email: item.cliente_email,
+                                    contato: item.cliente_telefone
+                                });
+                            }
                         }
                     });
                 }
@@ -166,30 +173,31 @@ async function loadInitialData() {
 
 // --- Navegação ---
 function switchMainTab(tabId) {
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => {
+        c.classList.remove('active');
+    });
     document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
 
     const tabEl = document.getElementById(`tab-${tabId}`);
-    if (tabEl) tabEl.classList.add('active');
-    
-    if (window.event && window.event.currentTarget && window.event.currentTarget.classList) {
-        window.event.currentTarget.classList.add('active');
-    } else {
-        // Encontra o botão correspondente se chamado programaticamente
-        const buttons = document.querySelectorAll('.tab-item');
-        buttons.forEach(btn => {
-            const attr = btn.getAttribute('onclick');
-            if (attr && attr.includes(`'${tabId}'`)) {
-                btn.classList.add('active');
-            }
-        });
+    if (tabEl) {
+        tabEl.classList.add('active');
+        tabEl.style.display = '';
     }
+    
+    // Ativa o botão correspondente à aba selecionada
+    document.querySelectorAll('.tab-item').forEach(btn => {
+        const attr = btn.getAttribute('onclick') || '';
+        if (attr.includes(`'${tabId}'`)) {
+            btn.classList.add('active');
+        }
+    });
 
     if (tabId === 'fluxo') renderFluxo();
-    if (tabId === 'dre') renderDRE();
     if (tabId === 'conciliacao') renderConciliacao();
     if (tabId === 'relatorios' || tabId === 'historico') fhistPopulateSelects();
 }
+
+window.switchMainTab = switchMainTab;
 
 function toggleAdminMode(tipo) {
     // Modo edição removido. As opções de ação agora estão sempre visíveis.
@@ -801,247 +809,6 @@ function renderFluxo() {
     }
 }
 
-// --- DRE ---
-function renderDRE() {
-    const container = document.getElementById('dreContent');
-    const selectYear = document.getElementById('dre-year');
-    if (!container || !selectYear) return;
-
-    // Popula dropdown de anos se vazio
-    if (selectYear.options.length === 0) {
-        const years = new Set([new Date().getFullYear()]);
-        state.lancamentos.forEach(l => {
-            if (l.data_competencia) {
-                years.add(new Date(l.data_competencia + 'T12:00:00').getFullYear());
-            } else if (l.data_emissao) {
-                years.add(new Date(l.data_emissao + 'T12:00:00').getFullYear());
-            }
-        });
-        const sortedYears = Array.from(years).sort((a,b) => b - a);
-        selectYear.innerHTML = sortedYears.map(y => `<option value="${y}">${y}</option>`).join('');
-        selectYear.addEventListener('change', renderDRE);
-    }
-
-    const selectedYear = parseInt(selectYear.value) || new Date().getFullYear();
-
-    // Filtra lançamentos do ano de competência selecionado
-    const yearEntries = state.lancamentos.filter(l => {
-        if (l.status === 'CANCELADO') return false;
-        const dateStr = l.data_competencia || l.data_emissao || l.data_vencimento;
-        if (!dateStr) return false;
-        return new Date(dateStr + 'T12:00:00').getFullYear() === selectedYear;
-    });
-
-    // Função para acumular por nível ou estrutura do plano de contas
-    const getMonthlyValuesForStructure = (parentCode, tipoFilter) => {
-        const values = Array(12).fill(0);
-        
-        yearEntries.forEach(l => {
-            const cat = state.categorias.find(c => c.id === l.categoria_id);
-            if (!cat || cat.tipo !== tipoFilter) return;
-
-            // Verifica se a categoria pertence a este grupo (ex: 1.1 pertence a 1)
-            if (cat.codigo === parentCode || cat.codigo.startsWith(parentCode + '.')) {
-                const dateStr = l.data_competencia || l.data_emissao || l.data_vencimento;
-                const month = new Date(dateStr + 'T12:00:00').getMonth();
-                values[month] += parseFloat(l.valor_total) || 0;
-            }
-        });
-
-        return values;
-    };
-
-    // Monta a estrutura da DRE baseada no Plano de Contas cadastrado
-    const rootCategories = state.categorias.filter(c => !c.parent_id);
-
-    let html = `
-        <div class="dre-table" style="overflow-x: auto; width: 100%;">
-            <div class="dre-row header" style="min-width: 1000px; display: grid; grid-template-columns: 220px repeat(12, 1fr) 100px; border-bottom: 2px solid rgba(255,255,255,0.1); padding: 0.8rem; font-weight:800;">
-                <div class="dre-cell name">Estrutura DRE</div>
-                ${Array.from({ length: 12 }, (_, i) => `<div class="dre-cell month" style="text-align:right">${getMonthName(i)}</div>`).join('')}
-                <div class="dre-cell month" style="text-align:right">Acumulado</div>
-            </div>
-    `;
-
-    // Receitas não classificadas (ex: sem categoria_id ou sem categoria correspondente)
-    const getUncategorizedMonthlyValues = (tipoFilter) => {
-        const values = Array(12).fill(0);
-        yearEntries.forEach(l => {
-            if (l.tipo !== tipoFilter) return;
-            const cat = state.categorias.find(c => c.id === l.categoria_id);
-            if (!l.categoria_id || !cat) {
-                const dateStr = l.data_competencia || l.data_emissao || l.data_vencimento;
-                if (dateStr) {
-                    const month = new Date(dateStr + 'T12:00:00').getMonth();
-                    values[month] += parseFloat(l.valor_total) || 0;
-                }
-            }
-        });
-        return values;
-    };
-
-    // 1. Receitas
-    const receitaRows = [];
-    const receitasIniciais = rootCategories.filter(c => c.tipo === 'RECEITA');
-    let totalReceitasMes = Array(12).fill(0);
-
-    receitasIniciais.forEach(cat => {
-        const monthly = getMonthlyValuesForStructure(cat.codigo, 'RECEITA');
-        const accum = monthly.reduce((sum, v) => sum + v, 0);
-        for(let i=0; i<12; i++) totalReceitasMes[i] += monthly[i];
-
-        receitaRows.push({
-            name: `${cat.codigo} - ${cat.nome}`,
-            monthly,
-            accum,
-            class: 'level-1'
-        });
-
-        // Filhos Grau 2
-        state.categorias.filter(child => child.parent_id === cat.id).forEach(c => {
-            const cMonthly = getMonthlyValuesForStructure(c.codigo, 'RECEITA');
-            const cAccum = cMonthly.reduce((sum, v) => sum + v, 0);
-            receitaRows.push({
-                name: `${c.codigo} - ${c.nome}`,
-                monthly: cMonthly,
-                accum: cAccum,
-                class: 'level-2'
-            });
-        });
-    });
-
-    const monthlyUncatRec = getUncategorizedMonthlyValues('RECEBER');
-    const accumUncatRec = monthlyUncatRec.reduce((sum, v) => sum + v, 0);
-    if (accumUncatRec > 0) {
-        for(let i=0; i<12; i++) totalReceitasMes[i] += monthlyUncatRec[i];
-        receitaRows.push({
-            name: 'Receitas Não Classificadas',
-            monthly: monthlyUncatRec,
-            accum: accumUncatRec,
-            class: 'level-2'
-        });
-    }
-
-    // 2. Despesas
-    const despesaRows = [];
-    const despesasIniciais = rootCategories.filter(c => c.tipo === 'DESPESA');
-    let totalDespesasMes = Array(12).fill(0);
-
-    despesasIniciais.forEach(cat => {
-        const monthly = getMonthlyValuesForStructure(cat.codigo, 'DESPESA');
-        const accum = monthly.reduce((sum, v) => sum + v, 0);
-        for(let i=0; i<12; i++) totalDespesasMes[i] += monthly[i];
-
-        despesaRows.push({
-            name: `${cat.codigo} - ${cat.nome}`,
-            monthly,
-            accum,
-            class: 'level-1'
-        });
-
-        // Filhos Grau 2
-        state.categorias.filter(child => child.parent_id === cat.id).forEach(c => {
-            const cMonthly = getMonthlyValuesForStructure(c.codigo, 'DESPESA');
-            const cAccum = cMonthly.reduce((sum, v) => sum + v, 0);
-            despesaRows.push({
-                name: `${c.codigo} - ${c.nome}`,
-                monthly: cMonthly,
-                accum: cAccum,
-                class: 'level-2'
-            });
-        });
-    });
-
-    const monthlyUncatDesp = getUncategorizedMonthlyValues('PAGAR');
-    const accumUncatDesp = monthlyUncatDesp.reduce((sum, v) => sum + v, 0);
-    if (accumUncatDesp > 0) {
-        for(let i=0; i<12; i++) totalDespesasMes[i] += monthlyUncatDesp[i];
-        despesaRows.push({
-            name: 'Despesas Não Classificadas',
-            monthly: monthlyUncatDesp,
-            accum: accumUncatDesp,
-            class: 'level-2'
-        });
-    }
-
-    // Renderizar Receitas
-    html += `<div class="dre-section-title" style="padding: 0.6rem; background: rgba(16,185,129,0.05); color:#10b981; font-weight:800; font-size:0.8rem; text-transform:uppercase;">Receitas Operacionais</div>`;
-    receitaRows.forEach(r => {
-        html += renderDRERow(r.name, r.monthly, r.accum, r.class);
-    });
-
-    html += renderDRERow('(=) TOTAL RECEITAS BRUTAS', totalReceitasMes, totalReceitasMes.reduce((s,v)=>s+v, 0), 'total-receitas');
-
-    // Renderizar Despesas
-    html += `<div class="dre-section-title" style="padding: 0.6rem; background: rgba(239,68,68,0.05); color:#ef4444; font-weight:800; font-size:0.8rem; text-transform:uppercase; margin-top: 1rem;">Custos e Despesas</div>`;
-    despesaRows.forEach(r => {
-        html += renderDRERow(r.name, r.monthly.map(v => -v), -r.accum, r.class);
-    });
-
-    html += renderDRERow('(-) TOTAL DEDUÇÕES E DESPESAS', totalDespesasMes.map(v => -v), -totalDespesasMes.reduce((s,v)=>s+v, 0), 'total-despesas');
-
-    // Resultado Líquido
-    const resultadoMes = Array(12).fill(0);
-    for(let i=0; i<12; i++) resultadoMes[i] = totalReceitasMes[i] - totalDespesasMes[i];
-    const resultadoAcum = resultadoMes.reduce((s,v)=>s+v, 0);
-
-    html += `<div style="margin-top: 1rem;"></div>`;
-    html += renderDRERow('(=) RESULTADO LÍQUIDO DO EXERCÍCIO', resultadoMes, resultadoAcum, 'result-final');
-
-    html += `</div>`;
-    container.innerHTML = html;
-}
-
-function renderDRERow(name, monthly, accum, rowClass) {
-    let fontStyle = '';
-    let bgColor = '';
-    if (rowClass === 'total-receitas') { fontStyle = 'font-weight: 800; color: #10b981;'; bgColor = 'background: rgba(16,185,129,0.08);'; }
-    else if (rowClass === 'total-despesas') { fontStyle = 'font-weight: 800; color: #ef4444;'; bgColor = 'background: rgba(239,68,68,0.08);'; }
-    else if (rowClass === 'result-final') { fontStyle = 'font-weight: 900; color: #818cf8; font-size: 0.95rem;'; bgColor = 'background: rgba(129,140,248,0.15); border-top: 2px solid #818cf8; border-bottom: 2px solid #818cf8;'; }
-    else if (rowClass === 'level-1') { fontStyle = 'font-weight: 700; color: #ffffff;'; }
-    else { fontStyle = 'color: #94a3b8; padding-left: 20px;'; }
-
-    return `
-        <div class="dre-row" style="min-width: 1000px; display: grid; grid-template-columns: 220px repeat(12, 1fr) 100px; border-bottom: 1px solid rgba(255,255,255,0.03); padding: 0.6rem; align-items: center; ${bgColor} ${fontStyle}">
-            <div class="dre-cell name" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${name}</div>
-            ${monthly.map(v => `<div class="dre-cell val" style="text-align:right">${formatCurrency(v)}</div>`).join('')}
-            <div class="dre-cell val" style="text-align:right; font-weight:800;">${formatCurrency(accum)}</div>
-        </div>
-    `;
-}
-
-window.exportDRE = function() {
-    const selectYear = document.getElementById('dre-year');
-    const selectedYear = selectYear ? selectYear.value : new Date().getFullYear();
-    
-    // Obter dados da tabela DRE para exportar como Excel
-    const rows = [];
-    rows.push(['FrotaLink - Demonstrativo de Resultados (DRE) - Ano: ' + selectedYear]);
-    rows.push([]);
-    rows.push(['Descrição', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez', 'Acumulado']);
-
-    const dreRowsHTML = document.querySelectorAll('.dre-row');
-    dreRowsHTML.forEach(row => {
-        const name = row.querySelector('.name').innerText;
-        const vals = Array.from(row.querySelectorAll('.val')).map(cell => {
-            // Converte formato de moeda "R$ 1.200,00" para número float puro
-            const clean = cell.innerText.replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
-            return parseFloat(clean) || 0;
-        });
-        rows.push([name, ...vals]);
-    });
-
-    try {
-        const ws = XLSX.utils.aoa_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "DRE " + selectedYear);
-        XLSX.writeFile(wb, `DRE_${selectedYear}.xlsx`);
-        showToast("DRE exportado com sucesso!", "success");
-    } catch(e) {
-        showToast("Falha ao exportar excel: " + e.message, "error");
-    }
-};
-
 
 // --- CRUD Operations ---
 async function openEntryModal(tipo, id = null) {
@@ -1283,6 +1050,52 @@ async function deleteEntry(id) {
     });
 }
 
+function formatCnpjDisplay(doc) {
+    if (!doc) return '—';
+    const clean = doc.toString().replace(/\D/g, '');
+    if (clean.length === 14) {
+        return clean.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+    }
+    if (clean.length === 11) {
+        return clean.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+    }
+    return doc;
+}
+
+function updateReceberClientCnpjInfo() {
+    const elEnt = document.getElementById('receberEntidade');
+    const elCnpj = document.getElementById('receberCNPJ');
+    if (!elCnpj) return;
+
+    const val = (elEnt ? elEnt.value : '').toLowerCase().trim();
+    if (state.importedXmlCnpj) {
+        elCnpj.value = formatCnpjDisplay(state.importedXmlCnpj);
+        return;
+    }
+
+    if (!val) {
+        elCnpj.value = '—';
+        return;
+    }
+
+    const firstWordTyped = val.split(/\s+/)[0];
+    const found = (state.clientes || []).find(c => {
+        const cNome = (c.nome || '').toLowerCase().trim();
+        if (!cNome || !c.cnpj_cpf) return false;
+        if (cNome === val || cNome.includes(val) || val.includes(cNome)) return true;
+        const firstWordDb = cNome.split(/\s+/)[0];
+        if (firstWordTyped.length >= 4 && (cNome.includes(firstWordTyped) || val.includes(firstWordDb))) return true;
+        return false;
+    });
+
+    if (found && found.cnpj_cpf) {
+        elCnpj.value = formatCnpjDisplay(found.cnpj_cpf);
+    } else {
+        elCnpj.value = '—';
+    }
+}
+window.updateReceberClientCnpjInfo = updateReceberClientCnpjInfo;
+
 async function openReceberModal(id = null) {
     if (typeof canDo === 'function' && !canDo('financeiro_receber', id ? 'edit' : 'add')) {
         showToast('Você não tem permissão para esta ação.', 'error');
@@ -1295,6 +1108,7 @@ async function openReceberModal(id = null) {
     form.reset();
     document.getElementById('receberId').value = id || '';
     document.getElementById('receberCodUnico').innerText = id ? 'EDITANDO REGISTRO' : 'NOVO REGISTRO';
+    if (document.getElementById('receberCNPJ')) document.getElementById('receberCNPJ').value = '—';
 
     state.importedXmlCnpj = "";
     const warningDiv = document.getElementById('receberClienteWarning');
@@ -1326,6 +1140,7 @@ async function openReceberModal(id = null) {
         calculateReceberForecast();
     }
 
+    updateReceberClientCnpjInfo();
     modal.classList.add('active');
 }
 
@@ -1334,7 +1149,7 @@ function handleReceberXMLUpload(input) {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = async function(e) {
         try {
             const xmlText = e.target.result;
             const parser = new DOMParser();
@@ -1400,25 +1215,21 @@ function handleReceberXMLUpload(input) {
                 tomadorCnpjCpf = getTagText(xmlDoc, "CnpjTomador") || getTagText(xmlDoc, "CNPJTomador") || getTagText(xmlDoc, "Cnpj") || getTagText(xmlDoc, "CNPJ") || getTagText(xmlDoc, "Cpf") || getTagText(xmlDoc, "CPF");
             }
 
-            // Validação por CNPJ contra base comercial
-            if (tomadorCnpjCpf) {
-                const cleanCnpj = tomadorCnpjCpf.replace(/\D/g, '');
-                state.importedXmlCnpj = cleanCnpj;
+            // Validação estrita EXCLUSIVAMENTE por CNPJ contra a base do Comercial
+            const cleanCnpj = tomadorCnpjCpf ? tomadorCnpjCpf.replace(/\D/g, '') : '';
+            state.importedXmlCnpj = cleanCnpj;
+            state.importedXmlNome = cliente || '';
 
-                const exists = state.clientes.some(c => (c.cnpj_cpf || '').replace(/\D/g, '') === cleanCnpj);
-                const warningDiv = document.getElementById('receberClienteWarning');
-                if (warningDiv) {
-                    if (!exists) {
-                        warningDiv.style.display = 'block';
-                        showToast("Aviso: Tomador/Cliente do XML não cadastrado no Comercial.", "error");
-                    } else {
-                        warningDiv.style.display = 'none';
-                    }
+            const cnpjCheck = await isCnpjCadastrado(cleanCnpj, cliente);
+            const warningDiv = document.getElementById('receberClienteWarning');
+            if (warningDiv) {
+                if (!cnpjCheck.valid) {
+                    warningDiv.style.display = 'block';
+                    warningDiv.querySelector('span').innerText = `Aviso: O CNPJ do Tomador (${cleanCnpj || 'não informado'}) não está cadastrado no Comercial! O salvamento será bloqueado.`;
+                    showToast(`Aviso: CNPJ do Tomador (${cleanCnpj || 'não informado'}) não cadastrado no Comercial.`, "error");
+                } else {
+                    warningDiv.style.display = 'none';
                 }
-            } else {
-                state.importedXmlCnpj = "";
-                const warningDiv = document.getElementById('receberClienteWarning');
-                if (warningDiv) warningDiv.style.display = 'none';
             }
 
             // 4. Descrição (Serviço ou discriminação)
@@ -1467,6 +1278,7 @@ function handleReceberXMLUpload(input) {
             document.getElementById('receberValorIR').value = valorIR.toFixed(2);
 
             // Executa atualizações e recálculos automáticos do modal
+            updateReceberClientCnpjInfo();
             calculateReceberTaxes();
             calculateReceberForecast();
 
@@ -1510,28 +1322,153 @@ function calculateReceberForecast() {
     }
 }
 
-async function handleReceberSubmit(e) {
-    e.preventDefault();
-
-    // Bloqueia se o cliente importado do XML não estiver cadastrado no Comercial
-    if (state.importedXmlCnpj) {
-        let exists = false;
+async function isCnpjCadastrado(cnpjInput, clienteNomeTyped = '') {
+    // Carrega a base comercial (clientes + contratos) se a lista em memória estiver vazia
+    if (!state.clientes || state.clientes.length === 0) {
         try {
-            const { data: dbClientes } = await supabaseClient.from('clientes').select('cnpj_cpf');
-            exists = (dbClientes || []).some(c => (c.cnpj_cpf || '').replace(/\D/g, '') === state.importedXmlCnpj);
-        } catch (err) {
-            exists = state.clientes.some(c => (c.cnpj_cpf || '').replace(/\D/g, '') === state.importedXmlCnpj);
-        }
-        
-        if (!exists) {
-            showToast("Bloqueado: O Tomador/Cliente com CNPJ do XML não está cadastrado no sistema (Comercial).", "error");
-            alert("Não é possível salvar: O Tomador/Cliente com CNPJ do XML não está cadastrado no sistema (Comercial). Por favor, realize o cadastro antes de prosseguir.");
-            return;
+            const { data: db1 } = await supabaseClient.from('clientes').select('cnpj_cpf, cliente_cnpj_cpf, nome, cliente_nome');
+            const { data: db2 } = await supabaseClient.from('com_contratos').select('cliente_cnpj_cpf, cliente_nome');
+            const list = [];
+            (db1 || []).forEach(c => {
+                const doc = c.cnpj_cpf || c.cliente_cnpj_cpf;
+                const n = c.nome || c.cliente_nome;
+                if (doc || n) list.push({ nome: n || '', cnpj_cpf: doc || '' });
+            });
+            (db2 || []).forEach(c => {
+                if (c.cliente_cnpj_cpf || c.cliente_nome) list.push({ nome: c.cliente_nome || '', cnpj_cpf: c.cliente_cnpj_cpf || '' });
+            });
+            state.clientes = list;
+        } catch (e) {}
+    }
+
+    // Função de sanitização inteligente: remove pontos, barras, hífens e espaços
+    const sanitizeCnpj = (val) => (val || '').toString().replace(/\D/g, '');
+
+    let targetCnpj = sanitizeCnpj(cnpjInput);
+
+    // Se o CNPJ não veio direto do XML, tenta localizar o CNPJ do cliente na base comercial pelo Nome (busca flexível)
+    if (!targetCnpj && clienteNomeTyped) {
+        const normTyped = clienteNomeTyped.toLowerCase().trim();
+        const firstWordTyped = normTyped.split(/\s+/)[0];
+
+        const found = (state.clientes || []).find(c => {
+            const cNome = (c.nome || '').toLowerCase().trim();
+            if (!cNome || !c.cnpj_cpf) return false;
+
+            if (cNome === normTyped || cNome.includes(normTyped) || normTyped.includes(cNome)) return true;
+
+            const firstWordDb = cNome.split(/\s+/)[0];
+            if (firstWordTyped.length >= 4 && (cNome.includes(firstWordTyped) || normTyped.includes(firstWordDb))) return true;
+
+            return false;
+        });
+
+        if (found && found.cnpj_cpf) {
+            targetCnpj = sanitizeCnpj(found.cnpj_cpf);
         }
     }
 
+    if (!targetCnpj) {
+        return { valid: false, cnpj: '', reason: 'CNPJ do Tomador/Cliente é obrigatório para validação Comercial.' };
+    }
+
+    const targetRoot = targetCnpj.length >= 8 ? targetCnpj.substring(0, 8) : targetCnpj;
+
+    // Higieniza todos os CNPJs do banco (ex: 17.469.701/0260-52 -> 17469701026052) e compara por CNPJ ou Raiz
+    const matched = (state.clientes || []).some(c => {
+        const cCnpj = sanitizeCnpj(c.cnpj_cpf);
+        if (!cCnpj) return false;
+
+        const cRoot = cCnpj.length >= 8 ? cCnpj.substring(0, 8) : cCnpj;
+
+        // Validação por CNPJ: 14 dígitos exatos ou 8 dígitos da Raiz (Matriz / Filial)
+        return (targetCnpj === cCnpj) || (targetRoot.length >= 8 && targetRoot === cRoot);
+    });
+
+    return { valid: matched, cnpj: targetCnpj };
+}
+
+async function isNotaFiscalDuplicada(tipo, numNf, clienteNome, clienteCnpj, currentId = null) {
+    const cleanNf = (numNf || '').toString().trim().replace(/^0+/, '');
+    if (!cleanNf) return { duplicate: false };
+
+    const targetCnpj = (clienteCnpj || '').replace(/\D/g, '');
+    const targetRoot = targetCnpj.length >= 8 ? targetCnpj.substring(0, 8) : targetCnpj;
+    const normNome = (clienteNome || '').toLowerCase().trim();
+
+    try {
+        let query = supabaseClient.from('fin_lancamentos').select('id, num_nf, entidade_nome, tipo').eq('tipo', tipo);
+        if (currentId) query = query.neq('id', currentId);
+        
+        const { data: dbNfs, error } = await query;
+        const listToSearch = (error || !dbNfs || !dbNfs.length) ? state.lancamentos.filter(l => l.tipo === tipo) : dbNfs;
+
+        const duplicate = listToSearch.find(l => {
+            if (currentId && (l.id === currentId || String(l.id) === String(currentId))) return false;
+
+            const lNf = (l.num_nf || '').toString().trim().replace(/^0+/, '');
+            if (!lNf || lNf !== cleanNf) return false;
+
+            // Se o número de nota é idêntico, verifica se pertence ao mesmo cliente (por CNPJ ou Razão Social)
+            const lNome = (l.entidade_nome || '').toLowerCase().trim();
+
+            if (normNome && lNome) {
+                if (normNome === lNome || normNome.includes(lNome) || lNome.includes(normNome)) return true;
+                const firstWord1 = normNome.split(/\s+/)[0];
+                const firstWord2 = lNome.split(/\s+/)[0];
+                if (firstWord1.length >= 4 && (lNome.includes(firstWord1) || normNome.includes(firstWord2))) return true;
+            }
+
+            if (targetCnpj) {
+                const cFound = (state.clientes || []).find(c => (c.nome || '').toLowerCase().trim() === lNome);
+                if (cFound && cFound.cnpj_cpf) {
+                    const cCnpj = cFound.cnpj_cpf.replace(/\D/g, '');
+                    const cRoot = cCnpj.length >= 8 ? cCnpj.substring(0, 8) : cCnpj;
+                    if (targetCnpj === cCnpj || (targetRoot.length >= 8 && targetRoot === cRoot)) return true;
+                }
+            }
+
+            return false;
+        });
+
+        if (duplicate) {
+            return { duplicate: true, existingNf: cleanNf, cliente: duplicate.entidade_nome };
+        }
+    } catch (e) {
+        console.warn("Erro ao verificar duplicidade de NF:", e);
+    }
+
+    return { duplicate: false };
+}
+
+async function handleReceberSubmit(e) {
+    e.preventDefault();
     const formData = new FormData(e.target);
+
+    // Validação OBRIGATÓRIA e EXCLUSIVA por CNPJ no módulo Comercial
+    const entidadeNomeForm = (formData.get('entidade_nome') || state.importedXmlNome || '').trim();
+    const cnpjForm = state.importedXmlCnpj || '';
+
+    const cnpjCheck = await isCnpjCadastrado(cnpjForm, entidadeNomeForm);
+    if (!cnpjCheck.valid) {
+        const cnpjExib = cnpjCheck.cnpj ? `CNPJ: ${cnpjCheck.cnpj}` : `Empresa: "${entidadeNomeForm}"`;
+        showToast(`Bloqueado: O CNPJ do Tomador/Cliente não foi localizado no cadastro Comercial.`, "error");
+        alert(`Não é possível salvar: O CNPJ (${cnpjCheck.cnpj || 'não informado'}) do Cliente/Tomador (${entidadeNomeForm}) não está cadastrado no sistema Comercial. Por favor, certifique-se de que o CNPJ da empresa (Matriz ou Filial) esteja cadastrado no módulo Comercial.`);
+        return;
+    }
+
     const id = document.getElementById('receberId').value;
+    const numNfForm = formData.get('num_nf');
+
+    // Validação Anti-Duplicidade de Nota Fiscal para o mesmo Cliente/CNPJ
+    if (numNfForm) {
+        const dupCheck = await isNotaFiscalDuplicada('RECEBER', numNfForm, entidadeNomeForm, cnpjCheck.cnpj, id);
+        if (dupCheck.duplicate) {
+            showToast(`Bloqueado: A Nota Fiscal Nº ${numNfForm} já foi lançada para este cliente!`, "error");
+            alert(`Não é possível salvar: A Nota Fiscal de número "${numNfForm}" já está cadastrada no sistema para o cliente "${dupCheck.cliente || entidadeNomeForm}". Lançamentos duplicados com a mesma Nota Fiscal e mesmo Cliente/CNPJ não são permitidos.`);
+            return;
+        }
+    }
     
     const bruto = parseFloat(formData.get('valor_total')) || 0;
     const inss = parseFloat(formData.get('valor_inss')) || 0;
@@ -2411,20 +2348,28 @@ function setupEventListeners() {
         // 2. F2: Abrir o modal de lançamento rápido dependendo da aba ativa
         if (e.key === 'F2') {
             e.preventDefault();
-            // Verifica a aba ativa no sistema
-            const activeTab = document.querySelector('.tab-btn.active');
-            const isReceber = activeTab && activeTab.textContent.toLowerCase().includes('receber');
+            const tabReceberActive = document.getElementById('tab-receber')?.classList.contains('active');
+            const activeBtn = document.querySelector('.tab-item.active');
+            const isReceber = tabReceberActive || (activeBtn && activeBtn.getAttribute('onclick')?.includes('receber'));
+            
             openEntryModal(isReceber ? 'RECEBER' : 'PAGAR');
         }
-        // 3. Ctrl + Enter: Salvar / Enviar o formulário de Entrada de Nota
+        // 3. Ctrl + Enter: Salvar / Enviar o formulário do modal ativo (Pagar ou Receber)
         if (e.ctrlKey && e.key === 'Enter') {
+            const receberModal = document.getElementById('receberModal');
+            if (receberModal && receberModal.classList.contains('active')) {
+                e.preventDefault();
+                const receberForm = document.getElementById('receberForm');
+                if (receberForm) receberForm.requestSubmit();
+                return;
+            }
+
             const activeModal = document.getElementById('entryModal');
             if (activeModal && activeModal.classList.contains('active')) {
                 e.preventDefault();
                 const entryForm = document.getElementById('entryForm');
-                if (entryForm) {
-                    entryForm.requestSubmit();
-                }
+                if (entryForm) entryForm.requestSubmit();
+                return;
             }
         }
     });

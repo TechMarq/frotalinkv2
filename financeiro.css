@@ -1761,3 +1761,85 @@ th.active-sort i {
     color: #1a2e25 !important;
     box-shadow: 0 1px 0 rgba(45, 158, 107, 0.15);
 }
+
+/* ───────────────────────────────────────────
+   🌿 Harmonização Visual: Tema Clean Verde (Aba Cadastro e Módulo Financeiro)
+   ─────────────────────────────────────────── */
+[data-theme="green_pastel"] .cadastro-wrapper {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border: 1px solid rgba(45, 158, 107, 0.18) !important;
+    box-shadow: 0 4px 20px rgba(45, 158, 107, 0.08) !important;
+    backdrop-filter: none !important;
+    color: #1a2e25 !important;
+    border-radius: 16px !important;
+}
+
+[data-theme="green_pastel"] .cadastro-subtabs {
+    border-bottom: 1px solid rgba(45, 158, 107, 0.15) !important;
+    gap: 0.5rem !important;
+}
+
+[data-theme="green_pastel"] .subtab-item {
+    color: #5a7a6a !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    padding: 0.6rem 1.2rem !important;
+    border-radius: 8px 8px 0 0 !important;
+    transition: all 0.2s ease !important;
+}
+
+[data-theme="green_pastel"] .subtab-item:hover {
+    color: #1a7a50 !important;
+    background: rgba(45, 158, 107, 0.08) !important;
+}
+
+[data-theme="green_pastel"] .subtab-item.active {
+    color: #1a7a50 !important;
+    font-weight: 800 !important;
+    background: rgba(45, 158, 107, 0.1) !important;
+}
+
+[data-theme="green_pastel"] .subtab-item.active::after {
+    background: linear-gradient(90deg, #2d9e6b, #1a7a50) !important;
+    height: 3px !important;
+    bottom: -1px !important;
+    border-radius: 10px !important;
+}
+
+[data-theme="green_pastel"] .subtab-header h2,
+[data-theme="green_pastel"] .subtab-header h3 {
+    color: #1a7a50 !important;
+    font-weight: 800 !important;
+}
+
+[data-theme="green_pastel"] .config-tree,
+[data-theme="green_pastel"] .config-list {
+    background: rgba(45, 158, 107, 0.03) !important;
+    border: 1px solid rgba(45, 158, 107, 0.12) !important;
+    border-radius: 12px !important;
+}
+
+[data-theme="green_pastel"] .config-card,
+[data-theme="green_pastel"] .bank-card,
+[data-theme="green_pastel"] .config-item,
+[data-theme="green_pastel"] .tree-node,
+[data-theme="green_pastel"] .glass-table {
+    background: #ffffff !important;
+    border: 1px solid rgba(45, 158, 107, 0.15) !important;
+    color: #1a2e25 !important;
+    box-shadow: 0 2px 8px rgba(45, 158, 107, 0.05) !important;
+}
+
+[data-theme="green_pastel"] .export-dropdown {
+    background: #ffffff !important;
+    border: 1px solid rgba(45, 158, 107, 0.2) !important;
+    box-shadow: 0 8px 24px rgba(45, 158, 107, 0.15) !important;
+}
+
+[data-theme="green_pastel"] .export-dropdown .dropdown-item {
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .export-dropdown .dropdown-item:hover {
+    background: rgba(45, 158, 107, 0.08) !important;
+}

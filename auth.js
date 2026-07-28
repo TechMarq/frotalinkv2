@@ -556,7 +556,6 @@ function applyPermissions(modulo) {
                 pagar: 'financeiro_pagar',
                 receber: 'financeiro_receber',
                 fluxo: 'financeiro_fluxo',
-                dre: 'financeiro_dre',
                 conciliacao: 'financeiro_conciliacao',
                 config: 'financeiro_config'
             };
