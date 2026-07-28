@@ -15,6 +15,7 @@ const state = {
     fornecedores: [],
     clientes: [],
     formasPagamento: [],
+    especiesNota: [],
     periodoFluxo: new Date(),
     filtros: {
         PAGAR: { status: 'UNPAID', busca: '', categoria: '', origem: '' },
@@ -140,14 +141,15 @@ async function loadInitialData() {
             .order('data_vencimento', { ascending: false })
             .limit(500);
 
-        const [l, c, cat, cc, forn, cl, formas] = await Promise.all([
+        const [l, c, cat, cc, forn, cl, formas, especies] = await Promise.all([
             lancQuery,
             supabaseClient.from('fin_contas_bancarias').select('*'),
             supabaseClient.from('fin_plano_contas').select('*').order('codigo'),
             supabaseClient.from('fin_centros_custo').select('*').order('codigo'),
             supabaseClient.from('fornecedores').select('*').order('nome'),
             fetchClientesSafely(),
-            supabaseClient.from('formas_pagamento').select('*').order('nome')
+            supabaseClient.from('formas_pagamento').select('*').order('nome'),
+            supabaseClient.from('especies_nota').select('*').order('nome')
         ]);
 
         state.lancamentos = l.data || [];
@@ -163,6 +165,7 @@ async function loadInitialData() {
             contato: item.contato || item.cliente_telefone
         }));
         state.formasPagamento = formas.data || [];
+        state.especiesNota = especies.data || [];
 
         updateDropdowns();
         renderAll();
@@ -222,6 +225,7 @@ const COL_DEFS = {
         { key: 'previsao_pagamento', label: 'Previsão', sortable: true },
         { key: 'entidade_nome', label: 'Cliente', sortable: true },
         { key: 'descricao', label: 'Descrição', sortable: true },
+        { key: 'tipo_nota', label: 'Tipo / Pgto', sortable: true },
         { key: 'valor_total', label: 'Vlr. Bruto', sortable: true, align: 'right' },
         { key: 'valor_liquido', label: 'Vlr. Líquido', sortable: true, align: 'right' },
         { key: 'status', label: 'Status', sortable: true },
@@ -433,6 +437,12 @@ function renderLancamentos(tipo) {
                     <td data-label="Descrição">
                         ${l.num_nf ? `<div style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px;">NF/Doc: ${l.num_nf}${l.serie_nf ? ' (Série ' + l.serie_nf + ')' : ''}</div>` : ''}
                         <div style="font-size:0.85rem">${l.descricao}</div>
+                    </td>
+                    <td data-label="Tipo/Pgto">
+                        <div style="display:flex; flex-direction:column; gap:2px; align-items:flex-start;">
+                            <span style="font-size:0.68rem; font-weight:800; color:#0284c7; background:rgba(2,132,199,0.12); padding:1px 6px; border-radius:4px; line-height:1.2; display:inline-block;">${l.tipo_nota || '-'}</span>
+                            <span style="font-size:0.68rem; font-weight:800; color:#6b21a8; background:rgba(147,51,234,0.12); padding:1px 6px; border-radius:4px; line-height:1.2; display:inline-block;">${l.forma_pagamento || '-'}</span>
+                        </div>
                     </td>
                     <td data-label="Vlr. Bruto" style="text-align:right; font-weight:700">${formatCurrency(vBruto)}</td>
                     <td data-label="Vlr. Líquido" style="text-align:right; color:#10b981; font-weight:700">${formatCurrency(vLiquido)}</td>
@@ -1123,7 +1133,9 @@ async function openReceberModal(id = null) {
             document.getElementById('receberNumNF').value = item.num_nf || '';
             document.getElementById('receberCompetencia').value = item.data_competencia ? item.data_competencia.substring(0, 7) : '';
             document.getElementById('receberDescricao').value = item.descricao || '';
-            document.getElementById('receberTipoServico').value = item.tipo_servico_produto || 'SERVICO';
+            if (document.getElementById('receberTipoServico')) document.getElementById('receberTipoServico').value = item.tipo_servico_produto || 'SERVICO';
+            if (document.getElementById('receberTipoNota')) document.getElementById('receberTipoNota').value = item.tipo_nota || 'NFSE';
+            if (document.getElementById('receberFormaPagamento')) document.getElementById('receberFormaPagamento').value = item.forma_pagamento || 'BOLETO';
             document.getElementById('receberValorBruto').value = item.valor_total || 0;
             document.getElementById('receberValorINSS').value = item.valor_inss || 0;
             document.getElementById('receberValorISS').value = item.valor_iss || 0;
@@ -1137,6 +1149,8 @@ async function openReceberModal(id = null) {
         document.getElementById('receberData').value = new Date().toISOString().split('T')[0];
         document.getElementById('receberCompetencia').value = new Date().toISOString().substring(0, 7);
         document.getElementById('receberDescricao').value = '';
+        if (document.getElementById('receberTipoNota')) document.getElementById('receberTipoNota').value = 'NFSE';
+        if (document.getElementById('receberFormaPagamento')) document.getElementById('receberFormaPagamento').value = 'BOLETO';
         calculateReceberForecast();
     }
 
@@ -1277,6 +1291,25 @@ function handleReceberXMLUpload(input) {
             document.getElementById('receberValorISS').value = valorISS.toFixed(2);
             document.getElementById('receberValorIR').value = valorIR.toFixed(2);
 
+            // Auto-detectar Tipo de Nota do XML baseado na tabela de especies_nota
+            let matchedEspecie = null;
+            if (state.especiesNota && state.especiesNota.length > 0) {
+                const isNfse = xmlDoc.getElementsByTagName("nNFSe").length > 0 || xmlDoc.getElementsByTagName("NumeroNfse").length > 0 || xmlDoc.getElementsByTagName("Servico").length > 0;
+                const isCte = xmlDoc.getElementsByTagName("nCT").length > 0 || xmlDoc.getElementsByTagName("cteProc").length > 0 || xmlDoc.getElementsByTagName("infCte").length > 0;
+                const isNfe = xmlDoc.getElementsByTagName("nNF").length > 0 || xmlDoc.getElementsByTagName("nfeProc").length > 0 || xmlDoc.getElementsByTagName("infNFe").length > 0;
+
+                matchedEspecie = state.especiesNota.find(e => {
+                    const n = (e.nome || '').toUpperCase();
+                    if (isNfse) return n.includes('NFS') || n.includes('SERVI');
+                    if (isCte) return n.includes('CTE') || n.includes('TRANSP');
+                    if (isNfe) return n.includes('NFE') || n.includes('PROD') || n.includes('ELETRONICA');
+                    return false;
+                });
+            }
+            if (document.getElementById('receberTipoNota') && matchedEspecie) {
+                document.getElementById('receberTipoNota').value = matchedEspecie.nome;
+            }
+
             // Executa atualizações e recálculos automáticos do modal
             updateReceberClientCnpjInfo();
             calculateReceberTaxes();
@@ -1316,9 +1349,15 @@ function calculateReceberForecast() {
 
     const prazo = parseInt(prazoVal) || 0;
     if (dataRef) {
-        const date = new Date(dataRef + 'T00:00:00');
-        date.setDate(date.getDate() + prazo);
-        document.getElementById('receberPrevisao').value = date.toISOString().split('T')[0];
+        const parts = dataRef.split('-');
+        if (parts.length === 3) {
+            const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            date.setDate(date.getDate() + prazo);
+            const yyyy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            const dd = String(date.getDate()).padStart(2, '0');
+            document.getElementById('receberPrevisao').value = `${yyyy}-${mm}-${dd}`;
+        }
     }
 }
 
@@ -1458,7 +1497,28 @@ async function handleReceberSubmit(e) {
     }
 
     const id = document.getElementById('receberId').value;
-    const numNfForm = formData.get('num_nf');
+    const numNfForm = (formData.get('num_nf') || '').trim();
+    const tipoNotaForm = (formData.get('tipo_nota') || '').trim();
+    const formaPagamentoForm = (formData.get('forma_pagamento') || '').trim();
+
+    // Validações de Campos Obrigatórios
+    if (!tipoNotaForm) {
+        showToast('Campos obrigatórios: Selecione o Tipo de Nota.', "error");
+        alert('Não é possível salvar: O campo TIPO DE NOTA é obrigatório.');
+        return;
+    }
+
+    if (!numNfForm) {
+        showToast('Campos obrigatórios: Informe o Nº da Nota Fiscal.', "error");
+        alert('Não é possível salvar: O campo Nº NOTA FISCAL é obrigatório.');
+        return;
+    }
+
+    if (!formaPagamentoForm) {
+        showToast('Campos obrigatórios: Selecione o Tipo de Pagamento.', "error");
+        alert('Não é possível salvar: O campo TIPO DE PAGAMENTO é obrigatório.');
+        return;
+    }
 
     // Validação Anti-Duplicidade de Nota Fiscal para o mesmo Cliente/CNPJ
     if (numNfForm) {
@@ -1483,6 +1543,8 @@ async function handleReceberSubmit(e) {
         num_nf: formData.get('num_nf'),
         data_competencia: formData.get('data_competencia') ? formData.get('data_competencia') + '-01' : null,
         tipo_servico_produto: formData.get('tipo_servico_produto'),
+        tipo_nota: formData.get('tipo_nota') || 'NFSE',
+        forma_pagamento: formData.get('forma_pagamento') || 'BOLETO',
         valor_total: bruto,
         valor_inss: inss,
         valor_iss: iss,
@@ -1956,7 +2018,19 @@ function renderDashboardReceber() {
 
 // --- Helpers ---
 function formatCurrency(v) { return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
-function formatDate(d) { return d ? new Date(d).toLocaleDateString('pt-BR') : '-'; }
+function formatDate(d) {
+    if (!d) return '-';
+    if (typeof d === 'string') {
+        const clean = d.split('T')[0];
+        const parts = clean.split('-');
+        if (parts.length === 3) {
+            const [yyyy, mm, dd] = parts;
+            return `${dd.padStart(2, '0')}/${mm.padStart(2, '0')}/${yyyy}`;
+        }
+    }
+    const dateObj = new Date(d);
+    return isNaN(dateObj.getTime()) ? '-' : dateObj.toLocaleDateString('pt-BR');
+}
 function getMonthName(i) { return ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][i]; }
 function getWeekday(d) { return ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d.getDay()]; }
 
@@ -1998,7 +2072,7 @@ function updateDropdowns() {
         }
 
         if (id === 'entryForma') {
-            el.innerHTML = state.formasPagamento.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+            el.innerHTML = state.formasPagamento.map(f => `<option value="${f.nome}">${f.nome}</option>`).join('');
         }
 
         if (id === 'planoParentId') {
@@ -2036,6 +2110,16 @@ function updateDropdowns() {
     }
 
     populateFhistEntidadesSelect();
+
+    const receberFormaSelect = document.getElementById('receberFormaPagamento');
+    if (receberFormaSelect) {
+        receberFormaSelect.innerHTML = (state.formasPagamento || []).map(f => `<option value="${f.nome}">${f.nome}</option>`).join('');
+    }
+
+    const receberTipoNotaSelect = document.getElementById('receberTipoNota');
+    if (receberTipoNotaSelect) {
+        receberTipoNotaSelect.innerHTML = (state.especiesNota || []).map(e => `<option value="${e.nome}">${e.nome}</option>`).join('');
+    }
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
@@ -2310,6 +2394,7 @@ function setupEventListeners() {
     const custoForm = document.getElementById('custoForm');
     const bankForm = document.getElementById('bankForm');
     const formaForm = document.getElementById('formaForm');
+    const especieNotaForm = document.getElementById('especieNotaForm');
 
     const receberForm = document.getElementById('receberForm');
 
@@ -2321,6 +2406,7 @@ function setupEventListeners() {
     if (custoForm) custoForm.addEventListener('submit', handleCustoSubmit);
     if (bankForm) bankForm.addEventListener('submit', handleBankSubmit);
     if (formaForm) formaForm.addEventListener('submit', handleFormaSubmit);
+    if (especieNotaForm) especieNotaForm.addEventListener('submit', handleEspecieNotaSubmit);
 
     const bulkPaymentForm = document.getElementById('bulkPaymentForm');
     if (bulkPaymentForm) bulkPaymentForm.addEventListener('submit', handleBulkPayment);
@@ -2377,7 +2463,7 @@ function setupEventListeners() {
     // Auto-calculo de total ao abrir/alterar campos? 
 }
 
-async function viewEntry(id) {
+     async function viewEntry(id) {
     console.log("Visualizando lançamento ID:", id);
     try {
         const l = state.lancamentos.find(item => item.id === id);
@@ -2387,22 +2473,15 @@ async function viewEntry(id) {
         }
 
         const modal = document.getElementById('viewModal');
-        if (!modal) {
-            console.error("Elemento #viewModal não encontrado no HTML");
-            return;
-        }
+        if (!modal) return;
 
-        // 1. Preencher Dados Básicos (Sincrono)
+        // 1. Código e Valores
         document.getElementById('viewCod').innerText = l.codigo_sequencial || '-';
         document.getElementById('viewValor').innerText = formatCurrency(l.valor_total);
-        document.getElementById('viewVenc').innerText = formatDate(l.data_vencimento);
-        document.getElementById('viewEntidade').innerText = l.entidade_nome || '-';
-        document.getElementById('viewEmissao').innerText = `Emissão: ${formatDate(l.data_emissao)}`;
-        document.getElementById('viewDoc').innerText = `NF: ${l.num_nf || '-'} | Série: ${l.serie_nf || '-'}`;
+        document.getElementById('viewVenc').innerText = formatDate(l.data_vencimento || l.previsao_pagamento);
         
+        // Status Badge
         const statusEl = document.getElementById('viewStatus');
-        
-        // Lógica de Vencimento Dinâmico (Sincronizado com a listagem)
         const hoje = new Date();
         hoje.setHours(0, 0, 0, 0);
         const dataVenc = new Date((l.data_vencimento || l.previsao_pagamento || l.data_emissao) + 'T00:00:00');
@@ -2412,13 +2491,47 @@ async function viewEntry(id) {
             statusEl.innerText = 'ATRASADO';
             statusEl.className = `status-badge status-atrasado`;
         } else {
-            statusEl.innerText = l.status;
-            statusEl.className = `status-badge status-${l.status.toLowerCase()}`;
+            statusEl.innerText = l.status || 'ABERTO';
+            statusEl.className = `status-badge status-${(l.status || 'aberto').toLowerCase()}`;
         }
 
+        // Cliente / Entidade & CNPJ
+        document.getElementById('viewEntidade').innerText = l.entidade_nome || '-';
+        
+        let docCliente = l.cnpj_cpf || '';
+        if (!docCliente && state.clientes) {
+            const foundClient = state.clientes.find(c => (c.nome || '').trim().toLowerCase() === (l.entidade_nome || '').trim().toLowerCase());
+            if (foundClient && foundClient.cnpj_cpf) docCliente = foundClient.cnpj_cpf;
+        }
+        if (!docCliente && state.fornecedores) {
+            const foundForn = state.fornecedores.find(f => (f.nome || '').trim().toLowerCase() === (l.entidade_nome || '').trim().toLowerCase());
+            if (foundForn && (foundForn.cnpj || foundForn.doc || foundForn.cnpj_cpf)) docCliente = foundForn.cnpj || foundForn.doc || foundForn.cnpj_cpf;
+        }
+        document.getElementById('viewCNPJ').innerText = docCliente ? `CNPJ/CPF: ${maskCnpjCpf(docCliente)}` : 'CNPJ/CPF: Não informado';
+
+        // Categoria
         const cat = state.categorias.find(c => c.id === l.categoria_id);
         document.getElementById('viewCategoria').innerText = `Categoria: ${cat ? `${cat.codigo} - ${cat.nome}` : '-'}`;
 
+        // Documentos & Tipos
+        document.getElementById('viewDoc').innerText = `NF: ${l.num_nf || '-'}${l.serie_nf ? ' (Série ' + l.serie_nf + ')' : ''}`;
+        document.getElementById('viewTipoNotaVal').innerText = l.tipo_nota || '-';
+        document.getElementById('viewFormaPagamentoVal').innerText = l.forma_pagamento || '-';
+
+        // Datas e Prazos
+        document.getElementById('viewEmissaoVal').innerText = formatDate(l.data_emissao);
+        document.getElementById('viewCompetenciaVal').innerText = l.data_competencia ? l.data_competencia.substring(0, 7) : '-';
+        document.getElementById('viewPrazoVal').innerText = l.prazo_pagamento ? `${l.prazo_pagamento} dias` : '-';
+        
+        const dataPgtoWrapper = document.getElementById('viewDataPagamentoWrapper');
+        if (l.data_pagamento || l.status === 'PAGO') {
+            dataPgtoWrapper.style.display = 'block';
+            document.getElementById('viewDataPagamentoVal').innerText = formatDate(l.data_pagamento) || 'Baixado';
+        } else {
+            dataPgtoWrapper.style.display = 'none';
+        }
+
+        // Observações
         const obsEl = document.getElementById('viewObs');
         const obsWrapper = document.getElementById('viewObsWrapper');
         if (l.observacoes) {
@@ -2428,7 +2541,7 @@ async function viewEntry(id) {
             obsWrapper.style.display = 'none';
         }
 
-        // Detalhamento de Tributos e Líquido
+        // Detalhamento de Tributos
         const taxWrapper = document.getElementById('viewTaxWrapper');
         if (l.tipo === 'RECEBER' || (l.valor_inss || l.valor_iss || l.valor_ir)) {
             taxWrapper.style.display = 'block';
@@ -2443,54 +2556,38 @@ async function viewEntry(id) {
             taxWrapper.style.display = 'none';
         }
 
-        // Abrir modal imediatamente para feedback visual
+        // Abrir modal
         modal.classList.add('active');
         if (window.lucide) lucide.createIcons();
 
         // 2. Carregar Itens e Parcelas (Assíncrono)
         try {
-            // Chamadas explícitas e limpas ao Supabase
-            const { data: itens, error: errItens } = await supabaseClient
-                .from('fin_lancamento_itens')
-                .select('*')
-                .eq('lancamento_id', id);
+            const { data: itens } = await supabaseClient.from('fin_lancamento_itens').select('*').eq('lancamento_id', id);
+            const { data: parcelas } = await supabaseClient.from('fin_lancamento_parcelas').select('*').eq('lancamento_id', id).order('numero_parcela');
 
-            const { data: parcelas, error: errParc } = await supabaseClient
-                .from('fin_lancamento_parcelas')
-                .select('*')
-                .eq('lancamento_id', id)
-                .order('numero_parcela');
-
-            if (errItens) console.error("Erro Itens:", errItens);
-            if (errParc) console.error("Erro Parcelas:", errParc);
-
-            console.log("Dados retornados do banco - Itens:", itens);
-            
             const itemsList = document.getElementById('viewItemsList');
-            // Se houver itens detalhados, renderiza a lista
             if (itens && itens.length > 0) {
                 itemsList.innerHTML = itens.map(i => `
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                    <tr>
                         <td style="padding: 0.8rem;">
-                            <div style="font-weight:600;">${i.descricao || 'Item sem descrição'}</div>
-                            <div style="font-size:0.75rem; color:#94a3b8;">${i.tipo}</div>
+                            <div style="font-weight:700;">${i.descricao || 'Item sem descrição'}</div>
+                            <div style="font-size:0.75rem; opacity:0.7;">${i.tipo || 'SERVICO'}</div>
                         </td>
                         <td style="padding: 0.8rem; text-align:center;">${i.quantidade}</td>
                         <td style="padding: 0.8rem; text-align:right;">${formatCurrency(i.valor_unitario)}</td>
-                        <td style="padding: 0.8rem; text-align:right; font-weight:700;">${formatCurrency(i.quantidade * i.valor_unitario)}</td>
+                        <td style="padding: 0.8rem; text-align:right; font-weight:800;">${formatCurrency(i.quantidade * i.valor_unitario)}</td>
                     </tr>
                 `).join('');
             } else {
-                // Fallback: Se não houver itens detalhados, mostra a descrição principal do lançamento
                 itemsList.innerHTML = `
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                    <tr>
                         <td style="padding: 0.8rem;">
-                            <div style="font-weight:600;">${l.descricao || 'Lançamento Geral'}</div>
-                            <div style="font-size:0.75rem; color:#94a3b8;">SINTÉTICO</div>
+                            <div style="font-weight:700;">${l.descricao || 'Lançamento Geral'}</div>
+                            <div style="font-size:0.75rem; opacity:0.7;">SINTÉTICO</div>
                         </td>
                         <td style="padding: 0.8rem; text-align:center;">1</td>
                         <td style="padding: 0.8rem; text-align:right;">${formatCurrency(l.valor_total)}</td>
-                        <td style="padding: 0.8rem; text-align:right; font-weight:700;">${formatCurrency(l.valor_total)}</td>
+                        <td style="padding: 0.8rem; text-align:right; font-weight:800;">${formatCurrency(l.valor_total)}</td>
                     </tr>
                 `;
             }
@@ -2500,13 +2597,13 @@ async function viewEntry(id) {
             if (parcelas && parcelas.length > 0) {
                 parcWrapper.style.display = 'block';
                 parcList.innerHTML = parcelas.map(p => `
-                    <div style="background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem;">
-                            <span style="font-weight:800; color:#818cf8; font-size:0.75rem;">PARCELA #${p.numero_parcela}</span>
-                            <span class="status-badge status-${p.status.toLowerCase()}" style="font-size:0.6rem; padding:2px 8px;">${p.status}</span>
+                    <div class="info-card" style="padding:0.8rem; border-left: 3px solid ${p.status === 'PAGO' ? '#10b981' : '#f59e0b'};">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                            <span style="font-weight:800; font-size:0.8rem;">Parc #${p.numero_parcela}</span>
+                            <span class="status-badge status-${(p.status || 'pendente').toLowerCase()}" style="font-size:0.65rem; padding:2px 6px;">${p.status}</span>
                         </div>
-                        <div style="font-weight:700; font-size:1.1rem; margin-bottom:0.2rem;">${formatCurrency(p.valor)}</div>
-                        <div style="font-size:0.75rem; color:#94a3b8;">Venc: ${formatDate(p.data_vencimento)}</div>
+                        <div style="font-weight:800; font-size:0.95rem;">${formatCurrency(p.valor)}</div>
+                        <div style="font-size:0.75rem; opacity:0.7; margin-top:2px;">Venc: ${formatDate(p.data_vencimento)}</div>
                     </div>
                 `).join('');
             } else {
@@ -2639,6 +2736,22 @@ function renderConfig() {
                     <div class="table-actions">
                         <button class="btn-edit" style="padding:4px;" onclick="openFormaModal('${f.id}')"><i data-lucide="edit-2" style="width:14px;"></i></button>
                         <button class="btn-delete" style="padding:4px; color:#ff4757;" onclick="deleteFormaItem('${f.id}')"><i data-lucide="trash" style="width:14px;"></i></button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    // 6. Espécie de Nota
+    const especiesNotaList = document.getElementById('especiesNotaList');
+    if (especiesNotaList) {
+        especiesNotaList.innerHTML = state.especiesNota.map(e => `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.02);">
+                <td style="padding: 0.8rem; font-weight:700;">${e.nome}</td>
+                <td style="padding: 0.8rem; text-align: right;">
+                    <div class="table-actions">
+                        <button class="btn-edit" style="padding:4px;" onclick="openEspecieNotaModal('${e.id}')"><i data-lucide="edit-2" style="width:14px;"></i></button>
+                        <button class="btn-delete" style="padding:4px; color:#ff4757;" onclick="deleteEspecieNotaItem('${e.id}')"><i data-lucide="trash" style="width:14px;"></i></button>
                     </div>
                 </td>
             </tr>
@@ -3133,6 +3246,80 @@ async function deleteFormaItem(id) {
         updateDropdowns();
         showToast('Forma excluída!', 'success');
     } catch (e) { showToast('Erro: ' + e.message, 'error'); }
+}
+
+// === CRUD ESPÉCIE DE NOTA ===
+function openEspecieNotaModal(id = null) {
+    if (typeof canDo === 'function' && !canDo('financeiro_config', id ? 'edit' : 'add')) {
+        showToast('Você não tem permissão para esta ação.', 'error');
+        return;
+    }
+    const modal = document.getElementById('especieNotaModal');
+    const form = document.getElementById('especieNotaForm');
+    const title = document.getElementById('especieNotaModalTitle');
+
+    form.reset();
+    document.getElementById('especieNotaId').value = id || '';
+
+    if (id) {
+        const item = state.especiesNota.find(e => e.id === id);
+        if (item) {
+            title.innerText = 'Editar Espécie de Nota';
+            document.getElementById('especieNotaNome').value = item.nome;
+        }
+    } else {
+        title.innerText = 'Cadastrar Espécie de Nota';
+    }
+
+    modal.classList.add('active');
+}
+
+async function handleEspecieNotaSubmit(e) {
+    e.preventDefault();
+    const id = document.getElementById('especieNotaId').value;
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData.entries());
+    delete data.id;
+
+    try {
+        if (id) {
+            const { error } = await supabaseClient.from('especies_nota').update(data).eq('id', id);
+            if (error) throw error;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Editou espécie de nota: ${data.nome}`);
+        } else {
+            const { error } = await supabaseClient.from('especies_nota').insert([data]);
+            if (error) throw error;
+            if (typeof registrarLog === 'function') registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Cadastrou espécie de nota: ${data.nome}`);
+        }
+
+        showToast('Espécie de Nota salva!', 'success');
+        closeModal('especieNotaModal');
+        await loadInitialData();
+        renderConfig();
+        updateDropdowns();
+    } catch (err) {
+        showToast('Erro: ' + err.message, 'error');
+    }
+}
+
+async function deleteEspecieNotaItem(id) {
+    const item = state.especiesNota.find(e => e.id === id);
+    if (!item) return;
+
+    if (!confirm(`Deseja realmente excluir a espécie de nota "${item.nome}"?`)) return;
+
+    try {
+        const { error } = await supabaseClient.from('especies_nota').delete().eq('id', id);
+        if (error) throw error;
+
+        if (typeof registrarLog === 'function') registrarLog('financeiro', 'EXCLUSÃO', `DETALHE: Excluiu espécie de nota: ${item.nome}`);
+        showToast('Espécie de Nota excluída!', 'success');
+        await loadInitialData();
+        renderConfig();
+        updateDropdowns();
+    } catch (err) {
+        showToast('Erro: ' + err.message, 'error');
+    }
 }
 
 // ==========================================

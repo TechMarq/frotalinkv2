@@ -310,6 +310,7 @@
                         <button class="subtab-item" onclick="switchSubTab('plano')">Plano de Contas</button>
                         <button class="subtab-item" onclick="switchSubTab('cc')">Centros de Custo</button>
                         <button class="subtab-item" onclick="switchSubTab('pagamento')">Formas de Pagamento</button>
+                        <button class="subtab-item" onclick="switchSubTab('especie')">Espécie de Nota</button>
                     </div>
 
                     <div id="subtab-fornecedores" class="subtab-content active">
@@ -390,6 +391,23 @@
                                 </tr>
                             </thead>
                             <tbody id="formasPagamentoList"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="subtab-especie" class="subtab-content">
+                        <div class="subtab-header">
+                            <h3>Espécie de Nota</h3>
+                            <button class="btn-primary btn-sm" onclick="openEspecieNotaModal()"><i data-lucide="plus"></i>
+                                Cadastrar Espécie de Nota</button>
+                        </div>
+                        <table class="glass-table" style="width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>Nome / Descrição</th>
+                                    <th style="width: 100px; text-align: right;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="especiesNotaList"></tbody>
                         </table>
                     </div>
                 </div>
@@ -998,7 +1016,7 @@
                 <input type="hidden" id="receberId">
 
                 <!-- LINHA 1: BÁSICOS -->
-                <div class="form-row grid-4" style="grid-template-columns: 1fr 1.8fr 1.4fr 1fr; gap: 0.8rem;">
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1.6fr 1.3fr 1.2fr 1fr; gap: 0.8rem;">
                     <div class="input-group">
                         <label>DATA</label>
                         <input type="date" id="receberData" name="data_emissao" class="financeiro-input" required style="border-radius: 8px;">
@@ -1018,8 +1036,20 @@
                         <input type="text" id="receberCNPJ" class="financeiro-input" readonly placeholder="00.000.000/0000-00" style="background: rgba(0,0,0,0.12); opacity: 0.85; cursor: not-allowed; font-weight: 700; color: var(--primary); border-radius: 8px;">
                     </div>
                     <div class="input-group">
-                        <label>Nº NOTA FISCAL</label>
-                        <input type="text" id="receberNumNF" name="num_nf" class="financeiro-input" placeholder="000.000" style="border-radius: 8px;">
+                        <label>TIPO DE NOTA <span style="color:#ef4444">*</span></label>
+                        <select id="receberTipoNota" name="tipo_nota" class="financeiro-input" required style="border-radius: 8px;">
+                            <option value="" disabled selected>Selecione...</option>
+                            <option value="NFSE">NFS-e (Serviço)</option>
+                            <option value="NFE">NF-e (Produto)</option>
+                            <option value="CTE">CT-e (Transporte)</option>
+                            <option value="RECIBO">Recibo</option>
+                            <option value="FATURA">Fatura</option>
+                            <option value="OUTROS">Outros</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Nº NOTA FISCAL <span style="color:#ef4444">*</span></label>
+                        <input type="text" id="receberNumNF" name="num_nf" class="financeiro-input" placeholder="000.000" required style="border-radius: 8px;">
                     </div>
                 </div>
 
@@ -1029,18 +1059,11 @@
                     <textarea id="receberDescricao" name="descricao" class="financeiro-input" required placeholder="Ex: Prestação de serviço de transporte executivo..." rows="3" style="resize: vertical; height: auto; padding: 0.8rem; border-radius: 8px;"></textarea>
                 </div>
 
-                <!-- LINHA 3: FISCAL E VALOR -->
-                <div class="form-row grid-3" style="grid-template-columns: 1fr 1fr 1.5fr; gap: 0.8rem;">
+                <!-- LINHA 3: FISCAL E VALOR BRUTO -->
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
                     <div class="input-group">
                         <label>COMPETÊNCIA</label>
                         <input type="month" id="receberCompetencia" name="data_competencia" class="financeiro-input" required style="border-radius: 8px;">
-                    </div>
-                    <div class="input-group">
-                        <label>TIPO</label>
-                        <select id="receberTipoServico" name="tipo_servico_produto" class="financeiro-input" style="border-radius: 8px;">
-                            <option value="SERVICO">Serviço</option>
-                            <option value="PRODUTO">Produto</option>
-                        </select>
                     </div>
                     <div class="input-group">
                         <label>VALOR BRUTO</label>
@@ -1067,8 +1090,8 @@
                     </div>
                 </div>
 
-                <!-- LINHA 5: TOTAIS E PRAZOS -->
-                <div class="form-row grid-4" style="grid-template-columns: 1fr 1fr 0.8fr 1fr; gap: 0.8rem;">
+                <!-- LINHA 5: TOTAIS, PRAZOS E PAGAMENTO -->
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 0.8fr 1fr 1.2fr; gap: 0.8rem;">
                     <div class="input-group">
                         <label>TOTAL TRIBUTO</label>
                         <input type="text" id="receberTotalTributo" class="financeiro-input" readonly style="background: rgba(255,255,255,0.03); color:#94a3b8; border-radius: 8px;">
@@ -1087,6 +1110,20 @@
                     <div class="input-group">
                         <label>PREVISÃO PAGAMENTO</label>
                         <input type="date" id="receberPrevisao" name="previsao_pagamento" class="financeiro-input" style="border-radius: 8px;">
+                    </div>
+                    <div class="input-group">
+                        <label>TIPO DE PAGAMENTO <span style="color:#ef4444">*</span></label>
+                        <select id="receberFormaPagamento" name="forma_pagamento" class="financeiro-input" required style="border-radius: 8px;">
+                            <option value="" disabled selected>Selecione...</option>
+                            <option value="PIX">PIX</option>
+                            <option value="BOLETO">Boleto Bancário</option>
+                            <option value="TRANSFERENCIA">Transferência / TED</option>
+                            <option value="CREDITO">Cartão de Crédito</option>
+                            <option value="DEBITO">Cartão de Débito</option>
+                            <option value="DINHEIRO">Dinheiro</option>
+                            <option value="CHEQUE">Cheque</option>
+                            <option value="OUTROS">Outros</option>
+                        </select>
                     </div>
                 </div>
 
@@ -1317,6 +1354,29 @@
             </form>
         </div>
     </div>
+    <!-- MODAL: ESPÉCIE DE NOTA -->
+    <div id="especieNotaModal" class="modal-overlay">
+        <div class="modal" style="max-width: 450px;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="especieNotaModalTitle">Cadastrar Espécie de Nota</h2>
+                <button type="button" class="btn-close-modal-fornecedor"
+                    onclick="closeModal('especieNotaModal')">&times;</button>
+            </div>
+            <form id="especieNotaForm">
+                <input type="hidden" id="especieNotaId" name="id">
+                <div class="form-row">
+                    <div class="input-group">
+                        <label>Nome / Descrição (Ex: NFS - NOTA FISCAL SERVICO)</label>
+                        <input type="text" id="especieNotaNome" name="nome" class="compra-input" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="closeModal('especieNotaModal')">Cancelar</button>
+                    <button type="submit" class="btn-save">SALVAR ESPÉCIE</button>
+                </div>
+            </form>
+        </div>
+    </div>
     <!-- MODAL: CONFIRMAÇÃO POR PIN (6 DÍGITOS) -->
     <div id="pinModal" class="modal-overlay">
         <div class="modal-v2" style="max-width: 450px; text-align: center; padding: 2rem;">
@@ -1352,86 +1412,99 @@
 
     <!-- MODAL: VISUALIZAÇÃO DE DETALHES -->
     <div id="viewModal" class="modal-overlay">
-        <div class="modal-v2" style="max-width: 800px; padding: 0;">
-            <div class="modal-header" style="padding: 1.5rem 2rem; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+        <div class="modal-v2" style="max-width: 850px; padding: 0;">
+            <div class="modal-header" style="padding: 1.5rem 2rem; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <h2 id="viewModalTitle" style="font-size: 1.4rem; font-weight: 800; color: white; margin: 0;">Detalhes do Lançamento</h2>
-                    <p id="viewModalSubtitle" style="color: #94a3b8; font-size: 0.8rem; margin: 0;">Resumo completo da operação financeira</p>
+                    <h2 id="viewModalTitle" style="font-size: 1.4rem; font-weight: 800; margin: 0;">Detalhes do Lançamento</h2>
+                    <p id="viewModalSubtitle" style="font-size: 0.8rem; margin: 0; opacity: 0.8;">Resumo completo da operação financeira</p>
                 </div>
-                <button onclick="closeModal('viewModal')" style="background: rgba(255,255,255,0.05); border: none; color: white; width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                <button onclick="closeModal('viewModal')" style="background: rgba(0,0,0,0.06); border: none; width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
                     <i data-lucide="x" style="width: 20px;"></i>
                 </button>
             </div>
 
             <div class="modal-body" style="padding: 2rem; max-height: 80vh; overflow-y: auto;">
-                <!-- Cabeçalho de Status -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; background: rgba(255,255,255,0.02); padding: 1.5rem; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05);">
-                    <div>
-                        <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.4rem;">Código / Ref</div>
-                        <div id="viewCod" style="font-weight: 800; color: #818cf8; font-family: 'JetBrains Mono'; font-size: 1.1rem;">-</div>
+                <!-- Cabeçalho de Status e Código -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="info-card">
+                        <div class="info-label">Código / Ref</div>
+                        <div id="viewCod" class="info-val" style="color: #6366f1; font-family: 'JetBrains Mono'; font-size: 1.1rem;">-</div>
                     </div>
-                    <div>
-                        <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.4rem;">Valor Total</div>
-                        <div id="viewValor" style="font-weight: 800; color: white; font-size: 1.2rem;">R$ 0,00</div>
+                    <div class="info-card">
+                        <div class="info-label">Valor Total (Bruto)</div>
+                        <div id="viewValor" class="info-val" style="color: #10b981; font-size: 1.2rem;">R$ 0,00</div>
                     </div>
-                    <div>
-                        <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.4rem;">Status Atual</div>
-                        <span id="viewStatus" class="status-badge" style="display: inline-block; padding: 4px 12px; font-size: 0.75rem;">-</span>
+                    <div class="info-card">
+                        <div class="info-label">Status Atual</div>
+                        <div style="margin-top: 2px;">
+                            <span id="viewStatus" class="status-badge" style="display: inline-block; padding: 4px 12px; font-size: 0.75rem;">-</span>
+                        </div>
                     </div>
-                    <div>
-                        <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.4rem;">Data Vencimento</div>
-                        <div id="viewVenc" style="font-weight: 700; color: white;">-</div>
+                    <div class="info-card">
+                        <div class="info-label">Vencimento / Previsão</div>
+                        <div id="viewVenc" class="info-val">-</div>
                     </div>
                 </div>
 
-                <!-- Info Grid -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
-                    <div>
-                        <h3 style="font-size: 0.9rem; color: #818cf8; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="user" style="width:16px;"></i> Favorecido / Entidade</h3>
-                        <div id="viewEntidade" style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.5rem;">-</div>
-                        <div id="viewCategoria" style="font-size: 0.85rem; color: #94a3b8;">Categoria: -</div>
+                <!-- Info Grid Principal -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="info-card">
+                        <h3 style="font-size: 0.85rem; color: #6366f1; margin: 0 0 0.8rem 0; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="user" style="width:16px;"></i> Cliente / Favorecido</h3>
+                        <div id="viewEntidade" style="font-weight: 800; font-size: 1rem; margin-bottom: 0.3rem;">-</div>
+                        <div id="viewCNPJ" style="font-size: 0.8rem; opacity: 0.8;">CNPJ/CPF: -</div>
+                        <div id="viewCategoria" style="font-size: 0.8rem; opacity: 0.8; margin-top: 0.3rem;">Categoria: -</div>
                     </div>
-                    <div>
-                        <h3 style="font-size: 0.9rem; color: #818cf8; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="info" style="width:16px;"></i> Documento</h3>
-                        <div id="viewDoc" style="font-size: 0.9rem; font-weight: 600;">NF: - | Série: -</div>
-                        <div id="viewEmissao" style="font-size: 0.85rem; color: #94a3b8; margin-top: 0.5rem;">Emissão: -</div>
+
+                    <div class="info-card">
+                        <h3 style="font-size: 0.85rem; color: #6366f1; margin: 0 0 0.8rem 0; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="file-text" style="width:16px;"></i> Nota Fiscal & Documento</h3>
+                        <div id="viewDoc" style="font-weight: 700; font-size: 0.95rem;">NF: -</div>
+                        <div id="viewTipoNotaDisplay" style="font-size: 0.8rem; margin-top: 0.3rem;"><strong style="opacity:0.7">Tipo de Nota:</strong> <span id="viewTipoNotaVal" style="font-weight:800; color:#0284c7;">-</span></div>
+                        <div id="viewFormaPagamentoDisplay" style="font-size: 0.8rem; margin-top: 0.3rem;"><strong style="opacity:0.7">Forma de Pagamento:</strong> <span id="viewFormaPagamentoVal" style="font-weight:800; color:#7c3aed;">-</span></div>
+                    </div>
+
+                    <div class="info-card">
+                        <h3 style="font-size: 0.85rem; color: #6366f1; margin: 0 0 0.8rem 0; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="calendar" style="width:16px;"></i> Datas & Prazos</h3>
+                        <div style="font-size: 0.8rem; margin-bottom: 0.3rem;"><strong style="opacity:0.7">Emissão:</strong> <span id="viewEmissaoVal">-</span></div>
+                        <div style="font-size: 0.8rem; margin-bottom: 0.3rem;"><strong style="opacity:0.7">Competência:</strong> <span id="viewCompetenciaVal">-</span></div>
+                        <div style="font-size: 0.8rem; margin-bottom: 0.3rem;"><strong style="opacity:0.7">Prazo:</strong> <span id="viewPrazoVal">-</span></div>
+                        <div id="viewDataPagamentoWrapper" style="font-size: 0.8rem; display:none;"><strong style="opacity:0.7">Data Pgto/Baixa:</strong> <span id="viewDataPagamentoVal" style="font-weight:800; color:#10b981;">-</span></div>
                     </div>
                 </div>
 
-                <!-- Seção de Tributos (Específica para Receber ou quando houver impostos) -->
-                <div id="viewTaxWrapper" style="display: none; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 1.5rem; margin-bottom: 2rem;">
-                    <h3 style="font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.5rem;">Detalhamento de Impostos e Líquido</h3>
-                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
+                <!-- Seção de Tributos -->
+                <div id="viewTaxWrapper" style="display: none; border-radius: 14px; padding: 1.2rem; margin-bottom: 1.5rem;">
+                    <h3 style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 1rem 0; font-weight: 800; opacity: 0.8;">Detalhamento de Impostos e Valor Líquido</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1rem; align-items: center;">
                         <div>
-                            <div style="font-size: 0.65rem; color: #64748b; text-transform: uppercase; font-weight: 700;">INSS</div>
-                            <div id="viewINSS" style="font-weight: 700; color: white;">R$ 0,00</div>
+                            <div class="tax-label">INSS</div>
+                            <div id="viewINSS" class="tax-val">R$ 0,00</div>
                         </div>
                         <div>
-                            <div style="font-size: 0.65rem; color: #64748b; text-transform: uppercase; font-weight: 700;">ISS</div>
-                            <div id="viewISS" style="font-weight: 700; color: white;">R$ 0,00</div>
+                            <div class="tax-label">ISS</div>
+                            <div id="viewISS" class="tax-val">R$ 0,00</div>
                         </div>
                         <div>
-                            <div style="font-size: 0.65rem; color: #64748b; text-transform: uppercase; font-weight: 700;">IR</div>
-                            <div id="viewIR" style="font-weight: 700; color: white;">R$ 0,00</div>
+                            <div class="tax-label">IR</div>
+                            <div id="viewIR" class="tax-val">R$ 0,00</div>
                         </div>
-                        <div style="background: rgba(16, 185, 129, 0.05); padding: 0.5rem; border-radius: 8px;">
-                            <div style="font-size: 0.65rem; color: #10b981; text-transform: uppercase; font-weight: 800;">Valor Líquido</div>
-                            <div id="viewLiquido" style="font-weight: 800; color: #10b981; font-size: 1.1rem;">R$ 0,00</div>
+                        <div style="background: rgba(16, 185, 129, 0.1); padding: 0.6rem 1rem; border-radius: 10px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                            <div style="font-size: 0.68rem; color: #10b981; text-transform: uppercase; font-weight: 800;">Valor Líquido</div>
+                            <div id="viewLiquido" style="font-weight: 900; color: #10b981; font-size: 1.15rem;">R$ 0,00</div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Detalhamento de Itens -->
-                <div style="margin-bottom: 2rem;">
-                    <h3 style="font-size: 0.9rem; color: #818cf8; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="list" style="width:16px;"></i> Itens do Lançamento</h3>
-                    <div style="background: rgba(255,255,255,0.01); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden;">
+                <div style="margin-bottom: 1.5rem;">
+                    <h3 style="font-size: 0.85rem; color: #6366f1; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="list" style="width:16px;"></i> Itens do Lançamento</h3>
+                    <div style="border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); overflow: hidden;">
                         <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
-                            <thead style="background: rgba(255,255,255,0.03);">
+                            <thead>
                                 <tr>
-                                    <th style="padding: 0.8rem; text-align: left; color: #94a3b8; font-weight: 600;">Descrição</th>
-                                    <th style="padding: 0.8rem; text-align: center; color: #94a3b8; font-weight: 600;">Qtd</th>
-                                    <th style="padding: 0.8rem; text-align: right; color: #94a3b8; font-weight: 600;">Unitário</th>
-                                    <th style="padding: 0.8rem; text-align: right; color: #94a3b8; font-weight: 600;">Total</th>
+                                    <th style="padding: 0.8rem; text-align: left; font-weight: 700;">Descrição</th>
+                                    <th style="padding: 0.8rem; text-align: center; font-weight: 700;">Qtd</th>
+                                    <th style="padding: 0.8rem; text-align: right; font-weight: 700;">Unitário</th>
+                                    <th style="padding: 0.8rem; text-align: right; font-weight: 700;">Total</th>
                                 </tr>
                             </thead>
                             <tbody id="viewItemsList">
@@ -1442,22 +1515,22 @@
                 </div>
 
                 <!-- Parcelas -->
-                <div id="viewParcelasWrapper" style="display: none; margin-bottom: 2rem;">
-                    <h3 style="font-size: 0.9rem; color: #818cf8; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="calendar" style="width:16px;"></i> Cronograma de Parcelas</h3>
-                    <div id="viewParcelasList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;">
+                <div id="viewParcelasWrapper" style="display: none; margin-bottom: 1.5rem;">
+                    <h3 style="font-size: 0.85rem; color: #6366f1; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="calendar" style="width:16px;"></i> Cronograma de Parcelas</h3>
+                    <div id="viewParcelasList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.8rem;">
                         <!-- JS -->
                     </div>
                 </div>
 
                 <!-- Observações -->
                 <div id="viewObsWrapper" style="display: none;">
-                    <h3 style="font-size: 0.9rem; color: #818cf8; margin-bottom: 0.5rem;">Observações Internas</h3>
-                    <div id="viewObs" style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 12px; font-size: 0.85rem; border-left: 3px solid #818cf8; color: #cbd5e1; font-style: italic;"></div>
+                    <h3 style="font-size: 0.85rem; color: #6366f1; margin-bottom: 0.5rem;">Observações Internas</h3>
+                    <div id="viewObs" style="padding: 1rem; border-radius: 10px; font-size: 0.85rem; border-left: 3px solid #6366f1; font-style: italic;"></div>
                 </div>
             </div>
 
-            <div class="modal-footer" style="padding: 1.5rem 2rem; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: flex-end; gap: 1rem; background: rgba(255,255,255,0.01);">
-                <button onclick="closeModal('viewModal')" class="btn-cancel" style="padding: 0.7rem 1.5rem; font-size: 0.85rem;">Fechar Detalhes</button>
+            <div class="modal-footer" style="padding: 1rem 2rem; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: flex-end; gap: 1rem;">
+                <button onclick="closeModal('viewModal')" class="btn-cancel" style="padding: 0.6rem 1.6rem; font-size: 0.85rem; cursor: pointer; border-radius: 10px; font-weight: 800;">Fechar Detalhes</button>
             </div>
         </div>
     </div>

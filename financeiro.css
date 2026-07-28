@@ -1843,3 +1843,122 @@ th.active-sort i {
 [data-theme="green_pastel"] .export-dropdown .dropdown-item:hover {
     background: rgba(45, 158, 107, 0.08) !important;
 }
+
+/* Otimização de Tabela de Lançamentos para caber colunas sem cortar */
+.glass-table-container table th,
+.glass-table-container table td {
+    padding: 0.55rem 0.45rem !important;
+    font-size: 0.78rem !important;
+}
+
+.glass-table-container table th {
+    font-size: 0.72rem !important;
+    white-space: nowrap !important;
+}
+
+.glass-table-container table td.actions-cell {
+    padding: 0.4rem !important;
+    width: 80px !important;
+}
+
+/* Estilização Responsiva e Temática para Modal de Visualização (viewModal) */
+#viewModal .modal-v2 {
+    background: var(--bg-card, #1e293b);
+    color: var(--text-main, #f8fafc);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+}
+
+#viewModal .info-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 1rem;
+}
+
+#viewModal .info-label {
+    font-size: 0.7rem;
+    color: var(--text-muted, #94a3b8);
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.3rem;
+}
+
+#viewModal .info-val {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text-main, #f8fafc);
+}
+
+[data-theme="green_pastel"] #viewModal .modal-v2 {
+    background: #ffffff !important;
+    color: #1a2e25 !important;
+    border: 1px solid rgba(45, 158, 107, 0.25) !important;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.18) !important;
+}
+
+[data-theme="green_pastel"] #viewModal .modal-header {
+    background: #f4fbf7 !important;
+    border-bottom: 1px solid rgba(45, 158, 107, 0.15) !important;
+}
+
+[data-theme="green_pastel"] #viewModalTitle {
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] #viewModalSubtitle {
+    color: #475569 !important;
+}
+
+[data-theme="green_pastel"] #viewModal .info-card {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="green_pastel"] #viewModal .info-label {
+    color: #64748b !important;
+}
+
+[data-theme="green_pastel"] #viewModal .info-val {
+    color: #0f172a !important;
+}
+
+[data-theme="green_pastel"] #viewModal #viewTaxWrapper {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+}
+
+[data-theme="green_pastel"] #viewModal #viewTaxWrapper .tax-label {
+    color: #475569 !important;
+    font-weight: 700;
+}
+
+[data-theme="green_pastel"] #viewModal #viewTaxWrapper .tax-val {
+    color: #0f172a !important;
+    font-weight: 800;
+}
+
+[data-theme="green_pastel"] #viewModal table {
+    background: #ffffff !important;
+}
+
+[data-theme="green_pastel"] #viewModal table thead th {
+    background: #f1f5f9 !important;
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] #viewModal table tbody td {
+    color: #1e293b !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+}
+
+[data-theme="green_pastel"] #viewModal .modal-footer {
+    background: #f8fafc !important;
+    border-top: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="green_pastel"] #viewModal .btn-cancel {
+    background: #e2e8f0 !important;
+    color: #0f172a !important;
+    font-weight: 800 !important;
+}
