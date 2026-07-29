@@ -13,16 +13,16 @@
         rel="stylesheet">
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="auth.js"></script>
+    <script src="auth.js?v=20260729_05"></script>
     <script defer src="https://unpkg.com/lucide@latest"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
 
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="orb_menu.css">
-    <link rel="stylesheet" href="financeiro.css">
+    <link rel="stylesheet" href="style.css?v=20260729_05">
+    <link rel="stylesheet" href="orb_menu.css?v=20260729_05">
+    <link rel="stylesheet" href="financeiro.css?v=20260729_05">
     <script src="config.js"></script>
 </head>
 
@@ -285,20 +285,103 @@
 
             <!-- 4. FLUXO DE CAIXA -->
             <section id="tab-fluxo" class="tab-content">
-                <div class="fluxo-header">
-                    <div class="period-selector">
-                        <button onclick="changeFluxoPeriod(-1)"><i data-lucide="chevron-left"></i></button>
-                        <span id="fluxo-current-period">Maio 2026</span>
-                        <button onclick="changeFluxoPeriod(1)"><i data-lucide="chevron-right"></i></button>
+                <!-- Sub-abas do Fluxo de Caixa -->
+                <div class="cadastro-subtabs" style="margin-bottom: 1.25rem;">
+                    <button class="subtab-item active" id="btn-subtab-fluxo-contas" onclick="switchFluxoSubTab('contas', event)">
+                        <i data-lucide="table-properties"></i> Movimento das Contas (Plano de Contas)
+                    </button>
+                    <button class="subtab-item" id="btn-subtab-fluxo-bancos" onclick="switchFluxoSubTab('bancos', event)">
+                        <i data-lucide="arrow-left-right"></i> Movimentações Entre Bancos
+                    </button>
+                </div>
+
+                <!-- SUB-ABA 1: Movimento das Contas (Plano de Contas / DRE) -->
+                <div id="subtab-fluxo-contas" class="fluxo-subtab-content active">
+                    <div class="fluxo-header" style="flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+                        <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                            <!-- Navegação por Mês -->
+                            <div class="period-selector">
+                                <button onclick="changeFluxoPeriod(-1)"><i data-lucide="chevron-left"></i></button>
+                                <span id="fluxo-current-period">JUNHO 2026</span>
+                                <button onclick="changeFluxoPeriod(1)"><i data-lucide="chevron-right"></i></button>
+                            </div>
+
+                            <!-- Filtro de Conta Bancária -->
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <label style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Banco:</label>
+                                <select id="fluxo-banco-filter" class="fluxo-filter-select" onchange="renderFluxo()" style="min-width: 180px;">
+                                    <option value="">(TODOS OS BANCOS)</option>
+                                </select>
+                            </div>
+
+                            <!-- Busca rápida -->
+                            <div style="position: relative; min-width: 200px;">
+                                <input type="text" id="fluxo-search-input" class="fluxo-filter-input" oninput="filterFluxoPlanoTree()" placeholder="Buscar código ou conta..." style="padding-left: 2rem; width: 100%;">
+                                <i data-lucide="search" style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 14px; color: var(--text-muted);"></i>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button class="btn-secondary btn-sm" onclick="refreshFluxoView()"><i data-lucide="refresh-cw"></i> Atualizar View</button>
+                            <button class="btn-primary btn-sm" onclick="exportFluxoPlanoExcel()"><i data-lucide="download"></i> Excel</button>
+                        </div>
                     </div>
-                    <div class="fluxo-summary">
-                        <div class="item">S. Anterior: <span id="fluxo-saldo-ant">R$ 0,00</span></div>
-                        <div class="item">Entradas: <span class="text-success" id="fluxo-entradas">R$ 0,00</span></div>
-                        <div class="item">Saídas: <span class="text-danger" id="fluxo-saidas">R$ 0,00</span></div>
-                        <div class="item">S. Final: <span class="text-primary" id="fluxo-saldo-fin">R$ 0,00</span></div>
+
+                    <!-- Resumo KPIs (Ativo, Passivo, Receita, Despesa, Resultado) -->
+                    <div class="fluxo-summary" style="margin-bottom: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.75rem;">
+                        <div class="item" style="display: flex; flex-direction: column;">
+                            <span style="font-size:0.72rem; color: var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">01 - ATIVO</span>
+                            <span id="fluxo-kpi-ativo" style="font-size:1.1rem; font-weight:800; color:#38bdf8;">R$ 0,00</span>
+                        </div>
+                        <div class="item" style="display: flex; flex-direction: column;">
+                            <span style="font-size:0.72rem; color: var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">02 - PASSIVO</span>
+                            <span id="fluxo-kpi-passivo" style="font-size:1.1rem; font-weight:800; color:#f59e0b;">R$ 0,00</span>
+                        </div>
+                        <div class="item" style="display: flex; flex-direction: column;">
+                            <span style="font-size:0.72rem; color: var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">03 - RECEITA</span>
+                            <span id="fluxo-kpi-receita" style="font-size:1.1rem; font-weight:800; color:#34d399;">R$ 0,00</span>
+                        </div>
+                        <div class="item" style="display: flex; flex-direction: column;">
+                            <span style="font-size:0.72rem; color: var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">04 - DESPESA</span>
+                            <span id="fluxo-kpi-despesa" style="font-size:1.1rem; font-weight:800; color:#f87171;">R$ 0,00</span>
+                        </div>
+                        <div class="item" style="display: flex; flex-direction: column;">
+                            <span style="font-size:0.72rem; color: var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">RESULTADO LÍQUIDO</span>
+                            <span id="fluxo-kpi-resultado" style="font-size:1.1rem; font-weight:800; color:#a78bfa;">R$ 0,00</span>
+                        </div>
+                    </div>
+
+                    <!-- Tabela Hierárquica do Plano de Contas com 3 Colunas Mensais -->
+                    <div class="table-container" style="max-height: 680px; overflow-y: auto;">
+                        <table class="fluxo-dre-table">
+                            <thead>
+                                <tr>
+                                    <th style="min-width: 320px;">PLANO DE CONTAS / CONTA</th>
+                                    <th style="text-align: right; min-width: 180px;" id="th-mes-anterior">MAIO</th>
+                                    <th style="text-align: right; min-width: 180px;" class="dre-th-mes-atual" id="th-mes-atual">JUNHO</th>
+                                    <th style="text-align: right; min-width: 180px;" id="th-mes-posterior">JULHO</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fluxoPlanoTbody">
+                                <tr><td colspan="4" class="table-empty">Carregando movimento das contas...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-                <div id="fluxoGrid" class="fluxo-grid-view"></div>
+
+                <!-- SUB-ABA 2: Movimentações Entre Bancos (Placeholder) -->
+                <div id="subtab-fluxo-bancos" class="fluxo-subtab-content" style="display: none;">
+                    <div class="table-container" style="padding: 3.5rem 2rem; text-align: center;">
+                        <div style="width: 64px; height: 64px; border-radius: 20px; background: rgba(14,165,233,0.12); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1rem; border: 1px solid rgba(14,165,233,0.25);">
+                            <i data-lucide="arrow-left-right" style="width: 32px; height: 32px; color: var(--primary);"></i>
+                        </div>
+                        <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-main);">Movimentações Entre Bancos</h3>
+                        <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 1.5rem; font-size: 0.9rem; line-height: 1.5;">
+                            Módulo de transferências e conciliação bancária entre contas em preparação. Em breve você poderá registrar e acompanhar as movimentações interbancárias.
+                        </p>
+                        <span class="badge primary" style="padding: 0.4rem 1rem; font-size: 0.8rem;">Sub-aba em Desenvolvimento</span>
+                    </div>
+                </div>
             </section>
 
             <!-- 7. CADASTRO (Contas, Fornecedores, Plano Contas, Centros Custo) -->
@@ -747,18 +830,34 @@
 
     <!-- Modal: Pagamento (Baixa) -->
     <div id="paymentModal" class="modal-overlay">
-        <div class="modal-v2" style="max-width: 480px;">
+        <div class="modal-v2" style="max-width: 520px;">
             <div class="modal-header"
-                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
+                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
                 <h2
                     style="background: linear-gradient(to right, #10b981, #34d399); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; font-size:1.4rem; font-weight:800; margin:0;">
-                    Registrar Pagamento</h2>
+                    Registrar Pagamento / Baixa</h2>
                 <button onclick="closeModal('paymentModal')"
                     style="background:none; border:none; color:#64748b; cursor:pointer; padding:0.4rem;"><i
                         data-lucide="x" style="width:22px;height:22px;"></i></button>
             </div>
             <form id="paymentForm" style="display:flex; flex-direction:column; gap:1.2rem;">
                 <input type="hidden" id="payLancamentoId">
+
+                <!-- Card Informativo de Resumo do Valor Líquido -->
+                <div id="paySummaryCard" style="background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 14px; padding: 1rem;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; opacity: 0.8; margin-bottom: 0.3rem;">
+                        <span>Valor Bruto (Original):</span>
+                        <strong id="payValBrutoText">R$ 0,00</strong>
+                    </div>
+                    <div id="payRetencoesWrapper" style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #ef4444; margin-bottom: 0.3rem;">
+                        <span>(-) Retenções Impostos:</span>
+                        <strong id="payRetencoesText">- R$ 0,00</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.95rem; font-weight: 800; color: #10b981; border-top: 1px solid rgba(16, 185, 129, 0.2); padding-top: 0.5rem; margin-top: 0.3rem;">
+                        <span id="payValEsperadoLabel">Valor Líquido a Receber:</span>
+                        <strong id="payValEsperadoText">R$ 0,00</strong>
+                    </div>
+                </div>
 
                 <div class="input-group" id="payParcelaGroup" style="display:none;">
                     <label>Selecione a Parcela para Baixa</label>
@@ -770,8 +869,19 @@
                     <div class="input-money">
                         <span>R$</span>
                         <input type="number" step="0.01" id="payValor" class="financeiro-input"
-                            style="border:none; background:transparent;" required>
+                            style="border:none; background:transparent;" oninput="checkPaymentDivergence()" required>
                     </div>
+                </div>
+
+                <!-- Campo de Motivo/Justificativa de Divergência (Obrigatório se o valor for diferente) -->
+                <div class="input-group" id="payMotivoGroup" style="display: none; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 0.8rem;">
+                    <label style="color: #f59e0b; font-weight: 800; font-size: 0.78rem; display: flex; align-items: center; gap: 0.4rem;">
+                        <i data-lucide="alert-triangle" style="width:16px;"></i> Motivo da Divergência (Obrigatório) *
+                    </label>
+                    <p style="font-size: 0.75rem; opacity: 0.8; margin: 0 0 0.4rem 0;">
+                        O valor digitado difere do valor líquido esperado. Por favor, informe a justificativa abaixo para liberar a baixa:
+                    </p>
+                    <textarea id="payMotivo" class="financeiro-input" rows="2" placeholder="Descreva o motivo (ex: tarifa bancária, abatimento, acréscimo)..." style="resize: vertical; font-size: 0.85rem;"></textarea>
                 </div>
 
                 <div class="input-group">
@@ -802,6 +912,74 @@
                         Baixa</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- MODAL: ESTORNO / REVERSÃO DE BAIXA -->
+    <div id="estornoModal" class="modal-overlay">
+        <div class="modal-v2" style="max-width: 480px;">
+            <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+                <h2 style="color: #ef4444; font-size:1.3rem; font-weight:800; margin:0; display:flex; align-items:center; gap:0.5rem;">
+                    <i data-lucide="rotate-ccw" style="width:20px;"></i> Confirmar Estorno
+                </h2>
+                <button onclick="closeModal('estornoModal')" style="background:none; border:none; color:#64748b; cursor:pointer; padding:0.4rem;">
+                    <i data-lucide="x" style="width:20px;"></i>
+                </button>
+            </div>
+            <form id="estornoForm" style="display:flex; flex-direction:column; gap:1.2rem;" onsubmit="handleEstornoSubmit(event)">
+                <input type="hidden" id="estornoLancamentoId">
+
+                <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 12px; padding: 1rem; font-size: 0.85rem;">
+                    <div style="font-weight:700; color:#ef4444; margin-bottom:0.4rem;" id="estornoTituloText">Estornar Lançamento</div>
+                    <div style="opacity:0.8; font-size:0.8rem;" id="estornoInfoText">O status retornará para ABERTO e o saldo pago será estornado da conta bancária.</div>
+                </div>
+
+                <div class="input-group">
+                    <label style="color:#ef4444; font-weight:800; font-size:0.8rem;">Motivo do Estorno (Obrigatório) *</label>
+                    <textarea id="estornoMotivoText" class="financeiro-input" rows="3" placeholder="Informe a justificativa do estorno (ex: erro no lançamento, estorno a pedido do cliente, duplicidade)..." required style="resize:vertical; font-size:0.85rem;"></textarea>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:0.5rem;">
+                    <button type="button" onclick="closeModal('estornoModal')" style="background:none; border:none; color:#64748b; font-weight:700; cursor:pointer; padding:0.8rem 1.5rem;">Cancelar</button>
+                    <button type="submit" style="background:#ef4444; color:white; border:none; border-radius:10px; padding:0.8rem 1.8rem; font-weight:800; cursor:pointer;">Confirmar Estorno</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: HISTÓRICO DE ALTERAÇÕES DA NOTA -->
+    <div id="historyModal" class="modal-overlay">
+        <div class="modal-v2" style="max-width: 620px;">
+            <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.2rem;">
+                <h2 style="color: #6366f1; font-size:1.3rem; font-weight:800; margin:0; display:flex; align-items:center; gap:0.5rem;">
+                    <i data-lucide="history" style="width:22px;"></i> Histórico de Alterações
+                </h2>
+                <button onclick="closeModal('historyModal')" style="background:none; border:none; color:#64748b; cursor:pointer; padding:0.4rem;">
+                    <i data-lucide="x" style="width:20px;"></i>
+                </button>
+            </div>
+
+            <!-- Card Cabeçalho do Lançamento -->
+            <div id="histHeaderCard" style="background: rgba(99, 102, 241, 0.06); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 12px; padding: 0.9rem; margin-bottom: 1.2rem; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div id="histRefCode" style="font-weight:800; font-family:'JetBrains Mono'; color:#6366f1; font-size:0.95rem;">CAR-0000</div>
+                    <div id="histDesc" style="font-size:0.85rem; font-weight:700;">Descrição da nota</div>
+                    <div id="histEntidade" style="font-size:0.78rem; opacity:0.8;">Cliente / Fornecedor</div>
+                </div>
+                <div style="text-align:right;">
+                    <div id="histValor" style="font-weight:800; font-size:1.1rem; color:#10b981;">R$ 0,00</div>
+                    <div id="histStatusBadge" class="status-badge status-aberto" style="display:inline-block; margin-top:2px;">ABERTO</div>
+                </div>
+            </div>
+
+            <!-- Timeline de Atividades -->
+            <div id="histTimelineContainer" style="max-height: 380px; overflow-y: auto; padding-right: 0.5rem; display:flex; flex-direction:column; gap:0.8rem;">
+                <!-- Renderizado dinamicamente -->
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; margin-top:1.2rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                <button type="button" onclick="closeModal('historyModal')" style="background:#6366f1; color:white; border:none; border-radius:10px; padding:0.7rem 1.8rem; font-weight:800; cursor:pointer;">Fechar</button>
+            </div>
         </div>
     </div>
 
@@ -1059,11 +1237,23 @@
                     <textarea id="receberDescricao" name="descricao" class="financeiro-input" required placeholder="Ex: Prestação de serviço de transporte executivo..." rows="3" style="resize: vertical; height: auto; padding: 0.8rem; border-radius: 8px;"></textarea>
                 </div>
 
-                <!-- LINHA 3: FISCAL E VALOR BRUTO -->
-                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
+                <!-- LINHA 3: FISCAL, PLANO DE CONTAS E VALOR BRUTO -->
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 0.8rem;">
                     <div class="input-group">
                         <label>COMPETÊNCIA</label>
                         <input type="month" id="receberCompetencia" name="data_competencia" class="financeiro-input" required style="border-radius: 8px;">
+                    </div>
+                    <div class="input-group">
+                        <label>Plano de Contas (Receita)</label>
+                        <div class="autocomplete-wrapper" style="width: 100%;">
+                            <input type="text" id="receberCategoriaSearch" class="financeiro-input"
+                                placeholder="Buscar conta de receita..." required autocomplete="off"
+                                oninput="handleFinReceitaCategoriaSearch(this)" onfocus="handleFinReceitaCategoriaSearch(this)"
+                                onkeydown="handleFinAutocompleteKeydown(event, this)"
+                                style="width: 100%; border-radius: 8px;">
+                            <input type="hidden" name="categoria_id" id="receberCategoriaId">
+                            <div class="autocomplete-results"></div>
+                        </div>
                     </div>
                     <div class="input-group">
                         <label>VALOR BRUTO</label>
@@ -1138,8 +1328,7 @@
     </div>
 
 
-    <script src="financeiro.js?v=4"></script>
-    <script src="orb_menu.js"></script>
+
     <!-- MODAL FORNECEDOR (FULL SYNC WITH COMPRAS) -->
     <div id="fornecedorModal" class="modal-overlay">
         <div class="modal" style="max-width: 750px;">
@@ -1590,9 +1779,8 @@
                 </div>
             </form>
         </div>
-    </div>
-
-
+    <script src="financeiro.js?v=20260729_23"></script>
+    <script src="orb_menu.js?v=20260729_23"></script>
 </body>
 
 </html>

@@ -137,9 +137,8 @@ async function loadInitialData() {
         // para minimizar a carga no banco de dados e acelerar o tempo de resposta
         let lancQuery = supabaseClient.from('fin_lancamentos')
             .select('*')
-            .neq('status', 'PAGO')
             .order('data_vencimento', { ascending: false })
-            .limit(500);
+            .limit(1000);
 
         const [l, c, cat, cc, forn, cl, formas, especies] = await Promise.all([
             lancQuery,
@@ -176,18 +175,23 @@ async function loadInitialData() {
 
 // --- Navegação ---
 function switchMainTab(tabId) {
+    // 1. Ocultar todas as seções de abas
     document.querySelectorAll('.tab-content').forEach(c => {
         c.classList.remove('active');
+        c.style.display = 'none';
     });
+
+    // 2. Desativar todos os botões de abas
     document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
 
+    // 3. Exibir a seção ativada
     const tabEl = document.getElementById(`tab-${tabId}`);
     if (tabEl) {
         tabEl.classList.add('active');
-        tabEl.style.display = '';
+        tabEl.style.display = 'block';
     }
-    
-    // Ativa o botão correspondente à aba selecionada
+
+    // 4. Marcar o botão correspondente como ativo
     document.querySelectorAll('.tab-item').forEach(btn => {
         const attr = btn.getAttribute('onclick') || '';
         if (attr.includes(`'${tabId}'`)) {
@@ -195,9 +199,22 @@ function switchMainTab(tabId) {
         }
     });
 
-    if (tabId === 'fluxo') renderFluxo();
-    if (tabId === 'conciliacao') renderConciliacao();
-    if (tabId === 'relatorios' || tabId === 'historico') fhistPopulateSelects();
+    // 5. Executar atualizações dinâmicas da aba de forma 100% segura
+    try {
+        if (tabId === 'pagar' && typeof renderLancamentos === 'function') {
+            renderLancamentos('PAGAR');
+        } else if (tabId === 'receber' && typeof renderLancamentos === 'function') {
+            renderLancamentos('RECEBER');
+        } else if (tabId === 'fluxo' && typeof renderFluxo === 'function') {
+            renderFluxo();
+        } else if (tabId === 'config' && typeof renderConfig === 'function') {
+            renderConfig();
+        } else if ((tabId === 'relatorios' || tabId === 'historico') && typeof fhistPopulateSelects === 'function') {
+            fhistPopulateSelects();
+        }
+    } catch (e) {
+        console.error('[switchMainTab] Erro ao atualizar visualização da aba:', e);
+    }
 }
 
 window.switchMainTab = switchMainTab;
@@ -400,24 +417,40 @@ function renderLancamentos(tipo) {
         const cat = state.categorias.find(c => c.id === l.categoria_id);
         const cc = state.centrosCusto.find(c => c.id === l.centro_custo_id);
         
-        // Lógica de Vencimento
+        // Lógica de Vencimento e Status
         const hoje = new Date();
         hoje.setHours(0, 0, 0, 0);
-        const dataVenc = new Date((l.data_vencimento || l.previsao_pagamento || l.data_emissao) + 'T00:00:00');
-        const isOverdue = dataVenc < hoje && l.status === 'ABERTO';
+        const dateStr = l.previsao_pagamento || l.data_vencimento || l.data_emissao;
+        const dataVenc = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+        const isDatePast = dataVenc < hoje;
         
+        let isOverdue = false;
         let displayStatus = l.status;
         let statusClass = `status-${l.status.toLowerCase()}`;
         
-        if (isOverdue) {
-            displayStatus = 'ATRASADO';
-            statusClass = 'status-atrasado';
+        if (l.status === 'ABERTO') {
+            if (isDatePast) {
+                isOverdue = true;
+                displayStatus = 'ATRASADO';
+                statusClass = 'status-atrasado';
+            }
+        } else if (l.status === 'PARCIAL') {
+            if (isDatePast) {
+                isOverdue = true;
+                displayStatus = 'PARCIAL';
+                statusClass = 'status-atrasado'; // Badge Vermelho + linha vermelha para PARCIAL Atrasado
+            } else {
+                displayStatus = 'PARCIAL';
+                statusClass = 'status-aberto';   // Badge Laranja para PARCIAL em Aberto (no prazo)
+            }
         }
 
         if (tipo === 'RECEBER') {
             const vBruto = parseFloat(l.valor_total) || 0;
             const vTributo = parseFloat(l.valor_tributo_total) || 0;
             const vLiquido = vBruto - vTributo;
+            const vPago = parseFloat(l.valor_pago) || 0;
+            const vFalta = Math.max(0, vLiquido - vPago);
             const competencia = l.data_competencia ? l.data_competencia.substring(0, 7) : '-';
 
             return `
@@ -426,16 +459,16 @@ function renderLancamentos(tipo) {
                         <input type="checkbox" class="chk-bulk-select" value="${l.id}" onchange="updateBulkActionBar('${tipo}')">
                     </td>
                     <td data-label="Código">
-                        <div style="font-weight:800; color:var(--primary); font-family:'JetBrains Mono'">${l.codigo_sequencial || '-'}</div>
+                        <div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-weight:800; color:var(--primary); font-family:'JetBrains Mono'; cursor:pointer;" title="Clique para visualizar os detalhes">${l.codigo_sequencial || '-'}</div>
                     </td>
                     <td data-label="Previsão">
                         <div style="font-weight:700">${formatDate(l.previsao_pagamento || l.data_vencimento)}</div>
                     </td>
                     <td data-label="Cliente">
-                        <div style="font-weight:600">${l.entidade_nome || '-'}</div>
+                        <div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-weight:700; cursor:pointer;" title="Clique para visualizar os detalhes">${l.entidade_nome || '-'}</div>
                     </td>
                     <td data-label="Descrição">
-                        ${l.num_nf ? `<div style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px;">NF/Doc: ${l.num_nf}${l.serie_nf ? ' (Série ' + l.serie_nf + ')' : ''}</div>` : ''}
+                        ${l.num_nf ? `<div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px; cursor:pointer;" title="Clique para visualizar os detalhes">NF/Doc: ${l.num_nf}${l.serie_nf ? ' (Série ' + l.serie_nf + ')' : ''}</div>` : ''}
                         <div style="font-size:0.85rem">${l.descricao}</div>
                     </td>
                     <td data-label="Tipo/Pgto">
@@ -445,16 +478,22 @@ function renderLancamentos(tipo) {
                         </div>
                     </td>
                     <td data-label="Vlr. Bruto" style="text-align:right; font-weight:700">${formatCurrency(vBruto)}</td>
-                    <td data-label="Vlr. Líquido" style="text-align:right; color:#10b981; font-weight:700">${formatCurrency(vLiquido)}</td>
+                    <td data-label="Vlr. Líquido" style="text-align:right;">
+                        <div style="color:#10b981; font-weight:700;">${formatCurrency(vLiquido)}</div>
+                        ${l.status === 'PARCIAL' ? `<div style="font-size:0.72rem; font-weight:800; color:#ef4444; margin-top:2px;" title="Valor restante a receber">Falta: ${formatCurrency(vFalta)}</div>` : ''}
+                    </td>
                     <td data-label="Status">
                         <span class="status-badge ${statusClass}">${displayStatus}</span>
                     </td>
                     <td data-label="Competência">${competencia}</td>
                     <td class="actions-cell">
                         <div style="display:flex; justify-content:center; gap:0.4rem">
-                            <button class="btn-action view" onclick="viewEntry('${l.id}')" title="Visualizar"><i data-lucide="eye"></i></button>
-                            ${l.status === 'PAGO' || l.status === 'PARCIAL'
+                            <button class="btn-action history" onclick="showRecordHistory('${l.id}')" title="Histórico de Alterações" style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); color:#6366f1;"><i data-lucide="history"></i></button>
+                            ${l.status === 'PAGO'
                                 ? `<button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar / Voltar para Pendente" style="background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#f59e0b;"><i data-lucide="rotate-ccw"></i></button>`
+                                : l.status === 'PARCIAL'
+                                ? `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar Restante / Receber" style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); color:#10b981;"><i data-lucide="check-square"></i></button>
+                                   <button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar Baixa Parcial" style="background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#f59e0b;"><i data-lucide="rotate-ccw"></i></button>`
                                 : `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar / Receber"><i data-lucide="check-square"></i></button>`
                             }
                             <button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>
@@ -465,24 +504,28 @@ function renderLancamentos(tipo) {
             `;
         }
 
+        const vTotalPagar = parseFloat(l.valor_total) || 0;
+        const vPagoPagar = parseFloat(l.valor_pago) || 0;
+        const vFaltaPagar = Math.max(0, vTotalPagar - vPagoPagar);
+
         return `
             <tr class="${isOverdue ? 'overdue-row' : ''}">
                 <td style="text-align: center; vertical-align: middle;">
                     <input type="checkbox" class="chk-bulk-select" value="${l.id}" onchange="updateBulkActionBar('${tipo}')">
                 </td>
                 <td data-label="Código">
-                    <div style="font-weight:800; color:var(--primary); font-family:'JetBrains Mono'">${l.codigo_sequencial || '-'}</div>
+                    <div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-weight:800; color:var(--primary); font-family:'JetBrains Mono'; cursor:pointer;" title="Clique para visualizar os detalhes">${l.codigo_sequencial || '-'}</div>
                 </td>
                 <td data-label="Vencimento">
                     <div style="font-weight:700">${formatDate(l.data_vencimento)}</div>
                     ${l.data_pagamento ? `<div style="font-size:0.65rem; color:var(--success)">Pago: ${formatDate(l.data_pagamento)}</div>` : ''}
                 </td>
                 <td data-label="Entidade">
-                    <div style="font-weight:600">${l.entidade_nome || '-'}</div>
+                    <div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-weight:700; cursor:pointer;" title="Clique para visualizar os detalhes">${l.entidade_nome || '-'}</div>
                     <div style="font-size:0.7rem; color:var(--text-muted)">${l.recorrencia !== 'NAO' ? '<i data-lucide="repeat" style="width:10px"></i> Recorrência' : ''}</div>
                 </td>
                 <td data-label="Descrição">
-                    ${l.num_nf ? `<div style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px;">NF/Doc: ${l.num_nf}${l.serie_nf ? ' (Série ' + l.serie_nf + ')' : ''}</div>` : ''}
+                    ${l.num_nf ? `<div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px; cursor:pointer;" title="Clique para visualizar os detalhes">NF/Doc: ${l.num_nf}${l.serie_nf ? ' (Série ' + l.serie_nf + ')' : ''}</div>` : ''}
                     <div>${l.descricao}</div>
                     ${(() => {
                         if (l.origem_modulo === 'COMPRAS' || l.compra_id) {
@@ -496,17 +539,23 @@ function renderLancamentos(tipo) {
                         return '';
                     })()}
                 </td>
-                <td data-label="Total" style="text-align:right; font-weight:700">${formatCurrency(l.valor_total)}</td>
-                <td data-label="Pago" style="text-align:right; color:var(--success)">${formatCurrency(l.valor_pago)}</td>
+                <td data-label="Total" style="text-align:right; font-weight:700">${formatCurrency(vTotalPagar)}</td>
+                <td data-label="Pago" style="text-align:right;">
+                    <div style="color:var(--success); font-weight:700;">${formatCurrency(vPagoPagar)}</div>
+                    ${l.status === 'PARCIAL' ? `<div style="font-size:0.72rem; font-weight:800; color:#ef4444; margin-top:2px;" title="Valor restante a pagar">Falta: ${formatCurrency(vFaltaPagar)}</div>` : ''}
+                </td>
                 <td data-label="Status">
                     <span class="status-badge ${statusClass}">${displayStatus}</span>
                 </td>
                 <td data-label="C. Custo">${cc ? cc.nome : '-'}</td>
                 <td class="actions-cell">
                     <div style="display:flex; justify-content:center; gap:0.4rem">
-                        <button class="btn-action view" onclick="viewEntry('${l.id}')" title="Visualizar"><i data-lucide="eye"></i></button>
-                        ${l.status === 'PAGO' || l.status === 'PARCIAL'
+                        <button class="btn-action history" onclick="showRecordHistory('${l.id}')" title="Histórico de Alterações" style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); color:#6366f1;"><i data-lucide="history"></i></button>
+                        ${l.status === 'PAGO'
                             ? `<button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar / Voltar para Pendente" style="background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#f59e0b;"><i data-lucide="rotate-ccw"></i></button>`
+                            : l.status === 'PARCIAL'
+                            ? `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar Restante / Pagar" style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); color:#10b981;"><i data-lucide="check-square"></i></button>
+                               <button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar Baixa Parcial" style="background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#f59e0b;"><i data-lucide="rotate-ccw"></i></button>`
                             : `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar / Pagar"><i data-lucide="check-square"></i></button>`
                         }
                         <button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>
@@ -724,100 +773,389 @@ function initCharts() {
     }
 }
 
-// --- Fluxo de Caixa ---
-window.changeFluxoPeriod = function(dir) {
-    state.periodoFluxo.setMonth(state.periodoFluxo.getMonth() + dir);
-    const span = document.getElementById('fluxo-current-period');
-    if (span) {
-        const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        span.innerText = `${months[state.periodoFluxo.getMonth()]} ${state.periodoFluxo.getFullYear()}`;
+// --- Sub-abas do Fluxo de Caixa ---
+window.switchFluxoSubTab = function(subtab, event) {
+    document.querySelectorAll('#tab-fluxo .subtab-item').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#tab-fluxo .fluxo-subtab-content').forEach(c => c.style.display = 'none');
+
+    if (event && event.target) {
+        const btn = event.target.closest('.subtab-item');
+        if (btn) btn.classList.add('active');
     }
+    const targetContent = document.getElementById('subtab-fluxo-' + subtab);
+    if (targetContent) targetContent.style.display = 'block';
+
+    if (subtab === 'contas') {
+        renderFluxo();
+    }
+};
+
+window.changeFluxoPeriod = function(dir) {
+    if (!state.periodoFluxo) state.periodoFluxo = new Date();
+    state.periodoFluxo.setMonth(state.periodoFluxo.getMonth() + dir);
     renderFluxo();
 };
 
-function renderFluxo() {
-    const grid = document.getElementById('fluxoGrid');
-    if (!grid) return;
-
-    const currentYear = state.periodoFluxo.getFullYear();
-    const currentMonth = state.periodoFluxo.getMonth();
-
-    const firstOfMonth = new Date(currentYear, currentMonth, 1);
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const firstDay = firstOfMonth.getDay();
-
-    // 1. Calcular Saldo Anterior (Realizado até antes do mês de referência + saldo inicial das contas)
-    const saldoContasInicial = state.contas.reduce((acc, c) => acc + (parseFloat(c.saldo_inicial) || 0), 0);
-    const lancamentosAntes = state.lancamentos.filter(l => {
-        if (l.status !== 'PAGO' || !l.data_pagamento) return false;
-        const pagDate = new Date(l.data_pagamento + 'T12:00:00');
-        return pagDate < firstOfMonth;
+window.filterFluxoPlanoTree = function() {
+    const query = (document.getElementById('fluxo-search-input')?.value || '').toLowerCase().trim();
+    const rows = document.querySelectorAll('#fluxoPlanoTbody tr[data-code]');
+    rows.forEach(tr => {
+        const code = tr.getAttribute('data-code') || '';
+        const name = tr.getAttribute('data-name') || '';
+        if (!query || code.toLowerCase().includes(query) || name.toLowerCase().includes(query)) {
+            tr.style.display = '';
+        } else {
+            tr.style.display = 'none';
+        }
     });
-    
-    const entradasAntes = lancamentosAntes.filter(l => l.tipo === 'RECEBER').reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
-    const saidasAntes = lancamentosAntes.filter(l => l.tipo === 'PAGAR').reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
-    const saldoAnterior = saldoContasInicial + entradasAntes - saidasAntes;
+};
 
-    // Lógica de Lançamentos do Mês
-    const monthEntries = state.lancamentos.filter(l => {
-        if (l.status === 'CANCELADO') return false;
-        const dateStr = l.status === 'PAGO' ? l.data_pagamento : (l.data_vencimento || l.previsao_pagamento);
-        if (!dateStr) return false;
-        const d = new Date(dateStr + 'T12:00:00');
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+function populateFluxoBankSelect() {
+    const sel = document.getElementById('fluxo-banco-filter');
+    if (!sel) return;
+    const currentVal = sel.value;
+    const options = (state.contas || []).map(c => `<option value="${c.id}">${c.nome_banco || c.nome} (${c.agencia || ''}-${c.conta || ''})</option>`).join('');
+    sel.innerHTML = '<option value="">(TODOS OS BANCOS)</option>' + options;
+    sel.value = currentVal;
+}
+
+async function refreshFluxoView() {
+    const btns = document.querySelectorAll('button[onclick*="refreshFluxoView"], button[onclick*="renderFluxo"]');
+    btns.forEach(b => {
+        b.disabled = true;
+        b.innerHTML = '<i data-lucide="refresh-cw" class="spin"></i> Atualizando...';
     });
+    if (window.lucide) lucide.createIcons();
 
-    const totalEntradasMes = monthEntries.filter(l => l.tipo === 'RECEBER').reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
-    const totalSaidasMes = monthEntries.filter(l => l.tipo === 'PAGAR').reduce((acc, l) => acc + (parseFloat(l.valor_total) || 0), 0);
-    const saldoFinal = saldoAnterior + totalEntradasMes - totalSaidasMes;
+    try {
+        await loadInitialData();
+        await renderFluxo();
+        if (typeof showToast === 'function') {
+            showToast('Dados do Fluxo de Caixa recarregados com sucesso!', 'success');
+        }
+    } catch (e) {
+        console.error('[refreshFluxoView] Erro ao recarregar dados:', e);
+    } finally {
+        btns.forEach(b => {
+            b.disabled = false;
+            b.innerHTML = '<i data-lucide="refresh-cw"></i> Atualizar View';
+        });
+        if (window.lucide) lucide.createIcons();
+    }
+}
+window.refreshFluxoView = refreshFluxoView;
 
-    // Atualizar HTML de resumo
-    document.getElementById('fluxo-saldo-ant').innerText = formatCurrency(saldoAnterior);
-    document.getElementById('fluxo-entradas').innerText = formatCurrency(totalEntradasMes);
-    document.getElementById('fluxo-saidas').innerText = formatCurrency(totalSaidasMes);
-    document.getElementById('fluxo-saldo-fin').innerText = formatCurrency(saldoFinal);
+let fluxoPlanoCacheData = [];
 
-    // Mapear entradas/saídas por dia
-    const dailyValues = {};
-    for (let d = 1; d <= daysInMonth; d++) {
-        dailyValues[d] = { E: 0, S: 0 };
+async function renderFluxo() {
+    const tbody = document.getElementById('fluxoPlanoTbody');
+    if (!tbody) return;
+
+    populateFluxoBankSelect();
+
+    if (!state.periodoFluxo) state.periodoFluxo = new Date();
+    const refDate = state.periodoFluxo;
+
+    // Calcular as 3 datas dos meses: Anterior, Atual e Posterior
+    const dateAnt   = new Date(refDate.getFullYear(), refDate.getMonth() - 1, 1);
+    const dateAtual = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
+    const datePost  = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 1);
+
+    const monthNames = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
+
+    const keyAnt   = `${dateAnt.getFullYear()}-${String(dateAnt.getMonth() + 1).padStart(2, '0')}`;
+    const keyAtual = `${dateAtual.getFullYear()}-${String(dateAtual.getMonth() + 1).padStart(2, '0')}`;
+    const keyPost  = `${datePost.getFullYear()}-${String(datePost.getMonth() + 1).padStart(2, '0')}`;
+
+    const labelAnt   = `${monthNames[dateAnt.getMonth()]} / ${dateAnt.getFullYear()}`;
+    const labelAtual = `${monthNames[dateAtual.getMonth()]} / ${dateAtual.getFullYear()}`;
+    const labelPost  = `${monthNames[datePost.getMonth()]} / ${datePost.getFullYear()}`;
+
+    // Atualizar títulos na interface
+    const spanPeriod = document.getElementById('fluxo-current-period');
+    if (spanPeriod) spanPeriod.innerText = `${monthNames[dateAtual.getMonth()]} ${dateAtual.getFullYear()}`;
+
+    const bancoId = document.getElementById('fluxo-banco-filter')?.value || '';
+
+    // 1. Tentar consultar a View SQL 'view_fin_fluxo_plano_contas_mensal'
+    const totalsByCat = {}; // catId -> { ant:{pago:0,prev:0}, atual:{pago:0,prev:0}, post:{pago:0,prev:0} }
+    let viewSuccess = false;
+
+    try {
+        if (!supabaseClient) throw new Error('supabaseClient não inicializado');
+        let q = supabaseClient.from('view_fin_fluxo_plano_contas_mensal').select('*').in('ano_mes', [keyAnt, keyAtual, keyPost]);
+        if (bancoId) q = q.eq('conta_bancaria_id', bancoId);
+        const { data, error } = await q;
+
+        if (!error && data && data.length > 0) {
+            let hasNonZeroData = false;
+            data.forEach(r => {
+                const catId = r.categoria_id;
+                if (!totalsByCat[catId]) {
+                    totalsByCat[catId] = {
+                        ant:   { pago: 0, prev: 0 },
+                        atual: { pago: 0, prev: 0 },
+                        post:  { pago: 0, prev: 0 }
+                    };
+                }
+
+                // Suportar tanto a nova view (total_realizado) quanto a view legada (total_valor)
+                let valPago = 0;
+                let valPrev = 0;
+
+                if (r.total_realizado !== undefined || r.total_previsao !== undefined) {
+                    valPago = parseFloat(r.total_realizado) || 0;
+                    valPrev = parseFloat(r.total_previsao) || 0;
+                } else if (r.total_valor !== undefined) {
+                    valPago = parseFloat(r.total_valor) || 0;
+                }
+
+                if (valPago > 0 || valPrev > 0) hasNonZeroData = true;
+
+                if (r.ano_mes === keyAnt)   { totalsByCat[catId].ant.pago   += valPago; totalsByCat[catId].ant.prev   += valPrev; }
+                if (r.ano_mes === keyAtual) { totalsByCat[catId].atual.pago += valPago; totalsByCat[catId].atual.prev += valPrev; }
+                if (r.ano_mes === keyPost)  { totalsByCat[catId].post.pago  += valPago; totalsByCat[catId].post.prev  += valPrev; }
+            });
+
+            if (hasNonZeroData) viewSuccess = true;
+        }
+    } catch(e) {
+        console.warn('[FluxoView] Não foi possível consultar a view SQL, utilizando agregação local:', e);
     }
 
-    monthEntries.forEach(l => {
-        const dateStr = l.status === 'PAGO' ? l.data_pagamento : (l.data_vencimento || l.previsao_pagamento);
-        const day = new Date(dateStr + 'T12:00:00').getDate();
-        if (dailyValues[day]) {
-            if (l.tipo === 'RECEBER') dailyValues[day].E += parseFloat(l.valor_total) || 0;
-            else if (l.tipo === 'PAGAR') dailyValues[day].S += parseFloat(l.valor_total) || 0;
+    // 2. Agregação local de alta precisão a partir do state.lancamentos (Garante Previsão e Realizado em tempo real)
+    (state.lancamentos || []).forEach(l => {
+        if (l.status === 'CANCELADO' || !l.categoria_id) return;
+        if (bancoId && l.conta_bancaria_id !== bancoId) return;
+
+        const isPago = (l.status === 'PAGO' || l.status === 'RECEBIDO');
+        // Regime de Caixa: Para contas PAGAS, utiliza a Data de Pagamento (l.data_pagamento) em 1º lugar!
+        const dateStr = isPago
+            ? (l.data_pagamento || l.data_vencimento || l.data_competencia)
+            : (l.data_vencimento || l.data_competencia || l.data_pagamento);
+        if (!dateStr) return;
+
+        const anoMes = dateStr.substring(0, 7);
+        if (anoMes !== keyAnt && anoMes !== keyAtual && anoMes !== keyPost) return;
+
+        const catId = l.categoria_id;
+        if (!totalsByCat[catId]) {
+            totalsByCat[catId] = {
+                ant:   { pago: 0, prev: 0 },
+                atual: { pago: 0, prev: 0 },
+                post:  { pago: 0, prev: 0 }
+            };
+        }
+
+        // Cálculo do valor a considerar para RECEBER (Valor Líquido = Bruto - Tributos) vs PAGAR
+        let valValido = 0;
+        let valPrevisao = 0;
+
+        if (l.tipo === 'RECEBER') {
+            const bruto = parseFloat(l.valor_total) || 0;
+            const trib = parseFloat(l.valor_tributo_total) || ( (parseFloat(l.valor_inss)||0) + (parseFloat(l.valor_iss)||0) + (parseFloat(l.valor_ir)||0) );
+            const liquido = Math.max(0, bruto - trib);
+            valValido = parseFloat(l.valor_pago) || liquido;
+            valPrevisao = liquido;
+        } else {
+            valValido = parseFloat(l.valor_pago) || parseFloat(l.valor_total) || 0;
+            valPrevisao = parseFloat(l.valor_total) || parseFloat(l.valor_pago) || 0;
+        }
+
+        const targetMonth = (anoMes === keyAnt) ? totalsByCat[catId].ant : ((anoMes === keyAtual) ? totalsByCat[catId].atual : totalsByCat[catId].post);
+
+        if (isPago) {
+            if (!viewSuccess) targetMonth.pago += valValido;
+        } else {
+            // Contas em aberto entram SEMPRE na Previsão (Laranja) utilizando Valor Líquido para Recebimentos
+            targetMonth.prev += valPrevisao;
         }
     });
 
-    grid.innerHTML = '';
+    // 3. Rollup Hierárquico dos Valores por Código de Plano de Contas
+    const categorias = [...(state.categorias || [])].sort((a,b) => a.codigo.localeCompare(b.codigo, undefined, { numeric: true }));
 
-    // Placeholders dias do mês anterior
-    for (let i = 0; i < firstDay; i++) {
-        grid.innerHTML += '<div class="day-card empty"></div>';
-    }
+    const nodeValues = {}; // code -> { ant:{pago:0,prev:0}, atual:{pago:0,prev:0}, post:{pago:0,prev:0} }
+    categorias.forEach(c => {
+        nodeValues[c.codigo] = {
+            ant:   { pago: 0, prev: 0 },
+            atual: { pago: 0, prev: 0 },
+            post:  { pago: 0, prev: 0 }
+        };
+    });
 
-    // Dias do mês
-    for (let d = 1; d <= daysInMonth; d++) {
-        const dateObj = new Date(currentYear, currentMonth, d);
-        const isToday = d === new Date().getDate() && currentMonth === new Date().getMonth() && currentYear === new Date().getFullYear();
-        
-        grid.innerHTML += `
-            <div class="day-card ${isToday ? 'today' : ''}">
-                <div class="day-header">
-                    <span class="number">${d}</span>
-                    <span class="weekday">${getWeekday(dateObj)}</span>
-                </div>
-                <div class="day-values">
-                    <div class="day-val text-success"><span>E:</span> ${dailyValues[d].E.toFixed(2)}</div>
-                    <div class="day-val text-danger"><span>S:</span> ${dailyValues[d].S.toFixed(2)}</div>
-                </div>
+    // Atribuir valores diretos das categorias
+    categorias.forEach(c => {
+        const direct = totalsByCat[c.id];
+        if (direct) {
+            nodeValues[c.codigo].ant.pago   += direct.ant.pago;
+            nodeValues[c.codigo].ant.prev   += direct.ant.prev;
+            nodeValues[c.codigo].atual.pago += direct.atual.pago;
+            nodeValues[c.codigo].atual.prev += direct.atual.prev;
+            nodeValues[c.codigo].post.pago  += direct.post.pago;
+            nodeValues[c.codigo].post.prev  += direct.post.prev;
+        }
+    });
+
+    // Somar filhos nos pais hierarquicamente
+    const sortedDesc = [...categorias].sort((a,b) => b.codigo.length - a.codigo.length);
+    sortedDesc.forEach(cat => {
+        const code = cat.codigo;
+        const parts = code.split('.');
+        if (parts.length > 1) {
+            const parentCode = parts.slice(0, -1).join('.');
+            if (nodeValues[parentCode]) {
+                nodeValues[parentCode].ant.pago   += nodeValues[code].ant.pago;
+                nodeValues[parentCode].ant.prev   += nodeValues[code].ant.prev;
+                nodeValues[parentCode].atual.pago += nodeValues[code].atual.pago;
+                nodeValues[parentCode].atual.prev += nodeValues[code].atual.prev;
+                nodeValues[parentCode].post.pago  += nodeValues[code].post.pago;
+                nodeValues[parentCode].post.prev  += nodeValues[code].post.prev;
+            }
+        }
+    });
+
+    // 4. Calcular KPIs Principais para o Mês Atual (Foco Principal: REALIZADO PAGO + PREVISÃO EM LARANJA)
+    const emptyMonth = { pago: 0, prev: 0 };
+    const gAtivo   = nodeValues['01'] || { ant: emptyMonth, atual: emptyMonth, post: emptyMonth };
+    const gPassivo = nodeValues['02'] || { ant: emptyMonth, atual: emptyMonth, post: emptyMonth };
+    const gReceita = nodeValues['03'] || { ant: emptyMonth, atual: emptyMonth, post: emptyMonth };
+    const gDespesa = nodeValues['04'] || { ant: emptyMonth, atual: emptyMonth, post: emptyMonth };
+
+    const resAntPago   = gReceita.ant.pago - gDespesa.ant.pago;
+    const resAtualPago = gReceita.atual.pago - gDespesa.atual.pago;
+    const resPostPago  = gReceita.post.pago - gDespesa.post.pago;
+
+    const resAntPrev   = gReceita.ant.prev - gDespesa.ant.prev;
+    const resAtualPrev = gReceita.atual.prev - gDespesa.atual.prev;
+    const resPostPrev  = gReceita.post.prev - gDespesa.post.prev;
+
+    const renderHeaderTitle = (title, valPago, valPrev) => {
+        let prevSub = '';
+        if (valPrev && Math.abs(valPrev) > 0.001) {
+            prevSub = `<span style="font-size:0.75rem; font-weight:700; color:#d97706; background:rgba(245,158,11,0.12); padding:1px 6px; border-radius:4px; margin-top:3px; display:inline-block;">Prev: ${formatCurrency(valPrev)}</span>`;
+        }
+        return `
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                <span>${title}</span>
+                <span class="dre-header-total-val">${formatCurrency(valPago)}</span>
+                ${prevSub}
             </div>
         `;
+    };
+
+    const thAntElement   = document.getElementById('th-mes-anterior');
+    const thAtualElement = document.getElementById('th-mes-atual');
+    const thPostElement  = document.getElementById('th-mes-posterior');
+
+    if (thAntElement)   thAntElement.innerHTML   = renderHeaderTitle(labelAnt, resAntPago, resAntPrev);
+    if (thAtualElement) thAtualElement.innerHTML = renderHeaderTitle(labelAtual, resAtualPago, resAtualPrev);
+    if (thPostElement)  thPostElement.innerHTML  = renderHeaderTitle(labelPost, resPostPago, resPostPrev);
+
+    const kpiAtivo   = document.getElementById('fluxo-kpi-ativo');
+    const kpiPassivo = document.getElementById('fluxo-kpi-passivo');
+    const kpiReceita = document.getElementById('fluxo-kpi-receita');
+    const kpiDespesa = document.getElementById('fluxo-kpi-despesa');
+    const kpiRes     = document.getElementById('fluxo-kpi-resultado');
+
+    const renderKpiValue = (el, valPago, valPrev) => {
+        if (!el) return;
+        let html = `<span>${formatCurrency(valPago)}</span>`;
+        if (valPrev && Math.abs(valPrev) > 0.001) {
+            html += `<span style="font-size:0.72rem; font-weight:700; color:#d97706; display:block; margin-top:2px;">Prev: ${formatCurrency(valPrev)}</span>`;
+        }
+        el.innerHTML = html;
+    };
+
+    renderKpiValue(kpiAtivo, gAtivo.atual.pago, gAtivo.atual.prev);
+    renderKpiValue(kpiPassivo, gPassivo.atual.pago, gPassivo.atual.prev);
+    renderKpiValue(kpiReceita, gReceita.atual.pago, gReceita.atual.prev);
+    renderKpiValue(kpiDespesa, gDespesa.atual.pago, gDespesa.atual.prev);
+    renderKpiValue(kpiRes, resAtualPago, resAtualPrev);
+
+    if (!categorias.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="table-empty">Nenhum plano de contas cadastrado. Cadastre em Configurações > Plano de Contas.</td></tr>';
+        return;
     }
+
+    fluxoPlanoCacheData = { labelAnt, labelAtual, labelPost, categorias, nodeValues };
+
+    // 5. Renderizar Tabela DRE (Foco Principal: REALIZADO PAGO + PREVISÃO EM LARANJA)
+    tbody.innerHTML = categorias.map(c => {
+        const code = c.codigo;
+        const level = code.split('.').length;
+        const emptyNode = { pago: 0, prev: 0 };
+        const vals = nodeValues[code] || { ant: emptyNode, atual: emptyNode, post: emptyNode };
+        const mainGroupCode = code.split('.')[0];
+        const groupBaseVal = nodeValues[mainGroupCode] || { ant: emptyNode, atual: emptyNode, post: emptyNode };
+
+        const indentPx = (level - 1) * 18;
+        const levelClass = `dre-row-level-${Math.min(level, 4)}`;
+
+        const formatCol = (itemMonth, groupMonth) => {
+            const valPago = itemMonth.pago || 0;
+            const valPrev = itemMonth.prev || 0;
+            const basePago = groupMonth.pago || 0;
+
+            const numStrPago = formatCurrency(valPago);
+            const pctPago = basePago > 0 ? ((valPago / basePago) * 100).toFixed(2) + '%' : '0,00%';
+
+            let prevBadge = '';
+            if (valPrev && Math.abs(valPrev) > 0.001) {
+                prevBadge = `<span style="font-size:0.72rem; font-weight:700; color:#d97706; background:rgba(245,158,11,0.12); padding:1px 6px; border-radius:4px; margin-top:3px; display:inline-block;" title="Previsão de contas a pagar/pendentes">Prev: ${formatCurrency(valPrev)}</span>`;
+            }
+
+            return `<div style="display:flex; flex-direction:column; align-items:flex-end;">
+                        <span style="font-weight:700; color:${valPago > 0 ? 'inherit' : 'var(--text-muted)'}">${numStrPago}</span>
+                        <span style="font-size:0.72rem; opacity:0.75;">(${pctPago})</span>
+                        ${prevBadge}
+                    </div>`;
+        };
+
+        return `
+            <tr data-code="${code}" data-name="${c.nome}" class="${levelClass}">
+                <td style="padding: 0.65rem 1rem 0.65rem ${indentPx + 12}px;">
+                    <span class="dre-code-badge" style="margin-right: 8px;">${code}</span>
+                    <span>${c.nome}</span>
+                </td>
+                <td style="padding: 0.65rem 1rem; text-align: right; font-family: 'JetBrains Mono', monospace;">
+                    ${formatCol(vals.ant, groupBaseVal.ant)}
+                </td>
+                <td class="dre-cell-mes-atual" style="padding: 0.65rem 1rem; text-align: right; font-family: 'JetBrains Mono', monospace;">
+                    ${formatCol(vals.atual, groupBaseVal.atual)}
+                </td>
+                <td style="padding: 0.65rem 1rem; text-align: right; font-family: 'JetBrains Mono', monospace;">
+                    ${formatCol(vals.post, groupBaseVal.post)}
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
+
+window.exportFluxoPlanoExcel = function() {
+    if (!fluxoPlanoCacheData || !fluxoPlanoCacheData.categorias) {
+        alert('Nenhum dado do movimento de contas para exportar.');
+        return;
+    }
+    const { labelAnt, labelAtual, labelPost, categorias, nodeValues } = fluxoPlanoCacheData;
+
+    const rows = categorias.map(c => {
+        const vals = nodeValues[c.codigo] || { ant: 0, atual: 0, post: 0 };
+        return {
+            'Código': c.codigo,
+            'Plano de Contas / Conta': c.nome,
+            'Tipo': c.tipo || '',
+            [labelAnt]: vals.ant,
+            [labelAtual]: vals.atual,
+            [labelPost]: vals.post
+        };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Movimento de Contas');
+    XLSX.writeFile(wb, `fluxo_movimento_contas_${new Date().toISOString().slice(0,10)}.xlsx`);
+};
 
 
 // --- CRUD Operations ---
@@ -1143,6 +1481,10 @@ async function openReceberModal(id = null) {
             document.getElementById('receberPrazo').value = item.prazo_pagamento || 0;
             document.getElementById('receberPrevisao').value = item.previsao_pagamento || '';
             
+            const cat = state.categorias.find(c => c.id === item.categoria_id);
+            if (document.getElementById('receberCategoriaId')) document.getElementById('receberCategoriaId').value = item.categoria_id || '';
+            if (document.getElementById('receberCategoriaSearch')) document.getElementById('receberCategoriaSearch').value = cat ? `${cat.codigo} - ${cat.nome}` : '';
+
             calculateReceberTaxes();
         }
     } else {
@@ -1151,6 +1493,11 @@ async function openReceberModal(id = null) {
         document.getElementById('receberDescricao').value = '';
         if (document.getElementById('receberTipoNota')) document.getElementById('receberTipoNota').value = 'NFSE';
         if (document.getElementById('receberFormaPagamento')) document.getElementById('receberFormaPagamento').value = 'BOLETO';
+        
+        // Novo Lançamento: Inicializar Plano de Contas estritamente em BRANCO
+        if (document.getElementById('receberCategoriaId')) document.getElementById('receberCategoriaId').value = '';
+        if (document.getElementById('receberCategoriaSearch')) document.getElementById('receberCategoriaSearch').value = '';
+
         calculateReceberForecast();
     }
 
@@ -1536,8 +1883,37 @@ async function handleReceberSubmit(e) {
     const ir = parseFloat(formData.get('valor_ir')) || 0;
     const totalTributos = inss + iss + ir;
 
+    let catId = document.getElementById('receberCategoriaId')?.value || formData.get('categoria_id') || null;
+
+    // Auto-resolução do ID caso o usuário tenha digitado o código/nome sem clicar no item do autocomplete
+    if (!catId) {
+        const searchText = (document.getElementById('receberCategoriaSearch')?.value || '').toLowerCase().trim();
+        if (searchText) {
+            const matched = (state.categorias || []).find(c => {
+                const label = `${c.codigo || ''} - ${c.nome || ''}`.toLowerCase().trim();
+                return label === searchText || (c.codigo && searchText.startsWith(c.codigo.toLowerCase())) || label.includes(searchText) || (c.nome && c.nome.toLowerCase().includes(searchText));
+            });
+            if (matched) {
+                catId = matched.id;
+                if (document.getElementById('receberCategoriaId')) document.getElementById('receberCategoriaId').value = matched.id;
+            }
+        }
+    }
+
+    if (!catId) {
+        showToast("O preenchimento do Plano de Contas (Receita) é obrigatório!", "error");
+        alert("Não é possível salvar: Por favor, selecione uma Conta de Receita no Plano de Contas.");
+        const catInput = document.getElementById('receberCategoriaSearch');
+        if (catInput) {
+            catInput.focus();
+            catInput.style.borderColor = '#ef4444';
+        }
+        return;
+    }
+
     const record = {
         tipo: 'RECEBER',
+        categoria_id: catId,
         data_emissao: formData.get('data_emissao'),
         entidade_nome: formData.get('entidade_nome'),
         num_nf: formData.get('num_nf'),
@@ -1559,12 +1935,27 @@ async function handleReceberSubmit(e) {
 
     try {
         if (id) {
+            const existingItem = state.lancamentos.find(l => l.id === id);
+            if (existingItem && existingItem.status) {
+                record.status = existingItem.status;
+            }
             const { error } = await supabaseClient.from('fin_lancamentos').update(record).eq('id', id);
             if (error) throw error;
+
+            // Atualiza o objeto na memória local imediatamente
+            if (existingItem) {
+                Object.assign(existingItem, record);
+            }
+
             if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Editou recebimento: ${record.descricao} - Cliente/Entidade: ${record.entidade_nome} (Valor: R$ ${record.valor_total})`);
         } else {
-            const { error } = await supabaseClient.from('fin_lancamentos').insert([record]);
+            const { data: insertedList, error } = await supabaseClient.from('fin_lancamentos').insert([record]).select();
             if (error) throw error;
+
+            if (insertedList && insertedList.length > 0) {
+                state.lancamentos.unshift(insertedList[0]);
+            }
+
             if (typeof registrarLog === 'function') registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Lançou recebimento: ${record.descricao} - Cliente/Entidade: ${record.entidade_nome} (Valor: R$ ${record.valor_total})`);
         }
 
@@ -1573,6 +1964,7 @@ async function handleReceberSubmit(e) {
         renderAll();
         showToast('Recebimento salvo com sucesso!', 'success');
     } catch (err) {
+        console.error("Erro ao salvar recebimento:", err);
         showToast('Erro ao salvar: ' + err.message, 'error');
     }
 }
@@ -1733,6 +2125,27 @@ async function handleEntrySubmit(e) {
 
 // --- Payment (Baixa) ---
 let currentModalParcelas = [];
+let currentPayExpectedValue = 0;
+
+function checkPaymentDivergence() {
+    const valorInput = parseFloat(document.getElementById('payValor').value) || 0;
+    const diff = Math.abs(valorInput - currentPayExpectedValue);
+    const motivoGroup = document.getElementById('payMotivoGroup');
+    const motivoInput = document.getElementById('payMotivo');
+
+    if (!motivoGroup || !motivoInput) return;
+
+    if (diff > 0.05) {
+        motivoGroup.style.display = 'block';
+        motivoInput.setAttribute('required', 'required');
+    } else {
+        motivoGroup.style.display = 'none';
+        motivoInput.removeAttribute('required');
+        motivoInput.value = '';
+    }
+}
+
+window.checkPaymentDivergence = checkPaymentDivergence;
 
 async function openPaymentModal(id) {
     const l = state.lancamentos.find(item => item.id === id);
@@ -1746,10 +2159,43 @@ async function openPaymentModal(id) {
 
     document.getElementById('payLancamentoId').value = l.id;
     document.getElementById('payData').value = new Date().toISOString().split('T')[0];
+    if (document.getElementById('payMotivo')) {
+        document.getElementById('payMotivo').value = '';
+        document.getElementById('payMotivoGroup').style.display = 'none';
+    }
 
     const selectConta = document.getElementById('payConta');
     selectConta.innerHTML = state.contas.map(c => `<option value="${c.id}">${c.nome} (Saldo: ${formatCurrency(c.saldo_atual)})</option>`).join('');
     if (l.conta_bancaria_id) selectConta.value = l.conta_bancaria_id;
+
+    // Cálculo do Valor Líquido (se houver tributos) vs Valor Bruto
+    const bruto = parseFloat(l.valor_total) || 0;
+    const tributos = parseFloat(l.valor_tributo_total) || 0;
+    const liquido = bruto - tributos;
+    const valorJaPago = parseFloat(l.valor_pago) || 0;
+
+    // Se for RECEBER, o valor base a receber é o VALOR LÍQUIDO menos o que já foi pago
+    const valorBase = l.tipo === 'RECEBER' ? liquido : bruto;
+    currentPayExpectedValue = Math.round(Math.max(0, valorBase - valorJaPago) * 100) / 100;
+
+    // Atualizar Card Informativo do Modal
+    const payValBrutoText = document.getElementById('payValBrutoText');
+    const payRetencoesWrapper = document.getElementById('payRetencoesWrapper');
+    const payRetencoesText = document.getElementById('payRetencoesText');
+    const payValEsperadoLabel = document.getElementById('payValEsperadoLabel');
+    const payValEsperadoText = document.getElementById('payValEsperadoText');
+
+    if (payValBrutoText) payValBrutoText.innerText = formatCurrency(bruto);
+
+    if (l.tipo === 'RECEBER' && tributos > 0) {
+        if (payRetencoesWrapper) payRetencoesWrapper.style.display = 'flex';
+        if (payRetencoesText) payRetencoesText.innerText = `- ${formatCurrency(tributos)}`;
+    } else {
+        if (payRetencoesWrapper) payRetencoesWrapper.style.display = 'none';
+    }
+
+    if (payValEsperadoLabel) payValEsperadoLabel.innerText = l.tipo === 'RECEBER' ? 'Valor Líquido a Receber:' : 'Valor a Pagar:';
+    if (payValEsperadoText) payValEsperadoText.innerText = formatCurrency(currentPayExpectedValue);
 
     // Verificar se possui parcelas no banco
     currentModalParcelas = [];
@@ -1772,22 +2218,24 @@ async function openPaymentModal(id) {
                 parcelaSelect.innerHTML = `<option value="">-- Quitar Lançamento / Valor Livre --</option>` +
                     parcelasAbertas.map(p => `<option value="${p.id}" data-val="${p.valor}">Parcela #${p.numero_parcela} - Venc: ${formatDate(p.data_vencimento)} (${formatCurrency(p.valor)})</option>`).join('');
 
-                // Selecionar a primeira parcela em aberto por padrão
                 parcelaSelect.value = parcelasAbertas[0].id;
-                document.getElementById('payValor').value = parcelasAbertas[0].valor;
+                currentPayExpectedValue = Math.round((parseFloat(parcelasAbertas[0].valor) || 0) * 100) / 100;
+                document.getElementById('payValor').value = currentPayExpectedValue.toFixed(2);
             } else {
                 parcelaGroup.style.display = 'none';
-                document.getElementById('payValor').value = l.valor_total - l.valor_pago;
+                document.getElementById('payValor').value = currentPayExpectedValue.toFixed(2);
             }
         } else {
             parcelaGroup.style.display = 'none';
-            document.getElementById('payValor').value = l.valor_total - l.valor_pago;
+            document.getElementById('payValor').value = currentPayExpectedValue.toFixed(2);
         }
     } catch (errParc) {
         console.warn('Erro ao carregar parcelas:', errParc);
         parcelaGroup.style.display = 'none';
-        document.getElementById('payValor').value = l.valor_total - l.valor_pago;
+        document.getElementById('payValor').value = currentPayExpectedValue.toFixed(2);
     }
+
+    checkPaymentDivergence();
 
     const modal = document.getElementById('paymentModal');
     if (modal) modal.classList.add('active');
@@ -1797,18 +2245,21 @@ window.handleParcelaBaixaChange = () => {
     const sel = document.getElementById('payParcelaSelect');
     const selectedOption = sel.options[sel.selectedIndex];
     if (selectedOption && selectedOption.dataset.val) {
-        document.getElementById('payValor').value = selectedOption.dataset.val;
+        currentPayExpectedValue = Math.round((parseFloat(selectedOption.dataset.val) || 0) * 100) / 100;
+        document.getElementById('payValor').value = currentPayExpectedValue.toFixed(2);
     }
+    checkPaymentDivergence();
 };
 
 async function handlePayment(e) {
     e.preventDefault();
     const id = document.getElementById('payLancamentoId').value;
-    const valorPagoInput = parseFloat(document.getElementById('payValor').value);
+    const valorPagoInput = parseFloat(document.getElementById('payValor').value) || 0;
     const dataPagamento = document.getElementById('payData').value;
     const contaId = document.getElementById('payConta').value;
     const forma = document.getElementById('payForma').value;
     const parcelaId = document.getElementById('payParcelaSelect')?.value || null;
+    const motivoText = (document.getElementById('payMotivo')?.value || '').trim();
 
     try {
         const l = state.lancamentos.find(item => item.id === id);
@@ -1816,8 +2267,16 @@ async function handlePayment(e) {
 
         if (!l || !conta) throw new Error('Dados inválidos');
 
+        // VALIDAÇÃO E BLOQUEIO DE VALOR DIVERGENTE SEM MOTIVO
+        const diff = Math.abs(valorPagoInput - currentPayExpectedValue);
+        if (diff > 0.05 && !motivoText) {
+            showToast('Divergência de valor: Informe o motivo da diferença para confirmar a baixa.', 'error');
+            alert(`Não é possível salvar a baixa:\n\nO valor digitado (${formatCurrency(valorPagoInput)}) é diferente do valor líquido esperado (${formatCurrency(currentPayExpectedValue)}).\n\nPor favor, preencha o campo "Motivo da Divergência" informando a justificativa da diferença (ex: tarifa bancária, juros, desconto concedido, etc.).`);
+            return;
+        }
+
         const novoValorPago = (parseFloat(l.valor_pago) || 0) + valorPagoInput;
-        const novoStatus = novoValorPago >= (l.valor_total - 0.01) ? 'PAGO' : 'PARCIAL';
+        const novoStatus = novoValorPago >= (l.valor_total - (l.valor_tributo_total || 0) - 0.01) ? 'PAGO' : 'PARCIAL';
 
         // 1. Se uma parcela específica foi selecionada, marca ela como PAGO no banco
         if (parcelaId) {
@@ -1827,7 +2286,6 @@ async function handlePayment(e) {
                 .eq('id', parcelaId);
             if (errParc) console.error("Erro ao atualizar parcela:", errParc);
         } else if (currentModalParcelas.length > 0 && novoStatus === 'PAGO') {
-            // Se baixou o valor total sem escolher parcela única, marca todas como PAGO
             await supabaseClient
                 .from('fin_lancamento_parcelas')
                 .update({ status: 'PAGO' })
@@ -1835,14 +2293,30 @@ async function handlePayment(e) {
         }
 
         // 2. Atualiza Lançamento mestre
-        const { error: errL } = await supabaseClient.from('fin_lancamentos').update({
+        const updateObj = {
             valor_pago: novoValorPago,
             status: novoStatus,
             data_pagamento: dataPagamento,
             conta_bancaria_id: contaId,
             forma_pagamento: forma
-        }).eq('id', id);
-        if (errL) throw errL;
+        };
+
+        if (motivoText) {
+            const loggedUser = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
+            updateObj.motivo_divergencia = motivoText;
+            const logMotivo = `[MOTIVO DIVERGÊNCIA BAIXA (${formatDate(dataPagamento)}) por ${loggedUser}]: ${motivoText}`;
+            updateObj.observacoes = l.observacoes ? `${l.observacoes}\n${logMotivo}` : logMotivo;
+        }
+
+        let { error: errL } = await supabaseClient.from('fin_lancamentos').update(updateObj).eq('id', id);
+        if (errL && errL.message && errL.message.includes('motivo_divergencia')) {
+            console.warn("Coluna motivo_divergencia não encontrada no banco. Salvando motivo no campo observações...");
+            delete updateObj.motivo_divergencia;
+            const { error: retryErr } = await supabaseClient.from('fin_lancamentos').update(updateObj).eq('id', id);
+            if (retryErr) throw retryErr;
+        } else if (errL) {
+            throw errL;
+        }
 
         // 3. Atualiza Saldo da Conta Bancária
         const fator = l.tipo === 'PAGAR' ? -1 : 1;
@@ -1852,14 +2326,16 @@ async function handlePayment(e) {
         }).eq('id', contaId);
         if (errC) throw errC;
 
-        if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Baixou/Registrou pagamento no lançamento (${l.tipo}): ${l.descricao} - Valor Baixado: R$ ${valorPagoInput} (Conta: ${conta.nome})`);
+        if (typeof registrarLog === 'function') {
+            registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Baixou/Registrou pagamento no lançamento (${l.tipo}): ${l.descricao} - Valor Baixado: R$ ${valorPagoInput} (Esperado: R$ ${currentPayExpectedValue}). Conta: ${conta.nome}${motivoText ? ' - Motivo Divergência: ' + motivoText : ''}`);
+        }
 
         closeModal('paymentModal');
         await loadInitialData();
         renderAll();
         showToast('Pagamento registrado com sucesso!', 'success');
     } catch (err) {
-        showToast('Erro: ' + err.message, 'error');
+        showToast('Erro ao registrar pagamento: ' + err.message, 'error');
     }
 }
 
@@ -1894,8 +2370,8 @@ async function duplicateEntry(id) {
     }
 }
 
-/** Estorna / Reverte baixa de pagamento ou recebimento */
-async function reverterPagamento(id) {
+/** Abre o modal de confirmação de estorno/reversão */
+function reverterPagamento(id) {
     const l = state.lancamentos.find(item => item.id === id);
     if (!l) return;
 
@@ -1905,10 +2381,35 @@ async function reverterPagamento(id) {
         return;
     }
 
-    const tipoText = l.tipo === 'PAGAR' ? 'o pagamento' : 'o recebimento';
-    const confirmMsg = `Deseja estornar ${tipoText} do lançamento "${l.descricao}" (${formatCurrency(l.valor_pago || l.valor_total)})?\n\n- O status retornará para ABERTO.\n- O valor pago será estornado da conta bancária.`;
+    const tipoText = l.tipo === 'PAGAR' ? 'o Pagamento' : 'o Recebimento';
+    const valorText = formatCurrency(l.valor_pago || l.valor_total);
 
-    if (!confirm(confirmMsg)) return;
+    document.getElementById('estornoLancamentoId').value = l.id;
+    document.getElementById('estornoMotivoText').value = '';
+    document.getElementById('estornoTituloText').innerText = `Estornar ${tipoText} (${l.codigo_sequencial || 'Ref'})`;
+    document.getElementById('estornoInfoText').innerText = `Lançamento: "${l.descricao}" (${valorText}). O status retornará para ABERTO e o saldo pago será estornado da conta bancária.`;
+
+    const modal = document.getElementById('estornoModal');
+    if (modal) {
+        modal.classList.add('active');
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+/** Executa o estorno/reversão de baixa com o motivo obrigatório */
+async function handleEstornoSubmit(e) {
+    e.preventDefault();
+    const id = document.getElementById('estornoLancamentoId').value;
+    const motivoText = document.getElementById('estornoMotivoText').value.trim();
+
+    if (!motivoText) {
+        showToast('Motivo obrigatório: Informe a justificativa do estorno.', 'error');
+        alert('Não é possível concluir o estorno sem informar o motivo da reversão.');
+        return;
+    }
+
+    const l = state.lancamentos.find(item => item.id === id);
+    if (!l) return;
 
     try {
         if (typeof window.showLoader === 'function') window.showLoader();
@@ -1935,18 +2436,34 @@ async function reverterPagamento(id) {
             .update({ status: 'PENDENTE' })
             .eq('lancamento_id', id);
 
-        // 3. Atualiza o lançamento mestre para ABERTO
-        const { error: errL } = await supabaseClient.from('fin_lancamentos').update({
+        // 3. Atualiza o lançamento mestre para ABERTO e anexa o motivo do estorno
+        const loggedUser = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
+        const dataHojeStr = formatDate(new Date().toISOString().split('T')[0]);
+        const logEstorno = `[MOTIVO ESTORNO/REVERSÃO (${dataHojeStr}) por ${loggedUser}]: ${motivoText}`;
+        const novasObs = l.observacoes ? `${l.observacoes}\n${logEstorno}` : logEstorno;
+
+        const updateObj = {
             valor_pago: 0,
             status: 'ABERTO',
-            data_pagamento: null
-        }).eq('id', id);
-        if (errL) throw errL;
+            data_pagamento: null,
+            observacoes: novasObs,
+            motivo_estorno: motivoText
+        };
 
-        if (typeof registrarLog === 'function') {
-            registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Estornou/Reverteu pagamento do lançamento (${l.tipo}): ${l.descricao} - Status retornado para ABERTO.`);
+        let { error: errL } = await supabaseClient.from('fin_lancamentos').update(updateObj).eq('id', id);
+        if (errL && errL.message && errL.message.includes('motivo_estorno')) {
+            delete updateObj.motivo_estorno;
+            const { error: retryErr } = await supabaseClient.from('fin_lancamentos').update(updateObj).eq('id', id);
+            if (retryErr) throw retryErr;
+        } else if (errL) {
+            throw errL;
         }
 
+        if (typeof registrarLog === 'function') {
+            registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Estornou/Reverteu pagamento do lançamento (${l.tipo}): ${l.descricao} - Status retornado para ABERTO. Motivo do Estorno: ${motivoText}`);
+        }
+
+        closeModal('estornoModal');
         await loadInitialData();
         renderAll();
         showToast(`Estorno realizado com sucesso! O lançamento retornou para ABERTO.`, 'success');
@@ -1957,6 +2474,8 @@ async function reverterPagamento(id) {
         if (typeof window.hideLoader === 'function') window.hideLoader();
     }
 }
+
+window.handleEstornoSubmit = handleEstornoSubmit;
 
 function renderDashboardPagar() {
     const elements = {
@@ -2922,38 +3441,41 @@ function generatePlanoCode() {
     const parent = state.categorias.find(c => c.id === parentId);
     const parentCode = parent ? parent.codigo : '';
 
-    // Filtra filhos diretos para achar o próximo número
-    let children = [];
-    if (parentCode) {
-        const parentDotsCount = parentCode.split('.').length;
-        children = state.categorias.filter(c => {
-            if (!c.codigo || !c.codigo.startsWith(parentCode + '.')) return false;
-            return c.codigo.split('.').length === parentDotsCount + 1;
-        });
-    } else {
-        children = state.categorias.filter(c => !c.parent_id && c.codigo && !c.codigo.includes('.'));
-    }
-
-    let nextNum = 1;
-    if (children.length > 0) {
-        const codes = children.map(c => {
-            const parts = c.codigo.split('.');
-            return parseInt(parts[parts.length - 1]);
-        }).filter(n => !isNaN(n));
-        nextNum = Math.max(...codes, 0) + 1;
-    }
-
-    let code = '';
     if (!parent) {
-        code = nextNum.toString();
-    } else {
-        // Formatação: 1.1 ou 1.1.01 ou 1.1.01.001
-        const level = parentCode.split('.').length + 1;
-        if (level === 2) code = `${parentCode}.${nextNum}`;
-        else if (level === 3) code = `${parentCode}.${nextNum.toString().padStart(2, '0')}`;
-        else code = `${parentCode}.${nextNum.toString().padStart(3, '0')}`;
+        // Grau 1 (G1): 01, 02, 03...
+        const g1Cats = (state.categorias || []).filter(c => !c.parent_id && c.codigo && !c.codigo.includes('.'));
+        const codes = g1Cats.map(c => parseInt(c.codigo, 10)).filter(n => !isNaN(n));
+        const nextNum = Math.max(...codes, 0) + 1;
+        document.getElementById('planoCodigo').value = nextNum.toString().padStart(2, '0');
+        return;
     }
 
+    const parentLevel = parentCode.split('.').length; // 1 = G1, 2 = G2, 3 = G3...
+    const targetLevel = parentLevel + 1; // 2 = G2, 3 = G3, 4 = G4...
+
+    // Buscar TODAS as contas existentes do mesmo nível (targetLevel) no sistema para manter a sequência global contínua
+    const sameLevelCats = (state.categorias || []).filter(c => c.codigo && c.codigo.split('.').length === targetLevel);
+
+    // Extrair o último bloco numérico de cada conta para achar o maior número global já utilizado no sistema
+    const globalLastNumbers = sameLevelCats.map(c => {
+        const parts = c.codigo.split('.');
+        const lastPart = parts[parts.length - 1];
+        return parseInt(lastPart, 10);
+    }).filter(n => !isNaN(n));
+
+    const globalNextNum = Math.max(...globalLastNumbers, 0) + 1;
+
+    let padLen = 4;
+    if (sameLevelCats.length > 0) {
+        // Mantém a mesma quantidade de dígitos usada pelas contas do mesmo nível no sistema
+        const sampleLastPart = sameLevelCats[0].codigo.split('.').pop();
+        padLen = sampleLastPart.length;
+    } else {
+        if (targetLevel === 2) padLen = 3;      // G2: 3 dígitos (Ex: 011, 012)
+        else if (targetLevel >= 3) padLen = 4;  // G3, G4: 4 dígitos (Ex: 0089, 0090)
+    }
+
+    const code = `${parentCode}.${globalNextNum.toString().padStart(padLen, '0')}`;
     document.getElementById('planoCodigo').value = code;
 }
 
@@ -4118,7 +4640,7 @@ window.handleFinCategoriaSearch = (el) => {
 
     let matches = [];
     if (query.length === 0) {
-        matches = (state.categorias || []).slice(0, 200);
+        matches = [...(state.categorias || [])];
         matches.sort((a, b) => {
             const aCod = a.codigo || '';
             const bCod = b.codigo || '';
@@ -4210,6 +4732,91 @@ window.selectFinCategoria = (id, label, itemEl) => {
     hiddenId.value = id;
     resultsDiv.style.display = 'none';
     resultsDiv.innerHTML = '';
+};
+
+// Autocomplete EXCLUSIVO para Contas de Receita (Grupo 03)
+window.handleFinReceitaCategoriaSearch = (el) => {
+    currentFinAutocompleteIndex = -1;
+    const query = el.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const resultsDiv = el.parentElement.querySelector('.autocomplete-results');
+    const hiddenId = document.getElementById('receberCategoriaId');
+    
+    if (el.value.trim() === '') {
+        if (hiddenId) hiddenId.value = '';
+    }
+
+    // Filtrar apenas contas da classe RECEITA FINANCEIRA (Grupo 03.12 / 03.012 ou nome 'RECEITA FINANCEIRA')
+    const recFinParent = (state.categorias || []).find(c => {
+        const name = (c.nome || '').toUpperCase();
+        const cod = (c.codigo || '');
+        return cod.startsWith('03.12') || cod.startsWith('03.012') || name.includes('RECEITA FINANCEIRA');
+    });
+
+    const parentCodePrefix = recFinParent ? recFinParent.codigo : '03.12';
+
+    const receitaCategories = (state.categorias || []).filter(c => {
+        if (!c.codigo) return false;
+        return c.codigo === parentCodePrefix || c.codigo.startsWith(parentCodePrefix + '.') || (recFinParent && c.parent_id === recFinParent.id);
+    });
+
+    let matches = [];
+    if (query.length === 0) {
+        matches = [...receitaCategories];
+    } else {
+        matches = receitaCategories.filter(c => {
+            const nameNorm = (c.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const cod = (c.codigo || '').toLowerCase();
+            return nameNorm.includes(query) || cod.includes(query);
+        });
+    }
+
+    matches.sort((a, b) => (a.codigo || '').localeCompare(b.codigo || '', undefined, { numeric: true, sensitivity: 'base' }));
+
+    if (matches.length === 0) {
+        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.75rem;">Nenhuma conta de Receita Financeira encontrada...</div>';
+    } else {
+        resultsDiv.innerHTML = matches.map(c => {
+            const label = (c.codigo ? `${c.codigo} - ` : '') + c.nome;
+            const level = c.codigo ? c.codigo.split('.').length - 1 : 0;
+            const indentStyle = `padding-left: ${1 + level * 1.2}rem;`;
+            
+            const isParent = receitaCategories.some(cat => cat.parent_id === c.id || (cat.codigo && c.codigo && cat.codigo.startsWith(c.codigo + '.')));
+            
+            if (isParent) {
+                return `
+                    <div class="autocomplete-item" style="opacity: 0.6; cursor: not-allowed; background: rgba(255,255,255,0.02); font-weight: bold; border-left: 3px solid rgba(255,255,255,0.1); ${indentStyle}" onclick="event.stopPropagation();">
+                        <span class="prod-name" style="color: var(--text-muted);">${label} (Grupo)</span>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="autocomplete-item" style="${indentStyle}" onclick="selectFinReceitaCategoria('${c.id}', '${label.replace(/'/g, "\\'")}', this)">
+                        <span class="prod-name">${label}</span>
+                    </div>
+                `;
+            }
+        }).join('');
+    }
+    
+    positionFinDropdown(el, resultsDiv);
+    resultsDiv.style.display = 'block';
+};
+
+window.selectFinReceitaCategoria = (id, label, itemEl) => {
+    const wrapper = itemEl.closest('.autocomplete-wrapper');
+    const searchInput = document.getElementById('receberCategoriaSearch');
+    const hiddenId = document.getElementById('receberCategoriaId');
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
+
+    if (searchInput) {
+        searchInput.value = label;
+        searchInput.style.borderColor = '';
+    }
+    if (hiddenId) hiddenId.value = id;
+    if (resultsDiv) {
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+    }
 };
 
 // Fecha drop downs ao clicar fora
@@ -4654,3 +5261,144 @@ function fhistPdfExport() {
     });
     doc.save(`historico_financeiro_${new Date().toISOString().slice(0,10)}.pdf`);
 }
+
+/** Exibe o modal de histórico de alterações da nota */
+async function showRecordHistory(id) {
+    const l = state.lancamentos.find(item => item.id === id);
+    if (!l) return;
+
+    // Preencher Header Card
+    const refCode = document.getElementById('histRefCode');
+    const desc = document.getElementById('histDesc');
+    const entidade = document.getElementById('histEntidade');
+    const valor = document.getElementById('histValor');
+    const badge = document.getElementById('histStatusBadge');
+
+    if (refCode) refCode.innerText = l.codigo_sequencial || ('Ref: ' + l.id.substring(0, 8));
+    if (desc) desc.innerText = `${l.num_nf ? 'NF ' + l.num_nf + ' - ' : ''}${l.descricao || '-'}`;
+    if (entidade) entidade.innerText = l.entidade_nome || '-';
+    
+    const bruto = parseFloat(l.valor_total) || 0;
+    const tributos = parseFloat(l.valor_tributo_total) || 0;
+    const liquido = bruto - tributos;
+    const valFinal = l.tipo === 'RECEBER' ? liquido : bruto;
+    if (valor) valor.innerText = formatCurrency(valFinal);
+
+    if (badge) {
+        badge.innerText = l.status;
+        badge.className = `status-badge status-${l.status.toLowerCase()}`;
+    }
+
+    const container = document.getElementById('histTimelineContainer');
+    if (container) {
+        container.innerHTML = `<div style="text-align:center; padding:2rem; color:var(--text-muted);"><i data-lucide="loader" class="spin" style="width:24px;"></i> Carregando histórico de alterações...</div>`;
+    }
+    if (window.lucide) lucide.createIcons();
+
+    const modal = document.getElementById('historyModal');
+    if (modal) modal.classList.add('active');
+
+    try {
+        // Buscar logs do banco de dados na tabela logs_atividade
+        const { data: dbLogs } = await supabaseClient
+            .from('logs_atividade')
+            .select('*')
+            .eq('modulo', 'financeiro')
+            .or(`descricao.ilike.%${l.codigo_sequencial}%,descricao.ilike.%${l.descricao.substring(0, 15)}%,descricao.ilike.%${l.id}%`)
+            .order('created_at', { ascending: false });
+
+        let historyItems = [];
+
+        if (dbLogs && dbLogs.length > 0) {
+            historyItems = dbLogs.map(log => ({
+                date: new Date(log.created_at),
+                user: log.usuario_email || 'Usuário',
+                action: log.acao || 'ALTERAÇÃO',
+                desc: log.descricao || ''
+            }));
+        }
+
+        const loggedUser = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
+
+        // Se houver registros específicos em observações (ex: estornos, divergências), incorporar
+        if (l.observacoes) {
+            const lines = l.observacoes.split('\n');
+            lines.forEach(line => {
+                if (line.includes('[MOTIVO DIVERGÊNCIA BAIXA') || line.includes('[MOTIVO ESTORNO/REVERSÃO')) {
+                    let parsedUser = loggedUser;
+                    const matchUser = line.match(/por (.*?)]:/);
+                    if (matchUser && matchUser[1]) {
+                        parsedUser = matchUser[1].trim();
+                    }
+
+                    historyItems.push({
+                        date: new Date(l.updated_at || l.created_at || Date.now()),
+                        user: parsedUser,
+                        action: line.includes('ESTORNO') ? 'ESTORNO' : 'DIVERGÊNCIA BAIXA',
+                        desc: line
+                    });
+                }
+            });
+        }
+
+        // Adicionar evento inicial de cadastro se não houver registros
+        if (historyItems.length === 0) {
+            historyItems.push({
+                date: new Date(l.created_at || Date.now()),
+                user: loggedUser,
+                action: 'INCLUSÃO',
+                desc: `Lançamento ${l.tipo} criado: ${l.descricao} (Valor: ${formatCurrency(l.valor_total)})`
+            });
+        }
+
+        // Ordenar por data decrescente
+        historyItems.sort((a, b) => b.date - a.date);
+
+        if (container) {
+            container.innerHTML = historyItems.map(item => {
+                const dateStr = item.date.toLocaleDateString('pt-BR') + ' às ' + item.date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                let iconName = 'edit-3';
+                let badgeBg = 'rgba(99, 102, 241, 0.15)';
+                let badgeColor = '#6366f1';
+
+                if (item.action.includes('INCLUSÃO') || item.action.includes('CRIADO')) {
+                    iconName = 'plus-circle';
+                    badgeBg = 'rgba(16, 185, 129, 0.15)';
+                    badgeColor = '#10b981';
+                } else if (item.action.includes('ESTORNO') || item.action.includes('REVERSÃO')) {
+                    iconName = 'rotate-ccw';
+                    badgeBg = 'rgba(239, 68, 68, 0.15)';
+                    badgeColor = '#ef4444';
+                } else if (item.action.includes('BAIXA') || item.action.includes('PAGAMENTO')) {
+                    iconName = 'check-circle';
+                    badgeBg = 'rgba(245, 158, 11, 0.15)';
+                    badgeColor = '#f59e0b';
+                }
+
+                return `
+                    <div style="display:flex; gap:0.9rem; align-items:flex-start; background:rgba(255,255,255,0.03); border:1px solid var(--border-card); border-radius:10px; padding:0.8rem 1rem;">
+                        <div style="background:${badgeBg}; color:${badgeColor}; border-radius:8px; padding:0.5rem; display:flex; align-items:center; justify-content:center; margin-top:2px;">
+                            <i data-lucide="${iconName}" style="width:18px; height:18px;"></i>
+                        </div>
+                        <div style="flex:1;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.2rem;">
+                                <span style="font-size:0.72rem; font-weight:800; color:${badgeColor}; background:${badgeBg}; padding:2px 8px; border-radius:12px;">${item.action}</span>
+                                <span style="font-size:0.75rem; opacity:0.8;">${dateStr}</span>
+                            </div>
+                            <div style="font-size:0.82rem; font-weight:600; color:var(--text-main); margin-top:0.3rem; line-height:1.4;">${item.desc}</div>
+                            <div style="font-size:0.72rem; opacity:0.7; margin-top:0.3rem;">Usuário: <strong>${item.user}</strong></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+    } catch (err) {
+        console.error('Erro ao buscar histórico:', err);
+        if (container) {
+            container.innerHTML = `<div style="color:#ef4444; font-size:0.85rem; padding:1rem; text-align:center;">Erro ao carregar histórico: ${err.message}</div>`;
+        }
+    }
+}
+
+window.showRecordHistory = showRecordHistory;
