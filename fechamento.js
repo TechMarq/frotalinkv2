@@ -736,7 +736,9 @@ function processData(fuel, maint, vehicles, purchases, sales) {
                     quantidade: it.quantidade,
                     valor_unitario: it.valor_unitario,
                     valor: val,
-                    codigo: s.codigo
+                    codigo: s.codigo,
+                    plano_contas_codigo: '04.018.0091',
+                    plano_contas_nome: 'SAIDAS DE ESTOQUE'
                 });
                 grouped[owner][subKey].totalEstoque += val;
                 grouped[owner][subKey].total += val;

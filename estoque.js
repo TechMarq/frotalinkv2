@@ -1,4 +1,4 @@
-﻿let supabaseClient = null;
+let supabaseClient = null;
 
 let inventoryData = [];
 let filteredData = [];
@@ -608,7 +608,8 @@ async function saveQuickAdjustment() {
             motivo: `[AJUSTE] ${reason}`,
             responsavel: 'SISTEMA (AJUSTE)',
             valor_unitario: item.valor_custo,
-            data: new Date().toISOString()
+            data: new Date().toISOString(),
+            ...(dbTipo === 'SAIDA' ? { plano_contas_codigo: '04.018.0091', plano_contas_nome: 'SAIDAS DE ESTOQUE' } : {})
         };
 
         // 1. Registrar Movimentação
@@ -1846,7 +1847,9 @@ async function saveVenda(event) {
         valor_total: lastCalculatedVendaTotal,
         status_pagamento: tipo === 'EXTERNA' ? document.getElementById('v_status_pagamento').value : 'PAGO',
         data_pagamento: tipo === 'EXTERNA' ? (document.getElementById('v_data_pagamento').value || null) : new Date().toISOString(),
-        observacoes: document.getElementById('v_observacoes').value
+        observacoes: document.getElementById('v_observacoes').value,
+        plano_contas_codigo: '04.018.0091',
+        plano_contas_nome: 'SAIDAS DE ESTOQUE'
     };
 
     try {
@@ -1941,7 +1944,9 @@ async function saveVenda(event) {
                 lucro: (item.valor_unitario - item.valor_custo) * item.quantidade + item.adjustment,
                 motivo: `SAÍDA: ${tipo}${tipo === 'SIMPLES' && vendaObj.placa ? ' - PLACA: ' + vendaObj.placa : (tipo === 'OS' && vendaObj.os_id ? ' - OS: #' + vendaObj.os_id : (tipo === 'EXTERNA' && vendaObj.cliente_nome ? ' - CLIENTE: ' + vendaObj.cliente_nome : ''))} | VENDA: ${newVenda.codigo}${currentVendaId ? ' (EDITADO)' : ''}`,
                 responsavel: 'SISTEMA',
-                data: dataVenda + 'T12:00:00Z'
+                data: dataVenda + 'T12:00:00Z',
+                plano_contas_codigo: '04.018.0091',
+                plano_contas_nome: 'SAIDAS DE ESTOQUE'
             }]);
 
             // Saldo Final

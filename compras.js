@@ -1368,6 +1368,13 @@ function populateModal(c) {
         document.getElementById('qtdParcelas').value = c.qtdParcelas || 1;
         document.getElementById('qtdParcWrapper').style.opacity = '1';
         document.getElementById('qtdParcWrapper').style.pointerEvents = 'auto';
+        if (document.getElementById('prazoParcWrapper')) {
+            document.getElementById('prazoParcWrapper').style.opacity = '1';
+            document.getElementById('prazoParcWrapper').style.pointerEvents = 'auto';
+        }
+        if (document.getElementById('prazoParcelas')) {
+            document.getElementById('prazoParcelas').value = c.prazoParcelas || 30;
+        }
 
         // Anular e desabilitar vencimento principal se for parcelado
         const vInput = document.getElementById('vencimentoNota');
@@ -1380,7 +1387,7 @@ function populateModal(c) {
             const row = document.createElement('div');
             row.className = 'parcela-row';
             row.style = "display: grid; grid-template-columns: 100px 1fr 1fr 30px; gap: 1.5rem; align-items: center; margin-bottom: 0.8rem; background: rgba(0, 0, 0, 0.2); padding: 0.8rem; border-radius: 10px;";
-            row.innerHTML = `<div style="font-weight: 700; color: var(--primary)">Parcela ${idx + 1}</div><input type="date" class="parc-date compra-input" value="${p.data}" onchange="calculateTotal()"><input type="number" step="0.01" class="parc-val compra-input" value="${p.valor}" onchange="calculateTotal()"><i data-lucide="info" style="width:14px; opacity: 0.5"></i>`;
+            row.innerHTML = `<div style="font-weight: 700; color: var(--primary)">Parcela ${idx + 1}</div><input type="date" class="parc-date compra-input" value="${p.data}" onchange="${idx === 0 ? 'window.recalculateInstallmentDates()' : 'calculateTotal()'}" oninput="${idx === 0 ? 'window.recalculateInstallmentDates()' : 'calculateTotal()'}"><input type="number" step="0.01" class="parc-val compra-input" value="${p.valor}" onchange="calculateTotal()"><i data-lucide="info" style="width:14px; opacity: 0.5"></i>`;
             container.appendChild(row);
         });
     }
@@ -2076,8 +2083,13 @@ window.toggleParcelasSection = (el) => {
     const visible = el.classList.contains('active');
     document.getElementById('parcelasSection').style.display = visible ? 'block' : 'none';
     const qtyWrapper = document.getElementById('qtdParcWrapper');
+    const prazoWrapper = document.getElementById('prazoParcWrapper');
     qtyWrapper.style.opacity = visible ? '1' : '0.5';
     qtyWrapper.style.pointerEvents = visible ? 'auto' : 'none';
+    if (prazoWrapper) {
+        prazoWrapper.style.opacity = visible ? '1' : '0.5';
+        prazoWrapper.style.pointerEvents = visible ? 'auto' : 'none';
+    }
 
     // Anular campo de vencimento principal para evitar conflito
     const vencimentoInput = document.getElementById('vencimentoNota');
@@ -2104,20 +2116,72 @@ window.toggleParcelasSection = (el) => {
     calculateTotal();
 };
 
+window.recalculateInstallmentDates = () => {
+    const rows = document.querySelectorAll('#parcelasContainer .parcela-row');
+    if (rows.length === 0) return;
+
+    const firstDateInput = rows[0].querySelector('.parc-date');
+    if (!firstDateInput || !firstDateInput.value) return;
+
+    const prazoDias = parseInt(document.getElementById('prazoParcelas')?.value) || 30;
+
+    const [year, month, day] = firstDateInput.value.split('-').map(Number);
+
+    rows.forEach((row, idx) => {
+        if (idx === 0) return; // Mantém a data definida na Parcela 1
+        
+        const nextDate = new Date(year, month - 1, day + (idx * prazoDias));
+        const yyyy = nextDate.getFullYear();
+        const mm = String(nextDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(nextDate.getDate()).padStart(2, '0');
+        
+        const dateInput = row.querySelector('.parc-date');
+        if (dateInput) {
+            dateInput.value = `${yyyy}-${mm}-${dd}`;
+        }
+    });
+
+    calculateTotal();
+};
+
 window.generateInstallments = () => {
     const container = document.getElementById('parcelasContainer');
+    if (!container) return;
+
     const qty = parseInt(document.getElementById('qtdParcelas').value) || 1;
+    const prazoDias = parseInt(document.getElementById('prazoParcelas')?.value) || 30;
     const totalNota = calculateTotal();
     const baseValue = (totalNota / qty).toFixed(2);
     container.innerHTML = '';
-    const dateOrigin = new Date(document.getElementById('dataCompra').value || new Date());
+
+    const dataCompraInput = document.getElementById('dataCompra')?.value;
+    let year, month, day;
+    if (dataCompraInput) {
+        [year, month, day] = dataCompraInput.split('-').map(Number);
+    } else {
+        const now = new Date();
+        year = now.getFullYear();
+        month = now.getMonth() + 1;
+        day = now.getDate();
+    }
+
     for (let i = 1; i <= qty; i++) {
-        const dueDate = new Date(dateOrigin);
-        dueDate.setMonth(dueDate.getMonth() + i);
+        // Parcela 1 é gerada para dataCompra + prazoDias
+        const dueDate = new Date(year, month - 1, day + (i * prazoDias));
+        const yyyy = dueDate.getFullYear();
+        const mm = String(dueDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(dueDate.getDate()).padStart(2, '0');
+        const formattedDate = `${yyyy}-${mm}-${dd}`;
+
         const row = document.createElement('div');
         row.className = 'parcela-row';
         row.style = "display: grid; grid-template-columns: 100px 1fr 1fr 30px; gap: 1.5rem; align-items: center; margin-bottom: 0.8rem; background: rgba(0, 0, 0, 0.2); padding: 0.8rem; border-radius: 10px;";
-        row.innerHTML = `<div style="font-weight: 700; color: var(--primary)">Parcela ${i}</div><input type="date" class="parc-date compra-input" value="${dueDate.toISOString().split('T')[0]}" onchange="calculateTotal()"><input type="number" step="0.01" class="parc-val compra-input" value="${baseValue}" onchange="calculateTotal()"><i data-lucide="info" style="width:14px; opacity: 0.5"></i>`;
+        row.innerHTML = `
+            <div style="font-weight: 700; color: var(--primary)">Parcela ${i}</div>
+            <input type="date" class="parc-date compra-input" value="${formattedDate}" onchange="${i === 1 ? 'window.recalculateInstallmentDates()' : 'calculateTotal()'}" oninput="${i === 1 ? 'window.recalculateInstallmentDates()' : 'calculateTotal()'}">
+            <input type="number" step="0.01" class="parc-val compra-input" value="${baseValue}" onchange="calculateTotal()">
+            <i data-lucide="info" style="width:14px; opacity: 0.5"></i>
+        `;
         container.appendChild(row);
     }
     if (window.lucide) lucide.createIcons();
@@ -2411,6 +2475,7 @@ async function handleSaveCompra(e) {
             valorTotal: finalTotal,
             financeiro: isParcelado,
             qtdParcelas: qtdParcelas,
+            prazoParcelas: isParcelado ? (parseInt(document.getElementById('prazoParcelas')?.value) || 30) : null,
             adicionais: Array.from(document.querySelectorAll('.add-val')).map(inp => ({
                 descricao: inp.previousElementSibling?.value || 'Adicional',
                 valor: parseBr(inp.value)
@@ -4080,10 +4145,21 @@ async function renderIntegracao() {
         console.log(`🔍 Notas não integradas carregadas: ${data ? data.length : 0} registros`);
         
         // Filter out individual Vales because they are integrated via the consolidated NF
+        // and filter out purchases paid with Cartão de Crédito (not integrated with financeiro)
         comprasParaIntegracao = (data || []).filter(comp => {
             const esp = config.especiesNota.find(e => e.id === comp.especie_id);
             const especieNome = esp ? esp.nome.toUpperCase() : '';
-            return especieNome !== 'VALE';
+            if (especieNome === 'VALE') return false;
+
+            const pgto = config.tiposPgto.find(p => p.id === comp.forma_pagamento_id);
+            if (pgto && pgto.nome) {
+                const formaNome = pgto.nome.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                if (formaNome.includes('CARTAO DE CREDITO') || formaNome.includes('CARTAO CREDITO') || (formaNome.includes('CARTAO') && formaNome.includes('CREDITO'))) {
+                    return false;
+                }
+            }
+
+            return true;
         });
         
         if (comprasParaIntegracao.length === 0) {

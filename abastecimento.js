@@ -372,18 +372,29 @@ function updatePresetUI(activeId) {
 window.fetchAbastecimentosRange = async (startDate, endDate) => {
     if (!supabaseClient) return [];
     try {
-        let query = supabaseClient
-            .from('view_abastecimentos_completo')
-            .select('*')
-            .order('data', { ascending: false });
+        let allRecords = [];
+        const BATCH_SIZE = 1000;
+        const MAX_REGISTROS = 5000;
 
-        if (startDate) query = query.gte('data', startDate);
-        if (endDate) query = query.lte('data', endDate);
-        if (!startDate && !endDate) query = query.limit(5000);
+        for (let offset = 0; offset < MAX_REGISTROS; offset += BATCH_SIZE) {
+            let query = supabaseClient
+                .from('view_abastecimentos_completo')
+                .select('*')
+                .order('data', { ascending: false })
+                .range(offset, offset + BATCH_SIZE - 1);
 
-        const { data, error } = await query;
-        if (error) throw error;
-        return data || [];
+            if (startDate) query = query.gte('data', startDate);
+            if (endDate) query = query.lte('data', endDate);
+
+            const { data, error } = await query;
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+
+            allRecords = allRecords.concat(data);
+            if (data.length < BATCH_SIZE) break;
+        }
+
+        return allRecords;
     } catch (e) {
         console.error("❌ Erro ao buscar abastecimentos por período:", e);
         return [];
@@ -1993,7 +2004,7 @@ window.clearFuelFilters = () => {
     renderFuelTable();
 };
 
-window.handlePeriodChange = (period) => {
+window.handlePeriodChange = async (period) => {
     state.fuelFilters.periodo = period;
     const customRange = document.getElementById('custom_date_range');
     
@@ -2006,9 +2017,9 @@ window.handlePeriodChange = (period) => {
 
     let start = null;
     let end = new Date();
+    const now = new Date();
 
     if (period === 'current_month' || period === 'month') {
-        const now = new Date();
         start = new Date(now.getFullYear(), now.getMonth(), 1);
         end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     } else if (period === '7') {
@@ -2021,21 +2032,67 @@ window.handlePeriodChange = (period) => {
         start = new Date();
         start.setDate(end.getDate() - 30);
     } else if (period === 'last_month') {
-        const now = new Date();
         start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         end = new Date(now.getFullYear(), now.getMonth(), 0);
+    } else if (period === 'all') {
+        start = null;
+        end = null;
     }
 
-    state.fuelFilters.data_inicio = start ? start.toISOString().split('T')[0] : null;
-    state.fuelFilters.data_fim = end ? end.toISOString().split('T')[0] : null;
+    const formatLocalDate = (d) => {
+        if (!d) return null;
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const startStr = formatLocalDate(start);
+    const endStr = formatLocalDate(end);
+
+    state.fuelFilters.data_inicio = startStr;
+    state.fuelFilters.data_fim = endStr;
+
+    // Buscar abastecimentos do período no Supabase
+    if (supabaseClient) {
+        if (typeof window.showLoader === 'function') window.showLoader();
+        try {
+            const fetched = await fetchAbastecimentosRange(startStr, endStr);
+            if (fetched) {
+                state.fuelingRecords = fetched;
+            }
+        } catch (err) {
+            console.error('Erro ao buscar abastecimentos do período:', err);
+        } finally {
+            if (typeof window.hideLoader === 'function') window.hideLoader();
+        }
+    }
 
     state.currentPage = 1;
     renderFuelTable();
 };
 
-window.handleDateChange = () => {
-    state.fuelFilters.data_inicio = document.getElementById('fuel_filter_start').value;
-    state.fuelFilters.data_fim = document.getElementById('fuel_filter_end').value;
+window.handleDateChange = async () => {
+    const startStr = document.getElementById('fuel_filter_start')?.value || null;
+    const endStr = document.getElementById('fuel_filter_end')?.value || null;
+
+    state.fuelFilters.data_inicio = startStr;
+    state.fuelFilters.data_fim = endStr;
+
+    if (supabaseClient && (startStr || endStr)) {
+        if (typeof window.showLoader === 'function') window.showLoader();
+        try {
+            const fetched = await fetchAbastecimentosRange(startStr, endStr);
+            if (fetched) {
+                state.fuelingRecords = fetched;
+            }
+        } catch (err) {
+            console.error('Erro ao buscar abastecimentos por intervalo:', err);
+        } finally {
+            if (typeof window.hideLoader === 'function') window.hideLoader();
+        }
+    }
+
     state.currentPage = 1;
     renderFuelTable();
 };
@@ -2255,6 +2312,16 @@ function renderFuelTable() {
             `;
         }
 
+        let mediaColor = 'var(--primary)';
+        const mediaAlert = recordAlerts.find(a => a.field === 'media');
+        if (mediaAlert) {
+            if (mediaAlert.type === 'danger') mediaColor = '#ef4444';
+            else if (mediaAlert.type === 'warning') mediaColor = '#d97706';
+            else if (mediaAlert.type === 'info') mediaColor = '#2563eb';
+        } else if (isOutlier) {
+            mediaColor = '#d97706';
+        }
+
         return `
             <tr>
                 <td style="text-align: center;">
@@ -2285,7 +2352,7 @@ function renderFuelTable() {
                 </td>
                 <td data-label="Quantidade" data-column="litros">${f.litros.toLocaleString('pt-BR')} ${getFuelUnit(f.tipo_combustivel)}</td>
                 <td data-label="Combustível" data-column="combustivel"><div style="font-size: 0.8rem; font-weight: 600;">${f.tipo_combustivel || '---'}</div></td>
-                <td data-label="Média" data-column="media" style="color: ${isOutlier ? '#f59e0b' : 'var(--primary)'}; font-weight: 700;" class="${state.highlightId === f.id && state.highlightField === 'media' ? 'highlight-alert' : ''}">${avg}</td>
+                <td data-label="Média" data-column="media" style="color: ${mediaColor}; font-weight: 700;" class="${state.highlightId === f.id && state.highlightField === 'media' ? 'highlight-alert' : ''}">${avg}</td>
                 <td data-label="Valor Total" data-column="valor" style="font-weight: 600;" class="${state.highlightId === f.id && state.highlightField === 'valor' ? 'highlight-alert' : ''}">
                     <div>${f.valor_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
                     <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; font-weight: normal;">
