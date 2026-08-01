@@ -14,6 +14,7 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="auth.js"></script>
+    <script src="alerts.js"></script>
     <script defer src="https://unpkg.com/lucide@latest"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="style.css">
@@ -90,7 +91,7 @@
             box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
         }
 
-        /* Top Mini Stats */
+        /* Top Mini Stats — Padrão Clean Verde */
         .top-stats-grid {
             display: flex;
             justify-content: flex-end;
@@ -99,45 +100,56 @@
         }
 
         .mini-stat-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-card);
-            border-radius: 12px;
-            padding: 1rem 1.5rem;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 14px;
+            padding: 0.9rem 1.4rem;
             display: flex;
             flex-direction: column;
-            min-width: 140px;
+            min-width: 150px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
             position: relative;
         }
 
         .mini-stat-label {
-            font-size: 0.65rem;
+            font-size: 0.68rem;
             font-weight: 800;
-            color: var(--text-muted);
+            color: #475569;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 0.3rem;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.25rem;
         }
 
         .mini-stat-value {
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             font-weight: 800;
-            color: #fff;
+            color: #0f172a;
         }
 
         .mini-stat-card.alert {
-            border-color: rgba(245, 158, 11, 0.3);
+            border-color: #fca5a5;
+            background: #fff5f5;
         }
 
         .mini-stat-card.alert .mini-stat-label {
-            color: var(--accent);
+            color: #dc2626;
+        }
+
+        .mini-stat-card.alert .mini-stat-value {
+            color: #dc2626;
         }
 
         .mini-stat-card.success {
-            border-color: rgba(16, 185, 129, 0.3);
+            border-color: #a7f3d0;
+            background: #f0fdf4;
         }
 
         .mini-stat-card.success .mini-stat-label {
-            color: #10b981;
+            color: #059669;
+        }
+
+        .mini-stat-card.success .mini-stat-value {
+            color: #059669;
         }
 
         /* Inventory Control Section */
@@ -574,10 +586,10 @@
             }
         }
 
-        /* New Product View Modal Styles - Single Div Approach */
+        /* New Product View Modal Styles — Clean Verde */
         #productViewModal {
-            background: #111827;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #0d1322;
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 24px;
             width: 90%;
             max-width: 1100px;
@@ -588,7 +600,31 @@
             transform: translate(-50%, -50%) scale(0.95);
             max-height: 90vh;
             overflow-y: auto;
-            box-shadow: 0 0 0 100vw rgba(0, 0, 0, 0.7), 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+            box-shadow: 0 0 0 100vw rgba(0, 0, 0, 0.8), 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+            z-index: 4000;
+            display: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+            visibility: hidden;
+            font-family: 'Inter', sans-serif;
+        }
+
+        #productViewModal.active {
+            display: block;
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        /* Venda / Saída Modal CSS — Clean Verde Overlay */
+        #vendaModal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.95);
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 0 0 100vw rgba(0, 0, 0, 0.75), 0 25px 50px -12px rgba(0, 0, 0, 0.8);
             z-index: 4000;
             display: none;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -596,7 +632,7 @@
             visibility: hidden;
         }
 
-        #productViewModal.active {
+        #vendaModal.active {
             display: block;
             opacity: 1;
             visibility: visible;
@@ -663,16 +699,16 @@
         }
 
         .info-section {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: #172033;
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 20px;
             padding: 1.5rem;
         }
 
         .info-section h3 {
-            font-size: 0.7rem;
+            font-size: 0.72rem;
             font-weight: 800;
-            color: var(--text-muted);
+            color: #94a3b8;
             text-transform: uppercase;
             margin-bottom: 1.2rem;
             letter-spacing: 1px;
@@ -682,7 +718,7 @@
             display: flex;
             justify-content: space-between;
             padding: 0.8rem 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             font-size: 0.85rem;
         }
 
@@ -691,12 +727,12 @@
         }
 
         .info-label {
-            color: var(--text-muted);
+            color: #94a3b8;
             font-weight: 600;
         }
 
         .info-value {
-            color: #fff;
+            color: #ffffff;
             font-weight: 800;
         }
 
@@ -715,13 +751,13 @@
         }
 
         .price-card.cost {
-            background: rgba(245, 158, 11, 0.05);
-            border: 1px solid rgba(245, 158, 11, 0.1);
+            background: rgba(245, 158, 11, 0.12);
+            border: 1px solid rgba(245, 158, 11, 0.25);
         }
 
         .price-card.sell {
-            background: rgba(16, 185, 129, 0.05);
-            border: 1px solid rgba(16, 185, 129, 0.1);
+            background: rgba(5, 150, 105, 0.15);
+            border: 1px solid rgba(5, 150, 105, 0.3);
         }
 
         .price-label {
@@ -1224,60 +1260,60 @@
         </div>
 
         <div id="section_history" class="tab-content" style="display:none;">
-            <!-- History Stats -->
+            <!-- History Stats — Clean Verde -->
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
                 <div class="inventory-control-card"
-                    style="margin-bottom: 0; padding: 1.5rem; display: flex; align-items: center; gap: 1.5rem;">
+                    style="margin-bottom: 0; padding: 1.5rem; display: flex; align-items: center; gap: 1.5rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
                     <div
-                        style="background: rgba(16, 185, 129, 0.1); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #10b981;">
+                        style="background: #f0fdf4; border: 1px solid #a7f3d0; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #059669;">
                         <i data-lucide="arrow-down-left" style="width: 24px;"></i>
                     </div>
                     <div>
                         <p
-                            style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">
+                            style="font-size: 0.75rem; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 800;">
                             Entradas (Mês)</p>
-                        <h3 id="stat_entradas" style="font-size: 1.25rem; font-weight: 800; color: #fff;">0 itens</h3>
+                        <h3 id="stat_entradas" style="font-size: 1.3rem; font-weight: 800; color: #0f172a;">0 itens</h3>
                     </div>
                 </div>
                 <div class="inventory-control-card"
-                    style="margin-bottom: 0; padding: 1.5rem; display: flex; align-items: center; gap: 1.5rem;">
+                    style="margin-bottom: 0; padding: 1.5rem; display: flex; align-items: center; gap: 1.5rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
                     <div
-                        style="background: rgba(239, 68, 68, 0.1); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #ef4444;">
+                        style="background: #fff5f5; border: 1px solid #fca5a5; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #dc2626;">
                         <i data-lucide="arrow-up-right" style="width: 24px;"></i>
                     </div>
                     <div>
                         <p
-                            style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">
+                            style="font-size: 0.75rem; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 800;">
                             Saídas (Mês)</p>
-                        <h3 id="stat_saidas" style="font-size: 1.25rem; font-weight: 800; color: #fff;">0 itens</h3>
+                        <h3 id="stat_saidas" style="font-size: 1.3rem; font-weight: 800; color: #0f172a;">0 itens</h3>
                     </div>
                 </div>
                 <div class="inventory-control-card"
-                    style="margin-bottom: 0; padding: 1.5rem; display: flex; align-items: center; gap: 1.5rem;">
+                    style="margin-bottom: 0; padding: 1.5rem; display: flex; align-items: center; gap: 1.5rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
                     <div
-                        style="background: rgba(16, 185, 129, 0.1); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #10b981;">
+                        style="background: #f0fdf4; border: 1px solid #a7f3d0; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #059669;">
                         <i data-lucide="dollar-sign" style="width: 24px;"></i>
                     </div>
                     <div>
                         <p
-                            style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">
+                            style="font-size: 0.75rem; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 800;">
                             Lucro Estimado</p>
-                        <h3 id="stat_lucro" style="font-size: 1.25rem; font-weight: 800; color: #fff;">R$ 0,00</h3>
+                        <h3 id="stat_lucro" style="font-size: 1.3rem; font-weight: 800; color: #059669;">R$ 0,00</h3>
                     </div>
                 </div>
             </div>
 
-            <!-- Filters Bar -->
-            <div class="inventory-control-card" style="margin-bottom: 1.5rem; padding: 1rem;">
+            <!-- Filters Bar — Clean Verde -->
+            <div class="inventory-control-card" style="margin-bottom: 1.5rem; padding: 1rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
                 <div style="display: flex; gap: 1rem; align-items: center;">
                     <div style="position: relative; flex: 1;">
                         <i data-lucide="search"
-                            style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); width: 16px; color: var(--text-muted);"></i>
+                            style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); width: 16px; color: #64748b;"></i>
                         <input type="text" id="search_history" placeholder="Buscar movimentação..."
-                            style="padding-left: 2.8rem; height: 42px; background: rgba(255,255,255,0.03);">
+                            style="padding-left: 2.8rem; height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; color: #0f172a; font-weight: 600; border-radius: 8px;">
                     </div>
                     <select id="filter_type"
-                        style="width: 120px; height: 42px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">
+                        style="width: 130px; height: 42px; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; background: #f8fafc; border: 1px solid #cbd5e1; color: #0f172a; border-radius: 8px; padding: 0 0.5rem;">
                         <option value="">Tipos</option>
                         <option value="ENTRADA">Entrada</option>
                         <option value="SAIDA">Saída</option>
@@ -1285,7 +1321,7 @@
                         <option value="AJUSTE">Ajuste</option>
                     </select>
                     <select id="filter_period"
-                        style="width: 150px; height: 42px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">
+                        style="width: 160px; height: 42px; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; background: #f8fafc; border: 1px solid #cbd5e1; color: #0f172a; border-radius: 8px; padding: 0 0.5rem;">
                         <option value="mes">Este Mês</option>
                         <option value="hoje">Hoje</option>
                         <option value="semana">Esta Semana</option>
@@ -1556,17 +1592,17 @@
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 2rem;">
 
                 <!-- Brands Card -->
-                <div class="inventory-control-card" style="margin-bottom: 0; padding: 1.5rem;">
+                <div class="inventory-control-card" style="margin-bottom: 0; padding: 1.5rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.04);">
                     <div class="card-header-flex"
                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                        <h2 style="font-size: 1.2rem; font-weight: 800;">Marcas do Produto</h2>
-                        <i data-lucide="tag" style="color: var(--accent); width: 20px;"></i>
+                        <h2 style="font-size: 1.2rem; font-weight: 800; color: #0f172a;">Marcas do Produto</h2>
+                        <i data-lucide="tag" style="color: #059669; width: 20px;"></i>
                     </div>
                     <div class="quick-add-group" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
                         <input type="text" id="new_brand_name" placeholder="Nova marca..."
-                            style="flex: 1; height: 48px; background: rgba(255,255,255,0.03);">
+                            style="flex: 1; height: 44px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-weight: 600; padding: 0 0.9rem;">
                         <button onclick="addBrand()"
-                            style="background: var(--accent); border: none; border-radius: 8px; width: 48px; color: #fff; cursor: pointer;">
+                            style="background: #059669; border: none; border-radius: 8px; width: 44px; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                             <i data-lucide="plus" style="width: 20px;"></i>
                         </button>
                     </div>
@@ -1577,17 +1613,17 @@
                 </div>
 
                 <!-- Categories Card -->
-                <div class="inventory-control-card" style="margin-bottom: 0; padding: 1.5rem;">
+                <div class="inventory-control-card" style="margin-bottom: 0; padding: 1.5rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.04);">
                     <div class="card-header-flex"
                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                        <h2 style="font-size: 1.2rem; font-weight: 800;">Categorias</h2>
-                        <i data-lucide="layers" style="color: var(--accent); width: 20px;"></i>
+                        <h2 style="font-size: 1.2rem; font-weight: 800; color: #0f172a;">Categorias</h2>
+                        <i data-lucide="layers" style="color: #059669; width: 20px;"></i>
                     </div>
                     <div class="quick-add-group" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
                         <input type="text" id="new_category_name" placeholder="Nova categoria..."
-                            style="flex: 1; height: 48px; background: rgba(255,255,255,0.03);">
+                            style="flex: 1; height: 44px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-weight: 600; padding: 0 0.9rem;">
                         <button onclick="addCategory()"
-                            style="background: var(--accent); border: none; border-radius: 8px; width: 48px; color: #fff; cursor: pointer;">
+                            style="background: #059669; border: none; border-radius: 8px; width: 44px; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                             <i data-lucide="plus" style="width: 20px;"></i>
                         </button>
                     </div>
@@ -1598,27 +1634,27 @@
                 </div>
 
                 <!-- Models Card -->
-                <div class="inventory-control-card" style="margin-bottom: 0; padding: 1.5rem;">
+                <div class="inventory-control-card" style="margin-bottom: 0; padding: 1.5rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.04);">
                     <div class="card-header-flex"
                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                        <h2 style="font-size: 1.2rem; font-weight: 800;">Modelos de VeÃ­culos</h2>
-                        <i data-lucide="truck" style="color: var(--accent); width: 20px;"></i>
+                        <h2 style="font-size: 1.2rem; font-weight: 800; color: #0f172a;">Modelos de Veículos</h2>
+                        <i data-lucide="truck" style="color: #059669; width: 20px;"></i>
                     </div>
 
                     <div class="quick-add-group" style="margin-bottom: 1.5rem; width: 100%;">
                         <div
                             style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.8rem; width: 100%;">
                             <input type="text" id="new_model_marca" placeholder="Marca (Ex: Volvo)"
-                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #0f172a; font-weight: 600;">
                             <input type="text" id="new_model_nome" placeholder="Modelo (Ex: FH 540)"
-                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #0f172a; font-weight: 600;">
                             <input type="text" id="new_model_potencia" placeholder="Potência (Ex: 540cv)"
-                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #0f172a; font-weight: 600;">
                             <input type="text" id="new_model_ano" placeholder="Ano (Ex: 2022)"
-                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #0f172a; font-weight: 600;">
                         </div>
                         <button onclick="addModel()"
-                            style="width: 100%; background: var(--accent); border: none; border-radius: 8px; height: 42px; color: #fff; cursor: pointer; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.3s ease;">
+                            style="width: 100%; background: #059669; border: none; border-radius: 8px; height: 42px; color: #fff; cursor: pointer; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.3s ease;">
                             <i data-lucide="plus" style="width: 16px;"></i> ADICIONAR VEÍCULO
                         </button>
                     </div>
@@ -1630,17 +1666,17 @@
                 </div>
 
                 <!-- Units Card -->
-                <div class="inventory-control-card" style="margin-bottom: 0; padding: 1.5rem;">
+                <div class="inventory-control-card" style="margin-bottom: 0; padding: 1.5rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.04);">
                     <div class="card-header-flex"
                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                        <h2 style="font-size: 1.2rem; font-weight: 800;">Unidades de Medida</h2>
-                        <i data-lucide="ruler" style="color: var(--accent); width: 20px;"></i>
+                        <h2 style="font-size: 1.2rem; font-weight: 800; color: #0f172a;">Unidades de Medida</h2>
+                        <i data-lucide="ruler" style="color: #059669; width: 20px;"></i>
                     </div>
                     <div class="quick-add-group" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
-                        <input type="text" id="new_unit_name" placeholder="Ex: PeÃ§a, Litro, Kit..."
-                            style="flex: 1; height: 48px; background: rgba(255,255,255,0.03);">
+                        <input type="text" id="new_unit_name" placeholder="Ex: Peça, Litro, Kit..."
+                            style="flex: 1; height: 44px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-weight: 600; padding: 0 0.9rem;">
                         <button onclick="addUnit()"
-                            style="background: var(--accent); border: none; border-radius: 8px; width: 48px; color: #fff; cursor: pointer;">
+                            style="background: #059669; border: none; border-radius: 8px; width: 44px; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                             <i data-lucide="plus" style="width: 20px;"></i>
                         </button>
                     </div>
@@ -1651,30 +1687,30 @@
                 </div>
 
                 <!-- Clientes Card -->
-                <div class="inventory-control-card" style="margin-bottom: 0; padding: 1.5rem;">
+                <div class="inventory-control-card" style="margin-bottom: 0; padding: 1.5rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.04);">
                     <div class="card-header-flex"
                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                        <h2 style="font-size: 1.2rem; font-weight: 800;">Cadastro de Clientes</h2>
-                        <i data-lucide="users" style="color: var(--accent); width: 20px;"></i>
+                        <h2 style="font-size: 1.2rem; font-weight: 800; color: #0f172a;">Cadastro de Clientes</h2>
+                        <i data-lucide="users" style="color: #059669; width: 20px;"></i>
                     </div>
 
                     <div class="quick-add-group" style="margin-bottom: 1.5rem; width: 100%;">
                         <div
                             style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 0.5rem; margin-bottom: 0.5rem; width: 100%;">
-                            <input type="text" id="new_cliente_nome" placeholder="Nome / RazÃ£o Social*"
-                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                            <input type="text" id="new_cliente_nome" placeholder="Nome / Razão Social*"
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #0f172a; font-weight: 600;">
                             <input type="text" id="new_cliente_documento" placeholder="CPF / CNPJ"
-                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #0f172a; font-weight: 600;">
                         </div>
                         <div
                             style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.8rem; width: 100%;">
                             <input type="text" id="new_cliente_telefone" placeholder="Telefone"
-                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #0f172a; font-weight: 600;">
                             <input type="text" id="new_cliente_email" placeholder="E-mail"
-                                style="width: 100%; box-sizing: border-box; height: 42px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #fff;">
+                                style="width: 100%; box-sizing: border-box; height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; font-size: 0.8rem; padding: 0 0.8rem; border-radius: 8px; color: #0f172a; font-weight: 600;">
                         </div>
                         <button onclick="addCliente()"
-                            style="width: 100%; background: var(--accent); border: none; border-radius: 8px; height: 42px; color: #fff; cursor: pointer; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.3s ease;">
+                            style="width: 100%; background: #059669; border: none; border-radius: 8px; height: 42px; color: #fff; cursor: pointer; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.3s ease;">
                             <i data-lucide="plus" style="width: 16px;"></i> CADASTRAR CLIENTE
                         </button>
                     </div>
@@ -1811,7 +1847,7 @@
                                 <th style="font-size: 0.65rem;">Qtd</th>
                                 <th style="font-size: 0.65rem; color: var(--accent); text-align: center;">Saldo</th>
                                 <th style="font-size: 0.65rem;">Valor</th>
-                                <th style="font-size: 0.65rem;">Referência / Lote</th>
+<th style="font-size: 0.65rem;">Referência / Lote</th>
                             </tr>
                         </thead>
                         <tbody id="view_prod_history_body">
@@ -1823,25 +1859,25 @@
         </div>
     </div>
 
-    <!-- Venda / SaÃ­da Modal - Single Div Approach -->
+    <!-- Venda / Saída Modal — Clean Verde -->
     <div id="vendaModal"
-        style="max-width: 1200px; width: 95%; background: #111827; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); padding: 1.5rem;">
+        style="max-width: 1200px; width: 95%; background: #ffffff; border-radius: 20px; border: 1px solid #cbd5e1; padding: 1.75rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); color: #0f172a; font-family: 'Inter', sans-serif;">
         <div class="modal-header"
-            style="margin-bottom: 1rem; padding-bottom: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
-            <div style="display: flex; align-items: center; gap: 0.8rem;">
-                <div style="background: rgba(16, 185, 129, 0.1); padding: 0.6rem; border-radius: 10px; color: #10b981;">
-                    <i data-lucide="shopping-cart" style="width: 20px;"></i>
+            style="margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.9rem;">
+                <div style="background: #f0fdf4; border: 1px solid #a7f3d0; padding: 0.6rem; border-radius: 12px; color: #059669;">
+                    <i data-lucide="shopping-cart" style="width: 22px; height: 22px;"></i>
                 </div>
                 <div>
-                    <h2 style="margin: 0; font-size: 1.2rem;">Registrar Saída / Venda</h2>
+                    <h2 style="margin: 0; font-size: 1.3rem; font-weight: 800; color: #0f172a;">Registrar Saída / Venda</h2>
                     <p
-                        style="font-size: 0.65rem; color: var(--text-muted); margin: 0; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">
+                        style="font-size: 0.7rem; color: #64748b; margin: 0; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">
                         Geração de Código Sequencial Automático</p>
                 </div>
             </div>
             <button class="close-btn" onclick="closeVendaModal()"
-                style="background: rgba(255,255,255,0.05); border-radius: 10px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
-                <i data-lucide="x" style="width: 18px;"></i>
+                style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 10px; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; color: #475569; cursor: pointer;">
+                <i data-lucide="x" style="width: 20px; height: 20px;"></i>
             </button>
         </div>
 
@@ -1851,119 +1887,119 @@
                 <div class="form-group span-4">
                     <div style="display: grid; grid-template-columns: 1fr 1.5fr 0.8fr; gap: 0.8rem;">
                         <div class="form-group">
-                            <label style="font-size: 0.7rem;">Tipo de Saída*</label>
+                            <label style="font-size: 0.72rem; font-weight: 700; color: #475569;">Tipo de Saída*</label>
                             <select id="v_tipo" required onchange="toggleVendaTypeFields()"
-                                style="height: 40px; background: rgba(255,255,255,0.03); font-size: 0.85rem;">
+                                style="height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.85rem; font-weight: 600; padding: 0 0.6rem;">
                                 <option value="SIMPLES">Saída Simples (Veículo)</option>
                                 <option value="OS">Vincular a Ordem de Serviço</option>
                                 <option value="EXTERNA">Venda Externa / Balcão</option>
                             </select>
                         </div>
 
-                        <!-- Campo DinÃ¢mico: Placa -->
+                        <!-- Campo Dinâmico: Placa -->
                         <div class="form-group" id="group_v_placa">
-                            <label style="font-size: 0.7rem;">Selecionar Veiculo (Placa)*</label>
+                            <label style="font-size: 0.72rem; font-weight: 700; color: #475569;">Selecionar Veículo (Placa)*</label>
                             <select id="v_veiculo_id"
-                                style="height: 40px; background: rgba(255,255,255,0.03); font-size: 0.85rem;">
-                                <option value="">Carregando veiculos...</option>
+                                style="height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.85rem; font-weight: 600; padding: 0 0.6rem;">
+                                <option value="">Carregando veículos...</option>
                             </select>
                         </div>
 
-                        <!-- Campo DinÃ¢mico: OS -->
+                        <!-- Campo Dinâmico: OS -->
                         <div class="form-group" id="group_v_os" style="display: none;">
-                            <label style="font-size: 0.7rem;">Numero da OS*</label>
+                            <label style="font-size: 0.72rem; font-weight: 700; color: #475569;">Número da OS*</label>
                             <input type="text" id="v_os_id" placeholder="Ex: 1054"
-                                style="height: 40px; font-size: 0.85rem;">
+                                style="height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.85rem; font-weight: 600; padding: 0 0.8rem;">
                         </div>
 
-                        <!-- Campo DinÃ¢mico: Cliente -->
+                        <!-- Campo Dinâmico: Cliente -->
                         <div class="form-group" id="group_v_cliente" style="display: none; position: relative;">
-                            <label style="font-size: 0.7rem;">Nome do Cliente*</label>
+                            <label style="font-size: 0.72rem; font-weight: 700; color: #475569;">Nome do Cliente*</label>
                             <input type="text" id="v_cliente_nome" oninput="searchVendaCliente(this.value)"
                                 onfocus="searchVendaCliente(this.value)" placeholder="Busque o cliente..."
-                                style="height: 40px; font-size: 0.85rem;" autocomplete="off">
+                                style="height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.85rem; font-weight: 600; padding: 0 0.8rem;" autocomplete="off">
                             <div id="v_cliente_search_results" class="search-autocomplete-dropdown"
-                                style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #1f2937; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; z-index: 1000; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5);">
+                                style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; z-index: 1000; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15);">
                                 <!-- Clientes filtered list -->
                             </div>
                         </div>
 
                         <!-- Data da Saída -->
                         <div class="form-group">
-                            <label style="font-size: 0.7rem;">Data da Saída*</label>
+                            <label style="font-size: 0.72rem; font-weight: 700; color: #475569;">Data da Saída*</label>
                             <input type="date" id="v_data_venda" required
-                                style="height: 40px; background: rgba(255,255,255,0.03); font-size: 0.85rem;">
+                                style="height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.85rem; font-weight: 600; padding: 0 0.6rem;">
                         </div>
                     </div>
                 </div>
 
                 <div class="form-group span-4"
-                    style="height: 1px; background: rgba(255,255,255,0.05); margin: 0.5rem 0;"></div>
+                    style="height: 1px; background: #e2e8f0; margin: 0.5rem 0;"></div>
 
                 <!-- Adicionar Item -->
                 <div class="form-group span-4">
                     <h3
-                        style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 1px;">
+                        style="font-size: 0.7rem; color: #475569; text-transform: uppercase; margin-bottom: 0.6rem; letter-spacing: 0.5px; font-weight: 800;">
                         Adicionar Itens ao Carrinho</h3>
                     <div
                         style="display: grid; grid-template-columns: 2fr 0.5fr 0.8fr 0.8fr 0.8fr auto; gap: 0.5rem; align-items: flex-end;">
                         <!-- Busca de Produto -->
                         <div class="form-group">
-                            <label style="font-size: 0.65rem;">Produto*</label>
+                            <label style="font-size: 0.68rem; font-weight: 700; color: #475569;">Produto*</label>
                             <div class="search-container">
                                 <input type="text" id="v_search_input" placeholder="Nome ou ref..."
                                     oninput="searchVendaProduct(this.value)" autocomplete="off"
-                                    style="height: 38px; font-size: 0.8rem;">
+                                    style="height: 40px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.82rem; font-weight: 600; padding: 0 0.8rem;">
                                 <div id="v_search_results" class="search-results"></div>
                                 <input type="hidden" id="v_selected_product_id">
                             </div>
                         </div>
 
                         <div class="form-group">
-                            <label style="font-size: 0.65rem;">Qtd*</label>
+                            <label style="font-size: 0.68rem; font-weight: 700; color: #475569;">Qtd*</label>
                             <input type="number" id="v_quantidade" step="1" min="1" value="1"
                                 oninput="updateVendaItemPreview()"
-                                style="height: 38px; font-size: 0.8rem; padding: 0 5px; text-align: center;">
+                                style="height: 40px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.82rem; font-weight: 700; text-align: center;">
                         </div>
 
                         <div class="form-group">
-                            <label style="font-size: 0.65rem;">Valor Unit.*</label>
+                            <label style="font-size: 0.68rem; font-weight: 700; color: #475569;">Valor Unit.*</label>
                             <div style="position: relative;">
                                 <span
-                                    style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.65rem;">R$</span>
+                                    style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 0.68rem; font-weight: 700;">R$</span>
                                 <input type="number" id="v_valor_unitario" step="0.01" min="0"
                                     oninput="updateVendaItemPreview()"
-                                    style="height: 38px; padding-left: 22px; font-size: 0.8rem;">
+                                    style="height: 40px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; padding-left: 24px; font-size: 0.82rem; font-weight: 700;">
                             </div>
                         </div>
 
                         <!-- Desconto -->
                         <div class="form-group">
-                            <label style="font-size: 0.65rem;">Desc. Item</label>
+                            <label style="font-size: 0.68rem; font-weight: 700; color: #475569;">Desc. Item</label>
                             <div style="display: flex; gap: 0.2rem;">
                                 <select id="v_item_desconto_tipo" onchange="updateVendaItemPreview()"
-                                    style="width: 40px; height: 38px; font-size: 0.65rem; padding: 0 2px;">
+                                    style="width: 42px; height: 40px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.7rem; font-weight: 700;">
                                     <option value="PORCENTAGEM">%</option>
                                     <option value="VALOR">$</option>
                                 </select>
                                 <input type="number" id="v_item_desconto_valor" step="0.01" value="0"
                                     oninput="updateVendaItemPreview()"
-                                    style="flex: 1; height: 38px; font-size: 0.8rem; padding: 0 5px;">
+                                    style="flex: 1; height: 40px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.82rem; font-weight: 600; padding: 0 5px;">
                             </div>
                         </div>
 
                         <!-- Acréscimo -->
                         <div class="form-group">
-                            <label style="font-size: 0.65rem;">Acrésc. Item</label>
+                            <label style="font-size: 0.68rem; font-weight: 700; color: #475569;">Acrésc. Item</label>
                             <div style="display: flex; gap: 0.2rem;">
                                 <select id="v_item_acrescimo_tipo" onchange="updateVendaItemPreview()"
-                                    style="width: 40px; height: 38px; font-size: 0.65rem; padding: 0 2px;">
+                                    style="width: 42px; height: 40px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.7rem; font-weight: 700;">
                                     <option value="PORCENTAGEM">%</option>
                                     <option value="VALOR">$</option>
                                 </select>
                                 <input type="number" id="v_item_acrescimo_valor" step="0.01" value="0"
                                     oninput="updateVendaItemPreview()"
-                                    style="flex: 1; height: 38px; font-size: 0.8rem; padding: 0 5px;">
+                                    style="flex: 1; height: 40px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.82rem; font-weight: 600; padding: 0 5px;">
                             </div>
                         </div>
 
@@ -1971,30 +2007,28 @@
                             style="display: flex; flex-direction: column; justify-content: flex-end;">
                             <label style="font-size: 0.65rem; visibility: hidden;">Botão</label>
                             <button type="button" onclick="addItemToVendaList()" id="v_btn_add_item"
-                                style="height: 38px; width: 38px; padding: 0; margin: 0; border-radius: 8px; background: #10b981; border: none; color: #fff; cursor: pointer; display: none; align-items: center; justify-content: center;">
-                                <i data-lucide="plus" style="width: 18px;"></i>
+                                style="height: 40px; width: 40px; padding: 0; margin: 0; border-radius: 8px; background: #059669; border: none; color: #fff; cursor: pointer; display: none; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(5,150,105,0.3);">
+                                <i data-lucide="plus" style="width: 20px; height: 20px;"></i>
                             </button>
                         </div>
                     </div>
 
                     <!-- Info do Produto Selecionado (Preview) -->
                     <div id="v_product_selection_info"
-                        style="display: none; margin-top: 0.4rem; padding: 0.4rem 0.8rem; background: rgba(16, 185, 129, 0.05); border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.1);">
+                        style="display: none; margin-top: 0.5rem; padding: 0.6rem 0.9rem; background: #f0fdf4; border-radius: 10px; border: 1px solid #a7f3d0;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div style="line-height: 1.1;">
+                            <div style="line-height: 1.2;">
                                 <span id="v_info_name"
-                                    style="font-weight: 700; color: #fff; font-size: 0.75rem;">PRODUTO</span>
+                                    style="font-weight: 800; color: #0f172a; font-size: 0.8rem;">PRODUTO</span>
                                 <span id="v_info_stock"
-                                    style="font-size: 0.6rem; color: var(--text-muted); margin-left: 8px;">Estoque: 0
-                                    UN</span>
+                                    style="font-size: 0.7rem; color: #475569; margin-left: 8px; font-weight: 600;">Estoque: 0 UN</span>
                             </div>
-                            <div style="line-height: 1.1; display: flex; align-items: center; gap: 1rem;">
+                            <div style="line-height: 1.2; display: flex; align-items: center; gap: 1rem;">
                                 <div style="text-align: right;">
                                     <span
-                                        style="font-size: 0.55rem; color: var(--text-muted); display: block; text-transform: uppercase;">Subtotal
-                                        Previsto</span>
+                                        style="font-size: 0.6rem; color: #475569; display: block; text-transform: uppercase; font-weight: 700;">Subtotal Previsto</span>
                                     <span id="v_info_price"
-                                        style="color: #10b981; font-weight: 800; font-size: 0.8rem;">R$ 0,00</span>
+                                        style="color: #059669; font-weight: 800; font-size: 0.85rem;">R$ 0,00</span>
                                 </div>
                             </div>
                         </div>
@@ -2002,21 +2036,21 @@
                 </div>
 
                 <!-- Tabela de Itens Adicionados -->
-                <div class="form-group span-4" style="max-height: 140px; overflow-y: auto; margin-top: 0.5rem;">
-                    <table class="venda-items-table" style="margin-top: 0;">
+                <div class="form-group span-4" style="max-height: 160px; overflow-y: auto; margin-top: 0.5rem; border: 1px solid #cbd5e1; border-radius: 10px;">
+                    <table class="venda-items-table" style="margin-top: 0; width: 100%; border-collapse: collapse;">
                         <thead>
-                            <tr>
-                                <th style="padding: 0.3rem 1rem;">Produto</th>
-                                <th style="text-align: center; padding: 0.3rem 1rem;">Qtd</th>
-                                <th style="text-align: right; padding: 0.3rem 1rem;">Unitário</th>
-                                <th style="text-align: right; padding: 0.3rem 1rem;">Ajustes</th>
-                                <th style="text-align: right; padding: 0.3rem 1rem;">Subtotal</th>
-                                <th style="width: 80px; text-align: center; padding: 0.3rem 1rem;">Ações</th>
+                            <tr style="background: #f8fafc; border-bottom: 1px solid #cbd5e1;">
+                                <th style="padding: 0.5rem 1rem; color: #0f172a; font-size: 0.75rem; text-align: left;">Produto</th>
+                                <th style="text-align: center; padding: 0.5rem 1rem; color: #0f172a; font-size: 0.75rem;">Qtd</th>
+                                <th style="text-align: right; padding: 0.5rem 1rem; color: #0f172a; font-size: 0.75rem;">Unitário</th>
+                                <th style="text-align: right; padding: 0.5rem 1rem; color: #0f172a; font-size: 0.75rem;">Ajustes</th>
+                                <th style="text-align: right; padding: 0.5rem 1rem; color: #0f172a; font-size: 0.75rem;">Subtotal</th>
+                                <th style="width: 80px; text-align: center; padding: 0.5rem 1rem; color: #0f172a; font-size: 0.75rem;">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="v_items_tbody">
                             <tr>
-                                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                                <td colspan="6" style="text-align: center; color: #64748b; padding: 1.5rem; font-weight: 500;">
                                     Nenhum item adicionado ao carrinho.</td>
                             </tr>
                         </tbody>
@@ -2024,62 +2058,68 @@
                 </div>
 
                 <div class="form-group span-4"
-                    style="height: 1px; background: rgba(255,255,255,0.05); margin: 0.5rem 0;"></div>
+                    style="height: 1px; background: #e2e8f0; margin: 0.5rem 0;"></div>
 
                 <!-- Controle de Pagamento -->
                 <div class="form-group span-2" id="group_v_pagamento"
-                    style="display: none; background: rgba(16, 185, 129, 0.05); padding: 1.2rem; border-radius: 16px; border: 1px solid rgba(16, 185, 129, 0.1);">
+                    style="display: none; background: #f0fdf4; padding: 1.2rem; border-radius: 14px; border: 1px solid #a7f3d0;">
                     <h3
-                        style="font-size: 0.7rem; font-weight: 800; color: #10b981; text-transform: uppercase; margin-bottom: 0.8rem; letter-spacing: 1px;">
+                        style="font-size: 0.72rem; font-weight: 800; color: #059669; text-transform: uppercase; margin-bottom: 0.8rem; letter-spacing: 0.5px;">
                         Controle Financeiro</h3>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
                         <div class="form-group">
-                            <label style="font-size: 0.75rem;">Status</label>
-                            <select id="v_status_pagamento" style="height: 42px; font-size: 0.85rem;">
+                            <label style="font-size: 0.75rem; color: #475569; font-weight: 700;">Status</label>
+                            <select id="v_status_pagamento" style="height: 42px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.85rem; font-weight: 600;">
                                 <option value="PENDENTE">PENDENTE</option>
                                 <option value="PAGO">PAGO</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label style="font-size: 0.75rem;">Data</label>
-                            <input type="date" id="v_data_pagamento" style="height: 42px; font-size: 0.85rem;">
+                            <label style="font-size: 0.75rem; color: #475569; font-weight: 700;">Data</label>
+                            <input type="date" id="v_data_pagamento" style="height: 42px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.85rem; font-weight: 600;">
                         </div>
                     </div>
                 </div>
 
                 <!-- Observações -->
                 <div id="wrapper_v_observacoes" class="form-group span-4">
-                    <label style="font-size: 0.75rem;">Observações</label>
+                    <label style="font-size: 0.72rem; font-weight: 700; color: #475569;">Observações</label>
                     <textarea id="v_observacoes" placeholder="Informações adicionais..." rows="2"
-                        style="background: rgba(255,255,255,0.03); min-height: 50px; font-size: 0.85rem; padding: 0.8rem;"></textarea>
+                        style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; min-height: 50px; font-size: 0.85rem; padding: 0.8rem; font-weight: 500;"></textarea>
                 </div>
 
-                <!-- Resumo de Valores Ultra-Compacto -->
+                <!-- Resumo de Valores Clean Verde -->
                 <div class="form-group span-4"
-                    style="margin-top: 0.3rem; background: #000; padding: 0.7rem 1.2rem; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.08);">
+                    style="margin-top: 0.5rem; background: #f8fafc; padding: 0.85rem 1.4rem; border-radius: 14px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
                     <div style="display: flex; gap: 2rem; align-items: center;">
                         <div>
                             <span
-                                style="font-size: 0.6rem; color: var(--text-muted); font-weight: 800; text-transform: uppercase;">Bruto</span>
-                            <div id="v_total_bruto" style="font-size: 0.9rem; font-weight: 700; color: #fff;">R$ 0,00
+                                style="font-size: 0.65rem; color: #64748b; font-weight: 800; text-transform: uppercase;">Bruto</span>
+                            <div id="v_total_bruto" style="font-size: 1rem; font-weight: 800; color: #0f172a;">R$ 0,00
                             </div>
                         </div>
                         <div>
                             <span
-                                style="font-size: 0.6rem; color: #10b981; font-weight: 800; text-transform: uppercase;">Líquido</span>
-                            <div id="v_total_final" style="font-size: 1.3rem; font-weight: 900; color: #10b981;">R$ 0,00
+                                style="font-size: 0.65rem; color: #64748b; font-weight: 800; text-transform: uppercase;">Ajustes</span>
+                            <div id="v_total_ajustes" style="font-size: 1rem; font-weight: 800; color: #0f172a;">R$ 0,00
                             </div>
                         </div>
+                        <div
+                            style="height: 24px; width: 1px; background: #cbd5e1; margin: 0 0.5rem;">
+                        </div>
+                        <div>
+                            <span
+                                style="font-size: 0.65rem; color: #059669; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Líquido</span>
+                            <div id="v_total_liquido"
+                                style="font-size: 1.3rem; font-weight: 800; color: #059669;">R$ 0,00</div>
+                        </div>
                     </div>
-                    <div style="display: flex; gap: 0.6rem;">
-                        <button type="button" id="btn_delete_venda_edit" onclick="confirmDeleteFromEdit()"
-                            style="display: none; height: 34px; padding: 0 1rem; border-radius: 8px; font-weight: 700; font-size: 0.75rem; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; cursor: pointer;">EXCLUIR
-                            VENDA</button>
+
+                    <div style="display: flex; gap: 0.75rem;">
                         <button type="button" class="btn-cancel" onclick="closeVendaModal()"
-                            style="height: 34px; padding: 0 1rem; border-radius: 8px; font-weight: 700; font-size: 0.75rem; background: rgba(255,255,255,0.05); border: none; color: #fff; cursor: pointer;">CANCELAR</button>
+                            style="height: 40px; padding: 0 1.25rem; border-radius: 10px; font-weight: 700; font-size: 0.78rem; background: #ffffff; border: 1px solid #cbd5e1; color: #475569; cursor: pointer;">CANCELAR</button>
                         <button type="submit" class="btn-save" id="btn_confirm_venda" disabled
-                            style="height: 34px; padding: 0 1.2rem; background: #10b981; border: none; color: #fff; border-radius: 8px; font-weight: 800; font-size: 0.75rem; opacity: 0.5; cursor: not-allowed;">CONFIRMAR
-                            SAÃDA</button>
+                            style="height: 40px; padding: 0 1.5rem; background: #059669; border: none; color: #ffffff; border-radius: 10px; font-weight: 800; font-size: 0.78rem; opacity: 0.5; cursor: not-allowed; box-shadow: 0 4px 12px rgba(5,150,105,0.3);">CONFIRMAR SAÍDA</button>
                     </div>
                 </div>
             </div>
@@ -2178,6 +2218,46 @@
                     </button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONFIRMAÇÃO DE SEGURANÇA (PADRÃO SISTEMA) -->
+    <div id="modalSecurityConfirm" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 9999; align-items: center; justify-content: center; padding: 1rem;">
+        <div style="background: #0d1322; border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; width: 100%; max-width: 400px; padding: 2rem 1.5rem; text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7); display: flex; flex-direction: column; align-items: center; font-family: 'Inter', sans-serif;">
+            
+            <!-- Ícone Shield Warning -->
+            <div style="width: 52px; height: 52px; border-radius: 50%; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); display: flex; align-items: center; justify-content: center; margin-bottom: 1.25rem;">
+                <i data-lucide="shield-alert" style="width: 26px; height: 26px; color: #ef4444;"></i>
+            </div>
+
+            <h3 style="font-size: 1.35rem; font-weight: 800; color: #ffffff; margin-bottom: 0.35rem; letter-spacing: -0.02em;">Confirmação de Segurança</h3>
+            <p style="font-size: 0.82rem; color: #94a3b8; margin-bottom: 1.5rem;">Insira o código abaixo para confirmar a exclusão:</p>
+
+            <!-- Box do Código de Segurança -->
+            <div id="secConfirmDisplayCode" style="width: 100%; background: #172033; border: 1.5px dashed rgba(99, 102, 241, 0.4); border-radius: 12px; padding: 1rem 0; font-family: 'JetBrains Mono', monospace; font-size: 2rem; font-weight: 800; letter-spacing: 0.4em; color: #818cf8; text-align: center; margin-bottom: 1.5rem; user-select: none;">
+                000000
+            </div>
+
+            <!-- 6 PIN Inputs -->
+            <div style="display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 1.75rem; width: 100%;">
+                <input type="text" class="sec-pin-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" style="width: 44px; height: 52px; background: #ffffff; border: 2px solid transparent; border-radius: 10px; text-align: center; font-size: 1.4rem; font-weight: 800; color: #0f172a; outline: none; transition: all 0.2s;" oninput="secPinInputHandler(this, 0)" onkeydown="secPinKeyDownHandler(this, event, 0)">
+                <input type="text" class="sec-pin-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" style="width: 44px; height: 52px; background: #ffffff; border: 2px solid transparent; border-radius: 10px; text-align: center; font-size: 1.4rem; font-weight: 800; color: #0f172a; outline: none; transition: all 0.2s;" oninput="secPinInputHandler(this, 1)" onkeydown="secPinKeyDownHandler(this, event, 1)">
+                <input type="text" class="sec-pin-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" style="width: 44px; height: 52px; background: #ffffff; border: 2px solid transparent; border-radius: 10px; text-align: center; font-size: 1.4rem; font-weight: 800; color: #0f172a; outline: none; transition: all 0.2s;" oninput="secPinInputHandler(this, 2)" onkeydown="secPinKeyDownHandler(this, event, 2)">
+                <input type="text" class="sec-pin-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" style="width: 44px; height: 52px; background: #ffffff; border: 2px solid transparent; border-radius: 10px; text-align: center; font-size: 1.4rem; font-weight: 800; color: #0f172a; outline: none; transition: all 0.2s;" oninput="secPinInputHandler(this, 3)" onkeydown="secPinKeyDownHandler(this, event, 3)">
+                <input type="text" class="sec-pin-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" style="width: 44px; height: 52px; background: #ffffff; border: 2px solid transparent; border-radius: 10px; text-align: center; font-size: 1.4rem; font-weight: 800; color: #0f172a; outline: none; transition: all 0.2s;" oninput="secPinInputHandler(this, 4)" onkeydown="secPinKeyDownHandler(this, event, 4)">
+                <input type="text" class="sec-pin-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" style="width: 44px; height: 52px; background: #ffffff; border: 2px solid transparent; border-radius: 10px; text-align: center; font-size: 1.4rem; font-weight: 800; color: #0f172a; outline: none; transition: all 0.2s;" oninput="secPinInputHandler(this, 5)" onkeydown="secPinKeyDownHandler(this, event, 5)">
+            </div>
+
+            <!-- Mensagem de Erro -->
+            <div id="secConfirmErrorMsg" style="display: none; color: #f87171; font-size: 0.78rem; font-weight: 700; margin-bottom: 1rem;">Código incorreto. Tente novamente.</div>
+
+            <!-- Botões de Ação -->
+            <button id="btnSecConfirmSubmit" onclick="secConfirmSubmit()" style="width: 100%; height: 46px; background: #ef4444; color: #ffffff; border: none; border-radius: 12px; font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); margin-bottom: 0.75rem;">
+                CONFIRMAR EXCLUSÃO
+            </button>
+            <button onclick="closeSecurityConfirmModal()" style="background: transparent; border: none; color: #94a3b8; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; cursor: pointer; padding: 0.5rem 1rem; transition: color 0.2s;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='#94a3b8'">
+                CANCELAR
+            </button>
         </div>
     </div>
 

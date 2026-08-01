@@ -65,11 +65,14 @@ async function loadInventory() {
 }
 
 function applyFilters() {
-    const searchTerm = document.getElementById('inventory_search').value.toLowerCase();
-    const categoryFilter = document.getElementById('filter_category').value;
-    const statusFilter = document.getElementById('filter_status').value;
+    const searchTerm = document.getElementById('inventory_search')?.value.toLowerCase() || '';
+    const categoryFilter = document.getElementById('filter_category')?.value || '';
+    const statusFilter = document.getElementById('filter_status')?.value || 'TODOS';
 
     filteredData = inventoryData.filter(item => {
+        // Se o status do item for INATIVO e o filtro de status não pedir explicitamente "TODOS" ou "INATIVO", oculta da lista
+        if (item.status === 'INATIVO' && statusFilter !== 'TODOS' && statusFilter !== 'INATIVO') return false;
+
         const matchesSearch = (item.nome || '').toLowerCase().includes(searchTerm) || 
                              (item.marca || '').toLowerCase().includes(searchTerm) || 
                              (item.ref || '').toLowerCase().includes(searchTerm) ||
@@ -84,6 +87,7 @@ function applyFilters() {
     });
 
     renderInventory(filteredData);
+    updateKPIs();
 }
 
 function renderInventory(data = filteredData) {
@@ -125,43 +129,35 @@ function renderInventory(data = filteredData) {
         `;
         tableBody.appendChild(row);
     });
-    lucide.createIcons();
-    updateKPIs();
-}
-
-function filterInventory() {
-    applyFilters();
-}
-
-function toggleLowStockOnly() {
-    showLowStockOnly = !showLowStockOnly;
-    const btn = document.getElementById('btn_low_stock_toggle');
-    if (showLowStockOnly) {
-        btn.style.background = 'var(--accent)';
-        btn.style.color = '#fff';
-    } else {
-        btn.style.background = 'rgba(245, 158, 11, 0.1)';
-        btn.style.color = 'var(--accent)';
-    }
-    applyFilters();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function updateKPIs() {
-    const totalSku = inventoryData.length;
-    const lowStockCount = inventoryData.filter(item => item.estoque_atual <= item.estoque_minimo).length;
-    const totalValue = inventoryData.reduce((acc, item) => acc + (item.estoque_atual * item.valor_custo), 0);
+    // Considerar apenas produtos ATIVOS no calculo das estatísticas
+    const activeProducts = inventoryData.filter(item => item.status !== 'INATIVO');
+    const totalSku = activeProducts.length;
+    const lowStockCount = activeProducts.filter(item => (Number(item.estoque_atual) || 0) <= (Number(item.estoque_minimo) || 0)).length;
+    const totalValue = activeProducts.reduce((acc, item) => acc + ((Number(item.estoque_atual) || 0) * (Number(item.valor_custo) || 0)), 0);
 
-    document.getElementById('stat_total_sku').innerText = totalSku;
-    document.getElementById('stat_low_stock').innerText = lowStockCount;
-    document.getElementById('stat_total_value').innerText = `R$ ${totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    const skuEl = document.getElementById('stat_total_sku');
+    const lowEl = document.getElementById('stat_low_stock');
+    const valEl = document.getElementById('stat_total_value');
+
+    if (skuEl) skuEl.innerText = totalSku;
+    if (lowEl) lowEl.innerText = lowStockCount;
+    if (valEl) valEl.innerText = `R$ ${totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     const cardLowStock = document.getElementById('card_low_stock');
-    if (lowStockCount > 0) {
-        cardLowStock.classList.add('alert');
-        document.getElementById('stat_alert_msg').innerText = `Atenção: ${lowStockCount} itens com estoque baixo.`;
-    } else {
-        cardLowStock.classList.remove('alert');
-        document.getElementById('stat_alert_msg').innerText = `Mantenha seu estoque abastecido.`;
+    const msgEl = document.getElementById('stat_alert_msg');
+
+    if (cardLowStock) {
+        if (lowStockCount > 0) {
+            cardLowStock.classList.add('alert');
+            if (msgEl) msgEl.innerText = `Atenção: ${lowStockCount} itens com estoque baixo.`;
+        } else {
+            cardLowStock.classList.remove('alert');
+            if (msgEl) msgEl.innerText = `Mantenha seu estoque abastecido.`;
+        }
     }
 }
 
@@ -241,26 +237,166 @@ function prepareNewProduct() {
     switchTab('new');
 }
 
+// Global modal security resolver
+let currentSecurityConfirmResolver = null;
+let currentSecurityGeneratedCode = '';
+
+/**
+ * Exibe o modal de confirmação de segurança idêntico ao padrão do sistema.
+ * Gera um código de 6 dígitos e aguarda a digitação correta nos inputs.
+ */
+function requestSecurityConfirmation() {
+    return new Promise((resolve) => {
+        currentSecurityConfirmResolver = resolve;
+        
+        // Gerar código aleatório de 6 dígitos
+        currentSecurityGeneratedCode = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        const displayBox = document.getElementById('secConfirmDisplayCode');
+        if (displayBox) displayBox.innerText = currentSecurityGeneratedCode;
+
+        // Limpar inputs de PIN
+        const inputs = document.querySelectorAll('.sec-pin-input');
+        inputs.forEach(inp => {
+            inp.value = '';
+            inp.style.borderColor = 'transparent';
+        });
+
+        const errorMsg = document.getElementById('secConfirmErrorMsg');
+        if (errorMsg) errorMsg.style.display = 'none';
+
+        const modal = document.getElementById('modalSecurityConfirm');
+        if (modal) {
+            modal.style.display = 'flex';
+            // Focar o primeiro input após animação/render
+            setTimeout(() => { if (inputs[0]) inputs[0].focus(); }, 100);
+        }
+        if (window.lucide) lucide.createIcons();
+    });
+}
+
+window.closeSecurityConfirmModal = function() {
+    const modal = document.getElementById('modalSecurityConfirm');
+    if (modal) modal.style.display = 'none';
+    if (currentSecurityConfirmResolver) {
+        currentSecurityConfirmResolver(false);
+        currentSecurityConfirmResolver = null;
+    }
+};
+
+window.secPinInputHandler = function(input, index) {
+    const inputs = document.querySelectorAll('.sec-pin-input');
+    const val = input.value.replace(/[^0-9]/g, '');
+    input.value = val;
+
+    if (val) {
+        input.style.borderColor = '#10b981';
+        if (index < inputs.length - 1) {
+            inputs[index + 1].focus();
+        }
+    } else {
+        input.style.borderColor = 'transparent';
+    }
+
+    // Se todos preenchidos, focar no botão de submissão
+    const fullCode = Array.from(inputs).map(i => i.value).join('');
+    if (fullCode.length === 6 && index === 5) {
+        const btn = document.getElementById('btnSecConfirmSubmit');
+        if (btn) btn.focus();
+    }
+};
+
+window.secPinKeyDownHandler = function(input, event, index) {
+    const inputs = document.querySelectorAll('.sec-pin-input');
+    if (event.key === 'Backspace' && !input.value && index > 0) {
+        inputs[index - 1].focus();
+    }
+};
+
+window.secConfirmSubmit = function() {
+    const inputs = document.querySelectorAll('.sec-pin-input');
+    const enteredCode = Array.from(inputs).map(i => i.value).join('');
+    const errorMsg = document.getElementById('secConfirmErrorMsg');
+
+    if (enteredCode === currentSecurityGeneratedCode) {
+        if (errorMsg) errorMsg.style.display = 'none';
+        const modal = document.getElementById('modalSecurityConfirm');
+        if (modal) modal.style.display = 'none';
+        if (currentSecurityConfirmResolver) {
+            currentSecurityConfirmResolver(true);
+            currentSecurityConfirmResolver = null;
+        }
+    } else {
+        if (errorMsg) {
+            errorMsg.innerText = 'Código incorreto! Tente novamente.';
+            errorMsg.style.display = 'block';
+        }
+        inputs.forEach(i => {
+            i.value = '';
+            i.style.borderColor = '#ef4444';
+        });
+        if (inputs[0]) inputs[0].focus();
+    }
+};
+
 async function deleteProduct(id) {
     if (typeof canDo === 'function' && !canDo('estoque_inventario', 'delete')) {
-        alert('Sem permissão para excluir produtos.');
+        showAlertModal({
+            title: 'Acesso Negado',
+            message: 'Você não possui permissão para excluir produtos do inventário.',
+            type: 'error'
+        });
         return;
     }
-    if (!confirm('Tem certeza que deseja excluir este produto?')) return;
+
+    // Solicitar confirmação com código de segurança no padrão do sistema
+    const confirmed = await requestSecurityConfirmation();
+    if (!confirmed) return; // Cancelou ou fechou
 
     try {
+        // Tentar exclusão física do banco
         const { error } = await supabaseClient
             .from('estoque')
             .delete()
             .eq('id', id);
 
-        if (error) throw error;
+        if (error) {
+            console.warn('Erro ao deletar fisicamente:', error);
+            
+            // Se houver restrição de Chave Estrangeira ou histórico, usa o modal padronizado
+            const desejaInativar = await showConfirmModal({
+                title: 'Impossível Excluir Registros com Histórico',
+                message: 'Este produto possui movimentações registradas no sistema e não pode ser apagado fisicamente.<br><br>Deseja alterá-lo para <b>STATUS = INATIVO</b> para que ele não apareça no inventário?',
+                type: 'warning',
+                confirmText: 'SIM, INATIVAR',
+                cancelText: 'VOLTAR'
+            });
+
+            if (desejaInativar) {
+                const { error: updateErr } = await supabaseClient
+                    .from('estoque')
+                    .update({ status: 'INATIVO' })
+                    .eq('id', id);
+
+                if (updateErr) throw updateErr;
+                await loadInventory();
+                if (typeof showToast === 'function') showToast('Produto inativado com sucesso!', 'success');
+            }
+            return;
+        }
+
+        // Se excluiu do Supabase sem erros:
         await loadInventory();
+        if (typeof showToast === 'function') showToast('Produto excluído permanentemente!', 'success');
+
     } catch (err) {
-        console.error('Erro ao deletar:', err);
-        // Fallback demo
-        inventoryData = inventoryData.filter(p => p.id !== id);
-        applyFilters();
+        console.error('Erro de exclusão:', err);
+        showAlertModal({
+            title: 'Erro na Exclusão',
+            message: 'Não foi possível excluir o produto do banco de dados:<br><br><code>' + (err.message || err) + '</code>',
+            type: 'error'
+        });
+        await loadInventory();
     }
 }
 
@@ -1061,12 +1197,23 @@ async function loadSetup() {
         }
 
         // Carregar Marcas
-        const { data: brands, error: errBrands } = await supabaseClient.from('estoque_marcas').select('*').order('nome');
-        if (errBrands) {
-            console.error("Erro ao buscar Marcas:", errBrands);
-        } else {
-            console.log("Marcas carregadas:", brands?.length);
-            renderBrands(brands || []);
+        let loadedBrands = [];
+        try {
+            const { data: brands, error: errBrands } = await supabaseClient.from('estoque_marcas').select('*').order('nome');
+            if (errBrands) throw errBrands;
+            loadedBrands = brands || [];
+            renderBrands(loadedBrands);
+        } catch (eB) {
+            console.warn("Tabela estoque_marcas vazia/erro. Usando fallback de marcas.", eB);
+            const localB = localStorage.getItem('estoque_marcas');
+            loadedBrands = localB ? JSON.parse(localB) : [
+                { id: 'b1', nome: 'COBREQ' },
+                { id: 'b2', nome: 'BOSCH' },
+                { id: 'b3', nome: 'MAHLE' },
+                { id: 'b4', nome: 'FRAM' },
+                { id: 'b5', nome: 'SPACER' }
+            ];
+            renderBrands(loadedBrands);
         }
 
         // Carregar Unidades
@@ -1103,7 +1250,7 @@ async function loadSetup() {
         updateSelectClientes(clientesData);
         
         // Atualizar os campos Select do formulário
-        updateSelects(cats || [], units || [], models || [], brands || []);
+        updateSelects(cats || [], units || [], models || [], loadedBrands);
         
         console.log("Processo de carregamento auxiliar finalizado.");
     } catch (err) {
@@ -1115,10 +1262,10 @@ function renderCategories(cats) {
     const list = document.getElementById('categories_list');
     if (!list) return;
     list.innerHTML = cats.map(c => `
-        <div class="styled-item-box" style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.05);">
-            <span style="font-weight: 700; font-size: 0.85rem; text-transform: uppercase; color: #fff;">${c.nome}</span>
-            <button onclick="deleteCategory('${c.id}')" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.2rem;">
-                <i data-lucide="x" style="width: 14px;"></i>
+        <div class="styled-item-box" style="background: #ffffff; padding: 0.85rem 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
+            <span style="font-weight: 700; font-size: 0.85rem; text-transform: uppercase; color: #0f172a;">${c.nome}</span>
+            <button onclick="deleteCategory('${c.id}')" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; border-radius: 6px; cursor: pointer; padding: 0.3rem 0.5rem; display: inline-flex; align-items: center;">
+                <i data-lucide="x" style="width: 14px; height: 14px;"></i>
             </button>
         </div>
     `).join('');
@@ -1129,13 +1276,13 @@ function renderModels(models) {
     const list = document.getElementById('models_list');
     if (!list) return;
     list.innerHTML = models.map(m => `
-        <div class="styled-item-box" style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.05);">
+        <div class="styled-item-box" style="background: #ffffff; padding: 0.85rem 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
             <div style="display: flex; flex-direction: column;">
-                <span style="font-weight: 800; font-size: 0.85rem; color: #fff; text-transform: uppercase;">${m.marca || ''} ${m.modelo}</span>
-                <span style="font-size: 0.65rem; color: var(--text-muted); font-weight: 600;">${m.potencia || '---'} | ${m.ano || '---'}</span>
+                <span style="font-weight: 800; font-size: 0.85rem; color: #0f172a; text-transform: uppercase;">${m.marca || ''} ${m.modelo}</span>
+                <span style="font-size: 0.7rem; color: #475569; font-weight: 600;">${m.potencia || '---'} | ${m.ano || '---'}</span>
             </div>
-            <button onclick="deleteModel('${m.id}')" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.2rem;">
-                <i data-lucide="x" style="width: 14px;"></i>
+            <button onclick="deleteModel('${m.id}')" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; border-radius: 6px; cursor: pointer; padding: 0.3rem 0.5rem; display: inline-flex; align-items: center;">
+                <i data-lucide="x" style="width: 14px; height: 14px;"></i>
             </button>
         </div>
     `).join('');
@@ -1146,14 +1293,49 @@ function renderUnits(units) {
     const list = document.getElementById('units_list');
     if (!list) return;
     list.innerHTML = units.map(u => `
-        <div class="styled-item-box" style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.05);">
-            <span style="font-weight: 700; font-size: 0.85rem; text-transform: uppercase; color: #fff;">${u.nome} - ${u.sigla}</span>
-            <button onclick="deleteUnit('${u.id}')" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.2rem;">
-                <i data-lucide="x" style="width: 14px;"></i>
+        <div class="styled-item-box" style="background: #ffffff; padding: 0.85rem 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
+            <span style="font-weight: 700; font-size: 0.85rem; text-transform: uppercase; color: #0f172a;">${u.nome} - ${u.sigla}</span>
+            <button onclick="deleteUnit('${u.id}')" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; border-radius: 6px; cursor: pointer; padding: 0.3rem 0.5rem; display: inline-flex; align-items: center;">
+                <i data-lucide="x" style="width: 14px; height: 14px;"></i>
             </button>
         </div>
     `).join('');
     lucide.createIcons();
+}
+
+function renderClientes(clientes) {
+    const list = document.getElementById('clientes_list');
+    if (!list) return;
+    list.innerHTML = clientes.map(c => `
+        <div class="styled-item-box" style="background: #ffffff; padding: 0.85rem 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
+            <div style="display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-start;">
+                <span style="font-weight: 800; font-size: 0.85rem; color: #0f172a; text-transform: uppercase;">${c.nome}</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.7rem; color: #475569; font-weight: 600;">
+                    ${c.documento ? `<span>Doc: ${c.documento}</span>` : ''}
+                    ${c.telefone ? `<span>Tel: ${c.telefone}</span>` : ''}
+                    ${c.email ? `<span>Email: ${c.email}</span>` : ''}
+                </div>
+            </div>
+            <button onclick="deleteCliente('${c.id}')" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; border-radius: 6px; cursor: pointer; padding: 0.3rem 0.5rem; display: inline-flex; align-items: center;">
+                <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+            </button>
+        </div>
+    `).join('');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function renderBrands(brands) {
+    const list = document.getElementById('brands_list');
+    if (!list) return;
+    list.innerHTML = brands.map(b => `
+        <div class="styled-item-box" style="background: #ffffff; padding: 0.85rem 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
+            <span style="font-weight: 700; font-size: 0.85rem; text-transform: uppercase; color: #0f172a;">${b.nome}</span>
+            <button onclick="deleteBrand('${b.id}')" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; border-radius: 6px; cursor: pointer; padding: 0.3rem 0.5rem; display: inline-flex; align-items: center;">
+                <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+            </button>
+        </div>
+    `).join('');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 
@@ -1284,27 +1466,6 @@ async function deleteCliente(id) {
     await loadSetup();
 }
 
-function renderClientes(clientes) {
-    const list = document.getElementById('clientes_list');
-    if (!list) return;
-    list.innerHTML = clientes.map(c => `
-        <div class="styled-item-box" style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.05);">
-            <div style="display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-start;">
-                <span style="font-weight: 800; font-size: 0.85rem; color: #fff; text-transform: uppercase;">${c.nome}</span>
-                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.65rem; color: var(--text-muted); font-weight: 600;">
-                    ${c.documento ? `<span>Doc: ${c.documento}</span>` : ''}
-                    ${c.telefone ? `<span>Tel: ${c.telefone}</span>` : ''}
-                    ${c.email ? `<span>Email: ${c.email}</span>` : ''}
-                </div>
-            </div>
-            <button onclick="deleteCliente('${c.id}')" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.2rem; display: flex; align-items: center; justify-content: center; transition: 0.2s;">
-                <i data-lucide="x" style="width: 14px;"></i>
-            </button>
-        </div>
-    `).join('');
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-}
-
 function updateSelectClientes(clientes) {
     const input = document.getElementById('v_cliente_nome');
     if (input) {
@@ -1327,48 +1488,15 @@ function searchVendaCliente(query) {
         </div>`;
     } else {
         resultsDiv.innerHTML = filtered.map(c => `
-            <div class="search-item" style="padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.02); cursor: pointer; transition: 0.2s;" onclick="selectVendaCliente('${c.nome.replace(/'/g, "\\'")}')">
-                <span class="name" style="font-weight: 700; font-size: 0.8rem; display: block; color: #fff;">${c.nome}</span>
-                <span class="info" style="font-size: 0.65rem; color: var(--text-muted); font-weight: 600;">
+            <div class="search-item" style="padding: 0.8rem; border-bottom: 1px solid rgba(226, 232, 240, 0.5); cursor: pointer; transition: 0.2s;" onclick="selectVendaCliente('${c.nome.replace(/'/g, "\\'")}')">
+                <span class="name" style="font-weight: 700; font-size: 0.8rem; display: block; color: #0f172a;">${c.nome}</span>
+                <span class="info" style="font-size: 0.65rem; color: #64748b; font-weight: 600;">
                     ${c.documento ? `Doc: ${c.documento}` : ''} ${c.telefone ? ` | Tel: ${c.telefone}` : ''}
                 </span>
             </div>
         `).join('');
     }
     resultsDiv.style.display = 'block';
-}
-
-function selectVendaCliente(nome) {
-    const input = document.getElementById('v_cliente_nome');
-    if (input) input.value = nome;
-    
-    const resultsDiv = document.getElementById('v_cliente_search_results');
-    if (resultsDiv) resultsDiv.style.display = 'none';
-}
-
-// Fechar dropdowns de pesquisa ao clicar fora
-document.addEventListener('click', (e) => {
-    const resultsDiv = document.getElementById('v_cliente_search_results');
-    const input = document.getElementById('v_cliente_nome');
-    if (resultsDiv && input && !input.contains(e.target) && !resultsDiv.contains(e.target)) {
-        resultsDiv.style.display = 'none';
-    }
-});
-
-
-
-function renderBrands(brands) {
-    const list = document.getElementById('brands_list');
-    if (!list) return;
-    list.innerHTML = brands.map(b => `
-        <div class="styled-item-box" style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.05);">
-            <span style="font-weight: 700; font-size: 0.85rem; text-transform: uppercase; color: #fff;">${b.nome}</span>
-            <button onclick="deleteBrand('${b.id}')" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.2rem;">
-                <i data-lucide="x" style="width: 14px;"></i>
-            </button>
-        </div>
-    `).join('');
-    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 async function addBrand() {
@@ -1515,15 +1643,21 @@ async function openVendaModal() {
     document.getElementById('v_selected_product_id').value = '';
     
     currentVendaId = null; // Reset ID de edição
-    document.getElementById('btn_confirm_venda').innerText = 'CONFIRMAR SAÍDA';
-    document.getElementById('btn_confirm_venda').style.background = '#10b981';
-    document.getElementById('btn_delete_venda_edit').style.display = 'none';
+    const btnConfirm = document.getElementById('btn_confirm_venda');
+    if (btnConfirm) {
+        btnConfirm.innerText = 'CONFIRMAR SAÍDA';
+        btnConfirm.style.background = '#059669';
+    }
+    
+    const btnDelete = document.getElementById('btn_delete_venda_edit');
+    if (btnDelete) btnDelete.style.display = 'none';
 
     toggleVendaTypeFields();
     updateSelectClientes(clientesData);
     calculateVendaTotal();
     
-    document.getElementById('vendaModal').classList.add('active');
+    const vModal = document.getElementById('vendaModal');
+    if (vModal) vModal.classList.add('active');
     
     // Carregar veículos e retornar a promessa
     return await loadVehicles();
@@ -1810,15 +1944,20 @@ function renderVendaItems() {
 }
 
 
-let lastCalculatedVendaTotal = 0;
-
 function calculateVendaTotal() {
     const finalTotal = vendaItems.reduce((acc, item) => acc + item.subtotal, 0);
     const bruteTotal = vendaItems.reduce((acc, item) => acc + (item.quantidade * item.valor_unitario), 0);
+    const adjustmentTotal = vendaItems.reduce((acc, item) => acc + (item.adjustment || 0), 0);
     
-    document.getElementById('v_total_bruto').innerText = bruteTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     lastCalculatedVendaTotal = finalTotal;
-    document.getElementById('v_total_final').innerText = finalTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    const elBruto = document.getElementById('v_total_bruto');
+    const elAjustes = document.getElementById('v_total_ajustes');
+    const elLiquido = document.getElementById('v_total_liquido') || document.getElementById('v_total_final');
+
+    if (elBruto) elBruto.innerText = bruteTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    if (elAjustes) elAjustes.innerText = adjustmentTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    if (elLiquido) elLiquido.innerText = finalTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 async function saveVenda(event) {

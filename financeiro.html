@@ -14,6 +14,7 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="auth.js?v=20260729_05"></script>
+    <script src="alerts.js"></script>
     <script defer src="https://unpkg.com/lucide@latest"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -288,7 +289,7 @@
                 <!-- Sub-abas do Fluxo de Caixa -->
                 <div class="cadastro-subtabs" style="margin-bottom: 1.25rem;">
                     <button class="subtab-item active" id="btn-subtab-fluxo-contas" onclick="switchFluxoSubTab('contas', event)">
-                        <i data-lucide="table-properties"></i> Movimento das Contas (Plano de Contas)
+                        <i data-lucide="table-properties"></i> Movimentações de Plano Conta
                     </button>
                     <button class="subtab-item" id="btn-subtab-fluxo-bancos" onclick="switchFluxoSubTab('bancos', event)">
                         <i data-lucide="arrow-left-right"></i> Movimentações Entre Bancos
@@ -297,33 +298,40 @@
 
                 <!-- SUB-ABA 1: Movimento das Contas (Plano de Contas / DRE) -->
                 <div id="subtab-fluxo-contas" class="fluxo-subtab-content active">
-                    <div class="fluxo-header" style="flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+                    <div class="fluxo-header" style="flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; background: #ffffff; padding: 1rem 1.25rem; border-radius: 16px; border: 1px solid rgba(45, 158, 107, 0.25); box-shadow: 0 8px 24px rgba(45, 158, 107, 0.08);">
                         <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                             <!-- Navegação por Mês -->
-                            <div class="period-selector">
-                                <button onclick="changeFluxoPeriod(-1)"><i data-lucide="chevron-left"></i></button>
-                                <span id="fluxo-current-period">JUNHO 2026</span>
-                                <button onclick="changeFluxoPeriod(1)"><i data-lucide="chevron-right"></i></button>
+                            <div class="period-selector" style="display: flex; align-items: center; background: #ffffff; border: 1px solid rgba(45, 158, 107, 0.3); border-radius: 10px; padding: 3px 6px;">
+                                <button onclick="changeFluxoPeriod(-1)" style="border:none; background:transparent; padding: 6px 10px; cursor:pointer; color: #059669; border-radius:6px; display:flex; align-items:center; transition:background 0.2s;" onmouseover="this.style.background='rgba(34, 197, 94, 0.12)'" onmouseout="this.style.background='transparent'"><i data-lucide="chevron-left" style="width:16px;height:16px;"></i></button>
+                                <span id="fluxo-current-period" style="font-weight: 800; font-size: 0.85rem; color: #0f172a; padding: 0 0.8rem; letter-spacing: 0.03em; text-transform: uppercase;">JUNHO 2026</span>
+                                <button onclick="changeFluxoPeriod(1)" style="border:none; background:transparent; padding: 6px 10px; cursor:pointer; color: #059669; border-radius:6px; display:flex; align-items:center; transition:background 0.2s;" onmouseover="this.style.background='rgba(34, 197, 94, 0.12)'" onmouseout="this.style.background='transparent'"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></button>
                             </div>
 
                             <!-- Filtro de Conta Bancária -->
                             <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <label style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Banco:</label>
-                                <select id="fluxo-banco-filter" class="fluxo-filter-select" onchange="renderFluxo()" style="min-width: 180px;">
+                                <label class="fhist-label" style="font-size: 0.72rem; font-weight: 800; color: #2d9e6b; text-transform: uppercase; letter-spacing: 0.04rem;">Banco:</label>
+                                <select id="fluxo-banco-filter" class="fhist-select" onchange="renderFluxo()" style="min-width: 180px; height: 40px; background: #ffffff; border: 1px solid rgba(45, 158, 107, 0.3); border-radius: 10px; color: #0f172a; font-weight: 600; font-size: 0.88rem; padding: 0.65rem 1rem;">
                                     <option value="">(TODOS OS BANCOS)</option>
                                 </select>
                             </div>
 
                             <!-- Busca rápida -->
-                            <div style="position: relative; min-width: 200px;">
-                                <input type="text" id="fluxo-search-input" class="fluxo-filter-input" oninput="filterFluxoPlanoTree()" placeholder="Buscar código ou conta..." style="padding-left: 2rem; width: 100%;">
-                                <i data-lucide="search" style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 14px; color: var(--text-muted);"></i>
+                            <div style="position: relative; min-width: 210px;">
+                                <input type="text" id="fluxo-search-input" class="fhist-input" oninput="filterFluxoPlanoTree()" placeholder="Buscar código ou conta..." style="padding-left: 2.3rem; width: 100%; height: 40px; background: #ffffff; border: 1px solid rgba(45, 158, 107, 0.3); border-radius: 10px; color: #0f172a; font-size: 0.88rem; font-weight: 600;">
+                                <i data-lucide="search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: #059669;"></i>
                             </div>
                         </div>
 
-                        <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            <button class="btn-secondary btn-sm" onclick="refreshFluxoView()"><i data-lucide="refresh-cw"></i> Atualizar View</button>
-                            <button class="btn-primary btn-sm" onclick="exportFluxoPlanoExcel()"><i data-lucide="download"></i> Excel</button>
+                        <div style="display: flex; gap: 0.6rem; align-items: center;">
+                            <button id="btn-toggle-fluxo-zerados" class="fhist-btn-clear" onclick="toggleFluxoZerados()" style="height: 40px; border-radius: 10px; border: 1px solid rgba(45, 158, 107, 0.3); color: #2d9e6b; font-size: 0.85rem; font-weight: 700; padding: 0 1.1rem; background: #ffffff;">
+                                <i data-lucide="eye-off" style="width:16px;height:16px;color:#059669;"></i> <span>Ocultar Zerados</span>
+                            </button>
+                            <button class="fhist-btn-clear" onclick="refreshFluxoView()" style="height: 40px; border-radius: 10px; border: 1px solid rgba(45, 158, 107, 0.3); color: #2d9e6b; font-size: 0.85rem; font-weight: 700; padding: 0 1.1rem; background: #ffffff;">
+                                <i data-lucide="refresh-cw" style="width:16px;height:16px;color:#059669;"></i> <span>Atualizar View</span>
+                            </button>
+                            <button class="fhist-btn-gerar" onclick="exportFluxoPlanoExcel()" style="height: 40px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; padding: 0 1.3rem;">
+                                <i data-lucide="download" style="width:16px;height:16px;"></i> <span>Excel</span>
+                            </button>
                         </div>
                     </div>
 
@@ -369,18 +377,124 @@
                     </div>
                 </div>
 
-                <!-- SUB-ABA 2: Movimentações Entre Bancos (Placeholder) -->
+                <!-- SUB-ABA 2: Movimentações Entre Bancos -->
                 <div id="subtab-fluxo-bancos" class="fluxo-subtab-content" style="display: none;">
-                    <div class="table-container" style="padding: 3.5rem 2rem; text-align: center;">
-                        <div style="width: 64px; height: 64px; border-radius: 20px; background: rgba(14,165,233,0.12); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1rem; border: 1px solid rgba(14,165,233,0.25);">
-                            <i data-lucide="arrow-left-right" style="width: 32px; height: 32px; color: var(--primary);"></i>
+
+                    <!-- === CARDS DE SALDO POR BANCO === -->
+                    <div id="banco-saldo-cards" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;"></div>
+
+                    <!-- === FORMULÁRIO DE TRANSFERÊNCIA === -->
+                    <div style="background: #ffffff; border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                            <i data-lucide="arrow-left-right" style="width:16px;height:16px;color: #059669;"></i>
+                            <span style="font-weight:700; font-size:0.82rem; text-transform:uppercase; letter-spacing:0.05em; color: #059669;">Nova Transferência</span>
                         </div>
-                        <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-main);">Movimentações Entre Bancos</h3>
-                        <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 1.5rem; font-size: 0.9rem; line-height: 1.5;">
-                            Módulo de transferências e conciliação bancária entre contas em preparação. Em breve você poderá registrar e acompanhar as movimentações interbancárias.
-                        </p>
-                        <span class="badge primary" style="padding: 0.4rem 1rem; font-size: 0.8rem;">Sub-aba em Desenvolvimento</span>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
+                            <div style="flex: 1; min-width: 160px;">
+                                <label style="display:block; font-size:0.72rem; font-weight:700; color: #475569; text-transform:uppercase; margin-bottom:0.3rem;">De (Origem)</label>
+                                <select id="transf-origem" class="fluxo-filter-select" style="width:100%; height: 38px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;"><option value="">Selecione...</option></select>
+                            </div>
+                            <div style="display:flex; align-items:center; padding-bottom:8px; flex-shrink:0;">
+                                <i data-lucide="arrow-right" style="width:18px;height:18px;color: #059669;"></i>
+                            </div>
+                            <div style="flex: 1; min-width: 160px;">
+                                <label style="display:block; font-size:0.72rem; font-weight:700; color: #475569; text-transform:uppercase; margin-bottom:0.3rem;">Para (Destino)</label>
+                                <select id="transf-destino" class="fluxo-filter-select" style="width:100%; height: 38px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;"><option value="">Selecione...</option></select>
+                            </div>
+                            <div style="min-width: 140px;">
+                                <label style="display:block; font-size:0.72rem; font-weight:700; color: #475569; text-transform:uppercase; margin-bottom:0.3rem;">Valor (R$)</label>
+                                <input type="number" id="transf-valor" class="fluxo-filter-select" style="width:100%; height: 38px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;" min="0.01" step="0.01" placeholder="0,00">
+                            </div>
+                            <div style="min-width: 140px;">
+                                <label style="display:block; font-size:0.72rem; font-weight:700; color: #475569; text-transform:uppercase; margin-bottom:0.3rem;">Data</label>
+                                <input type="date" id="transf-data" class="fluxo-filter-select" style="width:100%; height: 38px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;">
+                            </div>
+                            <div style="flex: 2; min-width: 200px;">
+                                <label style="display:block; font-size:0.72rem; font-weight:700; color: #475569; text-transform:uppercase; margin-bottom:0.3rem;">Descrição</label>
+                                <input type="text" id="transf-descricao" class="fluxo-filter-select" style="width:100%; height: 38px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;" placeholder="Ex: Cobertura de caixa...">
+                            </div>
+                            <div style="flex-shrink:0;">
+                                <button onclick="saveTransferencia()" class="btn-primary btn-sm" style="height:38px; padding: 0 1.2rem; display:flex; align-items:center; gap:0.4rem; background: #059669; border-color: #059669; color: #ffffff; font-weight: 700; border-radius: 6px;">
+                                    <i data-lucide="send" style="width:14px;height:14px;"></i> Transferir
+                                </button>
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- === PAGAMENTOS POR BANCO === -->
+                    <div style="background: #ffffff; border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                <i data-lucide="credit-card" style="width:16px;height:16px;color: #059669;"></i>
+                                <span style="font-weight:700; font-size:0.82rem; text-transform:uppercase; letter-spacing:0.05em; color: #059669;">Pagamentos por Banco</span>
+                            </div>
+                            <div style="display:flex; gap:0.6rem; flex-wrap:wrap; align-items:center;">
+                                <select id="pgbanco-filter-banco" class="fluxo-filter-select" onchange="renderPagamentosPorBanco()" style="min-width:170px; height: 34px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;"><option value="">Todos os Bancos</option></select>
+                                <select id="pgbanco-filter-tipo" class="fluxo-filter-select" onchange="renderPagamentosPorBanco()" style="height: 34px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;">
+                                    <option value="">Pagar + Receber</option>
+                                    <option value="PAGAR">Somente a Pagar</option>
+                                    <option value="RECEBER">Somente a Receber</option>
+                                </select>
+                                <select id="pgbanco-filter-periodo" class="fluxo-filter-select" onchange="renderPagamentosPorBanco()" style="height: 34px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;">
+                                    <option value="current_month" selected>Mês Atual</option>
+                                    <option value="7">Últimos 7 dias</option>
+                                    <option value="15">Últimos 15 dias</option>
+                                    <option value="last_month">Mês Anterior</option>
+                                    <option value="all">Tudo</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="table-container" style="max-height:380px; overflow-y:auto;">
+                            <table class="fluxo-dre-table">
+                                <thead>
+                                    <tr>
+                                        <th>Banco</th>
+                                        <th>Vencimento</th>
+                                        <th>Favorecido / Cliente</th>
+                                        <th>Descrição</th>
+                                        <th>Tipo</th>
+                                        <th style="text-align:right;">Valor</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pgbanco-tbody">
+                                    <tr><td colspan="7" class="table-empty">Carregando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="pgbanco-footer" style="display:flex; justify-content:flex-end; gap:2rem; padding-top:0.75rem; font-size:0.78rem; font-weight:700; border-top:1px solid #e2e8f0; margin-top:0.5rem; color: #334155;"></div>
+                    </div>
+
+                    <!-- === HISTÓRICO DE TRANSFERÊNCIAS === -->
+                    <div style="background: #ffffff; border-radius: 12px; padding: 1.25rem 1.5rem; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                <i data-lucide="history" style="width:16px;height:16px;color: #059669;"></i>
+                                <span style="font-weight:700; font-size:0.82rem; text-transform:uppercase; letter-spacing:0.05em; color: #059669;">Histórico de Transferências</span>
+                            </div>
+                            <button onclick="renderBancoSubTab()" class="btn-secondary btn-sm" style="height:32px; font-size:0.72rem; border-radius: 6px; background: #f1f5f9; border: 1px solid #cbd5e1; color: #334155;">
+                                <i data-lucide="refresh-cw" style="width:12px;height:12px;"></i> Atualizar
+                            </button>
+                        </div>
+                        <div class="table-container" style="max-height:340px; overflow-y:auto;">
+                            <table class="fluxo-dre-table">
+                                <thead>
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Origem</th>
+                                        <th>Destino</th>
+                                        <th style="text-align:right;">Valor</th>
+                                        <th>Descrição</th>
+                                        <th style="text-align:center;">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transf-hist-tbody">
+                                    <tr><td colspan="6" class="table-empty">Carregando transferências...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                 </div>
             </section>
 
@@ -399,7 +513,7 @@
                     <div id="subtab-fornecedores" class="subtab-content active">
                         <div class="subtab-header">
                             <h3>Gestão de Fornecedores</h3>
-                            <button class="btn-primary btn-sm" onclick="openFornecedorModal()"><i
+                            <button class="fhist-btn-gerar" onclick="openFornecedorModal()" style="height: 40px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; padding: 0 1.3rem;"><i
                                     data-lucide="plus"></i> Novo Fornecedor</button>
                         </div>
                         <div class="table-container">
@@ -421,7 +535,7 @@
                     <div id="subtab-contas" class="subtab-content">
                         <div class="subtab-header">
                             <h3>Contas Bancárias</h3>
-                            <button class="btn-primary btn-sm" onclick="openBankAccountModal()"><i
+                            <button class="fhist-btn-gerar" onclick="openBankAccountModal()" style="height: 40px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; padding: 0 1.3rem;"><i
                                     data-lucide="plus"></i> Nova Conta</button>
                         </div>
                         <div id="bankAccountsList" class="config-list"></div>
@@ -432,21 +546,21 @@
                             <h3>Plano de Contas (Tipo de Despesa)</h3>
                             <div style="display: flex; gap: 0.5rem; align-items: center;">
                                 <div style="position: relative; display: inline-block;">
-                                    <button class="btn-secondary btn-sm" onclick="toggleExportPlanoDropdown()" id="btn-export-plano">
+                                    <button class="fhist-btn-clear" onclick="toggleExportPlanoDropdown()" id="btn-export-plano" style="height: 40px; border-radius: 10px; border: 1px solid rgba(45, 158, 107, 0.3); color: #2d9e6b; font-size: 0.85rem; font-weight: 700; padding: 0 1.1rem; background: #ffffff;">
                                         <i data-lucide="download"></i> Exportar
                                     </button>
-                                    <div id="exportPlanoDropdown" class="export-dropdown" style="display: none; position: absolute; right: 0; top: 100%; background: #1a202c; border: 1px solid var(--border-card); border-radius: 6px; padding: 0.5rem 0; z-index: 100; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); min-width: 120px; margin-top: 5px;">
-                                        <button onclick="exportPlano('excel')" class="dropdown-item" style="display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.5rem 1rem; background: none; border: none; color: var(--text-main); text-align: left; cursor: pointer; font-size: 0.85rem;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='none'"><i data-lucide="file-spreadsheet" style="width: 14px; height: 14px;"></i> Excel</button>
-                                        <button onclick="exportPlano('pdf')" class="dropdown-item" style="display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.5rem 1rem; background: none; border: none; color: var(--text-main); text-align: left; cursor: pointer; font-size: 0.85rem;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='none'"><i data-lucide="file-text" style="width: 14px; height: 14px;"></i> PDF</button>
+                                    <div id="exportPlanoDropdown" class="export-dropdown" style="display: none; position: absolute; right: 0; top: 100%; background: #ffffff; border: 1px solid rgba(45, 158, 107, 0.25); border-radius: 10px; padding: 0.5rem 0; z-index: 100; box-shadow: 0 8px 24px rgba(45, 158, 107, 0.12); min-width: 130px; margin-top: 5px;">
+                                        <button onclick="exportPlano('excel')" class="dropdown-item" style="display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.5rem 1rem; background: none; border: none; color: #0f172a; text-align: left; cursor: pointer; font-size: 0.85rem; font-weight: 600;" onmouseover="this.style.background='rgba(34,197,94,0.12)'" onmouseout="this.style.background='none'"><i data-lucide="file-spreadsheet" style="width: 14px; height: 14px; color:#059669;"></i> Excel</button>
+                                        <button onclick="exportPlano('pdf')" class="dropdown-item" style="display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.5rem 1rem; background: none; border: none; color: #0f172a; text-align: left; cursor: pointer; font-size: 0.85rem; font-weight: 600;" onmouseover="this.style.background='rgba(34,197,94,0.12)'" onmouseout="this.style.background='none'"><i data-lucide="file-text" style="width: 14px; height: 14px; color:#059669;"></i> PDF</button>
                                     </div>
                                 </div>
-                                <button class="btn-primary btn-sm" onclick="openPlanoModal()"><i data-lucide="plus"></i>
+                                <button class="fhist-btn-gerar" onclick="openPlanoModal()" style="height: 40px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; padding: 0 1.3rem;"><i data-lucide="plus"></i>
                                     Novo Nível</button>
                             </div>
                         </div>
-                        <div class="search-box" style="margin: 1rem 0; max-width: 400px;">
-                            <i data-lucide="search"></i>
-                            <input type="text" id="planoSearch" placeholder="Filtrar por código ou nome..." oninput="renderConfig()">
+                        <div class="search-box" style="margin: 1rem 0; max-width: 400px; position: relative;">
+                            <input type="text" id="planoSearch" class="fhist-input" placeholder="Filtrar por código ou nome..." oninput="renderConfig()" style="padding-left: 2.3rem; width: 100%; height: 40px; background: #ffffff; border: 1px solid rgba(45, 158, 107, 0.3); border-radius: 10px; color: #0f172a; font-size: 0.88rem; font-weight: 600;">
+                            <i data-lucide="search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: #059669;"></i>
                         </div>
                         <div id="planoContasTree" class="config-tree"></div>
                     </div>
@@ -454,7 +568,7 @@
                     <div id="subtab-cc" class="subtab-content">
                         <div class="subtab-header">
                             <h3>Centros de Custo</h3>
-                            <button class="btn-primary btn-sm" onclick="openCustoModal()"><i data-lucide="plus"></i>
+                            <button class="fhist-btn-gerar" onclick="openCustoModal()" style="height: 40px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; padding: 0 1.3rem;"><i data-lucide="plus"></i>
                                 Novo Centro</button>
                         </div>
                         <div id="centroCustoTree" class="config-tree"></div>
@@ -463,7 +577,7 @@
                     <div id="subtab-pagamento" class="subtab-content">
                         <div class="subtab-header">
                             <h3>Formas de Pagamento</h3>
-                            <button class="btn-primary btn-sm" onclick="openFormaModal()"><i data-lucide="plus"></i>
+                            <button class="fhist-btn-gerar" onclick="openFormaModal()" style="height: 40px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; padding: 0 1.3rem;"><i data-lucide="plus"></i>
                                 Nova Forma</button>
                         </div>
                         <table class="glass-table" style="width: 100%;">
@@ -480,7 +594,7 @@
                     <div id="subtab-especie" class="subtab-content">
                         <div class="subtab-header">
                             <h3>Espécie de Nota</h3>
-                            <button class="btn-primary btn-sm" onclick="openEspecieNotaModal()"><i data-lucide="plus"></i>
+                            <button class="fhist-btn-gerar" onclick="openEspecieNotaModal()" style="height: 40px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; padding: 0 1.3rem;"><i data-lucide="plus"></i>
                                 Cadastrar Espécie de Nota</button>
                         </div>
                         <table class="glass-table" style="width: 100%;">

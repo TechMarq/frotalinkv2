@@ -2112,6 +2112,57 @@ async function crudSave(table, editKey, payload, loadFn, renderFn) {
 // ============================================================
 
 async function deletarRegistro(tipo, id) {
+    // 🔍 Validação de Integridade Referencial antes de confirmar exclusão
+    if (tipo === 'funcionario') {
+        try {
+            const checks = await Promise.all([
+                sb.from('dp_asos').select('id', { count: 'exact', head: true }).eq('funcionario_id', id),
+                sb.from('dp_ferias').select('id', { count: 'exact', head: true }).eq('funcionario_id', id),
+                sb.from('dp_ponto').select('id', { count: 'exact', head: true }).eq('funcionario_id', id),
+                sb.from('dp_atestados').select('id', { count: 'exact', head: true }).eq('funcionario_id', id),
+                sb.from('dp_epis').select('id', { count: 'exact', head: true }).eq('funcionario_id', id),
+                sb.from('dp_uniformes').select('id', { count: 'exact', head: true }).eq('funcionario_id', id),
+                sb.from('dp_beneficios').select('id', { count: 'exact', head: true }).eq('funcionario_id', id),
+                sb.from('dp_contratos_exp').select('id', { count: 'exact', head: true }).eq('funcionario_id', id),
+                sb.from('dp_checklist_exp').select('id', { count: 'exact', head: true }).eq('funcionario_id', id),
+            ]);
+
+            const vinculados = [];
+            if (checks[0].count > 0) vinculados.push(`${checks[0].count} ASO(s)`);
+            if (checks[1].count > 0) vinculados.push(`${checks[1].count} registro(s) de Férias`);
+            if (checks[2].count > 0) vinculados.push(`${checks[2].count} registro(s) de Ponto`);
+            if (checks[3].count > 0) vinculados.push(`${checks[3].count} Atestado(s)/Afastamento(s)`);
+            if (checks[4].count > 0) vinculados.push(`${checks[4].count} entrega(s) de EPI`);
+            if (checks[5].count > 0) vinculados.push(`${checks[5].count} entrega(s) de Uniforme`);
+            if (checks[6].count > 0) vinculados.push(`${checks[6].count} Benefício(s)`);
+            if (checks[7].count > 0) vinculados.push(`${checks[7].count} Contrato(s) de Experiência`);
+            if (checks[8].count > 0) vinculados.push(`${checks[8].count} Avaliação(ões) de Experiência`);
+
+            if (vinculados.length > 0) {
+                const funcObj = dpFuncionarios.find(x => x.id === id);
+                const nomeFunc = funcObj ? funcObj.nome_completo : 'o funcionário';
+                toast(`Não é possível excluir ${nomeFunc}. Existem vínculos ativos.`, 'error');
+                alert(`⚠️ Exclusão Bloqueada!\n\nNão é possível excluir o funcionário "${nomeFunc}" pois existem os seguintes registros vinculados a ele:\n\n• ${vinculados.join('\n• ')}\n\nPor favor, remova ou desvincule estes registros antes de excluir o funcionário.`);
+                return;
+            }
+        } catch (errCheck) {
+            console.error('[Integridade] Erro ao verificar vínculos do funcionário:', errCheck);
+        }
+    } else if (tipo === 'cargo') {
+        try {
+            const { count } = await sb.from('dp_funcionarios').select('id', { count: 'exact', head: true }).eq('cargo_id', id);
+            if (count > 0) {
+                const cargoObj = dpCargos.find(x => x.id === id);
+                const nomeCargo = cargoObj ? cargoObj.nome : 'este cargo';
+                toast(`Não é possível excluir o cargo ${nomeCargo}. Há funcionário(s) associado(s).`, 'error');
+                alert(`⚠️ Exclusão Bloqueada!\n\nNão é possível excluir o cargo "${nomeCargo}" pois existem ${count} funcionário(s) vinculado(s) a ele.`);
+                return;
+            }
+        } catch (errCheck) {
+            console.error('[Integridade] Erro ao verificar vínculos do cargo:', errCheck);
+        }
+    }
+
     if (!confirm('Confirma a exclusão deste registro? Esta ação não pode ser desfeita.')) return;
     const tableMap = {
         funcionario: 'dp_funcionarios', aso: 'dp_asos', ferias: 'dp_ferias', ponto: 'dp_ponto',
@@ -3100,9 +3151,9 @@ function renderHistorico() {
     if (area) area.innerHTML = `
         <div class="table-container">
             <div class="hist-empty-state">
-                <div class="hist-empty-icon"><i data-lucide="history"></i></div>
-                <div class="hist-empty-title">Configure os filtros e gere o histórico</div>
-                <div class="hist-empty-sub">Selecione o tipo de registro, defina o período e clique em <strong>Gerar Histórico</strong> para consultar os dados.</div>
+                <div class="hist-empty-icon"><i data-lucide="file-bar-chart"></i></div>
+                <div class="hist-empty-title">Configure os filtros e gere o relatório</div>
+                <div class="hist-empty-sub">Selecione o tipo de registro, defina o período e clique em <strong>Gerar Relatório</strong> para consultar os dados.</div>
             </div>
         </div>`;
     if (window.lucide) lucide.createIcons();
@@ -3263,7 +3314,7 @@ async function histGerarRelatorio() {
         toast('Erro ao consultar dados. Tente novamente.', 'error');
         renderHistorico();
     } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="search"></i> Gerar Histórico'; if (window.lucide) lucide.createIcons(); }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="search"></i> Gerar Relatório'; if (window.lucide) lucide.createIcons(); }
     }
 }
 
@@ -3401,7 +3452,7 @@ function histExportarPdf() {
     const cols = Object.keys(histData[0]);
     const rows = histData.map(r => cols.map(k => r[k] ?? ''));
     doc.setFontSize(13);
-    doc.text(`Histórico DP — ${histFiltrosAtivos.tipo}`, 14, 15);
+    doc.text(`Relatório DP — ${histFiltrosAtivos.tipo}`, 14, 15);
     doc.autoTable({ head:[cols], body:rows, startY:22, styles:{fontSize:7}, theme:'striped' });
     doc.save(`historico_dp_${histFiltrosAtivos.tipo}_${new Date().toISOString().slice(0,10)}.pdf`);
 }

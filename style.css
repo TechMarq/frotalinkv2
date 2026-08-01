@@ -2288,13 +2288,16 @@ body,
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--border-card);
     color: var(--text-main);
-    padding: 0.5rem 0.8rem;
-    border-radius: 8px;
-    font-size: 0.8rem;
+    padding: 0 0.85rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 700;
     outline: none;
     cursor: pointer;
     width: 100%;
-    height: 38px;
+    height: 42px;
+    line-height: 40px;
+    box-sizing: border-box;
     transition: all 0.2s;
 }
 

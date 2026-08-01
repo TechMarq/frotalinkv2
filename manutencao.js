@@ -1052,7 +1052,7 @@ function renderMaintItems() {
                 </div>
             </div>
 
-            <div class="form-grid" style="grid-template-columns: repeat(4, 1fr); margin-top: 0.6rem; gap: 0.6rem; background: rgba(0,0,0,0.2); padding: 0.6rem; border-radius: 8px;">
+            <div class="form-grid item-card-inner-grid" style="grid-template-columns: repeat(4, 1fr); margin-top: 0.6rem; gap: 0.6rem; padding: 0.6rem; border-radius: 8px;">
                 <div class="form-group">
                     <label style="font-size: 0.7rem;">Controle de Troca</label>
                     <select id="maint_control_${item.id}" style="font-size: 0.75rem; height: 35px;" onchange="updateItemField('${item.id}', 'controle_proxima_troca', this.value); renderMaintItems();">
@@ -1594,10 +1594,10 @@ window.handleMaintVehicleSearch = (el) => {
         resultsDiv.innerHTML = '<div style="padding: 0.8rem; color: var(--text-muted); font-size: 0.85rem;">Nenhum veículo encontrado</div>';
     } else {
         resultsDiv.innerHTML = filtered.map(v => `
-            <div class="autocomplete-item" style="padding: 0.6rem 0.8rem; cursor: pointer; border-bottom: 1px solid rgba(255, 255, 255, 0.03); transition: background 0.2s;" 
+            <div class="autocomplete-item" style="padding: 0.6rem 0.8rem; cursor: pointer; transition: background 0.2s;" 
                  onclick="selectMaintVehicle('${v.id}', '${v.placa} - ${v.modelo}')">
-                <span style="font-weight: 700; color: white; display: block; font-size: 0.85rem;">${v.placa}</span>
-                <span style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">${v.modelo}</span>
+                <span class="autocomplete-item-title" style="font-weight: 700; display: block; font-size: 0.85rem;">${v.placa}</span>
+                <span class="autocomplete-item-subtitle" style="font-size: 0.65rem; text-transform: uppercase;">${v.modelo}</span>
             </div>
         `).join('');
     }
@@ -1633,11 +1633,11 @@ window.handleMaintOficinaSearch = (el) => {
     } else {
         resultsDiv.innerHTML = filtered.map(o => {
             const hasFantasia = o.nome_fantasia && o.nome_fantasia.toLowerCase() !== o.nome.toLowerCase();
-            const subtitle = hasFantasia ? `<span style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; display: block; margin-top: 2px;">Fantasia: ${o.nome_fantasia}</span>` : '';
+            const subtitle = hasFantasia ? `<span class="autocomplete-item-subtitle" style="font-size: 0.65rem; text-transform: uppercase; display: block; margin-top: 2px;">Fantasia: ${o.nome_fantasia}</span>` : '';
             return `
-                <div class="autocomplete-item" style="padding: 0.6rem 0.8rem; cursor: pointer; border-bottom: 1px solid rgba(255, 255, 255, 0.03); transition: background 0.2s;" 
+                <div class="autocomplete-item" style="padding: 0.6rem 0.8rem; cursor: pointer; transition: background 0.2s;" 
                      onclick="selectMaintOficina('${o.id}', '${o.nome}')">
-                    <span style="font-weight: 700; color: white; display: block; font-size: 0.85rem;">${o.nome}</span>
+                    <span class="autocomplete-item-title" style="font-weight: 700; display: block; font-size: 0.85rem;">${o.nome}</span>
                     ${subtitle}
                 </div>
             `;

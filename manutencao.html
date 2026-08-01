@@ -722,6 +722,96 @@
                 margin-bottom: 2px;
             }
         }
+
+        /* Standardized green_pastel theme styling for modals */
+        [data-theme="green_pastel"] .modal-content {
+            background: #ffffff !important;
+            border-color: rgba(45, 158, 107, 0.2) !important;
+            box-shadow: 0 20px 60px rgba(45, 158, 107, 0.15) !important;
+            color: #1a2e25 !important;
+        }
+
+        [data-theme="green_pastel"] .modal-header h2,
+        [data-theme="green_pastel"] .modal-header h3 {
+            color: #1a7a50 !important;
+            -webkit-text-fill-color: #1a7a50 !important;
+            background: none !important;
+        }
+
+        [data-theme="green_pastel"] .modal-content label {
+            color: #2d5a45 !important;
+        }
+
+        [data-theme="green_pastel"] .modal-content input:not([type="checkbox"]):not([type="radio"]),
+        [data-theme="green_pastel"] .modal-content select,
+        [data-theme="green_pastel"] .modal-content textarea {
+            background: #ffffff !important;
+            border: 1px solid rgba(45, 158, 107, 0.3) !important;
+            color: #1a2e25 !important;
+        }
+
+        [data-theme="green_pastel"] .modal-content select option {
+            background: #ffffff !important;
+            color: #1a2e25 !important;
+        }
+
+        [data-theme="green_pastel"] .modal-content input::placeholder {
+            color: #8faea0 !important;
+        }
+
+        [data-theme="green_pastel"] .modal-content input:focus,
+        [data-theme="green_pastel"] .modal-content select:focus,
+        [data-theme="green_pastel"] .modal-content textarea:focus {
+            border-color: #2d9e6b !important;
+            box-shadow: 0 0 0 3px rgba(45, 158, 107, 0.18) !important;
+            background: #ffffff !important;
+        }
+
+        [data-theme="green_pastel"] .item-card {
+            background: rgba(45, 158, 107, 0.04) !important;
+            border-color: rgba(45, 158, 107, 0.2) !important;
+        }
+
+        [data-theme="green_pastel"] .item-card-inner-grid {
+            background: rgba(45, 158, 107, 0.08) !important;
+        }
+
+        [data-theme="green_pastel"] .autocomplete-results {
+            background: #ffffff !important;
+            border-color: rgba(45, 158, 107, 0.25) !important;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+        }
+
+        [data-theme="green_pastel"] .autocomplete-item {
+            border-bottom-color: rgba(45, 158, 107, 0.1) !important;
+        }
+
+        [data-theme="green_pastel"] .autocomplete-item:hover {
+            background: rgba(45, 158, 107, 0.12) !important;
+        }
+
+        [data-theme="green_pastel"] .autocomplete-item-title {
+            color: #1a2e25 !important;
+        }
+
+        [data-theme="green_pastel"] .autocomplete-item-subtitle {
+            color: #5a7a6a !important;
+        }
+
+        [data-theme="green_pastel"] .modal-footer {
+            border-top: 1px solid rgba(45, 158, 107, 0.15) !important;
+        }
+
+        [data-theme="green_pastel"] .btn-modal-cancel {
+            background: rgba(45, 158, 107, 0.08) !important;
+            color: #1a7a50 !important;
+            border: 1px solid rgba(45, 158, 107, 0.25) !important;
+        }
+
+        [data-theme="green_pastel"] .btn-modal-cancel:hover {
+            background: rgba(45, 158, 107, 0.18) !important;
+            color: #125437 !important;
+        }
     </style>
     <script src="config.js"></script>
 </head>
@@ -1026,7 +1116,7 @@
                         <div class="autocomplete-wrapper" style="position: relative;">
                             <input type="text" id="maint_veiculo_search" placeholder="Buscar placa..." required autocomplete="off" oninput="handleMaintVehicleSearch(this)" onfocus="handleMaintVehicleSearch(this)" onkeydown="handleMaintAutocompleteKeydown(event, this)">
                             <input type="hidden" id="maint_veiculo" required>
-                            <div class="autocomplete-results" id="maint_veiculo_results" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #1e293b; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; z-index: 100; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8);"></div>
+                            <div class="autocomplete-results" id="maint_veiculo_results" style="display: none; position: absolute; top: 100%; left: 0; right: 0; border-radius: 8px; z-index: 100; max-height: 200px; overflow-y: auto;"></div>
                         </div>
                     </div>
 
@@ -1053,7 +1143,7 @@
                         <div class="autocomplete-wrapper" style="position: relative;">
                             <input type="text" id="maint_oficina_search" placeholder="Buscar oficina..." required autocomplete="off" oninput="handleMaintOficinaSearch(this)" onfocus="handleMaintOficinaSearch(this)" onkeydown="handleMaintAutocompleteKeydown(event, this)">
                             <input type="hidden" id="maint_oficina" required>
-                            <div class="autocomplete-results" id="maint_oficina_results" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #1e293b; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; z-index: 100; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8);"></div>
+                            <div class="autocomplete-results" id="maint_oficina_results" style="display: none; position: absolute; top: 100%; left: 0; right: 0; border-radius: 8px; z-index: 100; max-height: 200px; overflow-y: auto;"></div>
                         </div>
                     </div>
                     <!-- Seção: Itens da Manutenção (DINÂMICO) -->
@@ -1076,9 +1166,9 @@
                         </button>
                     </div>
                 </div>
-                <div class="modal-footer" style="margin-top: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 1.5rem; display: flex; justify-content: flex-end; gap: 1rem;">
-                    <button type="button" class="btn" style="background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.1); padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s;" onclick="closeMaintModal(false)">CANCELAR (Esc)</button>
-                    <button type="submit" class="btn btn-primary" style="background: var(--primary); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s;">FINALIZAR ORDEM DE SERVIÇO (Ctrl + Enter)</button>
+                <div class="modal-footer" style="margin-top: 2rem; padding-top: 1.5rem; display: flex; justify-content: flex-end; gap: 1rem;">
+                    <button type="button" class="btn btn-modal-cancel" style="padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s;" onclick="closeMaintModal(false)">CANCELAR (Esc)</button>
+                    <button type="submit" class="btn btn-primary" style="padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s;">FINALIZAR ORDEM DE SERVIÇO (Ctrl + Enter)</button>
                 </div>
             </form>
         </div>

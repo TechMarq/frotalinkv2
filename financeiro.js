@@ -787,6 +787,8 @@ window.switchFluxoSubTab = function(subtab, event) {
 
     if (subtab === 'contas') {
         renderFluxo();
+    } else if (subtab === 'bancos') {
+        renderBancoSubTab();
     }
 };
 
@@ -802,7 +804,11 @@ window.filterFluxoPlanoTree = function() {
     rows.forEach(tr => {
         const code = tr.getAttribute('data-code') || '';
         const name = tr.getAttribute('data-name') || '';
-        if (!query || code.toLowerCase().includes(query) || name.toLowerCase().includes(query)) {
+        const hasVal = tr.getAttribute('data-has-value') === 'true';
+        const matchesQuery = !query || code.toLowerCase().includes(query) || name.toLowerCase().includes(query);
+        const matchesZerado = !window.fluxoHideZeradosActive || hasVal;
+        
+        if (matchesQuery && matchesZerado) {
             tr.style.display = '';
         } else {
             tr.style.display = 'none';
@@ -1112,8 +1118,12 @@ async function renderFluxo() {
                     </div>`;
         };
 
+        const hasValue = Math.abs(vals.ant.pago) > 0.001 || Math.abs(vals.ant.prev) > 0.001 ||
+                         Math.abs(vals.atual.pago) > 0.001 || Math.abs(vals.atual.prev) > 0.001 ||
+                         Math.abs(vals.post.pago) > 0.001 || Math.abs(vals.post.prev) > 0.001;
+
         return `
-            <tr data-code="${code}" data-name="${c.nome}" class="${levelClass}">
+            <tr data-code="${code}" data-name="${c.nome}" data-has-value="${hasValue}" class="${levelClass}">
                 <td style="padding: 0.65rem 1rem 0.65rem ${indentPx + 12}px;">
                     <span class="dre-code-badge" style="margin-right: 8px;">${code}</span>
                     <span>${c.nome}</span>
@@ -1130,7 +1140,53 @@ async function renderFluxo() {
             </tr>
         `;
     }).join('');
+
+    // Re-aplicar ocultação de zerados se o filtro estiver ativo
+    if (window.fluxoHideZeradosActive) {
+        window.applyFluxoZeradosFilter();
+    }
 }
+
+window.fluxoHideZeradosActive = false;
+
+window.toggleFluxoZerados = function() {
+    window.fluxoHideZeradosActive = !window.fluxoHideZeradosActive;
+    const btn = document.getElementById('btn-toggle-fluxo-zerados');
+    if (btn) {
+        if (window.fluxoHideZeradosActive) {
+            btn.className = 'fhist-btn-gerar';
+            btn.style.height = '40px';
+            btn.style.borderRadius = '10px';
+            btn.style.fontSize = '0.85rem';
+            btn.style.padding = '0 1.1rem';
+            btn.innerHTML = `<i data-lucide="eye" style="width:16px;height:16px;"></i> <span>Exibir Todos</span>`;
+        } else {
+            btn.className = 'fhist-btn-clear';
+            btn.style.height = '40px';
+            btn.style.borderRadius = '10px';
+            btn.style.fontSize = '0.85rem';
+            btn.style.padding = '0 1.1rem';
+            btn.style.background = '#ffffff';
+            btn.style.borderColor = 'rgba(45, 158, 107, 0.3)';
+            btn.style.color = '#2d9e6b';
+            btn.innerHTML = `<i data-lucide="eye-off" style="width:16px;height:16px;color:#059669;"></i> <span>Ocultar Zerados</span>`;
+        }
+        if (window.lucide) lucide.createIcons();
+    }
+    window.applyFluxoZeradosFilter();
+};
+
+window.applyFluxoZeradosFilter = function() {
+    const rows = document.querySelectorAll('#fluxoPlanoTbody tr[data-code]');
+    rows.forEach(tr => {
+        const hasVal = tr.getAttribute('data-has-value') === 'true';
+        if (window.fluxoHideZeradosActive && !hasVal) {
+            tr.style.display = 'none';
+        } else {
+            tr.style.display = '';
+        }
+    });
+};
 
 window.exportFluxoPlanoExcel = function() {
     if (!fluxoPlanoCacheData || !fluxoPlanoCacheData.categorias) {
@@ -3173,25 +3229,25 @@ function renderConfig() {
     const bankList = document.getElementById('bankAccountsList');
     if (bankList) {
         bankList.innerHTML = state.contas.map(c => `
-            <div class="conc-item" style="display:flex; justify-content:space-between; align-items:center; padding:1.2rem; border-bottom:1px solid rgba(255,255,255,0.05); background:rgba(255,255,255,0.01); border-radius:12px; margin-bottom:0.8rem;">
+            <div class="conc-item" style="display:flex; justify-content:space-between; align-items:center; padding:1.2rem; border-bottom:1px solid #e2e8f0; background:#ffffff; border-radius:12px; margin-bottom:0.8rem; border:1px solid #e2e8f0; box-shadow:0 1px 3px rgba(0,0,0,0.04);">
                 <div style="display:flex; align-items:center; gap:1.2rem;">
-                    <div style="width:40px; height:40px; border-radius:10px; background:rgba(92, 96, 245, 0.1); display:flex; align-items:center; justify-content:center; color:var(--primary);">
+                    <div style="width:40px; height:40px; border-radius:10px; background:rgba(5, 150, 105, 0.1); display:flex; align-items:center; justify-content:center; color:#059669;">
                         <i data-lucide="landmark"></i>
                     </div>
                     <div>
-                        <div style="font-weight:700; font-size:1rem;">${c.nome}</div>
-                        <div style="font-size:0.75rem; color:var(--text-muted)">${c.banco || 'BANCO'} | Ag: ${c.agencia} | CC: ${c.numero_conta}</div>
-                        ${c.pix ? `<div style="font-size:0.65rem; color:var(--primary); font-weight:700; margin-top:4px;">PIX: ${c.pix}</div>` : ''}
+                        <div style="font-weight:700; font-size:1rem; color:#0f172a;">${c.nome}</div>
+                        <div style="font-size:0.75rem; color:#64748b">${c.banco || 'BANCO'} | Ag: ${c.agencia} | CC: ${c.numero_conta}</div>
+                        ${c.pix ? `<div style="font-size:0.65rem; color:#059669; font-weight:700; margin-top:4px;">PIX: ${c.pix}</div>` : ''}
                     </div>
                 </div>
                 <div style="text-align:right; display:flex; align-items:center; gap:1.5rem;">
                     <div>
-                        <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; font-weight:800;">Saldo Disponível</div>
-                        <div style="font-weight:900; font-size:1.4rem; color:#818cf8;">${formatCurrency(c.saldo_atual)}</div>
+                        <div style="font-size:0.65rem; color:#64748b; text-transform:uppercase; font-weight:800;">Saldo Disponível</div>
+                        <div style="font-weight:900; font-size:1.4rem; color:${(parseFloat(c.saldo_atual)||0) >= 0 ? '#059669' : '#dc2626'};">${formatCurrency(c.saldo_atual)}</div>
                     </div>
-                    <div class="table-actions">
-                        <button class="btn-edit" style="background:rgba(255,255,255,0.05); padding:8px; border-radius:8px;" onclick="openBankAccountModal('${c.id}')"><i data-lucide="edit-2" style="width:16px;"></i></button>
-                        <button class="btn-delete" style="background:rgba(255, 71, 87, 0.1); color:#ff4757; padding:8px; border-radius:8px;" onclick="deleteBankItem('${c.id}')"><i data-lucide="trash" style="width:16px;"></i></button>
+                    <div class="table-actions" style="display:flex; gap:0.4rem;">
+                        <button class="btn-edit" style="background:#dbeafe; color:#2563eb; padding:8px; border-radius:8px; border:1px solid #bfdbfe; cursor:pointer;" onclick="openBankAccountModal('${c.id}')"><i data-lucide="edit-2" style="width:16px;"></i></button>
+                        <button class="btn-delete" style="background:#fee2e2; color:#dc2626; padding:8px; border-radius:8px; border:1px solid #fca5a5; cursor:pointer;" onclick="deleteBankItem('${c.id}')"><i data-lucide="trash" style="width:16px;"></i></button>
                     </div>
                 </div>
             </div>
@@ -3211,14 +3267,14 @@ function renderConfig() {
             const level = c.codigo.split('.').length;
             const indent = (level - 1) * 20;
             return `
-                <div style="padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.02); display:flex; justify-content:space-between; align-items:center; padding-left: ${indent + 10}px;">
+                <div style="padding: 0.8rem; border-bottom: 1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center; padding-left: ${indent + 10}px; background:#ffffff;">
                     <div>
-                        <strong style="color:var(--primary)">${c.codigo}</strong> ${c.nome}
-                        <span class="badge secondary" style="font-size:0.55rem; margin-left:10px;">G${level}</span>
+                        <strong style="color:#059669">${c.codigo}</strong> <span style="color:#0f172a; font-weight:600;">${c.nome}</span>
+                        <span class="badge secondary" style="font-size:0.65rem; margin-left:10px; background:#e2e8f0; color:#334155;">G${level}</span>
                     </div>
-                    <div class="table-actions">
-                        <button class="btn-edit" style="padding:4px;" onclick="openPlanoModal('${c.id}')"><i data-lucide="edit" style="width:14px;"></i></button>
-                        <button class="btn-delete" style="padding:4px;" onclick="deletePlanoItem('${c.id}')"><i data-lucide="trash" style="width:14px;"></i></button>
+                    <div class="table-actions" style="display:flex; gap:0.4rem;">
+                        <button class="btn-edit" style="padding:6px; background:#dbeafe; color:#2563eb; border-radius:6px; border:1px solid #bfdbfe; cursor:pointer;" onclick="openPlanoModal('${c.id}')"><i data-lucide="edit" style="width:14px;"></i></button>
+                        <button class="btn-delete" style="padding:6px; background:#fee2e2; color:#dc2626; border-radius:6px; border:1px solid #fca5a5; cursor:pointer;" onclick="deletePlanoItem('${c.id}')"><i data-lucide="trash" style="width:14px;"></i></button>
                     </div>
                 </div>
             `;
@@ -3232,13 +3288,13 @@ function renderConfig() {
             const level = c.codigo.split('.').length;
             const indent = (level - 1) * 20;
             return `
-                <div style="padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.02); display:flex; justify-content:space-between; align-items:center; padding-left: ${indent + 10}px;">
+                <div style="padding: 0.8rem; border-bottom: 1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center; padding-left: ${indent + 10}px; background:#ffffff;">
                     <div>
-                        <strong style="color:#10b981">${c.codigo}</strong> ${c.nome}
+                        <strong style="color:#059669">${c.codigo}</strong> <span style="color:#0f172a; font-weight:600;">${c.nome}</span>
                     </div>
-                    <div class="table-actions">
-                        <button class="btn-edit" style="padding:4px;" onclick="openCustoModal('${c.id}')"><i data-lucide="edit" style="width:14px;"></i></button>
-                        <button class="btn-delete" style="padding:4px;" onclick="deleteCustoItem('${c.id}')"><i data-lucide="trash" style="width:14px;"></i></button>
+                    <div class="table-actions" style="display:flex; gap:0.4rem;">
+                        <button class="btn-edit" style="padding:6px; background:#dbeafe; color:#2563eb; border-radius:6px; border:1px solid #bfdbfe; cursor:pointer;" onclick="openCustoModal('${c.id}')"><i data-lucide="edit" style="width:14px;"></i></button>
+                        <button class="btn-delete" style="padding:6px; background:#fee2e2; color:#dc2626; border-radius:6px; border:1px solid #fca5a5; cursor:pointer;" onclick="deleteCustoItem('${c.id}')"><i data-lucide="trash" style="width:14px;"></i></button>
                     </div>
                 </div>
             `;
@@ -5402,3 +5458,338 @@ async function showRecordHistory(id) {
 }
 
 window.showRecordHistory = showRecordHistory;
+
+// =============================================================================
+// 🏦 MOVIMENTAÇÕES ENTRE BANCOS
+// =============================================================================
+
+/**
+ * Renderiza a sub-aba completa de movimentações entre bancos:
+ * cards de saldo, selects do formulário, tabela de pagamentos e histórico.
+ */
+window.renderBancoSubTab = async function() {
+    _renderBancoSaldoCards();
+    _populateTransfSelects();
+    _populatePgBancoFilter();
+    renderPagamentosPorBanco();
+    await renderHistoricoTransferencias();
+};
+
+/** Renderiza cards de saldo por banco */
+function _renderBancoSaldoCards() {
+    const container = document.getElementById('banco-saldo-cards');
+    if (!container) return;
+    const contas = state.contas || [];
+    if (!contas.length) {
+        container.innerHTML = `<div style="color: #64748b; font-size:0.85rem;">Nenhuma conta bancária cadastrada.</div>`;
+        return;
+    }
+    container.innerHTML = contas.map(c => {
+        const saldo = parseFloat(c.saldo_atual) || 0;
+        const saldoColor = saldo >= 0 ? '#059669' : '#dc2626';
+        return `
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid #059669; border-radius: 12px; padding: 1rem 1.1rem; display:flex; flex-direction:column; gap:0.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color: #64748b;">${c.banco || 'BANCO'}</div>
+            <div style="font-size:0.85rem; font-weight:700; color: #0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${c.nome}">${c.nome}</div>
+            <div style="font-size:0.7rem; color: #64748b;">Ag: ${c.agencia || '-'} | CC: ${c.numero_conta || c.conta || '-'}</div>
+            <div style="font-size:1.15rem; font-weight:800; color:${saldoColor}; margin-top:0.25rem;">${formatCurrency(saldo)}</div>
+        </div>`;
+    }).join('');
+}
+
+/** Popula os selects de origem/destino do formulário de transferência */
+function _populateTransfSelects() {
+    const contas = state.contas || [];
+    const opts = contas.map(c => `<option value="${c.id}">${c.nome} (${c.banco || ''} | Saldo: ${formatCurrency(c.saldo_atual)})</option>`).join('');
+    const origemSel = document.getElementById('transf-origem');
+    const destinoSel = document.getElementById('transf-destino');
+    if (origemSel) origemSel.innerHTML = `<option value="">Selecione a origem...</option>${opts}`;
+    if (destinoSel) destinoSel.innerHTML = `<option value="">Selecione o destino...</option>${opts}`;
+    // Preencher data padrão = hoje
+    const dataInput = document.getElementById('transf-data');
+    if (dataInput && !dataInput.value) {
+        dataInput.value = new Date().toISOString().slice(0, 10);
+    }
+}
+
+/** Popula o filtro de banco na tabela Pagamentos por Banco */
+function _populatePgBancoFilter() {
+    const sel = document.getElementById('pgbanco-filter-banco');
+    if (!sel) return;
+    const contas = state.contas || [];
+    const opts = contas.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+    sel.innerHTML = `<option value="">Todos os Bancos</option>${opts}`;
+}
+
+/**
+ * Salva uma nova transferência entre bancos:
+ * - Insere registro em fin_transferencias_bancarias
+ * - Debita da conta origem e credita na conta destino
+ */
+window.saveTransferencia = async function() {
+    const origemId  = document.getElementById('transf-origem')?.value;
+    const destinoId = document.getElementById('transf-destino')?.value;
+    const valor     = parseFloat(document.getElementById('transf-valor')?.value);
+    const data      = document.getElementById('transf-data')?.value;
+    const descricao = document.getElementById('transf-descricao')?.value?.trim();
+
+    if (!origemId)  { showToast('Selecione a conta de origem.', 'error');  return; }
+    if (!destinoId) { showToast('Selecione a conta de destino.', 'error'); return; }
+    if (origemId === destinoId) { showToast('Origem e destino não podem ser iguais.', 'error'); return; }
+    if (!valor || valor <= 0)  { showToast('Informe um valor válido.', 'error'); return; }
+    if (!data) { showToast('Informe a data da transferência.', 'error'); return; }
+
+    const contaOrigem  = (state.contas || []).find(c => c.id === origemId);
+    const contaDestino = (state.contas || []).find(c => c.id === destinoId);
+    if (!contaOrigem || !contaDestino) { showToast('Conta não encontrada.', 'error'); return; }
+
+    if ((parseFloat(contaOrigem.saldo_atual) || 0) < valor) {
+        if (!confirm(`Saldo insuficiente na conta "${contaOrigem.nome}" (Saldo atual: ${formatCurrency(contaOrigem.saldo_atual)}). Deseja continuar mesmo assim?`)) return;
+    }
+
+    try {
+        // 1. Registrar a transferência
+        const { error: errTransf } = await supabaseClient.from('fin_transferencias_bancarias').insert([{
+            conta_origem_id:    origemId,
+            conta_destino_id:   destinoId,
+            valor:              valor,
+            data_transferencia: data,
+            descricao:          descricao || null
+        }]);
+        if (errTransf) throw errTransf;
+
+        // 2. Atualizar saldo origem (debitar)
+        const novoSaldoOrigem = (parseFloat(contaOrigem.saldo_atual) || 0) - valor;
+        const { error: errO } = await supabaseClient.from('fin_contas_bancarias').update({ saldo_atual: novoSaldoOrigem }).eq('id', origemId);
+        if (errO) throw errO;
+
+        // 3. Atualizar saldo destino (creditar)
+        const novoSaldoDestino = (parseFloat(contaDestino.saldo_atual) || 0) + valor;
+        const { error: errD } = await supabaseClient.from('fin_contas_bancarias').update({ saldo_atual: novoSaldoDestino }).eq('id', destinoId);
+        if (errD) throw errD;
+
+        // 4. Atualizar state local
+        contaOrigem.saldo_atual  = novoSaldoOrigem;
+        contaDestino.saldo_atual = novoSaldoDestino;
+
+        // 5. Limpar form
+        document.getElementById('transf-origem').value    = '';
+        document.getElementById('transf-destino').value   = '';
+        document.getElementById('transf-valor').value     = '';
+        document.getElementById('transf-descricao').value = '';
+
+        showToast(`Transferência de ${formatCurrency(valor)} realizada com sucesso!`, 'success');
+
+        // 6. Atualizar UI
+        _renderBancoSaldoCards();
+        _populateTransfSelects();
+        await renderHistoricoTransferencias();
+
+    } catch (err) {
+        console.error('[saveTransferencia] Erro:', err);
+        showToast('Erro ao registrar transferência: ' + (err.message || err), 'error');
+    }
+};
+
+/**
+ * Remove uma transferência e estorna os saldos das contas.
+ */
+window.deleteTransferencia = async function(id) {
+    if (!confirm('Deseja estornar esta transferência? Os saldos das contas serão revertidos.')) return;
+
+    try {
+        // Buscar a transferência para saber os valores
+        const { data: transf, error: errFetch } = await supabaseClient
+            .from('fin_transferencias_bancarias')
+            .select('*')
+            .eq('id', id)
+            .single();
+        if (errFetch || !transf) throw errFetch || new Error('Transferência não encontrada.');
+
+        // Buscar contas
+        const { data: contas, error: errC } = await supabaseClient
+            .from('fin_contas_bancarias')
+            .select('*')
+            .in('id', [transf.conta_origem_id, transf.conta_destino_id]);
+        if (errC) throw errC;
+
+        const contaOrigem  = (contas || []).find(c => c.id === transf.conta_origem_id);
+        const contaDestino = (contas || []).find(c => c.id === transf.conta_destino_id);
+
+        // Estornar: crédita na origem, débita no destino
+        if (contaOrigem) {
+            await supabaseClient.from('fin_contas_bancarias').update({
+                saldo_atual: (parseFloat(contaOrigem.saldo_atual) || 0) + transf.valor
+            }).eq('id', contaOrigem.id);
+            const localO = (state.contas || []).find(c => c.id === contaOrigem.id);
+            if (localO) localO.saldo_atual = (parseFloat(localO.saldo_atual) || 0) + transf.valor;
+        }
+        if (contaDestino) {
+            await supabaseClient.from('fin_contas_bancarias').update({
+                saldo_atual: (parseFloat(contaDestino.saldo_atual) || 0) - transf.valor
+            }).eq('id', contaDestino.id);
+            const localD = (state.contas || []).find(c => c.id === contaDestino.id);
+            if (localD) localD.saldo_atual = (parseFloat(localD.saldo_atual) || 0) - transf.valor;
+        }
+
+        // Deletar o registro
+        const { error: errDel } = await supabaseClient.from('fin_transferencias_bancarias').delete().eq('id', id);
+        if (errDel) throw errDel;
+
+        showToast('Transferência estornada com sucesso.', 'success');
+        _renderBancoSaldoCards();
+        _populateTransfSelects();
+        await renderHistoricoTransferencias();
+
+    } catch (err) {
+        console.error('[deleteTransferencia] Erro:', err);
+        showToast('Erro ao estornar transferência: ' + (err.message || err), 'error');
+    }
+};
+
+/**
+ * Renderiza a tabela "Pagamentos por Banco" filtrando os lançamentos
+ * do state pelo banco, tipo e período selecionados.
+ */
+window.renderPagamentosPorBanco = function() {
+    const tbody   = document.getElementById('pgbanco-tbody');
+    const footer  = document.getElementById('pgbanco-footer');
+    if (!tbody) return;
+
+    const bancoId  = document.getElementById('pgbanco-filter-banco')?.value  || '';
+    const tipoFil  = document.getElementById('pgbanco-filter-tipo')?.value   || '';
+    const periodo  = document.getElementById('pgbanco-filter-periodo')?.value || 'current_month';
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    function inPeriod(dateStr) {
+        if (!dateStr) return false;
+        const d = new Date(dateStr + 'T00:00:00');
+        if (periodo === 'all') return true;
+        if (periodo === 'current_month') {
+            return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth();
+        }
+        if (periodo === 'last_month') {
+            const lm = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            return d.getFullYear() === lm.getFullYear() && d.getMonth() === lm.getMonth();
+        }
+        const days = parseInt(periodo);
+        if (!isNaN(days)) {
+            const cutoff = new Date(today);
+            cutoff.setDate(cutoff.getDate() - days);
+            return d >= cutoff && d <= today;
+        }
+        return true;
+    }
+
+    let items = (state.lancamentos || []).filter(l => {
+        if (bancoId && l.conta_bancaria_id !== bancoId) return false;
+        if (tipoFil && l.tipo !== tipoFil) return false;
+        const dateRef = l.data_vencimento || l.previsao_pagamento;
+        return inPeriod(dateRef);
+    });
+
+    // ordenar por data decrescente
+    items = items.sort((a, b) => {
+        const da = new Date(a.data_vencimento || a.previsao_pagamento || 0);
+        const db = new Date(b.data_vencimento || b.previsao_pagamento || 0);
+        return db - da;
+    });
+
+    if (!items.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="table-empty">Nenhum lançamento encontrado para o período/filtro selecionado.</td></tr>`;
+        if (footer) footer.innerHTML = '';
+        return;
+    }
+
+    const STATUS_MAP = { ABERTO: 'Aberto', PAGO: 'Pago', PARCIAL: 'Parcial', CANCELADO: 'Cancelado', ATRASADO: 'Atrasado' };
+    const STATUS_COLOR = { ABERTO: '#d97706', PAGO: '#059669', PARCIAL: '#2563eb', CANCELADO: '#64748b', ATRASADO: '#dc2626' };
+    const STATUS_BG    = { ABERTO: '#fef3c7', PAGO: '#d1fae5', PARCIAL: '#dbeafe', CANCELADO: '#f1f5f9', ATRASADO: '#fee2e2' };
+
+    let totalPagar = 0, totalReceber = 0;
+
+    tbody.innerHTML = items.map(l => {
+        const conta = (state.contas || []).find(c => c.id === l.conta_bancaria_id);
+        const bancoNome = conta ? conta.nome : '—';
+        const dateStr = l.data_vencimento || l.previsao_pagamento || '';
+        const valor = parseFloat(l.valor_total) || 0;
+        if (l.tipo === 'PAGAR')   totalPagar   += valor;
+        if (l.tipo === 'RECEBER') totalReceber += valor;
+        const statusColor = STATUS_COLOR[l.status] || '#64748b';
+        const statusBg    = STATUS_BG[l.status] || '#f1f5f9';
+        const tipoColor   = l.tipo === 'PAGAR' ? '#dc2626' : '#059669';
+        return `<tr>
+            <td style="font-size:0.78rem; font-weight:600; color: #0f172a;">${bancoNome}</td>
+            <td style="font-size:0.78rem; color: #334155;">${dateStr ? formatDate(dateStr) : '—'}</td>
+            <td style="font-size:0.78rem; color: #334155;">${l.entidade_nome || '—'}</td>
+            <td style="font-size:0.78rem; color: #334155; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${l.descricao || ''}">${l.descricao || '—'}</td>
+            <td><span style="font-size:0.7rem; font-weight:700; color:${tipoColor};">${l.tipo}</span></td>
+            <td style="text-align:right; font-weight:700; font-size:0.82rem; color: #0f172a;">${formatCurrency(valor)}</td>
+            <td><span style="font-size:0.68rem; font-weight:700; color:${statusColor}; background:${statusBg}; padding:2px 8px; border-radius:6px;">${STATUS_MAP[l.status] || l.status}</span></td>
+        </tr>`;
+    }).join('');
+
+    if (footer) {
+        footer.innerHTML = `
+            <span>A Pagar: <span style="color:#dc2626;">${formatCurrency(totalPagar)}</span></span>
+            <span>A Receber: <span style="color:#059669;">${formatCurrency(totalReceber)}</span></span>
+            <span>Saldo: <span style="color:${(totalReceber - totalPagar) >= 0 ? '#059669' : '#dc2626'};">${formatCurrency(totalReceber - totalPagar)}</span></span>
+        `;
+    }
+};
+
+/**
+ * Renderiza o histórico de transferências bancárias buscando da View Otimizada no Supabase.
+ */
+window.renderHistoricoTransferencias = async function() {
+    const tbody = document.getElementById('transf-hist-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = `<tr><td colspan="6" class="table-empty">Carregando...</td></tr>`;
+
+    try {
+        if (!supabaseClient) throw new Error('Supabase não inicializado.');
+
+        // Busca da View Otimizada no banco com nomes de contas resolvidos
+        const { data: transferencias, error } = await supabaseClient
+            .from('view_transferencias_detalhada')
+            .select('*')
+            .order('data_transferencia', { ascending: false })
+            .order('created_at', { ascending: false })
+            .limit(200);
+
+        if (error) throw error;
+
+        if (!transferencias || !transferencias.length) {
+            tbody.innerHTML = `<tr><td colspan="6" class="table-empty" style="color: #64748b;">Nenhuma transferência registrada.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = transferencias.map(t => {
+            const origemNome  = t.conta_origem_nome || '—';
+            const destinoNome = t.conta_destino_nome || '—';
+            const dataFmt = t.data_transferencia ? formatDate(t.data_transferencia) : '—';
+
+            return `<tr>
+                <td style="font-size:0.78rem; white-space:nowrap; color: #334155;">${dataFmt}</td>
+                <td style="font-size:0.78rem; font-weight:600; color: #0f172a;">${origemNome}</td>
+                <td style="font-size:0.78rem; font-weight:600; color: #059669;">${destinoNome}</td>
+                <td style="text-align:right; font-weight:800; color: #059669; font-size:0.88rem;">${formatCurrency(t.valor)}</td>
+                <td style="font-size:0.75rem; color: #64748b; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${t.descricao || ''}">${t.descricao || '—'}</td>
+                <td style="text-align:center;">
+                    <button onclick="deleteTransferencia('${t.id}')" title="Estornar transferência"
+                        style="background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; border-radius:6px; padding:3px 8px; cursor:pointer; font-size:0.7rem; font-weight:700; display:inline-flex; align-items:center; gap:4px; transition:all 0.2s;"
+                        onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">
+                        <i data-lucide="undo-2" style="width:11px;height:11px;"></i> Estornar
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+
+        if (window.lucide) lucide.createIcons();
+
+    } catch (err) {
+        console.error('[renderHistoricoTransferencias] Erro:', err);
+        tbody.innerHTML = `<tr><td colspan="6" class="table-empty" style="color: #dc2626;">Erro ao carregar: ${err.message || err}</td></tr>`;
+    }
+};
