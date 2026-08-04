@@ -115,20 +115,25 @@
         }
 
         .filter-group select,
-        .filter-group input {
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid var(--border-card);
+        .filter-group input,
+        .multiselect-trigger {
+            background: #ffffff !important;
+            border: 1.5px solid #cbd5e1 !important;
             border-radius: 10px;
-            color: white;
+            color: #0f172a !important;
             padding: 0.7rem 1rem;
             font-size: 0.9rem;
+            font-weight: 600;
             outline: none;
-            transition: all 0.3s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease;
         }
 
-        .filter-group select:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        .filter-group select:focus,
+        .filter-group input:focus,
+        .multiselect-trigger.active {
+            border-color: var(--primary, #10b981) !important;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15) !important;
         }
 
         .btn-generate {
@@ -180,27 +185,15 @@
         }
 
         .multiselect-trigger {
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid var(--border-card);
-            border-radius: 10px;
-            color: white;
-            padding: 0.7rem 1rem;
-            font-size: 0.9rem;
             cursor: pointer;
             display: flex;
             justify-content: space-between;
             align-items: center;
             min-height: 44px;
-            transition: all 0.3s;
         }
 
         .multiselect-trigger:hover {
-            border-color: var(--primary);
-        }
-
-        .multiselect-trigger.active {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+            border-color: var(--primary) !important;
         }
 
         .multiselect-dropdown {
@@ -208,10 +201,10 @@
             top: calc(100% + 5px);
             left: 0;
             width: 100%;
-            background: #1e293b;
-            border: 1px solid var(--border-card);
+            background: #ffffff !important;
+            border: 1.5px solid #cbd5e1 !important;
             border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
             display: none;
             flex-direction: column;
             z-index: 1000;
@@ -233,11 +226,12 @@
             cursor: pointer;
             transition: background 0.2s;
             font-size: 0.85rem;
-            color: var(--text-main);
+            color: #0f172a !important;
+            font-weight: 600;
         }
 
         .multiselect-option:hover {
-            background: rgba(255, 255, 255, 0.05);
+            background: #f1f5f9 !important;
         }
 
         .multiselect-option input {
@@ -358,12 +352,12 @@
         .summary-header h2 {
             font-size: 1.1rem;
             font-weight: 800;
-            color: #fff;
+            color: #0f172a;
         }
 
         .owner-group {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid var(--border-card);
+            background: rgba(15, 23, 42, 0.03);
+            border: 1px solid rgba(0, 0, 0, 0.08);
             border-radius: 12px;
             overflow: hidden;
             margin-bottom: 0.8rem;
@@ -371,7 +365,7 @@
 
         .owner-header {
             padding: 1rem;
-            background: rgba(255, 255, 255, 0.03);
+            background: rgba(15, 23, 42, 0.04);
             cursor: pointer;
             display: flex;
             justify-content: space-between;
@@ -380,7 +374,7 @@
         }
 
         .owner-header:hover {
-            background: rgba(255, 255, 255, 0.06);
+            background: rgba(15, 23, 42, 0.08);
         }
 
         .owner-info {
@@ -391,13 +385,13 @@
         .owner-name {
             font-weight: 800;
             font-size: 0.95rem;
-            color: #fff;
+            color: #0f172a;
             text-transform: uppercase;
         }
 
         .owner-total {
             font-weight: 800;
-            color: var(--primary-light);
+            color: #4f46e5;
             font-size: 1rem;
         }
 
@@ -411,7 +405,8 @@
         .plate-item {
             padding: 0.8rem;
             border-radius: 8px;
-            border: 1px solid transparent;
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            background: rgba(15, 23, 42, 0.03);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -421,7 +416,7 @@
 
         .plate-item:hover {
             background: rgba(99, 102, 241, 0.1);
-            border-color: rgba(99, 102, 241, 0.2);
+            border-color: rgba(99, 102, 241, 0.3);
         }
 
         .plate-item.active {
@@ -430,9 +425,9 @@
         }
 
         .plate-label {
-            font-weight: 700;
+            font-weight: 800;
             font-size: 0.85rem;
-            color: #fff;
+            color: #0f172a;
         }
 
         .plate-value {

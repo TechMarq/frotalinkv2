@@ -45,19 +45,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         await loadInitialData();
 
-        // Versão debounced do filtro de fornecedores:
-        // aguarda 400ms após a última interação antes de consultar o banco
-        const debouncedSupplierFilter = debounce(async () => {
-            if (state.currentModuleTab === 'fornecedores') {
-                await updateIntelligentSupplierFilter();
-            }
-        }, 400);
+        // Se o input de mês estiver vazio, preenche com o mês atual
+        const periodInput = document.getElementById('filter_period');
+        if (periodInput && !periodInput.value) {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            periodInput.value = `${y}-${m}`;
+        }
 
-        document.getElementById('filter_period').addEventListener('change', debouncedSupplierFilter);
-        document.getElementById('filter_start_date').addEventListener('change', debouncedSupplierFilter);
-        document.getElementById('filter_end_date').addEventListener('change', debouncedSupplierFilter);
+        // Popula apenas as opções do filtro de fornecedores faturados do período
+        await updateIntelligentSupplierFilter();
+
+        // Ao alterar datas ou mês, apenas atualiza a lista de opções do filtro FORNECEDOR
+        const debouncedFilter = debounce(async () => {
+            await updateIntelligentSupplierFilter();
+        }, 300);
+
+        document.getElementById('filter_period')?.addEventListener('change', debouncedFilter);
+        document.getElementById('filter_start_date')?.addEventListener('change', debouncedFilter);
+        document.getElementById('filter_end_date')?.addEventListener('change', debouncedFilter);
+        document.getElementById('period_type')?.addEventListener('change', debouncedFilter);
     }
 });
+
+function isCompraFaturada(p) {
+    const pgtoObj = (state.formasPagamento || []).find(fp => fp.id === p.forma_pagamento_id);
+    const nomePgto = (pgtoObj?.nome || p.forma_pagamento || p.pagamento || '').toUpperCase().trim();
+
+    // Apenas compras onde o tipo/forma de pagamento seja estritamente FATURADO
+    return nomePgto.includes('FATURAD') || nomePgto.includes('FATURA');
+}
 
 async function updateIntelligentSupplierFilter() {
     const periodType = document.getElementById('period_type')?.value || 'month';
@@ -76,50 +94,58 @@ async function updateIntelligentSupplierFilter() {
         if (!startDate || !endDate) return;
     }
 
-    showLoading(true, 'Atualizando lista de fornecedores...');
     try {
-        // VIEW: view_compras_fornecedor já inclui fornecedor_nome via JOIN com fornecedores
-        const { data: activePurchases, error } = await supabaseClient
-            .from('view_compras_fornecedor')
-            .select('fornecedor_id, forma_pagamento_id, fornecedor_nome')
+        let activeNames = [];
+
+        // Garante a busca resiliente de compras idêntica ao generateClosing
+        let purchases = [];
+        const { data: pData, error } = await supabaseClient
+            .from('compras')
+            .select('*, fornecedores:fornecedor_id(nome)')
             .gte('data_emissao', startDate)
-            .lte('data_emissao', endDate)
-            .not('fornecedor_id', 'is', null);
+            .lte('data_emissao', endDate);
 
-        if (error) throw error;
+        if (!error && pData) {
+            purchases = pData;
+        } else {
+            // Contingência caso data_emissao necessite de filtro em memória
+            const { data: rawP } = await supabaseClient
+                .from('compras')
+                .select('*, fornecedores:fornecedor_id(nome)')
+                .order('created_at', { ascending: false })
+                .limit(1000);
+            
+            if (rawP) {
+                purchases = rawP.filter(p => {
+                    const dStr = (p.data_emissao || p.data || p.created_at || '').split('T')[0];
+                    return dStr >= startDate && dStr <= endDate;
+                });
+            }
+        }
 
-        const faturadoIds = (state.formasPagamento || [])
-            .filter(f => f.nome.toUpperCase().trim().includes('FATURADO'))
-            .map(f => f.id);
+        if (purchases && purchases.length > 0) {
+            const faturadas = purchases.filter(isCompraFaturada);
+            activeNames = [...new Set(faturadas.map(p => p.fornecedores?.nome || p.fornecedor_nome || p.nome_fornecedor).filter(Boolean))].sort();
+        }
 
-        const activeNames = [...new Set(activePurchases.filter(p => {
-            const joinedNome = (p.formas_pagamento?.nome || '').toUpperCase().trim();
-            const pgtoId = p.forma_pagamento_id;
-            return joinedNome.includes('FATURADO') || (pgtoId && faturadoIds.includes(pgtoId));
-        }).map(p => p.fornecedor_nome))].filter(Boolean).sort();
-
-        // Save current selection for restoration
         const currentSelected = Array.from(document.querySelectorAll('#fornDropdown input:checked')).map(cb => cb.value);
 
-        // Populate filter with these names
         const dropdown = document.getElementById('fornDropdown');
         if (dropdown) {
-            dropdown.innerHTML = activeNames.map(s => `
-                <div class="multiselect-option" onclick="toggleOption(this, event)">
-                    <input type="checkbox" value="${s}" ${currentSelected.includes(s) ? 'checked' : ''} onchange="updateMultiselectDisplay(event, 'forn')">
-                    <label>${s}</label>
-                </div>
-            `).join('');
-            
-            if (activeNames.length === 0) {
-                dropdown.innerHTML = '<div style="padding: 1rem; font-size: 0.7rem; color: var(--text-muted); text-align: center;">Nenhum fornecedor faturado neste mês.</div>';
+            if (activeNames.length > 0) {
+                dropdown.innerHTML = activeNames.map(s => `
+                    <div class="multiselect-option" onclick="toggleOption(this, event)">
+                        <input type="checkbox" value="${s}" ${currentSelected.includes(s) ? 'checked' : ''} onchange="updateMultiselectDisplay(event, 'forn')">
+                        <label>${s}</label>
+                    </div>
+                `).join('');
+            } else {
+                dropdown.innerHTML = '<div style="padding: 1rem; font-size: 0.7rem; color: var(--text-muted); text-align: center;">Nenhum fornecedor faturado neste período.</div>';
             }
             updateMultiselectDisplay(null, 'forn');
         }
     } catch (e) {
-        console.error(e);
-    } finally {
-        showLoading(false);
+        console.error('Erro ao atualizar filtro de fornecedores faturados:', e);
     }
 }
 
@@ -538,13 +564,27 @@ async function generateClosing() {
             return all;
         };
 
-        let [fuel, maint, purchases, driverRes] = await Promise.all([
+        let [fuel, maint, driverRes] = await Promise.all([
             fetchAllRecords('abastecimentos', '*, veiculos:veiculo_id(*), postos:posto_id(nome), categorias_posto:categoria_id(descricao)', startDate, endDate),
             fetchAllRecords('manutencoes', '*, veiculos:veiculo_id(*), manutencao_itens(*), fornecedores:oficina_id(nome)', startDate, endDate),
-            fetchAllRecords('compras', '*, fornecedores:fornecedor_id(nome), formas_pagamento:forma_pagamento_id(nome), compra_itens(*)', startDate, endDate, 'data_emissao'),
             supabaseClient.from('motoristas').select('id, nome_completo')
         ]);
         const drivers = driverRes.data || [];
+
+        let purchases = [];
+        try {
+            purchases = await fetchAllRecords('compras', '*, fornecedores:fornecedor_id(nome), compra_itens(*)', startDate, endDate, 'data_emissao');
+        } catch (pErr) {
+            console.warn('Erro na busca de compras por data_emissao:', pErr);
+            const { data: rawPurchases } = await supabaseClient
+                .from('compras')
+                .select('*, fornecedores:fornecedor_id(nome), compra_itens(*)')
+                .gte('data_emissao', startDate)
+                .lte('data_emissao', endDate)
+                .order('data_emissao', { ascending: false });
+
+            purchases = rawPurchases || [];
+        }
 
         // Fetch sales from 'vendas' table with local fallback if table does not exist or fails
         let sales = [];
@@ -622,47 +662,14 @@ async function generateClosing() {
             f.motorista_nome = driverMap[f.motorista_id] || 'NÃO INFORMADO';
         });
 
-        // Apply filters in memory
-        const relevantVehicles = state.vehicles.filter(v => {
-            let ok = true;
-            const hasVehiclesClasses = selectedClasses.filter(c => c !== 'SAIDA_ESTOQUE');
-            if (hasVehiclesClasses.length > 0) {
-                if (!hasVehiclesClasses.includes(v.classificacao)) ok = false;
-            }
-            if (selectedProps.length > 0) {
-                if (!selectedProps.includes(v.proprietario)) ok = false;
-            }
-            return ok;
-        });
-        const vehicleIds = relevantVehicles.map(v => v.id);
+        // Processamento 100% independente por aba:
+        // 1. Aba Custo Veicular: usa apenas filtros de Classificação e Proprietário
+        processData(fuel, maint, state.vehicles, purchases, sales);
 
-        console.log('Veículos Relevantes:', vehicleIds.length);
-
-        fuel = fuel.filter(f => vehicleIds.includes(f.veiculo_id));
-        maint = maint.filter(m => vehicleIds.includes(m.veiculo_id));
-
-        if (selectedCats.length > 0) {
-            fuel = fuel.filter(f => f.categoria_id && selectedCats.includes(String(f.categoria_id)));
-        }
-        if (selectedPostos.length > 0) {
-            fuel = fuel.filter(f => f.posto_id && selectedPostos.includes(String(f.posto_id)));
-        }
-
-        // Filter purchases and their items
-        const filteredPurchases = purchases.filter(p => {
-            return (p.compra_itens || []).some(it => {
-                if (it.vinculo_pessoa) {
-                    return selectedClasses.includes('VINCULO_PESSOA');
-                }
-                return vehicleIds.includes(it.vinculo_veiculo_id);
-            });
-        });
-
-        console.log('Abastecimentos após filtro de veículos:', fuel.length);
-        console.log('Compras após filtro de veículos:', filteredPurchases.length);
-
-        processData(fuel, maint, relevantVehicles, filteredPurchases, sales);
+        // 2. Aba Fornecedores: usa apenas filtros de Fornecedores e período faturado
         processSupplierData(purchases);
+
+        // 3. Aba Abastecimento: usa apenas filtros de Categorias de Posto e Postos de Combustível
         processFuelClosingData(fuel);
 
         if (state.currentModuleTab === 'veiculos') {
@@ -787,8 +794,21 @@ function processData(fuel, maint, vehicles, purchases, sales) {
     }
 
     if (shouldProcessVehicles) {
+        // Filtra os veículos relevantes exclusivamente para a aba Custo Veicular
+        const relevantVehicles = vehicles.filter(v => {
+            let ok = true;
+            const hasVehiclesClasses = selectedClasses.filter(c => c !== 'SAIDA_ESTOQUE' && c !== 'VINCULO_PESSOA');
+            if (hasVehiclesClasses.length > 0) {
+                if (!hasVehiclesClasses.includes(v.classificacao)) ok = false;
+            }
+            if (selectedProps.length > 0) {
+                if (!selectedProps.includes(v.proprietario)) ok = false;
+            }
+            return ok;
+        });
+
         // Traditional vehicle grouping
-        vehicles.forEach(v => {
+        relevantVehicles.forEach(v => {
             const owner = v.proprietario || 'NÃO INFORMADO';
             if (!grouped[owner]) grouped[owner] = {};
             grouped[owner][v.placa] = {
@@ -884,36 +904,40 @@ function processData(fuel, maint, vehicles, purchases, sales) {
 }
 
 function processSupplierData(purchases) {
-    console.log(`🔍 Processando ${purchases.length} compras para aba fornecedores...`);
+    console.log(`🔍 Processando ${purchases.length} compras para aba fornecedores (Faturados)...`);
     const grouped = {};
-    
-    // Get the IDs of categories that mean FATURADO
-    const faturadoIds = (state.formasPagamento || [])
-        .filter(f => f.nome.toUpperCase().trim().includes('FATURADO'))
-        .map(f => f.id);
-    
-    console.log('IDs identificados como FATURADO:', faturadoIds);
 
-    // Filter only INVOICED (FATURADO) purchases - Robust check
+    const periodType = document.getElementById('period_type')?.value || 'month';
+    let startDate, endDate;
+
+    if (periodType === 'month') {
+        const period = document.getElementById('filter_period').value;
+        if (period) {
+            const [year, month] = period.split('-').map(Number);
+            const lastDay = new Date(year, month, 0).getDate();
+            startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+            endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        }
+    } else {
+        startDate = document.getElementById('filter_start_date').value;
+        endDate = document.getElementById('filter_end_date').value;
+    }
+
     const faturadas = purchases.filter(p => {
-        // 1. Try relational join name
-        const joinedNome = (p.formas_pagamento?.nome || '').toUpperCase().trim();
-        if (joinedNome.includes('FATURADO')) return true;
+        if (!isCompraFaturada(p)) return false;
 
-        // 2. Try matching by ID against pre-loaded config
-        const pgtoId = p.forma_pagamento_id || p.formaPgtoId;
-        if (pgtoId && faturadoIds.includes(pgtoId)) return true;
+        if (startDate && endDate) {
+            const dStr = (p.data_emissao || p.data || p.created_at || '').split('T')[0];
+            if (dStr < startDate || dStr > endDate) return false;
+        }
 
-        // 3. Try raw string fields (fallback for migrated data)
-        const rawPgto = (p.pagamento || p.forma_pagamento || '');
-        const pgtoNome = rawPgto.toString().toUpperCase().trim();
-        return pgtoNome.includes('FATURADO');
+        return true;
     });
-    
-    console.log(`📈 Total de compras faturadas encontradas: ${faturadas.length}`);
+
+    console.log(`📈 Total de compras faturadas filtradas no período: ${faturadas.length}`);
 
     faturadas.forEach(p => {
-        const supplier = p.fornecedor_nome || 'NÃO INFORMADO';
+        const supplier = p.fornecedores?.nome || p.fornecedor_nome || p.nome_fornecedor || 'FORNECEDOR DIVERSOS';
         if (!grouped[supplier]) {
             grouped[supplier] = {
                 purchases: [],
@@ -930,8 +954,20 @@ function processSupplierData(purchases) {
 }
 
 function processFuelClosingData(fuel) {
+    const selectedCats = Array.from(document.querySelectorAll('#catPostoDropdown input:checked')).map(cb => cb.value);
+    const selectedPostos = Array.from(document.querySelectorAll('#postoDropdown input:checked')).map(cb => cb.value);
+
+    let filteredFuel = fuel;
+
+    if (selectedCats.length > 0) {
+        filteredFuel = filteredFuel.filter(f => f.categoria_id && selectedCats.includes(String(f.categoria_id)));
+    }
+    if (selectedPostos.length > 0) {
+        filteredFuel = filteredFuel.filter(f => f.posto_id && selectedPostos.includes(String(f.posto_id)));
+    }
+
     const grouped = {};
-    fuel.forEach(f => {
+    filteredFuel.forEach(f => {
         const postoNome = f.postos?.nome || f.cidade_posto || 'NÃO INFORMADO';
         const categoriaDesc = f.categorias_posto?.descricao || 'NÃO INFORMADA';
         const key = `${postoNome} - ${categoriaDesc}`;
@@ -1453,12 +1489,12 @@ function renderSupplierSummary() {
     suppliers.forEach(sName => {
         const data = state.supplierClosingData[sName];
         html += `
-            <div class="plate-item ${state.selectedSupplier === sName ? 'active' : ''}" onclick="selectSupplier('${sName}')" style="margin-bottom: 0.5rem;">
+            <div class="plate-item ${state.selectedSupplier === sName ? 'active' : ''}" onclick="selectSupplier('${sName}')" style="margin-bottom: 0.5rem; background: rgba(15, 23, 42, 0.04); border: 1px solid rgba(0, 0, 0, 0.08);">
                 <div class="owner-info">
-                    <span class="owner-name" style="font-size: 0.85rem;">${sName}</span>
-                    <span style="font-size: 0.7rem; color: var(--text-muted);">${data.purchases.length} nota(s)</span>
+                    <span class="owner-name" style="font-size: 0.85rem; color: #0f172a; font-weight: 800;">${sName}</span>
+                    <span style="font-size: 0.72rem; color: #475569; font-weight: 600;">${data.purchases.length} nota(s)</span>
                 </div>
-                <span class="owner-total" style="font-size: 0.9rem;">${data.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                <span class="owner-total" style="font-size: 0.9rem; color: #4f46e5; font-weight: 800;">${data.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
             </div>
         `;
     });

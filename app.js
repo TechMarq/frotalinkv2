@@ -62,6 +62,7 @@ const COL_DEFS = {
     vehicles: [
         { key: 'placa', label: 'Placa', visible: true },
         { key: 'marca_modelo', label: 'Marca/Modelo', visible: true },
+        { key: 'motorista_alocado', label: 'Alocação', visible: true },
         { key: 'proprietario', label: 'Proprietário', visible: true },
         { key: 'venc_seguro', label: 'Venc. Seguro', visible: true },
         { key: 'seguradora', label: 'Seguradora', visible: false },
@@ -74,7 +75,6 @@ const COL_DEFS = {
         { key: 'endosso_proposta', label: 'Endosso', visible: false },
         { key: 'ci_seguro', label: 'CI Seguro', visible: false },
         { key: 'parcelas_pagamento', label: 'Parcelas', visible: false },
-        { key: 'forma_pagamento', label: 'Forma Pgto.', visible: false },
         { key: 'classificacao', label: 'Classificação', visible: false },
         { key: 'tipo_combustivel', label: 'Combustível', visible: true },
         { key: 'status', label: 'Status', visible: false },
@@ -88,8 +88,7 @@ const COL_DEFS = {
         { key: 'valor_fipe_mes', label: 'Valor FIPE', visible: false },
         { key: 'nome_documento', label: 'Nome Doc.', visible: false },
         { key: 'cpf_cnpj', label: 'CPF/CNPJ', visible: false },
-        { key: 'condutor_principal', label: 'Condutor Seguro', visible: true },
-        { key: 'motorista_alocado', label: 'Alocação Atual', visible: true },
+        { key: 'condutor_principal', label: 'Condutor Seguro', visible: false },
         { key: 'data_aquisicao_nf', label: 'Dt. Aquisição', visible: false },
         { key: 'data_saida_nf', label: 'Dt. Saída', visible: false },
         { key: 'fornecedor_aquisicao', label: 'Fornecedor', visible: false },
@@ -109,7 +108,7 @@ const COL_DEFS = {
     ],
 };
 
-const LS_KEY = 'frotalink_cols_v1';
+const LS_KEY = 'frotalink_cols_v2';
 
 function loadColConfig() {
     try {
@@ -191,12 +190,13 @@ function resetColumns(tab) {
             { key: 'placa', label: 'Placa', visible: true },
             { key: 'modelo', label: 'Modelo', visible: true },
             { key: 'km_atual', label: 'KM Atual', visible: true },
-            { key: 'condutor', label: 'Condutor Atual', visible: true },
+            { key: 'condutor', label: 'Alocação Atual', visible: true },
             { key: 'whats', label: 'WhatsApp', visible: true },
         ],
         vehicles: [
             { key: 'placa', label: 'Placa', visible: true },
             { key: 'marca_modelo', label: 'Marca/Modelo', visible: true },
+            { key: 'motorista_alocado', label: 'Alocação', visible: true },
             { key: 'proprietario', label: 'Proprietário', visible: true },
             { key: 'venc_seguro', label: 'Venc. Seguro', visible: true },
             { key: 'seguradora', label: 'Seguradora', visible: false },
@@ -221,6 +221,7 @@ function resetColumns(tab) {
             { key: 'valor_fipe_mes', label: 'Valor FIPE', visible: false },
             { key: 'nome_documento', label: 'Nome Doc.', visible: false },
             { key: 'cpf_cnpj', label: 'CPF/CNPJ', visible: false },
+            { key: 'condutor_principal', label: 'Condutor Seguro', visible: false },
             { key: 'data_aquisicao_nf', label: 'Dt. Aquisição', visible: false },
             { key: 'data_saida_nf', label: 'Dt. Saída', visible: false },
             { key: 'fornecedor_aquisicao', label: 'Fornecedor', visible: false },
@@ -1761,6 +1762,7 @@ async function fetchVehicles() {
             id, placa, modelo, marca, proprietario, classificacao, status,
             tipo_combustivel, cor, ano_fabricacao, ano_modelo, renavam,
             chassi, numero_motor, codigo_fipe, valor_fipe_mes,
+            nome_documento, cpf_cnpj, data_aquisicao_nf, data_saida_nf, fornecedor_aquisicao,
             vencimento_seguro, seguradora, numero_apolice, corretor_seguro,
             valor_premio, valor_franquia, parcelas_pagamento, forma_pagamento,
             proponente_seguro, endosso_proposta, ci_seguro,
@@ -1868,11 +1870,65 @@ function updateFuelTypeDropdown() {
     select.innerHTML = fuelTypes.map(f => `<option value="${f.descricao}">${f.descricao}</option>`).join('');
 }
 
-function exportFleetToExcel() {
-    if (vehicles.length === 0) return alert('Não há dados para exportar.');
+function getFilteredVehicles() {
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    const searchWords = searchTerm.split(/\s+/).filter(w => w);
 
-    // Exportar TODOS os campos cadastrados
-    const exportData = vehicles.map(v => ({
+    let filtered = vehicles.filter(v => {
+        // Filtro por Classificação (Multi-seleção)
+        if (typeof currentClassificationFilters !== 'undefined' && currentClassificationFilters.length > 0) {
+            const effectiveClass = (v.classificacao && KNOWN_CLASSIFICATIONS.includes(v.classificacao))
+                ? v.classificacao
+                : 'OUTRO';
+            if (!currentClassificationFilters.includes(effectiveClass)) return false;
+        }
+
+        const searchableText = [
+            v.placa,
+            v.modelo,
+            v.marca,
+            v.chassi,
+            v.motoristas?.nome_completo,
+            v.motorista_alocado?.nome_completo,
+            v.seguradora,
+            v.numero_apolice,
+            v.corretor_seguro
+        ].map(val => (val || '').toLowerCase()).join(' ');
+
+        return searchWords.every(word => searchableText.includes(word));
+    });
+
+    const sort = currentSort.vehicles;
+    filtered.sort((a, b) => {
+        let valA, valB;
+        if (sort.key === 'condutor_principal') {
+            valA = (a.motoristas?.nome_completo || '').toLowerCase();
+            valB = (b.motoristas?.nome_completo || '').toLowerCase();
+        } else if (sort.key === 'motorista_alocado') {
+            valA = (a.motorista_alocado?.nome_completo || '').toLowerCase();
+            valB = (b.motorista_alocado?.nome_completo || '').toLowerCase();
+        } else if (sort.key === 'marca_modelo') {
+            valA = (a.marca || '') + (a.modelo || '');
+            valB = (b.marca || '') + (b.modelo || '');
+            valA = valA.toLowerCase(); valB = valB.toLowerCase();
+        } else {
+            valA = (a[sort.key] || '').toString().toLowerCase();
+            valB = (b[sort.key] || '').toString().toLowerCase();
+        }
+        if (valA < valB) return sort.dir === 'asc' ? -1 : 1;
+        if (valA > valB) return sort.dir === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    return filtered;
+}
+
+function exportFleetToExcel() {
+    const filtered = getFilteredVehicles();
+    if (filtered.length === 0) return alert('Nenhum veículo encontrado com os filtros atuais.');
+
+    // Exportar apenas os registros filtrados na tela
+    const exportData = filtered.map(v => ({
         'Placa': v.placa,
         'Marca': v.marca,
         'Modelo': v.modelo,
@@ -1906,69 +1962,35 @@ function exportFleetToExcel() {
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Frota_Completa");
-    XLSX.writeFile(wb, `Frota_Veritas_Completa_${new Date().toLocaleDateString()}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Frota_Filtrada");
+    XLSX.writeFile(wb, `Frota_Veritas_Filtrada_${new Date().toLocaleDateString()}.xlsx`);
 }
 
 function exportFleetToPDF() {
-    if (vehicles.length === 0) return alert('Não há dados para exportar.');
+    const filtered = getFilteredVehicles();
+    if (filtered.length === 0) return alert('Nenhum veículo encontrado com os filtros atuais.');
 
     const { jsPDF } = window.jspdf;
     
-    // 1. Aplicar a mesma filtragem da visualização
-    const searchTerm = searchInput.value.toLowerCase();
-    const searchWords = searchTerm.split(/\s+/).filter(w => w);
-    let filtered = vehicles.filter(v => {
-        const searchableText = [
-            v.placa,
-            v.modelo,
-            v.marca,
-            v.motoristas?.nome_completo,
-            v.motorista_alocado?.nome_completo,
-            v.seguradora,
-            v.numero_apolice,
-            v.corretor_seguro
-        ].map(val => (val || '').toLowerCase()).join(' ');
-
-        return searchWords.every(word => searchableText.includes(word));
-    });
-
-    // 2. Aplicar a mesma ordenação
-    const sort = currentSort.vehicles;
-    filtered.sort((a, b) => {
-        let valA, valB;
-        if (sort.key === 'condutor_principal') {
-            valA = (a.motoristas?.nome_completo || '').toLowerCase();
-            valB = (b.motoristas?.nome_completo || '').toLowerCase();
-        } else if (sort.key === 'motorista_alocado') {
-            valA = (a.motorista_alocado?.nome_completo || '').toLowerCase();
-            valB = (b.motorista_alocado?.nome_completo || '').toLowerCase();
-        } else if (sort.key === 'marca_modelo') {
-            valA = (a.marca || '') + (a.modelo || '');
-            valB = (b.marca || '') + (b.modelo || '');
-            valA = valA.toLowerCase(); valB = valB.toLowerCase();
-        } else {
-            valA = (a[sort.key] || '').toString().toLowerCase();
-            valB = (b[sort.key] || '').toString().toLowerCase();
-        }
-        if (valA < valB) return sort.dir === 'asc' ? -1 : 1;
-        if (valA > valB) return sort.dir === 'asc' ? 1 : -1;
-        return 0;
-    });
-
-    // 3. Obter colunas ativas (removendo ações)
+    // Obter colunas ativas na tela (removendo a coluna de ações)
     const activeCols = getActiveCols('vehicles').filter(c => c.key !== 'actions');
     
     // Determinar orientação baseada no número de colunas
     const doc = new jsPDF(activeCols.length > 7 ? 'l' : 'p', 'mm', 'a4');
 
-    doc.setFontSize(18);
-    doc.text("Relatório Geral da Frota - VERITAS", 14, 20);
-    doc.setFontSize(10);
-    doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 28);
-    if (searchTerm) {
-        doc.text(`Filtro aplicado: "${searchTerm}"`, 14, 33);
+    const searchTerm = searchInput ? searchInput.value.trim() : '';
+
+    doc.setFontSize(16);
+    doc.text("Relatório da Frota - VERITAS", 14, 18);
+    doc.setFontSize(9);
+    doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 25);
+    
+    let subTitle = `Total de veículos: ${filtered.length}`;
+    if (searchTerm) subTitle += ` | Busca: "${searchTerm}"`;
+    if (typeof currentClassificationFilters !== 'undefined' && currentClassificationFilters.length > 0) {
+        subTitle += ` | Filtro: ${currentClassificationFilters.join(', ')}`;
     }
+    doc.text(subTitle, 14, 30);
 
     const head = [activeCols.map(c => c.label)];
     const body = filtered.map(v => {
@@ -1985,6 +2007,7 @@ function exportFleetToPDF() {
                 case 'forma_pagamento': return v.forma_pagamento || '-';
                 case 'corretor_seguro': return v.corretor_seguro || '-';
                 case 'classificacao': return v.classificacao || '-';
+                case 'tipo_combustivel': return v.tipo_combustivel || '-';
                 case 'status': return v.status || 'ATIVO';
                 case 'cor': return v.cor || '-';
                 case 'ano_fabricacao': return v.ano_fabricacao || '-';
@@ -2014,7 +2037,7 @@ function exportFleetToPDF() {
     });
 
     doc.autoTable({
-        startY: searchTerm ? 38 : 35,
+        startY: 34,
         head: head,
         body: body,
         theme: 'striped',
@@ -2022,7 +2045,7 @@ function exportFleetToPDF() {
         styles: { fontSize: 8, cellPadding: 2 }
     });
 
-    doc.save(`Frota_Veritas_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`Frota_Veritas_Filtrada_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
 function exportDriversToExcel() {
