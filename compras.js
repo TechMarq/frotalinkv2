@@ -284,12 +284,23 @@ async function loadDrivers() {
     if (window.supabase) {
         try {
             const { data, error } = await supabaseClient.from('motoristas').select('id, nome_completo').order('nome_completo');
+            const { data: clients, error: clientErr } = await supabaseClient.from('estoque_clientes').select('id, nome').order('nome');
+            
+            let allPeople = [];
             if (!error && data) {
-                drivers = data;
-                console.log(`✅ ${data.length} condutores carregados do Supabase.`);
-                return;
+                allPeople = [...data];
             }
-        } catch (e) { console.error("Error loading drivers:", e); }
+            if (!clientErr && clients) {
+                const formattedClients = clients.map(c => ({ id: c.id, nome_completo: c.nome }));
+                allPeople = [...allPeople, ...formattedClients];
+            }
+            
+            if (allPeople.length > 0) {
+                allPeople.sort((a, b) => (a.nome_completo || '').localeCompare(b.nome_completo || ''));
+                drivers = allPeople;
+                console.log(`✅ ${allPeople.length} pessoas carregadas (motoristas + clientes).`);
+            }
+        } catch (e) { console.error("Error loading drivers/clients:", e); }
     }
 }
 
@@ -387,27 +398,6 @@ async function loadCompras(startDate, endDate) {
 
         let { data: cloudCompras, error: cErr } = await query;
         if (cErr) throw cErr;
-
-        // Se a busca pelo mês atual não trouxer registros (ex: início do mês sem notas),
-        // busca automaticamente as compras mais recentes para não deixar a tela em branco
-        if ((!cloudCompras || cloudCompras.length === 0) && sDate && eDate) {
-            console.log("ℹ️ Nenhuma compra encontrada no mês selecionado. Carregando as compras mais recentes...");
-            const { data: recentCompras } = await client
-                .from('compras')
-                .select('*')
-                .order('data_emissao', { ascending: false })
-                .limit(500);
-                
-            if (recentCompras && recentCompras.length > 0) {
-                cloudCompras = recentCompras;
-                if (startInput && endInput) {
-                    startInput.value = '';
-                    endInput.value = '';
-                    const datePreset = document.getElementById('filterDatePreset');
-                    if (datePreset) datePreset.value = 'all';
-                }
-            }
-        }
 
         // 2. Fetch children only for retrieved compras to minimize payload & DB load
         const compraIds = (cloudCompras || []).map(c => c.id);
@@ -2919,6 +2909,7 @@ function renderCompras() {
 
         const searchable = [
             fornecedorObj.nome, 
+            fornecedorObj.nome_fantasia, 
             c.numeroNota, 
             (c.itens || c.items || []).map(i => i.produto).join(' '),
             itemPlacas,

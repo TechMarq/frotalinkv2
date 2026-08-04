@@ -1784,12 +1784,13 @@
                                 <th>Veículo / Placa</th>
                                 <th>Próx. Vistoria</th>
                                 <th>Pendência</th>
+                                <th style="text-align: center;">Docs</th>
                                 <th style="text-align: center;">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="prestadoresTableBody">
                             <tr>
-                                <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                <td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">
                                     Carregando prestadores...
                                 </td>
                             </tr>
@@ -2405,6 +2406,12 @@
                                 <option value="Sim">Sim</option>
                                 <option value="Nao" selected>Não</option>
                             </select>
+                        </div>
+
+                        <!-- Link Pasta de Documentos -->
+                        <div class="com-group" style="grid-column: span 3;">
+                            <label>Link Pasta de Documentos</label>
+                            <input type="url" id="p_link_documentos" class="com-input" placeholder="https://drive.google.com/drive/folders/... ou caminho da pasta">
                         </div>
                     </div>
                 </div>

@@ -2967,7 +2967,7 @@ function renderPrestadores() {
     if (filtered.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                <td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">
                     Nenhum prestador encontrado.
                 </td>
             </tr>`;
@@ -2985,6 +2985,12 @@ function renderPrestadores() {
             ? `<span style="font-size: 0.72rem; font-weight:800; padding:2px 8px; border-radius:12px; background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3);" title="${p.pendencia_descricao || 'Com pendência'}">SIM</span>`
             : `<span style="font-size: 0.72rem; font-weight:700; color:var(--text-muted);">NÃO</span>`;
 
+        const docsBtn = p.link_documentos 
+            ? `<a href="${p.link_documentos}" target="_blank" rel="noopener noreferrer" class="action-btn-mini" title="Abrir pasta de documentos" style="background: rgba(99,102,241,0.15); color: var(--primary); display: inline-flex; align-items: center; justify-content: center; text-decoration: none;">
+                <i data-lucide="folder-open" style="width:14px;"></i>
+               </a>`
+            : `<span title="Sem pasta cadastrada" style="color: var(--text-muted); opacity: 0.35; font-size: 0.8rem;">-</span>`;
+
         return `
             <tr>
                 <td style="font-weight: 700; color: #fff;">${p.nome_prestador}</td>
@@ -2994,6 +3000,7 @@ function renderPrestadores() {
                 <td>${p.marca || ''} ${p.modelo || ''} <span style="font-family:'JetBrains Mono',monospace; font-weight:800; color:var(--primary); margin-left:4px;">(${p.placa || '-'})</span></td>
                 <td>${fmtDataBR(p.data_proxima_vistoria)}</td>
                 <td>${pendenciaBadge}</td>
+                <td style="text-align: center;">${docsBtn}</td>
                 <td style="text-align: center;">
                     <div style="display: flex; gap: 0.4rem; justify-content: center;">
                         <button class="action-btn-mini" onclick="openPrestadorModal('${p.id}')" title="Editar Prestador">
@@ -3081,6 +3088,7 @@ window.openPrestadorModal = (id = null) => {
             document.getElementById('p_contrato_formalizado').value = p.contrato_formalizado || 'Nao';
             document.getElementById('p_comodato_locacao').value = p.comodato_locacao || 'NA';
             document.getElementById('p_veiculo_compartilhado').value = p.veiculo_compartilhado || 'Nao';
+            document.getElementById('p_link_documentos').value = p.link_documentos || '';
             document.getElementById('p_tem_pendencia').checked = !!p.tem_pendencia;
             document.getElementById('p_pendencia_descricao').value = p.pendencia_descricao || '';
             document.getElementById('p_status').value = p.status || 'Ativo';
@@ -3136,6 +3144,7 @@ window.handleSavePrestador = async (e) => {
         contrato_formalizado: document.getElementById('p_contrato_formalizado').value,
         comodato_locacao: document.getElementById('p_comodato_locacao').value,
         veiculo_compartilhado: document.getElementById('p_veiculo_compartilhado').value,
+        link_documentos: document.getElementById('p_link_documentos')?.value.trim() || null,
         tem_pendencia: temPendencia,
         pendencia_descricao: temPendencia ? document.getElementById('p_pendencia_descricao').value.trim() : null,
         status: statusVal,
