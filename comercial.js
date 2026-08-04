@@ -10,6 +10,7 @@ try {
 
 // --- Estado Global ---
 let contratos = [];
+let prestadores = [];
 let config = {
     status: [],
     demandas: [],
@@ -140,6 +141,7 @@ function saveColConfig() {
 document.addEventListener('DOMContentLoaded', async () => {
     await loadConfig();
     await loadContratos();
+    await loadPrestadores();
     
     // Carrega dados de identidade visual da empresa em segundo plano
     obterLogoEmpresa().then(dados => {
@@ -274,6 +276,13 @@ function setupEventListeners() {
     document.getElementById('contratoSearch').addEventListener('input', () => {
         renderContratos();
     });
+    
+    const pSearch = document.getElementById('prestadorSearch');
+    if (pSearch) {
+        pSearch.addEventListener('input', () => {
+            renderPrestadores();
+        });
+    }
 
     // Admin Form
     document.getElementById('adminForm').addEventListener('submit', handleSaveAdmin);
@@ -282,6 +291,13 @@ function setupEventListeners() {
     applyMask(document.getElementById('cliente_cnpj_cpf'), maskCnpjCpf);
     applyMask(document.getElementById('cliente_telefone'), maskTelefone);
     applyMask(document.getElementById('contato_responsavel'), maskTelefone);
+    
+    const pCpf = document.getElementById('p_cpf');
+    if (pCpf) applyMask(pCpf, maskCnpjCpf);
+    const pCnpj = document.getElementById('p_cnpj');
+    if (pCnpj) applyMask(pCnpj, maskCnpjCpf);
+    const pDoc = document.getElementById('p_cpf_cnpj_doc_veicular');
+    if (pDoc) applyMask(pDoc, maskCnpjCpf);
 
     // Validação de duplicidade CNPJ/CPF em tempo real/blur
     const inputCnpjCpf = document.getElementById('cliente_cnpj_cpf');
@@ -306,19 +322,35 @@ function setupEventListeners() {
             closeContratoModal();
             closeAdminModal();
             closeHistoricoModal();
+            closePrestadorModal();
         }
         
-        // F2 -> Nova Proposta
+        // F2 -> Novo Cadastro (Proposta ou Prestador dependendo da aba)
         if (e.key === 'F2') {
             e.preventDefault();
-            const modal = document.getElementById('contratoModal');
-            if (modal && !modal.classList.contains('active')) {
-                openContratoModal(null);
+            if (currentTab === 'prestadores') {
+                const pModal = document.getElementById('prestadorModal');
+                if (pModal && !pModal.classList.contains('active')) {
+                    openPrestadorModal(null);
+                }
+            } else {
+                const modal = document.getElementById('contratoModal');
+                if (modal && !modal.classList.contains('active')) {
+                    openContratoModal(null);
+                }
             }
         }
         
-        // Ctrl + Enter -> Salvar Proposta (se modal ativo)
+        // Ctrl + Enter -> Salvar (se modal ativo)
         if (e.ctrlKey && e.key === 'Enter') {
+            const pModal = document.getElementById('prestadorModal');
+            if (pModal && pModal.classList.contains('active')) {
+                e.preventDefault();
+                const pForm = document.getElementById('prestadorForm');
+                if (pForm) pForm.requestSubmit();
+                return;
+            }
+
             const modal = document.getElementById('contratoModal');
             if (modal && modal.classList.contains('active')) {
                 e.preventDefault();
@@ -410,6 +442,7 @@ window.switchTab = (tabName) => {
     
     if (tabName === 'dashboard') updateDashboard();
     if (tabName === 'admin') renderAdminLists();
+    if (tabName === 'prestadores') renderPrestadores();
     
     if (window.lucide) lucide.createIcons();
 };
@@ -516,7 +549,7 @@ function renderContratos() {
 
         // Mapa de células por key
         const cellMap = {
-            cliente:     `<td data-label="Cliente"><div style="font-weight:800;color:var(--text-main);">${c.cliente_nome || 'N/A'}</div><div style="font-size:0.7rem;color:var(--text-muted);">${c.vigencia || '-'}</div></td>`,
+            cliente:     `<td data-label="Cliente" onclick="openContratoModal('${c.id}', true)" style="cursor:pointer;" title="Clique para visualizar os dados"><div style="font-weight:800;color:var(--primary);">${c.cliente_nome || 'N/A'}</div><div style="font-size:0.7rem;color:var(--text-muted);">${c.vigencia || '-'}</div></td>`,
             cnpj:        `<td data-label="CNPJ">${c.cliente_cnpj_cpf || '-'}</td>`,
             descricao:   `<td data-label="Descrição"><div>${c.descricao_contrato || '-'}</div><div style="font-size:0.7rem;color:var(--primary);font-weight:700;">VERSÃO: ${c.versao_contrato || '-'}</div></td>`,
             versao:      `<td data-label="Versão"><span style="font-size:0.75rem;font-weight:700;color:var(--primary);">${c.versao_contrato || '-'}</span></td>`,
@@ -889,9 +922,9 @@ function renderCharts() {
 }
 
 // --- Modais e CRUD ---
-window.openContratoModal = async (id = null) => {
+window.openContratoModal = async (id = null, readOnly = false) => {
     const action = id ? 'edit' : 'add';
-    if (typeof canDo === 'function' && !canDo('comercial_contratos', action)) {
+    if (!readOnly && typeof canDo === 'function' && !canDo('comercial_contratos', action)) {
         alert("Você não tem permissão para esta ação.");
         return;
     }
@@ -909,7 +942,7 @@ window.openContratoModal = async (id = null) => {
     }
 
     // Título dinâmico
-    document.getElementById('modalTitle').innerText = id ? 'Proposta / Contrato' : 'Nova Proposta';
+    document.getElementById('modalTitle').innerText = readOnly ? 'Visualizar Contrato / Proposta' : (id ? 'Proposta / Contrato' : 'Nova Proposta');
 
     // Reset estado da proposta e limpa marcas de erro
     const modal = document.getElementById('contratoModal');
@@ -1037,6 +1070,24 @@ window.openContratoModal = async (id = null) => {
     updateTimelineUI(propostaAtual.step);
     renderHistoricoProposta();
 
+    // Controle de modo de apenas leitura (visualização)
+    const btnSave = document.getElementById('btnSaveContrato');
+    const btnAvancar = document.getElementById('btnAvancarProposta');
+    const allInputs = form.querySelectorAll('input, select, textarea, button:not([onclick="closeContratoModal()"])');
+
+    if (readOnly) {
+        allInputs.forEach(el => {
+            el.disabled = true;
+        });
+        if (btnSave) btnSave.style.display = 'none';
+        if (btnAvancar) btnAvancar.style.display = 'none';
+    } else {
+        allInputs.forEach(el => {
+            el.disabled = false;
+        });
+        if (btnSave) btnSave.style.display = 'inline-flex';
+    }
+
     // Snapshot do estado inicial do formulário para auditoria precisa de alterações
     propostaOriginal = {
         header: getPropostaFormPayload(),
@@ -1046,11 +1097,13 @@ window.openContratoModal = async (id = null) => {
     document.getElementById('contratoModal').classList.add('active');
     if (window.lucide) lucide.createIcons();
     
-    // Auto-foca no campo Nome/Razão Social
-    setTimeout(() => {
-        const inputNome = document.getElementById('cliente_nome');
-        if (inputNome) inputNome.focus();
-    }, 100);
+    // Auto-foca no campo Nome/Razão Social se não for apenas leitura
+    if (!readOnly) {
+        setTimeout(() => {
+            const inputNome = document.getElementById('cliente_nome');
+            if (inputNome) inputNome.focus();
+        }, 100);
+    }
 };
 
 window.handleCreationTypeChange = (type) => {
@@ -1099,8 +1152,13 @@ window.handleCreationTypeChange = (type) => {
 window.closeContratoModal = (force = false) => {
     const modal = document.getElementById('contratoModal');
     if (modal && modal.classList.contains('active')) {
-        if (!force && !confirm('Deseja realmente fechar a proposta? Quaisquer dados preenchidos e não salvos serão perdidos.')) {
+        const form = document.getElementById('contratoForm');
+        const isReadOnly = document.getElementById('modalTitle')?.innerText.includes('Visualizar');
+        if (!force && !isReadOnly && !confirm('Deseja realmente fechar a proposta? Quaisquer dados preenchidos e não salvos serão perdidos.')) {
             return;
+        }
+        if (form) {
+            form.querySelectorAll('input, select, textarea, button').forEach(el => el.disabled = false);
         }
         modal.classList.remove('active');
     }
@@ -2857,4 +2915,283 @@ window.addEventListener('themechange', () => {
         renderCharts();
     }
 });
+
+// ============================================================
+//  MÓDULO PRESTADORES (AGREGADOS)
+// ============================================================
+
+async function loadPrestadores() {
+    if (!supabaseClient) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from('com_prestadores')
+            .select('*')
+            .order('nome_prestador', { ascending: true });
+
+        if (error) throw error;
+        prestadores = data || [];
+        renderPrestadores();
+    } catch (err) {
+        console.error('Erro ao carregar prestadores:', err);
+    }
+}
+
+function renderPrestadores() {
+    const tbody = document.getElementById('prestadoresTableBody');
+    if (!tbody) return;
+
+    const searchTerm = (document.getElementById('prestadorSearch')?.value || '').toLowerCase();
+    const filterStatus = document.getElementById('filterPrestadorStatus')?.value || '';
+    const filterTipoContrato = document.getElementById('filterPrestadorTipoContrato')?.value || '';
+
+    const filtered = prestadores.filter(p => {
+        if (filterStatus && p.status !== filterStatus) return false;
+        if (filterTipoContrato && p.tipo_contrato !== filterTipoContrato) return false;
+
+        if (searchTerm) {
+            const searchable = [
+                p.nome_prestador,
+                p.cpf,
+                p.cnpj,
+                p.razao_social,
+                p.placa,
+                p.modelo,
+                p.marca
+            ].map(v => (v || '').toLowerCase()).join(' ');
+
+            return searchable.includes(searchTerm);
+        }
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    Nenhum prestador encontrado.
+                </td>
+            </tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(p => {
+        const docFormatted = p.tipo_contrato === 'CNPJ' ? (p.cnpj || '-') : (p.cpf || '-');
+        
+        let statusStyle = 'background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);';
+        if (p.status === 'Congelado') statusStyle = 'background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);';
+        if (p.status === 'Inativo') statusStyle = 'background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);';
+
+        const pendenciaBadge = p.tem_pendencia 
+            ? `<span style="font-size: 0.72rem; font-weight:800; padding:2px 8px; border-radius:12px; background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3);" title="${p.pendencia_descricao || 'Com pendência'}">SIM</span>`
+            : `<span style="font-size: 0.72rem; font-weight:700; color:var(--text-muted);">NÃO</span>`;
+
+        return `
+            <tr>
+                <td style="font-weight: 700; color: #fff;">${p.nome_prestador}</td>
+                <td><span style="font-size:0.75rem; font-weight:800; background:rgba(99,102,241,0.12); color:var(--primary); padding:2px 8px; border-radius:6px;">${p.tipo_contrato || '-'}</span></td>
+                <td>${docFormatted}</td>
+                <td><span class="proposta-status-badge" style="${statusStyle}">${p.status || 'Ativo'}</span></td>
+                <td>${p.marca || ''} ${p.modelo || ''} <span style="font-family:'JetBrains Mono',monospace; font-weight:800; color:var(--primary); margin-left:4px;">(${p.placa || '-'})</span></td>
+                <td>${fmtDataBR(p.data_proxima_vistoria)}</td>
+                <td>${pendenciaBadge}</td>
+                <td style="text-align: center;">
+                    <div style="display: flex; gap: 0.4rem; justify-content: center;">
+                        <button class="action-btn-mini" onclick="openPrestadorModal('${p.id}')" title="Editar Prestador">
+                            <i data-lucide="edit-2" style="width:14px;"></i>
+                        </button>
+                        <button class="action-btn-mini" onclick="deletePrestador('${p.id}')" title="Excluir Prestador" style="background: rgba(239,68,68,0.1); color: #ef4444;">
+                            <i data-lucide="trash-2" style="width:14px;"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>`;
+    }).join('');
+
+    if (window.lucide) lucide.createIcons();
+}
+
+// Controls visual dynamics in modal
+window.toggleTipoContratoCampos = () => {
+    const tipo = document.getElementById('p_tipo_contrato')?.value;
+    const gCpf = document.getElementById('group_p_cpf');
+    const gCnpj = document.getElementById('group_p_cnpj');
+    const gRazao = document.getElementById('group_p_razao_social');
+
+    if (tipo === 'CNPJ') {
+        if (gCpf) gCpf.style.display = 'none';
+        if (gCnpj) gCnpj.style.display = 'flex';
+        if (gRazao) gRazao.style.display = 'flex';
+    } else {
+        if (gCpf) gCpf.style.display = 'flex';
+        if (gCnpj) gCnpj.style.display = 'none';
+        if (gRazao) gRazao.style.display = 'none';
+    }
+};
+
+window.togglePendenciaCampo = () => {
+    const checked = document.getElementById('p_tem_pendencia')?.checked;
+    const label = document.getElementById('p_pendencia_label');
+    const gDesc = document.getElementById('group_p_pendencia_descricao');
+
+    if (label) label.innerText = checked ? 'Sim' : 'Não';
+    if (label) label.style.color = checked ? '#ef4444' : 'var(--text-muted)';
+    if (gDesc) gDesc.style.display = checked ? 'flex' : 'none';
+};
+
+window.toggleMotivoStatusCampo = () => {
+    const status = document.getElementById('p_status')?.value;
+    const gMotivo = document.getElementById('group_p_motivo_status');
+    if (gMotivo) {
+        gMotivo.style.display = (status === 'Congelado' || status === 'Inativo') ? 'flex' : 'none';
+    }
+};
+
+window.calcularProximaVistoria = () => {
+    const dtVistoria = document.getElementById('p_data_vistoria')?.value;
+    const prazoDias = parseInt(document.getElementById('p_prazo_proxima_vistoria_dias')?.value);
+    const outProx = document.getElementById('p_data_proxima_vistoria');
+
+    if (dtVistoria && !isNaN(prazoDias) && prazoDias > 0) {
+        const date = new Date(dtVistoria + 'T12:00:00');
+        date.setDate(date.getDate() + prazoDias);
+        if (outProx) outProx.value = date.toISOString().split('T')[0];
+    } else {
+        if (outProx) outProx.value = '';
+    }
+};
+
+window.openPrestadorModal = (id = null) => {
+    const modal = document.getElementById('prestadorModal');
+    const form = document.getElementById('prestadorForm');
+    if (!modal || !form) return;
+
+    form.reset();
+    document.getElementById('prestadorEditId').value = id || '';
+    document.getElementById('prestadorModalTitle').innerText = id ? 'Editar Prestador Agregado' : 'Novo Prestador Agregado';
+
+    if (id) {
+        const p = prestadores.find(x => x.id === id);
+        if (p) {
+            document.getElementById('p_data_inicio_contrato').value = p.data_inicio_contrato || '';
+            document.getElementById('p_nome_prestador').value = p.nome_prestador || '';
+            document.getElementById('p_tipo_contrato').value = p.tipo_contrato || 'CPF';
+            document.getElementById('p_cpf').value = p.cpf || '';
+            document.getElementById('p_cnpj').value = p.cnpj || '';
+            document.getElementById('p_razao_social').value = p.razao_social || '';
+            document.getElementById('p_contrato_formalizado').value = p.contrato_formalizado || 'Nao';
+            document.getElementById('p_comodato_locacao').value = p.comodato_locacao || 'NA';
+            document.getElementById('p_veiculo_compartilhado').value = p.veiculo_compartilhado || 'Nao';
+            document.getElementById('p_tem_pendencia').checked = !!p.tem_pendencia;
+            document.getElementById('p_pendencia_descricao').value = p.pendencia_descricao || '';
+            document.getElementById('p_status').value = p.status || 'Ativo';
+            document.getElementById('p_motivo_status').value = p.motivo_status || '';
+            document.getElementById('p_observacao').value = p.observacao || '';
+            document.getElementById('p_placa').value = p.placa || '';
+            document.getElementById('p_exercicio').value = p.exercicio || '';
+            document.getElementById('p_ano_fabricacao').value = p.ano_fabricacao || '';
+            document.getElementById('p_ano_modelo').value = p.ano_modelo || '';
+            document.getElementById('p_marca').value = p.marca || '';
+            document.getElementById('p_modelo').value = p.modelo || '';
+            document.getElementById('p_cor').value = p.cor || '';
+            document.getElementById('p_nome_documento').value = p.nome_documento || '';
+            document.getElementById('p_cpf_cnpj_doc_veicular').value = p.cpf_cnpj_doc_veicular || '';
+            document.getElementById('p_rastreador').value = p.rastreador || 'Nao';
+            document.getElementById('p_seguro_app').value = p.seguro_app || 'Nao';
+            document.getElementById('p_data_vistoria').value = p.data_vistoria || '';
+            document.getElementById('p_prazo_proxima_vistoria_dias').value = p.prazo_proxima_vistoria_dias || '';
+            document.getElementById('p_data_proxima_vistoria').value = p.data_proxima_vistoria || '';
+        }
+    } else {
+        document.getElementById('p_data_inicio_contrato').value = dataAtualISO();
+    }
+
+    toggleTipoContratoCampos();
+    togglePendenciaCampo();
+    toggleMotivoStatusCampo();
+
+    modal.classList.add('active');
+};
+
+window.closePrestadorModal = () => {
+    const modal = document.getElementById('prestadorModal');
+    if (modal) modal.classList.remove('active');
+};
+
+window.handleSavePrestador = async (e) => {
+    e.preventDefault();
+    if (!supabaseClient) return alert('Supabase não conectado.');
+
+    const editId = document.getElementById('prestadorEditId').value;
+    const tipoContrato = document.getElementById('p_tipo_contrato').value;
+    const statusVal = document.getElementById('p_status').value;
+    const temPendencia = document.getElementById('p_tem_pendencia').checked;
+
+    const payload = {
+        data_inicio_contrato: document.getElementById('p_data_inicio_contrato').value || null,
+        nome_prestador: document.getElementById('p_nome_prestador').value.trim(),
+        tipo_contrato: tipoContrato,
+        cpf: (tipoContrato === 'CLT' || tipoContrato === 'CPF') ? document.getElementById('p_cpf').value.trim() : null,
+        cnpj: (tipoContrato === 'CNPJ') ? document.getElementById('p_cnpj').value.trim() : null,
+        razao_social: (tipoContrato === 'CNPJ') ? document.getElementById('p_razao_social').value.trim() : null,
+        contrato_formalizado: document.getElementById('p_contrato_formalizado').value,
+        comodato_locacao: document.getElementById('p_comodato_locacao').value,
+        veiculo_compartilhado: document.getElementById('p_veiculo_compartilhado').value,
+        tem_pendencia: temPendencia,
+        pendencia_descricao: temPendencia ? document.getElementById('p_pendencia_descricao').value.trim() : null,
+        status: statusVal,
+        motivo_status: (statusVal === 'Congelado' || statusVal === 'Inativo') ? document.getElementById('p_motivo_status').value.trim() : null,
+        observacao: document.getElementById('p_observacao').value.trim() || null,
+        placa: document.getElementById('p_placa').value.trim().toUpperCase(),
+        exercicio: document.getElementById('p_exercicio').value.trim() || null,
+        ano_fabricacao: parseInt(document.getElementById('p_ano_fabricacao').value) || null,
+        ano_modelo: parseInt(document.getElementById('p_ano_modelo').value) || null,
+        marca: document.getElementById('p_marca').value.trim() || null,
+        modelo: document.getElementById('p_modelo').value.trim() || null,
+        cor: document.getElementById('p_cor').value.trim() || null,
+        nome_documento: document.getElementById('p_nome_documento').value.trim() || null,
+        cpf_cnpj_doc_veicular: document.getElementById('p_cpf_cnpj_doc_veicular').value.trim() || null,
+        rastreador: document.getElementById('p_rastreador').value,
+        seguro_app: document.getElementById('p_seguro_app').value,
+        data_vistoria: document.getElementById('p_data_vistoria').value || null,
+        prazo_proxima_vistoria_dias: parseInt(document.getElementById('p_prazo_proxima_vistoria_dias').value) || null,
+        data_proxima_vistoria: document.getElementById('p_data_proxima_vistoria').value || null
+    };
+
+    try {
+        let res;
+        if (editId) {
+            res = await supabaseClient.from('com_prestadores').update(payload).eq('id', editId);
+        } else {
+            res = await supabaseClient.from('com_prestadores').insert([payload]);
+        }
+
+        if (res.error) throw res.error;
+
+        closePrestadorModal();
+        await loadPrestadores();
+    } catch (err) {
+        console.error('Erro ao salvar prestador:', err);
+        alert('Falha ao salvar prestador: ' + err.message);
+    }
+};
+
+window.deletePrestador = async (id) => {
+    const p = prestadores.find(x => x.id === id);
+    const nome = p ? p.nome_prestador : 'este prestador';
+    
+    if (!confirm(`Tem certeza que deseja excluir o prestador "${nome}"?`)) return;
+
+    try {
+        const { error } = await supabaseClient
+            .from('com_prestadores')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+        await loadPrestadores();
+    } catch (err) {
+        console.error('Erro ao excluir prestador:', err);
+        alert('Falha ao excluir prestador: ' + err.message);
+    }
+};
 

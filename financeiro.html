@@ -1136,7 +1136,7 @@
                     <div class="form-row grid-2">
                         <div class="input-group">
                             <label>Favorecido (Fornecedor/Cliente)</label>
-                            <div class="input-with-btn">
+                            <div class="input-with-btn" style="display:flex; gap:0.5rem; align-items:center;">
                                 <div class="autocomplete-wrapper" style="flex: 1;">
                                     <input type="text" id="entryEntidadeSearch" class="financeiro-input"
                                         placeholder="Buscar favorecedor..." required autocomplete="off"
@@ -1147,14 +1147,14 @@
                                     <div class="autocomplete-results"></div>
                                 </div>
                                 <button type="button" class="btn-plus" onclick="openModal('fornecedorModal')"
-                                    title="Novo Fornecedor" style="width:38px; height:38px;">
+                                    title="Novo Fornecedor" style="width:38px; height:38px; flex-shrink:0;">
                                     <i data-lucide="plus"></i>
                                 </button>
                             </div>
                         </div>
                         <div class="input-group">
                             <label>Tipo Despesa (Plano de Contas)</label>
-                            <div class="input-with-btn">
+                            <div class="input-with-btn" style="display:flex; gap:0.5rem; align-items:center;">
                                 <div class="autocomplete-wrapper" style="flex: 1;">
                                     <input type="text" id="entryCategoriaSearch" class="financeiro-input"
                                         placeholder="Buscar conta..." required autocomplete="off"
@@ -1165,7 +1165,7 @@
                                     <div class="autocomplete-results"></div>
                                 </div>
                                 <button type="button" class="btn-plus" onclick="openModal('planoModal')"
-                                    title="Nova Conta" style="width:38px; height:38px;">
+                                    title="Nova Conta" style="width:38px; height:38px; flex-shrink:0;">
                                     <i data-lucide="plus"></i>
                                 </button>
                             </div>
@@ -1209,11 +1209,16 @@
                             <span class="section-title">Informações de Pagamento</span>
                         </div>
 
-                        <div class="form-row grid-4" style="grid-template-columns: 1fr 1fr 1.5fr 1fr;">
+                        <div class="form-row grid-4" style="display:grid; grid-template-columns: 1fr 1.2fr 1fr 1.2fr; gap:0.8rem;">
                             <div class="input-group">
                                 <label>Parcelas</label>
                                 <input type="number" id="qtdParcelas" name="numero_parcelas" class="financeiro-input"
                                     value="1" min="1" oninput="generateInstallmentFields()">
+                            </div>
+                            <div class="input-group" id="prazoDiasGroup" style="display:none;">
+                                <label>Intervalo Prazo (Dias)</label>
+                                <input type="number" id="intervaloPrazoDias" class="financeiro-input"
+                                    value="30" min="1" placeholder="Ex: 30" oninput="generateInstallmentFields()">
                             </div>
                             <div class="input-group">
                                 <label>Forma de Pagamento</label>
@@ -1224,10 +1229,6 @@
                                     <option value="TRANSFERENCIA">Transferência</option>
                                     <option value="DINHEIRO">Dinheiro</option>
                                 </select>
-                            </div>
-                            <div class="input-group">
-                                <label>Conta de Origem</label>
-                                <select name="conta_bancaria_id" id="entryConta" class="financeiro-input"></select>
                             </div>
                             <div class="input-group" id="firstVencWrapper">
                                 <label>Vencimento (Primeira)</label>
@@ -1288,7 +1289,7 @@
 
     <!-- MODAL DE RECEBIMENTO -->
     <div id="receberModal" class="modal-overlay">
-        <div class="modal-v2" style="max-width: 950px; border-radius: 16px;">
+        <div class="modal-v2" style="max-width: 1100px; width: 95vw; border-radius: 16px;">
             <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08);">
                 <div style="display: flex; align-items: center; gap: 1rem;">
                     <h2 class="modal-title" style="background: linear-gradient(to right, #10b981, #3b82f6); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin: 0; font-weight: 800;">
@@ -1308,16 +1309,22 @@
                 <input type="hidden" id="receberId">
 
                 <!-- LINHA 1: BÁSICOS -->
-                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1.6fr 1.3fr 1.2fr 1fr; gap: 0.8rem;">
+                <div class="form-row" style="display: grid; grid-template-columns: 1.1fr 2.6fr 1.6fr 1.3fr 1.1fr; gap: 0.8rem;">
                     <div class="input-group">
                         <label>DATA</label>
                         <input type="date" id="receberData" name="data_emissao" class="financeiro-input" required style="border-radius: 8px;">
                     </div>
                     <div class="input-group">
                         <label>Cliente / Contratante</label>
-                        <input type="text" name="entidade_nome" id="receberEntidade" class="financeiro-input"
-                            required placeholder="Nome do cliente ou empresa..." style="width:100%; border-radius: 8px;" list="clientesDatalist" oninput="updateReceberClientCnpjInfo()">
-                        <datalist id="clientesDatalist"></datalist>
+                        <div class="autocomplete-wrapper" style="width: 100%;">
+                            <input type="text" name="entidade_nome" id="receberEntidade" class="financeiro-input"
+                                required placeholder="BUSCAR CLIENTE..." autocomplete="off"
+                                oninput="handleFinClienteSearch(this); updateReceberClientCnpjInfo();"
+                                onfocus="handleFinClienteSearch(this)"
+                                onkeydown="handleFinAutocompleteKeydown(event, this)"
+                                style="width:100%; border-radius: 8px;">
+                            <div class="autocomplete-results"></div>
+                        </div>
                         <div id="receberClienteWarning" style="display:none; color:#ef4444; font-size:0.75rem; font-weight:700; margin-top:0.3rem;">
                             <i data-lucide="alert-circle" style="width:12px; height:12px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
                             <span>Aviso: Este cliente/tomador não está cadastrado no sistema (Comercial)! O salvamento será bloqueado.</span>
@@ -1348,7 +1355,7 @@
                 <!-- LINHA 2: DESCRIÇÃO (DESTAQUE) -->
                 <div class="input-group">
                     <label>DESCRIÇÃO</label>
-                    <textarea id="receberDescricao" name="descricao" class="financeiro-input" required placeholder="Ex: Prestação de serviço de transporte executivo..." rows="3" style="resize: vertical; height: auto; padding: 0.8rem; border-radius: 8px;"></textarea>
+                    <textarea id="receberDescricao" name="descricao" class="financeiro-input" placeholder="Ex: Prestação de serviço de transporte executivo..." rows="3" style="resize: vertical; height: auto; padding: 0.8rem; border-radius: 8px;"></textarea>
                 </div>
 
                 <!-- LINHA 3: FISCAL, PLANO DE CONTAS E VALOR BRUTO -->

@@ -3050,7 +3050,16 @@ function renderCompras() {
                     }
                     badge = `<span style="background: rgba(245,158,11,0.15); color:#f59e0b; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.6rem; font-weight:800; border: 1px solid rgba(245,158,11,0.3); margin-left: 5px;">FATURADO${parentText}</span>`;
                 }
-                return `<td data-label="Nota"><span style="font-family:'JetBrains Mono'; font-weight:800; color:var(--primary); cursor:pointer; text-decoration:underline; text-underline-offset:4px; text-decoration-color:rgba(92,96,245,0.3);" onclick="openViewModal('${c.id}')">#${c.numeroNota}</span>${badge}</td>`;
+
+                let integracaoTag = '';
+                const isIntegrado = c.integradoFinanceiro || c.integrado_financeiro;
+                const dtInteg = c.dataIntegracao || c.data_integracao;
+                if (isIntegrado) {
+                    const dtFormat = dtInteg ? new Date(dtInteg).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                    integracaoTag = `<div style="margin-top: 3px;"><span title="Integrado ao Financeiro em ${dtFormat}" style="background: rgba(16, 185, 129, 0.15); color: #10b981; padding: 0.15rem 0.45rem; border-radius: 5px; font-size: 0.6rem; font-weight: 800; border: 1px solid rgba(16, 185, 129, 0.35); display: inline-flex; align-items: center; gap: 3px;"><i data-lucide="check-circle-2" style="width:10px; height:10px;"></i> INTEGRADO FINANCEIRO ${dtFormat ? `• ${dtFormat}` : ''}</span></div>`;
+                }
+
+                return `<td data-label="Nota"><span style="font-family:'JetBrains Mono'; font-weight:800; color:var(--primary); cursor:pointer; text-decoration:underline; text-underline-offset:4px; text-decoration-color:rgba(92,96,245,0.3);" onclick="openViewModal('${c.id}')">#${c.numeroNota}</span>${badge}${integracaoTag}</td>`;
             }
             
             if (col.key === 'especie') {
@@ -3109,10 +3118,20 @@ function renderCompras() {
                 const cor = getColor(nome);
                 const venc = c.vencimento ? new Date(c.vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '-';
                 const parcInfo = c.parcelasData && c.parcelasData.length > 0 ? `<div style="font-size:0.6rem; color:#10b981; font-weight:800; margin-top:4px;"><i data-lucide="layers" style="width:10px; height:10px; vertical-align:middle;"></i> ${c.parcelasData.length}x PARCELADO</div>` : '';
+                
+                let integPgtoTag = '';
+                const isIntegrado = c.integradoFinanceiro || c.integrado_financeiro;
+                const dtInteg = c.dataIntegracao || c.data_integracao;
+                if (isIntegrado) {
+                    const dtFormat = dtInteg ? new Date(dtInteg).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                    integPgtoTag = `<div style="font-size:0.6rem; color:#10b981; font-weight:800; margin-top:4px; display:flex; align-items:center; gap:3px;"><i data-lucide="check-circle-2" style="width:10px; height:10px;"></i> Integrado ${dtFormat ? `(${dtFormat})` : ''}</div>`;
+                }
+
                 return `<td data-label="Pagamento">
                     <span style="background:${cor}22; color:${cor}; padding:0.2rem 0.6rem; border-radius:6px; font-size:0.65rem; font-weight:800; border:1px solid ${cor}44;">${nome}</span>
                     <div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px; font-weight:600;">Venc: ${venc}</div>
                     ${parcInfo}
+                    ${integPgtoTag}
                 </td>`;
             }
 

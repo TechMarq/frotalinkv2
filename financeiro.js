@@ -89,34 +89,19 @@ async function loadInitialData() {
         const fetchClientesSafely = async () => {
             let listaClientes = [];
             try {
-                const { data: d1 } = await supabaseClient.from('clientes').select('*');
-                if (d1 && d1.length) {
-                    d1.forEach(item => {
-                        const nome = item.nome || item.cliente_nome;
-                        if (nome) {
-                            listaClientes.push({
-                                id: item.id,
-                                nome: nome,
-                                cnpj_cpf: item.cnpj_cpf || item.cliente_cnpj_cpf,
-                                email: item.email || item.cliente_email,
-                                contato: item.contato || item.cliente_telefone
-                            });
-                        }
-                    });
-                }
-            } catch (err) {}
-
-            try {
                 const { data: d2 } = await supabaseClient.from('com_contratos').select('*');
                 if (d2 && d2.length) {
                     d2.forEach(item => {
                         const name = item.cliente_nome;
                         const doc = item.cliente_cnpj_cpf;
                         if (name || doc) {
-                            const existing = listaClientes.find(c => (c.nome || '').toLowerCase().trim() === (name || '').toLowerCase().trim());
-                            if (existing) {
-                                if (!existing.cnpj_cpf && doc) existing.cnpj_cpf = doc;
-                            } else {
+                            const sanitize = (v) => (v || '').toString().replace(/\D/g, '');
+                            const existing = listaClientes.find(c => {
+                                const sameName = (c.nome || '').toLowerCase().trim() === (name || '').toLowerCase().trim();
+                                const sameDoc = sanitize(c.cnpj_cpf) === sanitize(doc);
+                                return sameName && (sameDoc || (!c.cnpj_cpf && !doc));
+                            });
+                            if (!existing) {
                                 listaClientes.push({
                                     id: item.id,
                                     nome: name || doc,
@@ -1469,33 +1454,56 @@ function formatCnpjDisplay(doc) {
 function updateReceberClientCnpjInfo() {
     const elEnt = document.getElementById('receberEntidade');
     const elCnpj = document.getElementById('receberCNPJ');
+    const elWarning = document.getElementById('receberClienteWarning');
     if (!elCnpj) return;
 
     const val = (elEnt ? elEnt.value : '').toLowerCase().trim();
     if (state.importedXmlCnpj) {
         elCnpj.value = formatCnpjDisplay(state.importedXmlCnpj);
+        if (elWarning) elWarning.style.display = 'none';
+        if (elEnt) elEnt.style.borderColor = '';
         return;
     }
 
     if (!val) {
         elCnpj.value = '—';
+        if (elWarning) elWarning.style.display = 'none';
+        if (elEnt) elEnt.style.borderColor = '';
         return;
     }
 
-    const firstWordTyped = val.split(/\s+/)[0];
-    const found = (state.clientes || []).find(c => {
-        const cNome = (c.nome || '').toLowerCase().trim();
-        if (!cNome || !c.cnpj_cpf) return false;
-        if (cNome === val || cNome.includes(val) || val.includes(cNome)) return true;
-        const firstWordDb = cNome.split(/\s+/)[0];
-        if (firstWordTyped.length >= 4 && (cNome.includes(firstWordTyped) || val.includes(firstWordDb))) return true;
-        return false;
-    });
+    const clienteExato = (state.clientes || []).find(c => (c.nome || '').toLowerCase().trim() === val);
 
-    if (found && found.cnpj_cpf) {
-        elCnpj.value = formatCnpjDisplay(found.cnpj_cpf);
+    if (clienteExato && clienteExato.cnpj_cpf) {
+        elCnpj.value = formatCnpjDisplay(clienteExato.cnpj_cpf);
+        if (elWarning) elWarning.style.display = 'none';
+        if (elEnt) elEnt.style.borderColor = '';
     } else {
-        elCnpj.value = '—';
+        // Busca flexível apenas para preencher o CNPJ como sugestão caso o usuário ainda esteja digitando
+        const firstWordTyped = val.split(/\s+/)[0];
+        const foundFlex = (state.clientes || []).find(c => {
+            const cNome = (c.nome || '').toLowerCase().trim();
+            if (!cNome || !c.cnpj_cpf) return false;
+            if (cNome.includes(val) || val.includes(cNome)) return true;
+            const firstWordDb = cNome.split(/\s+/)[0];
+            if (firstWordTyped.length >= 4 && (cNome.includes(firstWordTyped) || val.includes(firstWordDb))) return true;
+            return false;
+        });
+
+        if (foundFlex && foundFlex.cnpj_cpf) {
+            elCnpj.value = formatCnpjDisplay(foundFlex.cnpj_cpf);
+        } else {
+            elCnpj.value = '—';
+        }
+
+        if (elWarning && val.length > 2 && !clienteExato) {
+            elWarning.style.display = 'block';
+            elWarning.querySelector('span').innerText = 'Aviso: O cliente informado foi alterado ou não bate exatamente com o cadastro Comercial! O salvamento será bloqueado.';
+            if (elEnt) elEnt.style.borderColor = '#ef4444';
+        } else if (elWarning) {
+            elWarning.style.display = 'none';
+            if (elEnt) elEnt.style.borderColor = '';
+        }
     }
 }
 window.updateReceberClientCnpjInfo = updateReceberClientCnpjInfo;
@@ -1765,17 +1773,11 @@ function calculateReceberForecast() {
 }
 
 async function isCnpjCadastrado(cnpjInput, clienteNomeTyped = '') {
-    // Carrega a base comercial (clientes + contratos) se a lista em memória estiver vazia
+    // Carrega a base comercial (contratos) se a lista em memória estiver vazia
     if (!state.clientes || state.clientes.length === 0) {
         try {
-            const { data: db1 } = await supabaseClient.from('clientes').select('cnpj_cpf, cliente_cnpj_cpf, nome, cliente_nome');
             const { data: db2 } = await supabaseClient.from('com_contratos').select('cliente_cnpj_cpf, cliente_nome');
             const list = [];
-            (db1 || []).forEach(c => {
-                const doc = c.cnpj_cpf || c.cliente_cnpj_cpf;
-                const n = c.nome || c.cliente_nome;
-                if (doc || n) list.push({ nome: n || '', cnpj_cpf: doc || '' });
-            });
             (db2 || []).forEach(c => {
                 if (c.cliente_cnpj_cpf || c.cliente_nome) list.push({ nome: c.cliente_nome || '', cnpj_cpf: c.cliente_cnpj_cpf || '' });
             });
@@ -1887,15 +1889,42 @@ async function handleReceberSubmit(e) {
     e.preventDefault();
     const formData = new FormData(e.target);
 
-    // Validação OBRIGATÓRIA e EXCLUSIVA por CNPJ no módulo Comercial
+    // Validação OBRIGATÓRIA e EXCLUSIVA do Cliente no módulo Comercial
     const entidadeNomeForm = (formData.get('entidade_nome') || state.importedXmlNome || '').trim();
     const cnpjForm = state.importedXmlCnpj || '';
 
-    const cnpjCheck = await isCnpjCadastrado(cnpjForm, entidadeNomeForm);
+    // Verifica se o nome e/ou CNPJ correspondem exatamente a um cliente cadastrado nos contratos comerciais
+    const clienteExato = (state.clientes || []).find(c => {
+        const sameName = (c.nome || '').toLowerCase().trim() === entidadeNomeForm.toLowerCase().trim();
+        const elCnpjVal = (document.getElementById('receberCNPJ')?.value || '').replace(/\D/g, '');
+        const cCnpjVal = (c.cnpj_cpf || '').replace(/\D/g, '');
+        if (sameName) {
+            return !elCnpjVal || !cCnpjVal || elCnpjVal === cCnpjVal;
+        }
+        return false;
+    });
+
+    if (!clienteExato) {
+        showToast(`Bloqueado: O cliente "${entidadeNomeForm}" foi alterado ou não bate com o Comercial.`, "error");
+        const elWarning = document.getElementById('receberClienteWarning');
+        const elEnt = document.getElementById('receberEntidade');
+        if (elWarning) {
+            elWarning.style.display = 'block';
+            elWarning.querySelector('span').innerText = 'Aviso: O cliente informado foi alterado ou não bate exatamente com o cadastro Comercial! O salvamento foi bloqueado.';
+        }
+        if (elEnt) {
+            elEnt.style.borderColor = '#ef4444';
+            elEnt.focus();
+        }
+        return;
+    }
+
+    // Atualiza com a Razão Social exata do cadastro comercial
+    formData.set('entidade_nome', clienteExato.nome);
+
+    const cnpjCheck = await isCnpjCadastrado(cnpjForm || clienteExato.cnpj_cpf, clienteExato.nome);
     if (!cnpjCheck.valid) {
-        const cnpjExib = cnpjCheck.cnpj ? `CNPJ: ${cnpjCheck.cnpj}` : `Empresa: "${entidadeNomeForm}"`;
-        showToast(`Bloqueado: O CNPJ do Tomador/Cliente não foi localizado no cadastro Comercial.`, "error");
-        alert(`Não é possível salvar: O CNPJ (${cnpjCheck.cnpj || 'não informado'}) do Cliente/Tomador (${entidadeNomeForm}) não está cadastrado no sistema Comercial. Por favor, certifique-se de que o CNPJ da empresa (Matriz ou Filial) esteja cadastrado no módulo Comercial.`);
+        showToast(`Bloqueado: CNPJ do Tomador/Cliente não localizado no cadastro Comercial.`, "error");
         return;
     }
 
@@ -2780,7 +2809,6 @@ function clearFilters(tipo) {
 function addFinItemRow(data = null) {
     const container = document.getElementById('itemsContainer');
     const rowId = 'row-' + Date.now() + Math.random().toString(36).substr(2, 5);
-    const tipoAtual = data?.tipo || 'SERVICO';
 
     const row = document.createElement('div');
     row.className = 'item-row-v2';
@@ -2792,12 +2820,7 @@ function addFinItemRow(data = null) {
     ).join('');
 
     row.innerHTML = `
-        <!-- Topo: Tabs PEÇA / SERVIÇO -->
-        <div class="item-tabs-bar">
-            <button type="button" class="item-tab ${tipoAtual === 'PECA' ? 'active' : ''}" onclick="setItemTipo('${rowId}', 'PECA', this)">PEÇA</button>
-            <button type="button" class="item-tab ${tipoAtual === 'SERVICO' ? 'active' : ''}" onclick="setItemTipo('${rowId}', 'SERVICO', this)">SERVIÇO</button>
-        </div>
-        <input type="hidden" class="item-tipo" value="${tipoAtual}">
+        <input type="hidden" class="item-tipo" value="SERVICO">
 
         <!-- Linha principal: descrição | qtd | valor | total | lixeira -->
         <div class="item-main-row">
@@ -2822,7 +2845,7 @@ function addFinItemRow(data = null) {
                         <option value="">Selecione...</option>
                         ${ccOptions}
                     </select>
-                    <button type="button" class="btn-quick-add" onclick="openModal('custoModal')" style="width:32px; height:32px;">
+                    <button type="button" class="btn-quick-add" onclick="openModal('custoModal')" style="width:32px; height:32px; flex-shrink:0;">
                         <i data-lucide="plus"></i>
                     </button>
                 </div>
@@ -2836,39 +2859,40 @@ function addFinItemRow(data = null) {
 }
 
 function setItemTipo(rowId, tipo, btn) {
-    const row = document.getElementById(rowId);
-    if (!row) return;
-    row.querySelectorAll('.item-tab').forEach(t => t.classList.remove('active'));
-    btn.classList.add('active');
-    const hidden = row.querySelector('.item-tipo');
-    if (hidden) hidden.value = tipo;
+    // Mantido por compatibilidade
 }
 
 /**
  * 📦 GERAÇÃO DINÂMICA DE PARCELAS
  */
 function generateInstallmentFields(forcedTotal = null) {
-    const qtd = parseInt(document.getElementById('qtdParcelas').value) || 1;
+    const qtdInput = document.getElementById('qtdParcelas');
+    const qtd = parseInt(qtdInput ? qtdInput.value : 1) || 1;
     const wrapper = document.getElementById('installmentsWrapper');
     const container = document.getElementById('installmentsContainer');
-    const firstDate = document.getElementById('entryVencimento').value;
+    const firstDate = document.getElementById('entryVencimento')?.value;
     const total = forcedTotal !== null ? forcedTotal : calculateFinTotal();
+    const prazoGroup = document.getElementById('prazoDiasGroup');
+    const intervalInput = document.getElementById('intervaloPrazoDias');
+    const intervalDays = parseInt(intervalInput ? intervalInput.value : 30) || 30;
 
     if (qtd <= 1) {
-        wrapper.style.display = 'none';
-        container.innerHTML = '';
+        if (wrapper) wrapper.style.display = 'none';
+        if (prazoGroup) prazoGroup.style.display = 'none';
+        if (container) container.innerHTML = '';
         return;
     }
 
-    wrapper.style.display = 'block';
-    container.innerHTML = '';
+    if (prazoGroup) prazoGroup.style.display = 'block';
+    if (wrapper) wrapper.style.display = 'block';
+    if (container) container.innerHTML = '';
 
     const valorParcela = (total / qtd).toFixed(2);
     let dateBase = firstDate ? new Date(firstDate + 'T12:00:00') : new Date();
 
     for (let i = 0; i < qtd; i++) {
         const rowDate = new Date(dateBase);
-        rowDate.setMonth(rowDate.getMonth() + i);
+        rowDate.setDate(rowDate.getDate() + (i * intervalDays));
         const dateStr = rowDate.toISOString().split('T')[0];
 
         const row = document.createElement('div');
@@ -4605,6 +4629,56 @@ window.handleFinEntidadeSearch = (el) => {
     
     positionFinDropdown(el, resultsDiv);
     resultsDiv.style.display = 'block';
+};
+
+window.handleFinClienteSearch = (el) => {
+    currentFinAutocompleteIndex = -1;
+    const query = el.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const resultsDiv = el.parentElement.querySelector('.autocomplete-results');
+    
+    const clientsList = (state.clientes || []).map(c => ({
+        id: c.id,
+        nome: c.nome || '',
+        doc: c.cnpj_cpf || ''
+    }));
+
+    const matches = query.length === 0
+        ? clientsList.slice(0, 30)
+        : clientsList.filter(c => {
+            const nameNorm = (c.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const doc = (c.doc || '').replace(/\D/g, '');
+            const cleanQuery = query.replace(/\D/g, '');
+            return nameNorm.includes(query) || (cleanQuery.length > 0 && doc.includes(cleanQuery));
+          }).slice(0, 30);
+
+    if (matches.length === 0) {
+        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.75rem;">Nenhum cliente encontrado...</div>';
+    } else {
+        resultsDiv.innerHTML = matches.map(c => `
+            <div class="autocomplete-item" onclick="selectFinCliente('${c.nome.replace(/'/g, "\\'")}', '${(c.doc || '').replace(/'/g, "\\'")}', this)">
+                <span class="prod-name">${c.nome}</span>
+                <span class="prod-meta">DOC: ${c.doc || '—'}</span>
+            </div>
+        `).join('');
+    }
+    
+    positionFinDropdown(el, resultsDiv);
+    resultsDiv.style.display = 'block';
+};
+
+window.selectFinCliente = (nome, doc, itemEl) => {
+    const wrapper = itemEl.closest('.autocomplete-wrapper');
+    const searchInput = document.getElementById('receberEntidade');
+    const cnpjInput = document.getElementById('receberCNPJ');
+    const resultsDiv = wrapper ? wrapper.querySelector('.autocomplete-results') : null;
+
+    if (searchInput) searchInput.value = nome;
+    if (cnpjInput && doc) cnpjInput.value = formatCnpjDisplay(doc);
+
+    if (resultsDiv) {
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+    }
 };
 
 window.selectFinEntidade = (nome, itemEl) => {
