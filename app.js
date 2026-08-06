@@ -1562,15 +1562,26 @@ function renderFullVehicles() {
         return 0;
     });
 
-    const actionsHtml = (id) => `
-        <div class="table-actions">
-            <button class="btn-edit" onclick="editVehicle('${id}')" title="Editar" data-perm="frota_veiculos:edit">
+    const actionsHtml = (v) => {
+        const driveUrl = v.drive_folder_url || '';
+        const driveBtn = driveUrl 
+            ? `<button class="btn-edit" onclick="window.open('${driveUrl}', '_blank')" title="Abrir Documentos (Google Drive)" style="color: #3b82f6; border-color: rgba(59, 130, 246, 0.3); background: rgba(59, 130, 246, 0.08);">
+                <i data-lucide="folder-git-2" style="width: 16px;"></i>
+               </button>`
+            : `<button class="btn-edit" onclick="alert('Nenhuma pasta de documentos cadastrada para este veículo.')" title="Sem pasta cadastrada" style="opacity: 0.35; cursor: not-allowed;">
+                <i data-lucide="folder" style="width: 16px;"></i>
+               </button>`;
+
+        return `<div class="table-actions">
+            ${driveBtn}
+            <button class="btn-edit" onclick="editVehicle('${v.id}')" title="Editar" data-perm="frota_veiculos:edit">
                 <i data-lucide="edit-2" style="width: 16px;"></i>
             </button>
-            <button class="btn-edit btn-delete" onclick="deleteVehicle('${id}')" title="Excluir" data-perm="frota_veiculos:delete">
+            <button class="btn-edit btn-delete" onclick="deleteVehicle('${v.id}')" title="Excluir" data-perm="frota_veiculos:delete">
                 <i data-lucide="x-circle" style="width: 16px;"></i>
             </button>
         </div>`;
+    };
 
     list.innerHTML = filtered.map(v => {
         const cells = activeCols.map(col => {
@@ -1615,7 +1626,7 @@ function renderFullVehicles() {
                 case 'data_aquisicao_nf': return `<td>${formatDate(v.data_aquisicao_nf)}</td>`;
                 case 'data_saida_nf': return `<td>${formatDate(v.data_saida_nf)}</td>`;
                 case 'fornecedor_aquisicao': return `<td>${v.fornecedor_aquisicao || '-'}</td>`;
-                case 'actions': return `<td>${actionsHtml(v.id)}</td>`;
+                case 'actions': return `<td>${actionsHtml(v)}</td>`;
                 default: return `<td>-</td>`;
             }
         }).join('');
@@ -1762,7 +1773,7 @@ async function fetchVehicles() {
             id, placa, modelo, marca, proprietario, classificacao, status,
             tipo_combustivel, cor, ano_fabricacao, ano_modelo, renavam,
             chassi, numero_motor, codigo_fipe, valor_fipe_mes,
-            nome_documento, cpf_cnpj, data_aquisicao_nf, data_saida_nf, fornecedor_aquisicao,
+            nome_documento, drive_folder_url, cpf_cnpj, data_aquisicao_nf, data_saida_nf, fornecedor_aquisicao,
             vencimento_seguro, seguradora, numero_apolice, corretor_seguro,
             valor_premio, valor_franquia, parcelas_pagamento, forma_pagamento,
             proponente_seguro, endosso_proposta, ci_seguro,
@@ -2260,6 +2271,7 @@ async function handleAddVehicle(e) {
         forma_pagamento: getVal('addFormaPagamento'),
         parcelas_pagamento: getInt('addParcelas'),
         nome_documento: getVal('addNomeDocumento'),
+        drive_folder_url: getVal('addDriveFolderUrl'),
         cpf_cnpj: getVal('addCpfCnpj'),
         codigo_fipe: getVal('addCodigoFipe'),
         valor_fipe_mes: getNum('addValorFipeMes'),
@@ -2451,6 +2463,7 @@ function editVehicle(id) {
     document.getElementById('addFormaPagamento').value = v.forma_pagamento || 'BOLETO';
     document.getElementById('addParcelas').value = v.parcelas_pagamento || 0;
     document.getElementById('addNomeDocumento').value = v.nome_documento || '';
+    document.getElementById('addDriveFolderUrl').value = v.drive_folder_url || '';
     document.getElementById('addCpfCnpj').value = v.cpf_cnpj || '';
     document.getElementById('addCodigoFipe').value = v.codigo_fipe || '';
     document.getElementById('addValorFipeMes').value = v.valor_fipe_mes || 0;
@@ -2530,6 +2543,16 @@ function calcularValorParcela() {
         resultEl.value = '';
     }
 }
+
+function openDriveLink() {
+    const url = document.getElementById('addDriveFolderUrl')?.value;
+    if (url && url.trim()) {
+        window.open(url.trim(), '_blank');
+    } else {
+        alert('Nenhum link de pasta informando. Insira o link do Google Drive no campo.');
+    }
+}
+window.openDriveLink = openDriveLink;
 
 function openAddModal() {
     document.getElementById('vehicleModalTitle').innerText = 'Cadastrar Novo Veículo';

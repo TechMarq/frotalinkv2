@@ -3042,15 +3042,7 @@ function renderCompras() {
                     badge = `<span style="background: rgba(245,158,11,0.15); color:#f59e0b; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.6rem; font-weight:800; border: 1px solid rgba(245,158,11,0.3); margin-left: 5px;">FATURADO${parentText}</span>`;
                 }
 
-                let integracaoTag = '';
-                const isIntegrado = c.integradoFinanceiro || c.integrado_financeiro;
-                const dtInteg = c.dataIntegracao || c.data_integracao;
-                if (isIntegrado) {
-                    const dtFormat = dtInteg ? new Date(dtInteg).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-                    integracaoTag = `<div style="margin-top: 3px;"><span title="Integrado ao Financeiro em ${dtFormat}" style="background: rgba(16, 185, 129, 0.15); color: #10b981; padding: 0.15rem 0.45rem; border-radius: 5px; font-size: 0.6rem; font-weight: 800; border: 1px solid rgba(16, 185, 129, 0.35); display: inline-flex; align-items: center; gap: 3px;"><i data-lucide="check-circle-2" style="width:10px; height:10px;"></i> INTEGRADO FINANCEIRO ${dtFormat ? `• ${dtFormat}` : ''}</span></div>`;
-                }
-
-                return `<td data-label="Nota"><span style="font-family:'JetBrains Mono'; font-weight:800; color:var(--primary); cursor:pointer; text-decoration:underline; text-underline-offset:4px; text-decoration-color:rgba(92,96,245,0.3);" onclick="openViewModal('${c.id}')">#${c.numeroNota}</span>${badge}${integracaoTag}</td>`;
+                return `<td data-label="Nota"><span style="font-family:'JetBrains Mono'; font-weight:800; color:var(--primary); cursor:pointer; text-decoration:underline; text-underline-offset:4px; text-decoration-color:rgba(92,96,245,0.3);" onclick="openViewModal('${c.id}')">#${c.numeroNota}</span>${badge}</td>`;
             }
             
             if (col.key === 'especie') {
@@ -3113,9 +3105,14 @@ function renderCompras() {
                 let integPgtoTag = '';
                 const isIntegrado = c.integradoFinanceiro || c.integrado_financeiro;
                 const dtInteg = c.dataIntegracao || c.data_integracao;
+                const isBaixadoDireto = c.baixado_sem_integrar || c.baixadoSemIntegrar;
                 if (isIntegrado) {
                     const dtFormat = dtInteg ? new Date(dtInteg).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-                    integPgtoTag = `<div style="font-size:0.6rem; color:#10b981; font-weight:800; margin-top:4px; display:flex; align-items:center; gap:3px;"><i data-lucide="check-circle-2" style="width:10px; height:10px;"></i> Integrado ${dtFormat ? `(${dtFormat})` : ''}</div>`;
+                    if (isBaixadoDireto) {
+                        integPgtoTag = `<div style="font-size:0.6rem; color:#3b82f6; font-weight:800; margin-top:4px; display:flex; align-items:center; gap:3px;"><i data-lucide="check-square" style="width:10px; height:10px;"></i> Baixado / Já Pago ${dtFormat ? `(${dtFormat})` : ''}</div>`;
+                    } else {
+                        integPgtoTag = `<div style="font-size:0.6rem; color:#10b981; font-weight:800; margin-top:4px; display:flex; align-items:center; gap:3px;"><i data-lucide="check-circle-2" style="width:10px; height:10px;"></i> Integrado ${dtFormat ? `(${dtFormat})` : ''}</div>`;
+                    }
                 }
 
                 return `<td data-label="Pagamento">
@@ -4374,6 +4371,50 @@ window.integrarAoFinanceiro = async () => {
     }
 };
 
+window.baixarSemIntegrar = async () => {
+    const chks = document.querySelectorAll('.chk-integracao:checked');
+    if (chks.length === 0) {
+        alert('Selecione ao menos uma nota para baixar.');
+        return;
+    }
+    
+    if (!confirm(`Deseja baixar ${chks.length} nota(s) selecionada(s) como JÁ PAGAS?\n\nElas sumirão da lista de integração e serão marcadas como baixadas (não gerando lançamentos no financeiro).`)) return;
+    
+    try {
+        const ids = Array.from(chks).map(chk => chk.value);
+        const now = new Date().toISOString();
+        
+        for (const id of ids) {
+            const { error: updError } = await supabaseClient.from('compras')
+                .update({ 
+                    integrado_financeiro: true, 
+                    data_integracao: now,
+                    baixado_sem_integrar: true
+                })
+                .eq('id', id);
+                
+            if (updError) throw updError;
+            
+            const localComp = compras.find(c => c.id === id);
+            if (localComp) {
+                localComp.integrado_financeiro = true;
+                localComp.integradoFinanceiro = true;
+                localComp.data_integracao = now;
+                localComp.dataIntegracao = now;
+                localComp.baixado_sem_integrar = true;
+                localComp.baixadoSemIntegrar = true;
+            }
+        }
+        
+        alert(`${ids.length} nota(s) baixada(s) com sucesso!`);
+        renderIntegracao();
+        
+    } catch (err) {
+        console.error('Erro ao baixar notas:', err);
+        alert('Ocorreu um erro ao baixar as notas: ' + err.message);
+    }
+};
+
 function gerarTermoIntegracaoPDF(notas) {
     if (!window.jspdf) {
         alert('Biblioteca de PDF não carregada.');
@@ -4703,6 +4744,52 @@ window.handleValesSort = (key) => {
     renderVales();
 };
 
+window.handleValesDatePresetChange = (el) => {
+    const val = el ? el.value : 'month';
+    const container = document.getElementById('customValesDateContainer');
+    const startInput = document.getElementById('filterValesDateStart');
+    const endInput = document.getElementById('filterValesDateEnd');
+    
+    if (!startInput || !endInput) return;
+
+    if (container) {
+        container.style.display = val === 'custom' ? 'flex' : 'none';
+    }
+    
+    if (val !== 'custom') {
+        const today = new Date();
+        let startStr = '';
+        let endStr = '';
+        
+        if (val === 'month') {
+            const y = today.getFullYear();
+            const m = today.getMonth();
+            const lastDay = new Date(y, m + 1, 0).getDate();
+            startStr = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+            endStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        } else if (val === '15days') {
+            const start = new Date();
+            start.setDate(today.getDate() - 15);
+            startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+            endStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        } else if (val === 'lastMonth') {
+            const y = today.getFullYear();
+            const m = today.getMonth();
+            const prevDate = new Date(y, m - 1, 1);
+            const py = prevDate.getFullYear();
+            const pm = prevDate.getMonth();
+            const lastDay = new Date(py, pm + 1, 0).getDate();
+            startStr = `${py}-${String(pm + 1).padStart(2, '0')}-01`;
+            endStr = `${py}-${String(pm + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        }
+        
+        startInput.value = startStr;
+        endInput.value = endStr;
+    }
+    
+    renderVales();
+};
+
 async function renderVales() {
     const tbody = document.getElementById('tbodyVales');
     if (!tbody) return;
@@ -4713,6 +4800,15 @@ async function renderVales() {
     try {
         const queryValesVal = document.getElementById('valesSearch')?.value.toLowerCase() || '';
         const statusFilter = document.getElementById('filterValesStatus')?.value || 'PENDENTE';
+        
+        const presetEl = document.getElementById('filterValesDatePreset');
+        if (presetEl && presetEl.value !== 'custom' && (!document.getElementById('filterValesDateStart')?.value || !document.getElementById('filterValesDateEnd')?.value)) {
+            handleValesDatePresetChange(presetEl);
+            return;
+        }
+
+        const dateStart = document.getElementById('filterValesDateStart')?.value || '';
+        const dateEnd = document.getElementById('filterValesDateEnd')?.value || '';
 
         // Get Vales. Species name = "VALE"
         const valeSpecies = config.especiesNota.find(e => e.nome.toUpperCase() === 'VALE');
@@ -4721,20 +4817,49 @@ async function renderVales() {
             return;
         }
 
-        // 1. Populate supplier filter dynamically (only show suppliers with vales matching active status filter)
+        // Buscar vales diretamente do banco de dados (autônomo da aba histórico)
+        let query = supabaseClient.from('compras').select('*').eq('especie_id', valeSpecies.id);
+        if (dateStart) query = query.gte('data_emissao', dateStart);
+        if (dateEnd) query = query.lte('data_emissao', dateEnd);
+        
+        const { data: cloudVales, error: valesErr } = await query.order('data_emissao', { ascending: false });
+        if (valesErr) throw valesErr;
+
+        // Se houver vales, buscar os itens para possibilitar pesquisa por veículo/placa e produto
+        const valeIds = (cloudVales || []).map(v => v.id);
+        let cloudItensVales = [];
+        if (valeIds.length > 0) {
+            const { data: itensRes } = await supabaseClient.from('compra_itens').select('*').in('compra_id', valeIds);
+            cloudItensVales = itensRes || [];
+        }
+
+        const mappedVales = (cloudVales || []).map(c => ({
+            ...c,
+            id: c.id,
+            numeroNota: c.numero_nota,
+            especieId: c.especie_id,
+            fornecedorId: c.fornecedor_id,
+            data: toStandardYYYYMMDD(c.data_emissao),
+            valorTotal: parseFloat(c.valor_total || 0),
+            parentFaturamentoId: c.parent_faturamento_id,
+            itens: (cloudItensVales || []).filter(it => it.compra_id === c.id).map(it => ({
+                produto: it.produto,
+                veiculoId: it.vinculo_veiculo_id
+            }))
+        }));
+
+        // 1. Populate supplier filter dynamically
         const supplierSelect = document.getElementById('filterValesFornecedor');
         let selectedFornecedor = '';
         if (supplierSelect) {
             const currentSelected = supplierSelect.value;
-            let valesForFilter = compras.filter(c => c.especieId === valeSpecies.id);
+            let valesForFilter = mappedVales;
             if (statusFilter === 'PENDENTE') {
                 valesForFilter = valesForFilter.filter(c => !c.parentFaturamentoId && !c.parent_faturamento_id);
             } else if (statusFilter === 'FATURADO') {
                 valesForFilter = valesForFilter.filter(c => !!c.parentFaturamentoId || !!c.parent_faturamento_id);
             }
-            const supplierIdsWithVales = new Set(
-                valesForFilter.map(c => c.fornecedorId)
-            );
+            const supplierIdsWithVales = new Set(valesForFilter.map(c => c.fornecedorId));
             const suppliersWithVales = config.fornecedores.filter(f => supplierIdsWithVales.has(f.id));
             
             supplierSelect.innerHTML = '<option value="">Todos os Fornecedores</option>' +
@@ -4746,22 +4871,19 @@ async function renderVales() {
             }
         }
 
-        // Filter purchases locally
-        let list = compras.filter(c => c.especieId === valeSpecies.id);
+        // Filter vales
+        let list = mappedVales;
 
-        // Filter by supplier
         if (selectedFornecedor) {
             list = list.filter(c => c.fornecedorId === selectedFornecedor);
         }
 
-        // Filter by status (Faturado has parentFaturamentoId NOT null)
         if (statusFilter === 'PENDENTE') {
             list = list.filter(c => !c.parentFaturamentoId);
         } else if (statusFilter === 'FATURADO') {
             list = list.filter(c => !!c.parentFaturamentoId);
         }
 
-        // Filter by text search
         if (queryValesVal) {
             list = list.filter(c => {
                 const fornName = (config.fornecedores.find(f => f.id === c.fornecedorId)?.nome || '').toLowerCase();

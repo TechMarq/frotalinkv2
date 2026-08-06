@@ -2967,7 +2967,7 @@ function renderPrestadores() {
     if (filtered.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                <td colspan="8" style="text-align: center; padding: 3rem; color: var(--text-muted);">
                     Nenhum prestador encontrado.
                 </td>
             </tr>`;
@@ -2985,11 +2985,13 @@ function renderPrestadores() {
             ? `<span style="font-size: 0.72rem; font-weight:800; padding:2px 8px; border-radius:12px; background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3);" title="${p.pendencia_descricao || 'Com pendência'}">SIM</span>`
             : `<span style="font-size: 0.72rem; font-weight:700; color:var(--text-muted);">NÃO</span>`;
 
-        const docsBtn = p.link_documentos 
-            ? `<a href="${p.link_documentos}" target="_blank" rel="noopener noreferrer" class="action-btn-mini" title="Abrir pasta de documentos" style="background: rgba(99,102,241,0.15); color: var(--primary); display: inline-flex; align-items: center; justify-content: center; text-decoration: none;">
-                <i data-lucide="folder-open" style="width:14px;"></i>
+        const actionDriveBtn = p.link_documentos
+            ? `<a href="${p.link_documentos}" target="_blank" rel="noopener noreferrer" class="action-btn-mini" title="Abrir pasta de documentos (Google Drive)" style="background: rgba(59,130,246,0.15); color: #3b82f6; border: 1px solid rgba(59,130,246,0.3); display: inline-flex; align-items: center; justify-content: center; text-decoration: none;">
+                <i data-lucide="folder-git-2" style="width:14px;"></i>
                </a>`
-            : `<span title="Sem pasta cadastrada" style="color: var(--text-muted); opacity: 0.35; font-size: 0.8rem;">-</span>`;
+            : `<button class="action-btn-mini" onclick="alert('Nenhuma pasta de documentos cadastrada para este prestador.')" title="Sem pasta cadastrada" style="opacity: 0.35; cursor: not-allowed; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: var(--text-muted);">
+                <i data-lucide="folder" style="width:14px;"></i>
+               </button>`;
 
         return `
             <tr>
@@ -3000,9 +3002,9 @@ function renderPrestadores() {
                 <td>${p.marca || ''} ${p.modelo || ''} <span style="font-family:'JetBrains Mono',monospace; font-weight:800; color:var(--primary); margin-left:4px;">(${p.placa || '-'})</span></td>
                 <td>${fmtDataBR(p.data_proxima_vistoria)}</td>
                 <td>${pendenciaBadge}</td>
-                <td style="text-align: center;">${docsBtn}</td>
                 <td style="text-align: center;">
-                    <div style="display: flex; gap: 0.4rem; justify-content: center;">
+                    <div style="display: flex; gap: 0.4rem; justify-content: center; align-items: center;">
+                        ${actionDriveBtn}
                         <button class="action-btn-mini" onclick="openPrestadorModal('${p.id}')" title="Editar Prestador">
                             <i data-lucide="edit-2" style="width:14px;"></i>
                         </button>
