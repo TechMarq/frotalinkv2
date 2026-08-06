@@ -16,10 +16,10 @@ let empresaId = null;
 let dpFuncionarios = [];
 let dpAsos = [];
 let dpFerias = [];
-let dpPonto = [];
 let dpAtestados = [];
 let dpEpis = [];
 let dpUniformes = [];
+let dpBeneficiosCatalogo = [];
 let dpBeneficios = [];
 let dpContratos = [];
 let dpChecklist = [];
@@ -35,7 +35,7 @@ let histFiltrosAtivos = {};
 const PER_PAGE = 200;
 const pages = {
     funcionarios: 1, asos: 1, ferias: 1, ponto: 1, atestados: 1,
-    epis: 1, uniformes: 1, beneficios: 1, contratos: 1, checklist: 1, cargos: 1,
+    epis: 1, uniformes: 1, beneficios_catalogo: 1, beneficios: 1, contratos: 1, checklist: 1, cargos: 1,
     estoque: 1
 };
 
@@ -48,6 +48,7 @@ const sorts = {
     atestados: { key: 'data_inicio', dir: 'desc' },
     epis: { key: 'data_entrega', dir: 'desc' },
     uniformes: { key: 'data_entrega', dir: 'desc' },
+    beneficios_catalogo: { key: 'nome', dir: 'asc' },
     beneficios: { key: 'tipo', dir: 'asc' },
     contratos: { key: 'data_inicio', dir: 'desc' },
     checklist: { key: 'data_avaliacao', dir: 'desc' },
@@ -58,7 +59,7 @@ const sorts = {
 // IDs em edição
 let editIds = {
     funcionario: null, aso: null, ferias: null, ponto: null, atestado: null,
-    epi: null, uniforme: null, beneficio: null, contrato: null, checklist: null, cargo: null,
+    epi: null, uniforme: null, beneficio_catalogo: null, beneficio: null, contrato: null, checklist: null, cargo: null,
     estoque_item: null
 };
 
@@ -162,10 +163,10 @@ async function init() {
         await Promise.all([
             loadAsos(),
             loadFerias(),
-            loadPonto(),
             loadAtestados(),
             loadEpis(),
             loadUniformes(),
+            loadBeneficiosCatalogo(),
             loadBeneficios(),
             loadContratos(),
             loadChecklist(),
@@ -223,16 +224,6 @@ async function loadFerias() {
     }
 }
 
-async function loadPonto() {
-    // VIEW: view_dp_ponto já inclui funcionario_nome via JOIN com dp_funcionarios
-    const { data, error } = await sb.from('view_dp_ponto')
-        .select('*')
-        .order('data', { ascending: false });
-    if (!error) {
-        dpPonto = data || [];
-    }
-}
-
 async function loadAtestados() {
     // VIEW: view_dp_atestados já inclui funcionario_nome via JOIN com dp_funcionarios
     const { data, error } = await sb.from('view_dp_atestados')
@@ -260,6 +251,24 @@ async function loadUniformes() {
         .order('data_entrega', { ascending: false });
     if (!error) {
         dpUniformes = data || [];
+    }
+}
+
+async function loadBeneficiosCatalogo() {
+    try {
+        const { data, error } = await sb.from('dp_beneficios_catalogo')
+            .select('*')
+            .order('nome', { ascending: true });
+        if (!error) {
+            dpBeneficiosCatalogo = data || [];
+            populateBeneficiosCatalogoSelect();
+        } else {
+            console.warn('[DP] Erro ao carregar dp_beneficios_catalogo:', error);
+            dpBeneficiosCatalogo = [];
+        }
+    } catch (e) {
+        console.warn('[DP] Exceção ao carregar dp_beneficios_catalogo:', e);
+        dpBeneficiosCatalogo = [];
     }
 }
 
@@ -444,8 +453,10 @@ function renderDashboard() {
 
     // KPIs
     const ativos = dpFuncionarios.filter(f => f.status === 'ATIVO');
-    document.getElementById('kpi-total-func').textContent = ativos.length;
-    document.getElementById('kpi-total-func-sub').textContent = `${dpFuncionarios.filter(f => f.status !== 'DESLIGADO').length} total (com afastados/férias)`;
+    const elKpiTotal = document.getElementById('kpi-total-func');
+    if (elKpiTotal) elKpiTotal.textContent = ativos.length;
+    const elKpiTotalSub = document.getElementById('kpi-total-func-sub');
+    if (elKpiTotalSub) elKpiTotalSub.textContent = `${dpFuncionarios.filter(f => f.status !== 'DESLIGADO').length} total (com afastados/férias)`;
 
     // ASOs vencidos / vencendo em 30 dias
     const asosAlert = dpAsos.filter(a => {
@@ -453,10 +464,12 @@ function renderDashboard() {
         const v = new Date(a.data_vencimento + 'T00:00:00');
         return v <= em30;
     });
-    document.getElementById('kpi-asos-venc').textContent = asosAlert.length;
+    const elAsosVenc = document.getElementById('kpi-asos-venc');
+    if (elAsosVenc) elAsosVenc.textContent = asosAlert.length;
     const asoVenc = asosAlert.filter(a => new Date(a.data_vencimento + 'T00:00:00') < hoje).length;
     const asoAVencer = asosAlert.length - asoVenc;
-    document.getElementById('kpi-asos-sub').textContent = `${asoVenc} vencidos, ${asoAVencer} a vencer`;
+    const elAsosSub = document.getElementById('kpi-asos-sub');
+    if (elAsosSub) elAsosSub.textContent = `${asoVenc} vencidos, ${asoAVencer} a vencer`;
 
     // Contratos vencendo em 15 dias
     const contrAlerts = dpContratos.filter(c => {
@@ -466,7 +479,8 @@ function renderDashboard() {
             return dt >= hoje && dt <= em15;
         });
     });
-    document.getElementById('kpi-contr-venc').textContent = contrAlerts.length;
+    const elContrVenc = document.getElementById('kpi-contr-venc');
+    if (elContrVenc) elContrVenc.textContent = contrAlerts.length;
 
     // Em férias hoje
     const emFerias = dpFuncionarios.filter(f => f.status === 'FERIAS').length;
@@ -476,11 +490,13 @@ function renderDashboard() {
         const fim = new Date(f.data_fim_gozo + 'T00:00:00');
         return hoje >= ini && hoje <= fim;
     }).length;
-    document.getElementById('kpi-ferias-hoje').textContent = Math.max(emFerias, feriasProg);
+    const elFeriasHoje = document.getElementById('kpi-ferias-hoje');
+    if (elFeriasHoje) elFeriasHoje.textContent = Math.max(emFerias, feriasProg);
 
     // Afastados
     const afastados = dpAtestados.filter(a => a.status === 'ATIVO').length;
-    document.getElementById('kpi-afastados').textContent = afastados;
+    const elAfastados = document.getElementById('kpi-afastados');
+    if (elAfastados) elAfastados.textContent = afastados;
 
     // EPIs / CA vencendo em 60 dias
     const episAlert = dpEpis.filter(e => {
@@ -488,7 +504,8 @@ function renderDashboard() {
         const v = new Date(e.ca_vencimento + 'T00:00:00');
         return v <= em60;
     });
-    document.getElementById('kpi-epis-venc').textContent = episAlert.length;
+    const elEpisVenc = document.getElementById('kpi-epis-venc');
+    if (elEpisVenc) elEpisVenc.textContent = episAlert.length;
 
     // Aniversariantes do mês
     const mesAtual = hoje.getMonth() + 1;
@@ -502,21 +519,23 @@ function renderDashboard() {
         .sort((a, b) => a.diaAniv - b.diaAniv);
 
     const anivEl = document.getElementById('dash-aniversariantes');
-    if (aniversariantes.length === 0) {
-        anivEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.85rem;">Nenhum aniversariante este mês 🎂</div>';
-    } else {
-        anivEl.innerHTML = aniversariantes.slice(0, 8).map(f => {
-            const iniciais = f.nome_completo.split(' ').slice(0, 2).map(n => n[0]).join('');
-            const isHoje = f.diaAniv === hoje.getDate();
-            return `
-                <div class="aniv-item" style="${isHoje ? 'border-color: var(--pink); background: rgba(236,72,153,0.08);' : ''}">
-                    <div class="aniv-avatar" style="${isHoje ? 'background: linear-gradient(135deg, #ec4899, #f43f5e);' : ''}">${iniciais}</div>
-                    <div class="aniv-info">
-                        <div class="aniv-nome">${f.nome_completo}${isHoje ? ' 🎉' : ''}</div>
-                        <div class="aniv-data">Dia ${f.diaAniv} • ${f.cargo_nome || f.setor || 'Funcionário'}</div>
-                    </div>
-                </div>`;
-        }).join('');
+    if (anivEl) {
+        if (aniversariantes.length === 0) {
+            anivEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.85rem;">Nenhum aniversariante este mês 🎂</div>';
+        } else {
+            anivEl.innerHTML = aniversariantes.slice(0, 8).map(f => {
+                const iniciais = f.nome_completo.split(' ').slice(0, 2).map(n => n[0]).join('');
+                const isHoje = f.diaAniv === hoje.getDate();
+                return `
+                    <div class="aniv-item" style="${isHoje ? 'border-color: var(--pink); background: rgba(236,72,153,0.08);' : ''}">
+                        <div class="aniv-avatar" style="${isHoje ? 'background: linear-gradient(135deg, #ec4899, #f43f5e);' : ''}">${iniciais}</div>
+                        <div class="aniv-info">
+                            <div class="aniv-nome">${f.nome_completo}${isHoje ? ' 🎉' : ''}</div>
+                            <div class="aniv-data">Dia ${f.diaAniv} • ${f.cargo_nome || f.setor || 'Funcionário'}</div>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
     }
 
     // Alertas gerais
@@ -553,15 +572,17 @@ function renderDashboard() {
         alertas.push({ tipo: 'danger', icone: 'umbrella', msg: `Férias de <b>${f.funcionario_nome}</b> vencidas (período concessivo expirado)` });
     });
 
-    if (alertas.length === 0) {
-        alertList.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.85rem;">✅ Sem alertas críticos no momento</div>';
-    } else {
-        alertList.innerHTML = alertas.slice(0, 8).map(a => `
-            <div class="alert-item" style="${a.tipo === 'danger' ? 'border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.05);' : 'border-color:rgba(245,158,11,0.3);background:rgba(245,158,11,0.05);'}">
-                <i data-lucide="${a.icone}" style="width:16px;flex-shrink:0;color:${a.tipo === 'danger' ? '#f87171' : '#fcd34d'};"></i>
-                <span style="font-size:0.84rem;">${a.msg}</span>
-            </div>`).join('');
-        lucide.createIcons();
+    if (alertList) {
+        if (alertas.length === 0) {
+            alertList.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.85rem;">✅ Sem alertas críticos no momento</div>';
+        } else {
+            alertList.innerHTML = alertas.slice(0, 8).map(a => `
+                <div class="alert-item" style="${a.tipo === 'danger' ? 'border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.05);' : 'border-color:rgba(245,158,11,0.3);background:rgba(245,158,11,0.05);'}">
+                    <i data-lucide="${a.icone}" style="width:16px;flex-shrink:0;color:${a.tipo === 'danger' ? '#f87171' : '#fcd34d'};"></i>
+                    <span style="font-size:0.84rem;">${a.msg}</span>
+                </div>`).join('');
+            lucide.createIcons();
+        }
     }
 
     // Férias programadas
@@ -570,23 +591,25 @@ function renderDashboard() {
         .sort((a, b) => new Date(a.data_inicio_gozo) - new Date(b.data_inicio_gozo));
 
     const dashFerProg = document.getElementById('dash-ferias-prog');
-    if (feriasProx.length === 0) {
-        dashFerProg.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.85rem;">Nenhuma férias programada para os próximos 60 dias</div>';
-    } else {
-        dashFerProg.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:0.75rem;">` +
-            feriasProx.map(f => {
-                const emGozo = hoje >= new Date(f.data_inicio_gozo + 'T00:00:00');
-                return `
-                <div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1rem;background:rgba(14,165,233,0.05);border:1px solid rgba(14,165,233,0.15);border-radius:10px;">
-                    <i data-lucide="umbrella" style="width:18px;color:var(--primary);flex-shrink:0;"></i>
-                    <div style="flex:1;">
-                        <div style="font-weight:600;font-size:0.88rem;">${f.funcionario_nome}</div>
-                        <div style="font-size:0.78rem;color:var(--text-muted);">${formatDate(f.data_inicio_gozo)} → ${formatDate(f.data_fim_gozo)} (${f.dias_gozados || '?'} dias)</div>
-                    </div>
-                    <span class="badge ${emGozo ? 'badge-ferias' : 'badge-pendente'}">${emGozo ? 'Em Gozo' : 'Programada'}</span>
-                </div>`;
-            }).join('') + '</div>';
-        lucide.createIcons();
+    if (dashFerProg) {
+        if (feriasProx.length === 0) {
+            dashFerProg.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.85rem;">Nenhuma férias programada para os próximos 60 dias</div>';
+        } else {
+            dashFerProg.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:0.75rem;">` +
+                feriasProx.map(f => {
+                    const emGozo = hoje >= new Date(f.data_inicio_gozo + 'T00:00:00');
+                    return `
+                    <div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1rem;background:rgba(14,165,233,0.05);border:1px solid rgba(14,165,233,0.15);border-radius:10px;">
+                        <i data-lucide="umbrella" style="width:18px;color:var(--primary);flex-shrink:0;"></i>
+                        <div style="flex:1;">
+                            <div style="font-weight:600;font-size:0.88rem;">${f.funcionario_nome}</div>
+                            <div style="font-size:0.78rem;color:var(--text-muted);">${formatDate(f.data_inicio_gozo)} → ${formatDate(f.data_fim_gozo)} (${f.dias_gozados || '?'} dias)</div>
+                        </div>
+                        <span class="badge ${emGozo ? 'badge-ferias' : 'badge-pendente'}">${emGozo ? 'Em Gozo' : 'Programada'}</span>
+                    </div>`;
+                }).join('') + '</div>';
+            lucide.createIcons();
+        }
     }
 
     // Banner de alertas críticos no topo da página
@@ -758,50 +781,6 @@ function renderFerias() {
     lucide.createIcons();
 }
 
-// ============================================================
-//  RENDER: PONTO
-// ============================================================
-
-function renderPonto() {
-    const search = (document.getElementById('ponto-search')?.value || '').toLowerCase();
-    const filterTipo = document.getElementById('ponto-filter-tipo')?.value || '';
-    const filterMes = document.getElementById('ponto-filter-mes')?.value || '';
-
-    let list = dpPonto.filter(p => {
-        if (search && !p.funcionario_nome.toLowerCase().includes(search)) return false;
-        if (filterTipo && p.tipo !== filterTipo) return false;
-        if (filterMes && p.data && !p.data.startsWith(filterMes)) return false;
-        return true;
-    });
-
-    list = semanticSort(list, sorts.ponto);
-    const { page, total } = paginate('ponto', list.length);
-    const slice = list.slice((page - 1) * PER_PAGE, page * PER_PAGE);
-
-    const tbody = document.getElementById('ponto-tbody');
-    if (slice.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="table-empty"><i data-lucide="clock" style="display:block;margin:0 auto 0.5rem;width:32px;height:32px;"></i>Nenhuma ocorrência encontrada</td></tr>`;
-        lucide.createIcons(); return;
-    }
-
-    const tipoColors = { FALTA: 'vencido', ATRASO: 'afastado', HORA_EXTRA: 'ferias', SAIDA_ANTECIPADA: 'pendente' };
-    tbody.innerHTML = slice.map(p => `
-        <tr>
-            <td data-label="Funcionário" style="font-weight:600;">${p.funcionario_nome}</td>
-            <td data-label="Data">${formatDate(p.data)}</td>
-            <td data-label="Tipo"><span class="badge badge-${tipoColors[p.tipo]||'info'}">${labelPontoTipo(p.tipo)}</span></td>
-            <td data-label="Minutos">${p.minutos != null ? p.minutos + ' min' : '<span style="color:var(--text-muted)">—</span>'}</td>
-            <td data-label="Justificativa">${p.justificativa || '<span style="color:var(--text-muted)">—</span>'}</td>
-            <td data-label="Justificado"><span class="badge ${p.justificado ? 'badge-ok' : 'badge-vencido'}">${p.justificado ? 'Sim' : 'Não'}</span></td>
-            <td data-label="Ações" style="white-space:nowrap;">
-                <button class="btn-icon" onclick="editarPonto('${p.id}')" title="Editar"><i data-lucide="pencil"></i></button>
-                <button class="btn-icon danger" onclick="deletarRegistro('ponto','${p.id}')" title="Excluir"><i data-lucide="trash-2"></i></button>
-            </td>
-        </tr>`).join('');
-
-    renderPagination('ponto-pagination', 'ponto-page-info', page, total, list.length, 'renderPonto');
-    lucide.createIcons();
-}
 
 // ============================================================
 //  RENDER: ATESTADOS
@@ -1103,6 +1082,50 @@ function renderChecklist() {
 }
 
 // ============================================================
+//  RENDER: CATÁLOGO DE BENEFÍCIOS
+// ============================================================
+
+function renderBeneficiosCatalogo() {
+    const search = (document.getElementById('benef-cat-search')?.value || '').toLowerCase();
+    const filterAtivo = document.getElementById('benef-cat-filter-ativo')?.value || '';
+
+    let list = dpBeneficiosCatalogo.filter(b => {
+        const s = `${b.nome} ${b.operadora_padrao || ''} ${b.descricao || ''}`.toLowerCase();
+        if (search && !s.includes(search)) return false;
+        if (filterAtivo !== '' && String(b.ativo) !== filterAtivo) return false;
+        return true;
+    });
+
+    list = semanticSort(list, sorts.beneficios_catalogo);
+    const { page, total } = paginate('beneficios_catalogo', list.length);
+    const slice = list.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
+    const tbody = document.getElementById('benef-cat-tbody');
+    if (!tbody) return;
+
+    if (slice.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="table-empty"><i data-lucide="list-checks" style="display:block;margin:0 auto 0.5rem;width:32px;height:32px;"></i>Nenhum benefício cadastrado no catálogo</td></tr>`;
+        lucide.createIcons(); return;
+    }
+
+    tbody.innerHTML = slice.map(b => `
+        <tr>
+            <td data-label="Nome do Benefício" style="font-weight:600;">${b.nome}</td>
+            <td data-label="Valor Ref.">${b.valor_padrao ? 'R$ ' + parseFloat(b.valor_padrao).toLocaleString('pt-BR', {minimumFractionDigits:2}) : '<span style="color:var(--text-muted)">—</span>'}</td>
+            <td data-label="Desconto Ref.">${b.desconto_padrao_func ? 'R$ ' + parseFloat(b.desconto_padrao_func).toLocaleString('pt-BR', {minimumFractionDigits:2}) : '<span style="color:var(--text-muted)">R$ 0,00</span>'}</td>
+            <td data-label="Operadora">${b.operadora_padrao || '<span style="color:var(--text-muted)">—</span>'}</td>
+            <td data-label="Status"><span class="badge ${b.ativo !== false ? 'badge-ativo' : 'badge-desligado'}">${b.ativo !== false ? 'Ativo' : 'Inativo'}</span></td>
+            <td data-label="Ações" style="white-space:nowrap;">
+                <button class="btn-icon" onclick="editarBeneficioCatalogo('${b.id}')" title="Editar"><i data-lucide="pencil"></i></button>
+                <button class="btn-icon danger" onclick="deletarRegistro('beneficio_catalogo','${b.id}')" title="Excluir"><i data-lucide="trash-2"></i></button>
+            </td>
+        </tr>`).join('');
+
+    renderPagination('benef-cat-pagination', 'benef-cat-page-info', page, total, list.length, 'renderBeneficiosCatalogo');
+    lucide.createIcons();
+}
+
+// ============================================================
 //  RENDER: CARGOS
 // ============================================================
 
@@ -1124,6 +1147,8 @@ function renderCargos() {
     const slice = list.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
     const tbody = document.getElementById('cargo-tbody');
+    if (!tbody) return;
+
     if (slice.length === 0) {
         tbody.innerHTML = `<tr><td colspan="9" class="table-empty"><i data-lucide="briefcase" style="display:block;margin:0 auto 0.5rem;width:32px;height:32px;"></i>Nenhum cargo encontrado</td></tr>`;
         lucide.createIcons(); return;
@@ -1148,6 +1173,28 @@ function renderCargos() {
 
     renderPagination('cargo-pagination', 'cargo-page-info', page, total, list.length, 'renderCargos');
     lucide.createIcons();
+}
+
+function populateBeneficiosCatalogoSelect() {
+    const sel = document.getElementById('benef-catalogo-id');
+    if (!sel) return;
+    const valAtual = sel.value;
+    const ativos = dpBeneficiosCatalogo.filter(b => b.ativo !== false);
+    sel.innerHTML = '<option value="">Selecione um benefício pré-cadastrado...</option>' +
+        ativos.map(b => `<option value="${b.id}">${b.nome}</option>`).join('');
+    sel.value = valAtual;
+}
+
+function aoSelecionarBeneficioCatalogo() {
+    const catId = v('benef-catalogo-id');
+    if (!catId) return;
+    const item = dpBeneficiosCatalogo.find(b => b.id === catId);
+    if (!item) return;
+
+    if (item.nome) document.getElementById('benef-desc').value = item.nome;
+    if (item.valor_padrao != null) document.getElementById('benef-valor').value = item.valor_padrao;
+    if (item.desconto_padrao_func != null) document.getElementById('benef-desconto').value = item.desconto_padrao_func;
+    if (item.operadora_padrao) document.getElementById('benef-operadora').value = item.operadora_padrao;
 }
 
 function obterEstadoFormulario(modal) {
@@ -1193,15 +1240,7 @@ function abrirNovoRegistroAbaAtiva() {
     if (!activeTab) return;
     const tabId = activeTab.id.replace('tab-', '');
 
-    // Se estiver em abas com sub-abas, achar a sub-aba ativa
-    if (tabId === 'ponto') {
-        const activeSub = document.querySelector('#view-ponto .tab-item.active');
-        if (activeSub) {
-            const subId = activeSub.id.replace('sub-ponto-', '');
-            if (subId === 'banco') abrirModalPonto();
-            if (subId === 'atestados') abrirModalAtestado();
-        }
-    } else if (tabId === 'epis') {
+    if (tabId === 'epis') {
         const activeSub = document.querySelector('#view-epis .tab-item.active');
         if (activeSub) {
             const subId = activeSub.id.replace('sub-epis-', '');
@@ -1216,17 +1255,35 @@ function abrirNovoRegistroAbaAtiva() {
             if (subId === 'exp') abrirModalContrato();
             if (subId === 'check') abrirModalChecklist();
         }
+    } else if (tabId === 'cargos') {
+        const activeSub = document.querySelector('#view-cargos .tab-item.active');
+        if (activeSub) {
+            const subId = activeSub.id.replace('sub-cargos-', '');
+            if (subId === 'cargos') abrirModalCargo();
+            if (subId === 'catalogo') abrirModalBeneficioCatalogo();
+        }
     } else {
         // Sem sub-abas
         const actions = {
             funcionarios: abrirModalFuncionario,
             aso: abrirModalAso,
             ferias: abrirModalFerias,
-            beneficios: abrirModalBeneficio,
-            cargos: abrirModalCargo
+            ponto: abrirModalAtestado,
+            beneficios: abrirModalBeneficio
         };
         if (actions[tabId]) actions[tabId]();
     }
+}
+
+function abrirModalBeneficioCatalogo() {
+    editIds.beneficio_catalogo = null;
+    document.getElementById('modal-benef-cat-title').textContent = 'Cadastrar Novo Benefício';
+    ['benef-cat-nome','benef-cat-tipo-codigo','benef-cat-valor-padrao','benef-cat-desconto-padrao','benef-cat-operadora','benef-cat-desc'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+    });
+    document.getElementById('benef-cat-ativo').value = 'true';
+    abrirModalPadrao('modal-beneficio-catalogo');
+    lucide.createIcons();
 }
 
 function abrirModalFuncionario() {
@@ -1275,18 +1332,6 @@ function abrirModalFerias() {
     });
     document.getElementById('ferias-status').value = 'AQUISITIVO';
     abrirModalPadrao('modal-ferias');
-    lucide.createIcons();
-}
-
-function abrirModalPonto() {
-    editIds.ponto = null;
-    document.getElementById('modal-ponto-title').textContent = 'Registrar Ocorrência';
-    ['ponto-func-id','ponto-tipo','ponto-data','ponto-justificativa','ponto-aprovado'].forEach(id => {
-        const el = document.getElementById(id); if (el) el.value = '';
-    });
-    document.getElementById('ponto-minutos').value = '';
-    document.getElementById('ponto-justificado').value = 'false';
-    abrirModalPadrao('modal-ponto');
     lucide.createIcons();
 }
 
@@ -1407,17 +1452,21 @@ function editarFuncionario(id) {
         'func-nome': f.nome_completo, 'func-cpf': f.cpf, 'func-rg': f.rg,
         'func-rg-orgao': f.rg_orgao_emissor, 'func-nascimento': f.data_nascimento,
         'func-sexo': f.sexo, 'func-estado-civil': f.estado_civil, 'func-escolaridade': f.escolaridade,
-        'func-mae': f.nome_mae, 'func-naturalidade': f.naturalidade,
+        'func-mae': f.nome_mae, 'func-pai': f.nome_pai, 'func-naturalidade': f.naturalidade,
         'func-celular': f.celular, 'func-telefone': f.telefone, 'func-email': f.email,
         'func-cep': f.cep, 'func-logradouro': f.logradouro, 'func-numero': f.numero,
         'func-complemento': f.complemento, 'func-bairro': f.bairro, 'func-cidade': f.cidade,
         'func-uf': f.uf, 'func-emerg-nome': f.emergencia_nome, 'func-emerg-tel': f.emergencia_telefone,
         'func-emerg-parent': f.emergencia_parentesco, 'func-matricula': f.matricula,
         'func-cargo-id': f.cargo_id, 'func-setor': f.setor, 'func-admissao': f.data_admissao,
-        'func-tipo-contrato': f.tipo_contrato, 'func-turno': f.turno, 'func-salario': f.salario,
+        'func-tipo-contrato': f.tipo_contrato, 'func-turno': f.turno,
+        'func-horario-de': f.horario_de, 'func-horario-ate': f.horario_ate,
+        'func-salario': f.salario,
         'func-status': f.status, 'func-motivo-deslig': f.motivo_desligamento, 'func-demissao': f.data_demissao,
         'func-pis': f.pis_pasep, 'func-ctps-num': f.ctps_numero, 'func-ctps-serie': f.ctps_serie,
         'func-ctps-uf': f.ctps_uf, 'func-ctps-data': f.ctps_data_emissao,
+        'func-certidao-tipo': f.tipo_certidao, 'func-certidao-livro': f.certidao_livro,
+        'func-certidao-folha': f.certidao_folha, 'func-certidao-termo': f.certidao_termo,
         'func-banco': f.banco, 'func-agencia': f.agencia, 'func-conta': f.conta,
         'func-tipo-conta': f.tipo_conta, 'func-pix': f.chave_pix, 'func-obs': f.observacoes,
     };
@@ -1469,21 +1518,6 @@ function editarFerias(id) {
     };
     Object.entries(fields).forEach(([id, val]) => { const el = document.getElementById(id); if (el && val != null) el.value = val; });
     abrirModalPadrao('modal-ferias');
-    lucide.createIcons();
-}
-
-function editarPonto(id) {
-    const p = dpPonto.find(x => x.id === id);
-    if (!p) return;
-    editIds.ponto = id;
-    document.getElementById('modal-ponto-title').textContent = 'Editar Ocorrência';
-    const fields = {
-        'ponto-func-id': p.funcionario_id, 'ponto-tipo': p.tipo, 'ponto-data': p.data,
-        'ponto-minutos': p.minutos, 'ponto-justificativa': p.justificativa,
-        'ponto-justificado': p.justificado, 'ponto-aprovado': p.aprovado_por,
-    };
-    Object.entries(fields).forEach(([id, val]) => { const el = document.getElementById(id); if (el && val != null) el.value = val; });
-    abrirModalPadrao('modal-ponto');
     lucide.createIcons();
 }
 
@@ -1547,13 +1581,30 @@ function editarUniforme(id) {
     lucide.createIcons();
 }
 
+function editarBeneficioCatalogo(id) {
+    const b = dpBeneficiosCatalogo.find(x => x.id === id);
+    if (!b) return;
+    editIds.beneficio_catalogo = id;
+    document.getElementById('modal-benef-cat-title').textContent = 'Editar Benefício do Catálogo';
+    const fields = {
+        'benef-cat-nome': b.nome,
+        'benef-cat-valor-padrao': b.valor_padrao, 'benef-cat-desconto-padrao': b.desconto_padrao_func,
+        'benef-cat-operadora': b.operadora_padrao, 'benef-cat-desc': b.descricao,
+        'benef-cat-ativo': b.ativo !== false ? 'true' : 'false'
+    };
+    Object.entries(fields).forEach(([id, val]) => { const el = document.getElementById(id); if (el && val != null) el.value = val; });
+    abrirModalPadrao('modal-beneficio-catalogo');
+    lucide.createIcons();
+}
+
 function editarBeneficio(id) {
     const b = dpBeneficios.find(x => x.id === id);
     if (!b) return;
     editIds.beneficio = id;
-    document.getElementById('modal-benef-title').textContent = 'Editar Benefício';
+    document.getElementById('modal-benef-title').textContent = 'Editar Benefício do Funcionário';
     const fields = {
-        'benef-func-id': b.funcionario_id, 'benef-tipo': b.tipo, 'benef-desc': b.descricao,
+        'benef-func-id': b.funcionario_id, 'benef-catalogo-id': b.beneficio_catalogo_id || '',
+        'benef-tipo': b.tipo, 'benef-desc': b.descricao,
         'benef-valor': b.valor, 'benef-desconto': b.valor_desconto_func,
         'benef-operadora': b.operadora, 'benef-cartao': b.numero_cartao,
         'benef-inicio': b.data_inicio, 'benef-fim': b.data_fim, 'benef-ativo': b.ativo, 'benef-obs': b.observacoes,
@@ -1561,6 +1612,41 @@ function editarBeneficio(id) {
     Object.entries(fields).forEach(([id, val]) => { const el = document.getElementById(id); if (el && val != null) el.value = val; });
     abrirModalPadrao('modal-beneficio');
     lucide.createIcons();
+}
+
+async function salvarBeneficioCatalogo() {
+    const nome = v('benef-cat-nome');
+    if (!nome) { toast('Preencha o nome do benefício.', 'error'); return; }
+
+    const payload = {
+        empresa_id: empresaId,
+        nome,
+        valor_padrao: parseFloatOrNull('benef-cat-valor-padrao'),
+        desconto_padrao_func: parseFloatOrNull('benef-cat-desconto-padrao'),
+        operadora_padrao: v('benef-cat-operadora'),
+        descricao: v('benef-cat-desc'),
+        ativo: v('benef-cat-ativo') === 'true',
+        updated_at: new Date().toISOString(),
+    };
+    await crudSave('dp_beneficios_catalogo', 'beneficio_catalogo', payload, loadBeneficiosCatalogo, renderBeneficiosCatalogo);
+}
+
+async function salvarBeneficio() {
+    const funcId = v('benef-func-id');
+    const inicio = v('benef-inicio');
+    if (!funcId || !inicio) { toast('Preencha o funcionário e a data de início.', 'error'); return; }
+
+    const payload = {
+        empresa_id: empresaId, funcionario_id: funcId,
+        beneficio_catalogo_id: v('benef-catalogo-id') || null,
+        tipo: 'BENEFICIO', descricao: v('benef-desc'),
+        valor: parseFloatOrNull('benef-valor'), valor_desconto_func: parseFloatOrNull('benef-desconto'),
+        operadora: v('benef-operadora'), numero_cartao: v('benef-cartao'),
+        data_inicio: inicio, data_fim: v('benef-fim') || null,
+        ativo: v('benef-ativo') === 'true', observacoes: v('benef-obs'),
+        updated_at: new Date().toISOString(),
+    };
+    await crudSave('dp_beneficios', 'beneficio', payload, loadBeneficios, renderBeneficios);
 }
 
 function editarContrato(id) {
@@ -1655,6 +1741,7 @@ function verFicha(id) {
             ${campo('Naturalidade', f.naturalidade)}
             ${campo('Escolaridade', f.escolaridade)}
             ${campo('Nome da Mãe', f.nome_mae)}
+            ${campo('Nome do Pai', f.nome_pai)}
 
             ${sec('📞 Contato')}
             ${campo('Celular', f.celular)}
@@ -1670,12 +1757,14 @@ function verFicha(id) {
             ${campo('Admissão', formatDate(f.data_admissao))}
             ${campo('Tipo Contrato', f.tipo_contrato)}
             ${campo('Turno', f.turno)}
+            ${campo('Horário Trabalhista', (f.horario_de || f.horario_ate) ? `${f.horario_de || '--:--'} às ${f.horario_ate || '--:--'}` : null)}
             ${campo('Salário', f.salario ? 'R$ ' + parseFloat(f.salario).toLocaleString('pt-BR', {minimumFractionDigits:2}) : null)}
             ${f.data_demissao ? campo('Demissão', formatDate(f.data_demissao)) : ''}
 
             ${sec('📄 Documentos')}
             ${campo('PIS/PASEP', f.pis_pasep)}
             ${campo('CTPS', f.ctps_numero ? `${f.ctps_numero} / Série ${f.ctps_serie} / ${f.ctps_uf}` : null)}
+            ${campo('Certidão', f.tipo_certidao ? `${f.tipo_certidao} (Livro: ${f.certidao_livro || '-'}, Folha: ${f.certidao_folha || '-'}, Termo: ${f.certidao_termo || '-'})` : null)}
 
             ${sec('🏦 Dados Bancários')}
             ${campo('Banco', f.banco)}
@@ -1720,17 +1809,20 @@ async function salvarFuncionario() {
         cpf: v('func-cpf'), rg: v('func-rg'), rg_orgao_emissor: v('func-rg-orgao'),
         data_nascimento: v('func-nascimento') || null, sexo: v('func-sexo'),
         estado_civil: v('func-estado-civil'), escolaridade: v('func-escolaridade'),
-        nome_mae: v('func-mae'), naturalidade: v('func-naturalidade'),
+        nome_mae: v('func-mae'), nome_pai: v('func-pai'), naturalidade: v('func-naturalidade'),
         celular: v('func-celular'), telefone: v('func-telefone'), email: v('func-email'),
         cep: v('func-cep'), logradouro: v('func-logradouro'), numero: v('func-numero'),
         complemento: v('func-complemento'), bairro: v('func-bairro'), cidade: v('func-cidade'), uf: v('func-uf'),
         emergencia_nome: v('func-emerg-nome'), emergencia_telefone: v('func-emerg-tel'), emergencia_parentesco: v('func-emerg-parent'),
         matricula: v('func-matricula'), cargo_id: cargoId || null, cargo_nome: cargo?.nome || v('func-cargo-id'),
         setor: v('func-setor'), data_admissao: admissao, tipo_contrato: v('func-tipo-contrato'),
-        turno: v('func-turno'), salario: parseFloatOrNull('func-salario'), status: v('func-status'),
+        turno: v('func-turno'), horario_de: v('func-horario-de') || null, horario_ate: v('func-horario-ate') || null,
+        salario: parseFloatOrNull('func-salario'), status: v('func-status'),
         motivo_desligamento: v('func-motivo-deslig'), data_demissao: v('func-demissao') || null,
         pis_pasep: v('func-pis'), ctps_numero: v('func-ctps-num'), ctps_serie: v('func-ctps-serie'),
         ctps_uf: v('func-ctps-uf'), ctps_data_emissao: v('func-ctps-data') || null,
+        tipo_certidao: v('func-certidao-tipo'), certidao_livro: v('func-certidao-livro'),
+        certidao_folha: v('func-certidao-folha'), certidao_termo: v('func-certidao-termo'),
         banco: v('func-banco'), agencia: v('func-agencia'), conta: v('func-conta'),
         tipo_conta: v('func-tipo-conta'), chave_pix: v('func-pix'), observacoes: v('func-obs'),
         updated_at: new Date().toISOString(),
@@ -1814,21 +1906,6 @@ async function salvarFerias() {
         updated_at: new Date().toISOString(),
     };
     await crudSave('dp_ferias', 'ferias', payload, loadFerias, renderFerias);
-}
-
-async function salvarPonto() {
-    const funcId = v('ponto-func-id');
-    const tipo = v('ponto-tipo');
-    const data = v('ponto-data');
-    if (!funcId || !tipo || !data) { toast('Preencha funcionário, tipo e data.', 'error'); return; }
-
-    const payload = {
-        empresa_id: empresaId, funcionario_id: funcId, tipo, data,
-        minutos: parseInt(v('ponto-minutos')) || null,
-        justificativa: v('ponto-justificativa'), justificado: v('ponto-justificado') === 'true',
-        aprovado_por: v('ponto-aprovado'), updated_at: new Date().toISOString(),
-    };
-    await crudSave('dp_ponto', 'ponto', payload, loadPonto, renderPonto);
 }
 
 async function salvarAtestado() {
@@ -2016,7 +2093,7 @@ async function salvarCargo() {
 async function crudSave(table, editKey, payload, loadFn, renderFn) {
     const modal = {
         aso: 'modal-aso', ferias: 'modal-ferias', ponto: 'modal-ponto', atestado: 'modal-atestado',
-        epi: 'modal-epi', uniforme: 'modal-uniforme', beneficio: 'modal-beneficio',
+        epi: 'modal-epi', uniforme: 'modal-uniforme', beneficio_catalogo: 'modal-beneficio-catalogo', beneficio: 'modal-beneficio',
         contrato: 'modal-contrato', checklist: 'modal-checklist',
     }[editKey];
     try {
@@ -2051,6 +2128,9 @@ async function crudSave(table, editKey, payload, loadFn, renderFn) {
             case 'uniforme':
                 descLog += `Entrega de Uniforme "${payload.item}"${nomeFunc} (Tamanho: ${payload.tamanho || '—'}, Qtd: ${payload.quantidade})`;
                 break;
+            case 'beneficio_catalogo':
+                descLog += `Benefício no Catálogo "${payload.nome}" (Valor Ref: R$ ${payload.valor_padrao || '0,00'})`;
+                break;
             case 'beneficio':
                 descLog += `Benefício de ${payload.tipo}${nomeFunc} (Valor: R$ ${payload.valor || '0,00'})`;
                 break;
@@ -2070,7 +2150,7 @@ async function crudSave(table, editKey, payload, loadFn, renderFn) {
             // Obter array correspondente
             const stateLists = {
                 aso: dpAsos, ferias: dpFerias, ponto: dpPonto, atestado: dpAtestados,
-                epi: dpEpis, uniforme: dpUniformes, beneficio: dpBeneficios,
+                epi: dpEpis, uniforme: dpUniformes, beneficio_catalogo: dpBeneficiosCatalogo, beneficio: dpBeneficios,
                 contrato: dpContratos, checklist: dpChecklist
             };
             const list = stateLists[editKey] || [];
@@ -2096,7 +2176,7 @@ async function crudSave(table, editKey, payload, loadFn, renderFn) {
 
         if (err) throw err;
         registrarLog('dp', acaoLog, finalAuditDescription);
-        fecharModal(modal);
+        if (modal) fecharModal(modal, true);
         await loadFn();
         renderFn();
         renderDashboard();
@@ -2165,20 +2245,20 @@ async function deletarRegistro(tipo, id) {
 
     if (!confirm('Confirma a exclusão deste registro? Esta ação não pode ser desfeita.')) return;
     const tableMap = {
-        funcionario: 'dp_funcionarios', aso: 'dp_asos', ferias: 'dp_ferias', ponto: 'dp_ponto',
-        atestado: 'dp_atestados', epi: 'dp_epis', uniforme: 'dp_uniformes', beneficio: 'dp_beneficios',
+        funcionario: 'dp_funcionarios', aso: 'dp_asos', ferias: 'dp_ferias',
+        atestado: 'dp_atestados', epi: 'dp_epis', uniforme: 'dp_uniformes', beneficio_catalogo: 'dp_beneficios_catalogo', beneficio: 'dp_beneficios',
         contrato: 'dp_contratos_exp', checklist: 'dp_checklist_exp', cargo: 'dp_cargos',
         estoque_item: 'dp_estoque_itens',
     };
     const loadMap = {
-        funcionario: loadFuncionarios, aso: loadAsos, ferias: loadFerias, ponto: loadPonto,
-        atestado: loadAtestados, epi: loadEpis, uniforme: loadUniformes, beneficio: loadBeneficios,
+        funcionario: loadFuncionarios, aso: loadAsos, ferias: loadFerias,
+        atestado: loadAtestados, epi: loadEpis, uniforme: loadUniformes, beneficio_catalogo: loadBeneficiosCatalogo, beneficio: loadBeneficios,
         contrato: loadContratos, checklist: loadChecklist, cargo: loadCargos,
         estoque_item: loadEstoqueItens,
     };
     const renderMap = {
-        funcionario: renderFuncionarios, aso: renderAsos, ferias: renderFerias, ponto: renderPonto,
-        atestado: renderAtestados, epi: renderEpis, uniforme: renderUniformes, beneficio: renderBeneficios,
+        funcionario: renderFuncionarios, aso: renderAsos, ferias: renderFerias,
+        atestado: renderAtestados, epi: renderEpis, uniforme: renderUniformes, beneficio_catalogo: renderBeneficiosCatalogo, beneficio: renderBeneficios,
         contrato: renderContratos, checklist: renderChecklist, cargo: renderCargos,
         estoque_item: renderEstoque,
     };
@@ -2261,17 +2341,17 @@ async function deletarRegistro(tipo, id) {
             const item = dpEstoqueItens.find(x => x.id === id);
             if (item) descExclusao = `Excluiu item de estoque ${item.nome} (${item.tipo})`;
         }
-    } catch (e) {
-        console.warn('[AuditLog] Erro ao construir descrição rica de exclusão:', e);
+    } catch (errInfo) {
+        console.warn('Erro ao obter detalhes para auditoria:', errInfo);
     }
 
     try {
         const { error } = await sb.from(tableMap[tipo]).delete().eq('id', id);
         if (error) throw error;
         registrarLog('dp', 'EXCLUSÃO', descExclusao);
-        await loadMap[tipo]();
-        renderMap[tipo]();
-        renderDashboard();
+        if (loadMap[tipo]) await loadMap[tipo]();
+        if (renderMap[tipo]) renderMap[tipo]();
+        if (typeof renderDashboard === 'function') renderDashboard();
         toast('Registro excluído.', 'success');
     } catch(e) {
         toast('Erro ao excluir: ' + (e.message || ''), 'error');
@@ -2284,9 +2364,8 @@ async function deletarRegistro(tipo, id) {
 
 function switchTab(tabId) {
     document.querySelectorAll('.tabs-header > .tab-item').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.view-section').forEach(s => {
-        if (s.id.startsWith('view-') && !s.id.startsWith('sub-view-')) s.classList.remove('active');
-    });
+    document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+
     const btn = document.getElementById(`tab-${tabId}`);
     if (btn) btn.classList.add('active');
     const section = document.getElementById(`view-${tabId}`);
@@ -2295,17 +2374,15 @@ function switchTab(tabId) {
     // Renderizar aba ao entrar
     const renderMap = {
         funcionarios: renderFuncionarios, aso: renderAsos, ferias: renderFerias,
-        ponto: () => {
-            switchSubTab('ponto', 'atestados');
-        },
         epis: () => {
             switchSubTab('epis', 'epi');
         },
-        beneficios: renderBeneficios,
         contratos: () => {
             switchSubTab('contratos', 'exp');
         },
-        cargos: renderCargos,
+        cargos: () => {
+            switchSubTab('cargos', 'cargos');
+        },
         historico: renderHistorico,
     };
     if (renderMap[tabId]) renderMap[tabId]();
@@ -2322,13 +2399,15 @@ function switchSubTab(prefix, subId) {
     const sec = document.getElementById(`sub-view-${prefix}-${subId}`);
     if (sec) sec.classList.add('active');
     const renderMap = { 
-        'ponto-banco': renderPonto, 
         'ponto-atestados': renderAtestados, 
         'epis-epi': renderEpis, 
         'epis-uniforme': renderUniformes, 
         'epis-estoque': renderEstoque, 
         'contratos-exp': renderContratos, 
-        'contratos-check': renderChecklist 
+        'contratos-check': renderChecklist,
+        'cargos-cargos': renderCargos,
+        'cargos-catalogo': renderBeneficiosCatalogo,
+        'cargos-beneficios': renderBeneficios
     };
     if (renderMap[`${prefix}-${subId}`]) renderMap[`${prefix}-${subId}`]();
     if (window.lucide) lucide.createIcons();

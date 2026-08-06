@@ -4794,6 +4794,10 @@ async function renderVales() {
     const tbody = document.getElementById('tbodyVales');
     if (!tbody) return;
 
+    valesSelecionados.clear();
+    const chkAll = document.getElementById('chkAllVales');
+    if (chkAll) chkAll.checked = false;
+
     renderValesThead();
     tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem;">Carregando vales...</td></tr>';
 
@@ -4833,20 +4837,27 @@ async function renderVales() {
             cloudItensVales = itensRes || [];
         }
 
-        const mappedVales = (cloudVales || []).map(c => ({
-            ...c,
-            id: c.id,
-            numeroNota: c.numero_nota,
-            especieId: c.especie_id,
-            fornecedorId: c.fornecedor_id,
-            data: toStandardYYYYMMDD(c.data_emissao),
-            valorTotal: parseFloat(c.valor_total || 0),
-            parentFaturamentoId: c.parent_faturamento_id,
-            itens: (cloudItensVales || []).filter(it => it.compra_id === c.id).map(it => ({
-                produto: it.produto,
-                veiculoId: it.vinculo_veiculo_id
-            }))
-        }));
+        const mappedVales = (cloudVales || []).map(c => {
+            const rawVal = c.valor_total != null ? c.valor_total : c.valorTotal;
+            const parsedVal = typeof rawVal === 'number' ? rawVal : (parseFloat(String(rawVal || 0).replace(/\s/g, '').replace(/\./g, '').replace(',', '.')) || 0);
+            return {
+                ...c,
+                id: c.id,
+                numeroNota: c.numero_nota || c.numeroNota,
+                especieId: c.especie_id || c.especieId,
+                fornecedorId: c.fornecedor_id || c.fornecedorId,
+                data: toStandardYYYYMMDD(c.data_emissao || c.data),
+                valorTotal: parsedVal,
+                valor_total: parsedVal,
+                parentFaturamentoId: c.parent_faturamento_id || c.parentFaturamentoId,
+                itens: (cloudItensVales || []).filter(it => it.compra_id === c.id).map(it => ({
+                    produto: it.produto,
+                    veiculoId: it.vinculo_veiculo_id
+                }))
+            };
+        });
+
+        window.currentValesData = mappedVales;
 
         // 1. Populate supplier filter dynamically
         const supplierSelect = document.getElementById('filterValesFornecedor');
@@ -4940,10 +4951,10 @@ async function renderVales() {
 
         tbody.innerHTML = '';
         list.forEach(c => {
-            const forn = config.fornecedores.find(f => f.id === c.fornecedorId);
+            const forn = config.fornecedores.find(f => String(f.id) === String(c.fornecedorId || c.fornecedor_id));
             const fornNome = forn ? forn.nome : 'Sem Fornecedor';
-            const placa = c.itens?.[0]?.veiculoId ? (vehicles.find(v => v.id === c.itens[0].veiculoId)?.placa || 'N/A') : 'N/A';
-            const checked = valesSelecionados.has(c.id) ? 'checked' : '';
+            const placa = c.itens?.[0]?.veiculoId ? (vehicles.find(v => String(v.id) === String(c.itens[0].veiculoId))?.placa || 'N/A') : 'N/A';
+            const checked = valesSelecionados.has(String(c.id)) ? 'checked' : '';
             
             // Se já faturado, mostra o link/badge da NF final
             let statusHtml = '';
@@ -4951,7 +4962,7 @@ async function renderVales() {
                 if (c.parentFaturamentoId === 'MANUAL' || (c.parentFaturamentoId && c.parentFaturamentoId.toString().startsWith('MANUAL-'))) {
                     statusHtml = `<span class="badge" style="background: rgba(148,163,184,0.15); color: #94a3b8; border: 1px solid rgba(148,163,184,0.3);">Faturado Manual (Legado)</span>`;
                 } else {
-                    const parentNf = compras.find(p => p.id === c.parentFaturamentoId);
+                    const parentNf = compras.find(p => String(p.id) === String(c.parentFaturamentoId));
                     const parentNum = parentNf ? parentNf.numeroNota : 'NF';
                     statusHtml = `<span class="badge" style="background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3);">Faturado (NF #${parentNum})</span>`;
                 }
@@ -4994,10 +5005,11 @@ async function renderVales() {
 window.renderVales = renderVales;
 
 window.handleSelectVale = (id, el) => {
+    const sId = String(id);
     if (el.checked) {
-        valesSelecionados.add(id);
+        valesSelecionados.add(sId);
     } else {
-        valesSelecionados.delete(id);
+        valesSelecionados.delete(sId);
     }
     updateValesKPIs();
 };
@@ -5007,14 +5019,22 @@ window.toggleSelectAllVales = (el) => {
     const checkboxes = document.querySelectorAll('#tbodyVales .chk-vale');
     checkboxes.forEach(chk => {
         chk.checked = isChecked;
+        const sVal = String(chk.value);
         if (isChecked) {
-            valesSelecionados.add(chk.value);
+            valesSelecionados.add(sVal);
         } else {
-            valesSelecionados.delete(chk.value);
+            valesSelecionados.delete(sVal);
         }
     });
     updateValesKPIs();
 };
+
+function getValeById(id) {
+    const sId = String(id);
+    const inVales = (window.currentValesData || []).find(x => String(x.id) === sId);
+    if (inVales) return inVales;
+    return (compras || []).find(x => String(x.id) === sId);
+}
 
 function updateValesKPIs() {
     const totalEl = document.getElementById('vales_sel_total_valor');
@@ -5027,12 +5047,13 @@ function updateValesKPIs() {
     let fornecedoresMultiplos = false;
 
     valesSelecionados.forEach(id => {
-        const c = compras.find(x => x.id === id);
+        const c = getValeById(id);
         if (c) {
-            total += parseFloat(c.valorTotal) || 0;
+            total += parseFloat(c.valorTotal || c.valor_total) || 0;
+            const fId = String(c.fornecedorId || c.fornecedor_id || '');
             if (fornecedorUnico === null) {
-                fornecedorUnico = c.fornecedorId;
-            } else if (fornecedorUnico !== c.fornecedorId) {
+                fornecedorUnico = fId;
+            } else if (fornecedorUnico !== fId) {
                 fornecedoresMultiplos = true;
             }
         }
@@ -5065,17 +5086,17 @@ window.openFaturamentoValesModal = async () => {
     if (valesSelecionados.size === 0) return;
     
     const firstId = Array.from(valesSelecionados)[0];
-    const firstVale = compras.find(x => x.id === firstId);
+    const firstVale = getValeById(firstId);
     if (!firstVale) return;
 
-    const fornId = firstVale.fornecedorId;
-    const forn = config.fornecedores.find(f => f.id === fornId);
+    const fornId = firstVale.fornecedorId || firstVale.fornecedor_id;
+    const forn = config.fornecedores.find(f => String(f.id) === String(fornId));
     const fornNome = forn ? forn.nome : 'Sem Fornecedor';
 
     let total = 0;
     valesSelecionados.forEach(id => {
-        const c = compras.find(x => x.id === id);
-        if (c) total += parseFloat(c.valorTotal) || 0;
+        const c = getValeById(id);
+        if (c) total += parseFloat(c.valorTotal || c.valor_total) || 0;
     });
 
     document.getElementById('fatValesFornecedorNome').value = fornNome;
@@ -5172,23 +5193,47 @@ window.closeFaturamentoValesModal = () => {
 window.toggleFatValesParcelado = (el) => {
     const parcelado = el.checked;
     const qtdWrapper = document.getElementById('fatValesQtdParcWrapper');
+    const prazoWrapper = document.getElementById('fatValesPrazoWrapper');
     const vencWrapper = document.getElementById('fatValesVencimentoWrapper');
     const section = document.getElementById('fatValesParcelasSection');
 
     if (parcelado) {
-        qtdWrapper.style.opacity = '1';
-        qtdWrapper.style.pointerEvents = 'auto';
-        vencWrapper.style.opacity = '0.5';
-        vencWrapper.style.pointerEvents = 'none';
-        section.style.display = 'block';
+        if (qtdWrapper) { qtdWrapper.style.opacity = '1'; qtdWrapper.style.pointerEvents = 'auto'; }
+        if (prazoWrapper) { prazoWrapper.style.opacity = '1'; prazoWrapper.style.pointerEvents = 'auto'; }
+        if (vencWrapper) { vencWrapper.style.opacity = '0.5'; vencWrapper.style.pointerEvents = 'none'; }
+        if (section) section.style.display = 'block';
         gerarParcelasFaturamento();
     } else {
-        qtdWrapper.style.opacity = '0.5';
-        qtdWrapper.style.pointerEvents = 'none';
-        vencWrapper.style.opacity = '1';
-        vencWrapper.style.pointerEvents = 'auto';
-        section.style.display = 'none';
+        if (qtdWrapper) { qtdWrapper.style.opacity = '0.5'; qtdWrapper.style.pointerEvents = 'none'; }
+        if (prazoWrapper) { prazoWrapper.style.opacity = '0.5'; prazoWrapper.style.pointerEvents = 'none'; }
+        if (vencWrapper) { vencWrapper.style.opacity = '1'; vencWrapper.style.pointerEvents = 'auto'; }
+        if (section) section.style.display = 'none';
     }
+};
+
+window.recalculateFatValesInstallmentDates = () => {
+    const rows = document.querySelectorAll('#fatValesParcelasContainer > div');
+    if (rows.length === 0) return;
+
+    const firstDateInput = rows[0].querySelector('.fat-parc-date');
+    if (!firstDateInput || !firstDateInput.value) return;
+
+    const prazoDias = parseInt(document.getElementById('fatValesPrazoParcelas')?.value) || 30;
+    const [year, month, day] = firstDateInput.value.split('-').map(Number);
+
+    rows.forEach((row, idx) => {
+        if (idx === 0) return; // Mantém a data definida na Parcela 1
+        
+        const nextDate = new Date(year, month - 1, day + (idx * prazoDias));
+        const yyyy = nextDate.getFullYear();
+        const mm = String(nextDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(nextDate.getDate()).padStart(2, '0');
+        
+        const dateInput = row.querySelector('.fat-parc-date');
+        if (dateInput) {
+            dateInput.value = `${yyyy}-${mm}-${dd}`;
+        }
+    });
 };
 
 window.gerarParcelasFaturamento = () => {
@@ -5203,6 +5248,7 @@ window.gerarParcelasFaturamento = () => {
     });
     const rawTotalFinal = rawTotal + custosAdicionais - totalDescontos;
     const qtd = parseInt(document.getElementById('fatValesQtdParcelas').value) || 1;
+    const prazoDias = parseInt(document.getElementById('fatValesPrazoParcelas')?.value) || 30;
     const container = document.getElementById('fatValesParcelasContainer');
     if (!container) return;
 
@@ -5210,7 +5256,16 @@ window.gerarParcelasFaturamento = () => {
     const baseVal = Math.floor((rawTotalFinal / qtd) * 100) / 100;
     let diff = Math.round((rawTotalFinal - (baseVal * qtd)) * 100) / 100;
 
-    let dt = new Date();
+    const dataEmissaoVal = document.getElementById('fatValesDataEmissao')?.value;
+    let year, month, day;
+    if (dataEmissaoVal) {
+        [year, month, day] = dataEmissaoVal.split('-').map(Number);
+    } else {
+        const now = new Date();
+        year = now.getFullYear();
+        month = now.getMonth() + 1;
+        day = now.getDate();
+    }
 
     for (let i = 1; i <= qtd; i++) {
         let val = baseVal;
@@ -5218,12 +5273,13 @@ window.gerarParcelasFaturamento = () => {
             val = Math.round((baseVal + diff) * 100) / 100;
         }
 
-        dt.setMonth(dt.getMonth() + 1);
-        dt.setDate(10);
-        const yyyy = dt.getFullYear();
-        const mm = String(dt.getMonth() + 1).padStart(2, '0');
-        const dd = String(dt.getDate()).padStart(2, '0');
+        const dueDate = new Date(year, month - 1, day + (i * prazoDias));
+        const yyyy = dueDate.getFullYear();
+        const mm = String(dueDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(dueDate.getDate()).padStart(2, '0');
         const dateStr = `${yyyy}-${mm}-${dd}`;
+
+        const onDateChangeAttr = i === 1 ? 'onchange="recalculateFatValesInstallmentDates()"' : '';
 
         const row = document.createElement('div');
         row.style.display = 'grid';
@@ -5232,7 +5288,7 @@ window.gerarParcelasFaturamento = () => {
         row.style.alignItems = 'center';
         row.innerHTML = `
             <span style="font-size:0.75rem; font-weight:700; color:var(--text-muted);">#${i}</span>
-            <input type="date" class="compra-input fat-parc-date" value="${dateStr}" style="padding:0.4rem 0.6rem; font-size:0.8rem;">
+            <input type="date" class="compra-input fat-parc-date" value="${dateStr}" ${onDateChangeAttr} style="padding:0.4rem 0.6rem; font-size:0.8rem;">
             <input type="number" step="0.01" class="compra-input fat-parc-val" value="${val}" style="padding:0.4rem 0.6rem; font-size:0.8rem;">
         `;
         container.appendChild(row);

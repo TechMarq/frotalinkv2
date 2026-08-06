@@ -577,19 +577,20 @@
 
         /* ── Toast ── */
         #dp-toast {
-            position: fixed; bottom: 2rem; right: 2rem;
-            background: #1e293b; border: 1px solid var(--border-color);
-            border-radius: 12px; padding: 0.85rem 1.25rem;
-            color: var(--text-main); font-size: 0.9rem; font-weight: 500;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.4);
-            display: flex; align-items: center; gap: 0.6rem;
-            z-index: 9999; transform: translateY(100px); opacity: 0;
+            position: fixed; bottom: 2.5rem; right: 2.5rem;
+            background: #0f172a; border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 12px; padding: 1rem 1.4rem;
+            color: #f8fafc; font-size: 0.92rem; font-weight: 600;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+            display: flex; align-items: center; gap: 0.75rem;
+            z-index: 999999; transform: translateY(100px); opacity: 0;
             transition: all 0.3s ease; pointer-events: none;
-            max-width: 380px;
+            max-width: 460px; word-break: break-word;
         }
-        #dp-toast.show { transform: none; opacity: 1; }
-        #dp-toast.success { border-color: rgba(16,185,129,0.4); }
-        #dp-toast.error { border-color: rgba(239,68,68,0.4); }
+        #dp-toast.show { transform: none; opacity: 1; pointer-events: auto; }
+        #dp-toast.success { border-color: rgba(16,185,129,0.7); background: #064e3b; color: #ecfdf5; }
+        #dp-toast.error { border-color: rgba(239,68,68,0.7); background: #7f1d1d; color: #fef2f2; }
+        #dp-toast.info { border-color: rgba(56,189,248,0.7); background: #0c4a6e; color: #f0f9ff; }
 
         /* ── Ficha do Funcionário (view modal) ── */
         .ficha-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1.5rem; }
@@ -876,7 +877,7 @@
                 <i data-lucide="umbrella" style="width:18px;"></i> Férias
             </button>
             <button class="tab-item" onclick="switchTab('ponto')" id="tab-ponto" data-perm="dp_ponto:view">
-                <i data-lucide="clock" style="width:18px;"></i> Ponto & Ocorrências
+                <i data-lucide="file-heart" style="width:18px;"></i> Atestados & Afastamentos
             </button>
             <button class="tab-item" onclick="switchTab('epis')" id="tab-epis" data-perm="dp_epis:view">
                 <i data-lucide="hard-hat" style="width:18px;"></i> EPIs & Uniformes
@@ -888,7 +889,7 @@
                 <i data-lucide="file-text" style="width:18px;"></i> Contratos & Checklist
             </button>
             <button class="tab-item" onclick="switchTab('cargos')" id="tab-cargos" data-perm="dp_cargos:view">
-                <i data-lucide="briefcase" style="width:18px;"></i> Cargos & Salários
+                <i data-lucide="folder-cog" style="width:18px;"></i> Cadastro
             </button>
             <button class="tab-item" onclick="switchTab('historico')" id="tab-historico" data-perm="dp:view">
                 <i data-lucide="file-bar-chart" style="width:18px;"></i> Relatórios
@@ -1053,105 +1054,53 @@
     </div>
 
     <!-- ════════════════════════════════════════════
-         TAB: PONTO & OCORRÊNCIAS
+         TAB: ATESTADOS & AFASTAMENTOS (Antigo Ponto & Ocorrências)
     ════════════════════════════════════════════ -->
     <div id="view-ponto" class="view-section">
-        <!-- Sub-tabs -->
-        <div class="tabs-header" style="margin-bottom:1.5rem;">
-            <button class="tab-item active" onclick="switchSubTab('ponto','banco')" id="sub-ponto-banco"><i data-lucide="clock" style="width:16px;"></i> Banco de Horas / Faltas</button>
-            <button class="tab-item" onclick="switchSubTab('ponto','atestados')" id="sub-ponto-atestados"><i data-lucide="file-heart" style="width:16px;"></i> Atestados & Afastamentos</button>
+        <div class="section-header">
+            <div class="section-title-text"><i data-lucide="file-heart"></i> Atestados Médicos e Afastamentos</div>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalAtestado()" data-perm="dp_ponto:create"><i data-lucide="plus"></i> Novo Registro</button>
         </div>
-
-        <!-- Sub: Banco de Horas -->
-        <div id="sub-view-ponto-banco" class="view-section active">
-            <div class="section-header">
-                <div class="section-title-text"><i data-lucide="clock"></i> Banco de Horas, Faltas e Atrasos</div>
-                <button class="btn btn-primary btn-sm" onclick="abrirModalPonto()" data-perm="dp_ponto:create"><i data-lucide="plus"></i> Registrar Ocorrência</button>
-            </div>
-            <div class="filter-bar">
-                <input type="text" id="ponto-search" placeholder="🔍 Buscar funcionário..." oninput="renderPonto()">
-                <select id="ponto-filter-tipo" onchange="renderPonto()">
-                    <option value="">Todos os Tipos</option>
-                    <option value="FALTA">Falta</option>
-                    <option value="ATRASO">Atraso</option>
-                    <option value="HORA_EXTRA">Hora Extra</option>
-                    <option value="SAIDA_ANTECIPADA">Saída Antecipada</option>
-                </select>
-                <input type="month" id="ponto-filter-mes" onchange="renderPonto()" style="background:var(--card-bg); border:1px solid var(--border-color); border-radius:10px; color:var(--text-main); padding:0.6rem 1rem; font-family:'Outfit',sans-serif; font-size:0.9rem;">
-            </div>
-            <div class="table-container">
-                <div class="scroll-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th onclick="sortTable('ponto','funcionario_nome')">Funcionário</th>
-                                <th onclick="sortTable('ponto','data')">Data</th>
-                                <th onclick="sortTable('ponto','tipo')">Tipo</th>
-                                <th onclick="sortTable('ponto','minutos')">Minutos</th>
-                                <th>Justificativa</th>
-                                <th onclick="sortTable('ponto','justificado')">Justificado</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="ponto-tbody">
-                            <tr><td colspan="7" class="table-empty">Carregando...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="pagination">
-                    <span id="ponto-page-info">Mostrando 0 registros</span>
-                    <div class="pagination-btns" id="ponto-pagination"></div>
-                </div>
-            </div>
+        <div class="filter-bar">
+            <input type="text" id="atestado-search" placeholder="🔍 Buscar funcionário..." oninput="renderAtestados()">
+            <select id="atestado-filter-tipo" onchange="renderAtestados()">
+                <option value="">Todos os Tipos</option>
+                <option value="ATESTADO_MEDICO">Atestado Médico</option>
+                <option value="AFASTAMENTO_INSS">Afastamento INSS</option>
+                <option value="ACIDENTE_TRABALHO">Acidente de Trabalho</option>
+                <option value="LICENCA_MATERNIDADE">Licença Maternidade</option>
+                <option value="LICENCA_PATERNIDADE">Licença Paternidade</option>
+                <option value="OUTROS">Outros</option>
+            </select>
+            <select id="atestado-filter-status" onchange="renderAtestados()">
+                <option value="">Todos os Status</option>
+                <option value="ATIVO">Ativo</option>
+                <option value="ENCERRADO">Encerrado</option>
+            </select>
         </div>
-
-        <!-- Sub: Atestados & Afastamentos -->
-        <div id="sub-view-ponto-atestados" class="view-section">
-            <div class="section-header">
-                <div class="section-title-text"><i data-lucide="file-heart"></i> Atestados Médicos e Afastamentos</div>
-                <button class="btn btn-primary btn-sm" onclick="abrirModalAtestado()" data-perm="dp_ponto:create"><i data-lucide="plus"></i> Novo Registro</button>
+        <div class="table-container">
+            <div class="scroll-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('atestados','funcionario_nome')">Funcionário</th>
+                            <th onclick="sortTable('atestados','tipo')">Tipo</th>
+                            <th onclick="sortTable('atestados','data_inicio')">Início</th>
+                            <th onclick="sortTable('atestados','data_fim')">Fim</th>
+                            <th onclick="sortTable('atestados','dias')">Dias</th>
+                            <th>CID</th>
+                            <th onclick="sortTable('atestados','status')">Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="atestado-tbody">
+                        <tr><td colspan="8" class="table-empty">Carregando...</td></tr>
+                    </tbody>
+                </table>
             </div>
-            <div class="filter-bar">
-                <input type="text" id="atestado-search" placeholder="🔍 Buscar funcionário..." oninput="renderAtestados()">
-                <select id="atestado-filter-tipo" onchange="renderAtestados()">
-                    <option value="">Todos os Tipos</option>
-                    <option value="ATESTADO_MEDICO">Atestado Médico</option>
-                    <option value="AFASTAMENTO_INSS">Afastamento INSS</option>
-                    <option value="ACIDENTE_TRABALHO">Acidente de Trabalho</option>
-                    <option value="LICENCA_MATERNIDADE">Licença Maternidade</option>
-                    <option value="LICENCA_PATERNIDADE">Licença Paternidade</option>
-                    <option value="OUTROS">Outros</option>
-                </select>
-                <select id="atestado-filter-status" onchange="renderAtestados()">
-                    <option value="">Todos os Status</option>
-                    <option value="ATIVO">Ativo</option>
-                    <option value="ENCERRADO">Encerrado</option>
-                </select>
-            </div>
-            <div class="table-container">
-                <div class="scroll-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th onclick="sortTable('atestados','funcionario_nome')">Funcionário</th>
-                                <th onclick="sortTable('atestados','tipo')">Tipo</th>
-                                <th onclick="sortTable('atestados','data_inicio')">Início</th>
-                                <th onclick="sortTable('atestados','data_fim')">Fim</th>
-                                <th onclick="sortTable('atestados','dias')">Dias</th>
-                                <th>CID</th>
-                                <th onclick="sortTable('atestados','status')">Status</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="atestado-tbody">
-                            <tr><td colspan="8" class="table-empty">Carregando...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="pagination">
-                    <span id="atestado-page-info">Mostrando 0 registros</span>
-                    <div class="pagination-btns" id="atestado-pagination"></div>
-                </div>
+            <div class="pagination">
+                <span id="atestado-page-info">Mostrando 0 registros</span>
+                <div class="pagination-btns" id="atestado-pagination"></div>
             </div>
         </div>
     </div>
@@ -1462,53 +1411,101 @@
     </div>
 
     <!-- ════════════════════════════════════════════
-         TAB: CARGOS & SALÁRIOS
+         TAB: CADASTRO (Cargos & Salários / Catálogo de Benefícios)
     ════════════════════════════════════════════ -->
     <div id="view-cargos" class="view-section">
-        <div class="section-header">
-            <div class="section-title-text"><i data-lucide="briefcase"></i> Descrição de Cargos e Salários</div>
-            <button class="btn btn-primary btn-sm" onclick="abrirModalCargo()" data-perm="dp_cargos:create"><i data-lucide="plus"></i> Novo Cargo</button>
+        <!-- Sub-tabs -->
+        <div class="tabs-header" style="margin-bottom:1.5rem;">
+            <button class="tab-item active" onclick="switchSubTab('cargos','cargos')" id="sub-cargos-cargos"><i data-lucide="briefcase" style="width:16px;"></i> Cargos & Salários</button>
+            <button class="tab-item" onclick="switchSubTab('cargos','catalogo')" id="sub-cargos-catalogo"><i data-lucide="list-checks" style="width:16px;"></i> Catálogo de Benefícios</button>
         </div>
-        <div class="filter-bar">
-            <input type="text" id="cargo-search" placeholder="🔍 Buscar cargo ou CBO..." oninput="renderCargos()">
-            <select id="cargo-filter-nivel" onchange="renderCargos()">
-                <option value="">Todos os Níveis</option>
-                <option value="OPERACIONAL">Operacional</option>
-                <option value="TECNICO">Técnico</option>
-                <option value="SUPERVISAO">Supervisão</option>
-                <option value="GERENCIAL">Gerencial</option>
-                <option value="DIRETORIA">Diretoria</option>
-            </select>
-            <select id="cargo-filter-ativo" onchange="renderCargos()">
-                <option value="">Todos</option>
-                <option value="true">Ativos</option>
-                <option value="false">Inativos</option>
-            </select>
-        </div>
-        <div class="table-container">
-            <div class="scroll-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th onclick="sortTable('cargos','nome')">Cargo</th>
-                            <th onclick="sortTable('cargos','cbo')">CBO</th>
-                            <th onclick="sortTable('cargos','nivel')">Nível</th>
-                            <th onclick="sortTable('cargos','setor')">Setor</th>
-                            <th onclick="sortTable('cargos','salario_base')">Salário Base</th>
-                            <th>Faixa</th>
-                            <th onclick="sortTable('cargos','carga_horaria')">C.H. Mensal</th>
-                            <th onclick="sortTable('cargos','ativo')">Status</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody id="cargo-tbody">
-                        <tr><td colspan="9" class="table-empty">Carregando...</td></tr>
-                    </tbody>
-                </table>
+
+        <!-- Sub: Cargos & Salários -->
+        <div id="sub-view-cargos-cargos" class="view-section active">
+            <div class="section-header">
+                <div class="section-title-text"><i data-lucide="briefcase"></i> Descrição de Cargos e Salários</div>
+                <button class="btn btn-primary btn-sm" onclick="abrirModalCargo()" data-perm="dp_cargos:create"><i data-lucide="plus"></i> Novo Cargo</button>
             </div>
-            <div class="pagination">
-                <span id="cargo-page-info">Mostrando 0 registros</span>
-                <div class="pagination-btns" id="cargo-pagination"></div>
+            <div class="filter-bar">
+                <input type="text" id="cargo-search" placeholder="🔍 Buscar cargo ou CBO..." oninput="renderCargos()">
+                <select id="cargo-filter-nivel" onchange="renderCargos()">
+                    <option value="">Todos os Níveis</option>
+                    <option value="OPERACIONAL">Operacional</option>
+                    <option value="TECNICO">Técnico</option>
+                    <option value="SUPERVISAO">Supervisão</option>
+                    <option value="GERENCIAL">Gerencial</option>
+                    <option value="DIRETORIA">Diretoria</option>
+                </select>
+                <select id="cargo-filter-ativo" onchange="renderCargos()">
+                    <option value="">Todos</option>
+                    <option value="true">Ativos</option>
+                    <option value="false">Inativos</option>
+                </select>
+            </div>
+            <div class="table-container">
+                <div class="scroll-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('cargos','nome')">Cargo</th>
+                                <th onclick="sortTable('cargos','cbo')">CBO</th>
+                                <th onclick="sortTable('cargos','nivel')">Nível</th>
+                                <th onclick="sortTable('cargos','setor')">Setor</th>
+                                <th onclick="sortTable('cargos','salario_base')">Salário Base</th>
+                                <th>Faixa</th>
+                                <th onclick="sortTable('cargos','carga_horaria')">C.H. Mensal</th>
+                                <th onclick="sortTable('cargos','ativo')">Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cargo-tbody">
+                            <tr><td colspan="9" class="table-empty">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <span id="cargo-page-info">Mostrando 0 registros</span>
+                    <div class="pagination-btns" id="cargo-pagination"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sub: Catálogo de Benefícios -->
+        <div id="sub-view-cargos-catalogo" class="view-section">
+            <div class="section-header">
+                <div class="section-title-text"><i data-lucide="list-checks"></i> Benefícios Cadastrados no Catálogo</div>
+                <button class="btn btn-primary btn-sm" onclick="abrirModalBeneficioCatalogo()" data-perm="dp_cargos:create"><i data-lucide="plus"></i> Cadastrar Novo Benefício</button>
+            </div>
+            <div class="filter-bar">
+                <input type="text" id="benef-cat-search" placeholder="🔍 Buscar benefício ou operadora..." oninput="renderBeneficiosCatalogo()">
+                <select id="benef-cat-filter-ativo" onchange="renderBeneficiosCatalogo()">
+                    <option value="">Ativos e Inativos</option>
+                    <option value="true">Apenas Ativos</option>
+                    <option value="false">Apenas Inativos</option>
+                </select>
+            </div>
+            <div class="table-container">
+                <div class="scroll-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('beneficios_catalogo','nome')">Nome do Benefício</th>
+                                <th onclick="sortTable('beneficios_catalogo','valor_padrao')">Valor Ref. (R$)</th>
+                                <th onclick="sortTable('beneficios_catalogo','desconto_padrao_func')">Desconto Ref. (R$)</th>
+                                <th>Operadora / Fornecedor</th>
+                                <th onclick="sortTable('beneficios_catalogo','ativo')">Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="benef-cat-tbody">
+                            <tr><td colspan="6" class="table-empty">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <span id="benef-cat-page-info">Mostrando 0 registros</span>
+                    <div class="pagination-btns" id="benef-cat-pagination"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -1669,6 +1666,10 @@
                         <input type="text" id="func-mae" placeholder="Nome completo da mãe">
                     </div>
                     <div class="form-group">
+                        <label>Nome do Pai</label>
+                        <input type="text" id="func-pai" placeholder="Nome completo do pai">
+                    </div>
+                    <div class="form-group">
                         <label>Naturalidade / Cidade Natal</label>
                         <input type="text" id="func-naturalidade" placeholder="Cidade, UF">
                     </div>
@@ -1780,6 +1781,14 @@
                         </select>
                     </div>
                     <div class="form-group">
+                        <label>Horário Trabalhista (De:)</label>
+                        <input type="time" id="func-horario-de">
+                    </div>
+                    <div class="form-group">
+                        <label>Horário Trabalhista (Até:)</label>
+                        <input type="time" id="func-horario-ate">
+                    </div>
+                    <div class="form-group">
                         <label>Salário (R$)</label>
                         <input type="number" id="func-salario" placeholder="0,00" step="0.01" min="0">
                     </div>
@@ -1830,6 +1839,27 @@
                     <div class="form-group">
                         <label>Data de Emissão CTPS</label>
                         <input type="date" id="func-ctps-data">
+                    </div>
+                    <div class="form-group">
+                        <label>Tipo de Certidão</label>
+                        <select id="func-certidao-tipo">
+                            <option value="">Selecione</option>
+                            <option value="NASCIMENTO">Nascimento</option>
+                            <option value="CASAMENTO">Casamento</option>
+                            <option value="OUTRO">Outro</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Certidão Livro</label>
+                        <input type="text" id="func-certidao-livro" placeholder="Livro">
+                    </div>
+                    <div class="form-group">
+                        <label>Certidão Folha</label>
+                        <input type="text" id="func-certidao-folha" placeholder="Folha">
+                    </div>
+                    <div class="form-group">
+                        <label>Certidão Termo</label>
+                        <input type="text" id="func-certidao-termo" placeholder="Termo">
                     </div>
 
                     <div class="form-section-title">🏦 Dados Bancários</div>
@@ -2049,64 +2079,6 @@
     </div>
 </div>
 
-<!-- ════════════════════════════════════════════
-     MODAL: PONTO / OCORRÊNCIA
-════════════════════════════════════════════ -->
-<div id="modal-ponto" class="dp-modal-overlay">
-    <div class="dp-modal narrow">
-        <div class="modal-header">
-            <div class="modal-title"><i data-lucide="clock"></i> <span id="modal-ponto-title">Registrar Ocorrência</span></div>
-            <button class="modal-close" onclick="fecharModal('modal-ponto')"><i data-lucide="x"></i></button>
-        </div>
-        <div class="modal-body">
-            <div class="form-grid cols-1">
-                <div class="form-group">
-                    <label>Funcionário *</label>
-                    <select id="ponto-func-id" required>
-                        <option value="">Selecione o funcionário</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Tipo *</label>
-                    <select id="ponto-tipo" required>
-                        <option value="">Selecione</option>
-                        <option value="FALTA">Falta</option>
-                        <option value="ATRASO">Atraso</option>
-                        <option value="HORA_EXTRA">Hora Extra</option>
-                        <option value="SAIDA_ANTECIPADA">Saída Antecipada</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Data *</label>
-                    <input type="date" id="ponto-data" required>
-                </div>
-                <div class="form-group">
-                    <label>Minutos</label>
-                    <input type="number" id="ponto-minutos" placeholder="Ex: 30 (para 30 minutos)" min="0">
-                </div>
-                <div class="form-group">
-                    <label>Justificativa</label>
-                    <textarea id="ponto-justificativa" placeholder="Motivo da ocorrência..."></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Justificado?</label>
-                    <select id="ponto-justificado">
-                        <option value="false">Não</option>
-                        <option value="true">Sim</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Aprovado / Verificado por</label>
-                    <input type="text" id="ponto-aprovado" placeholder="Nome do responsável">
-                </div>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="fecharModal('modal-ponto')">Cancelar</button>
-            <button class="btn btn-primary btn-save" onclick="salvarPonto()"><i data-lucide="save"></i> Salvar</button>
-        </div>
-    </div>
-</div>
 
 <!-- ════════════════════════════════════════════
      MODAL: ATESTADO / AFASTAMENTO
@@ -2433,38 +2405,31 @@
 </div>
 
 <!-- ════════════════════════════════════════════
-     MODAL: BENEFÍCIO
+     MODAL: BENEFÍCIO (VÍNCULO COM FUNCIONÁRIO)
 ════════════════════════════════════════════ -->
 <div id="modal-beneficio" class="dp-modal-overlay">
-    <div class="dp-modal narrow">
+    <div class="dp-modal">
         <div class="modal-header">
-            <div class="modal-title"><i data-lucide="credit-card"></i> <span id="modal-benef-title">Novo Benefício</span></div>
+            <div class="modal-title"><i data-lucide="credit-card"></i> <span id="modal-benef-title">Vincular Benefício ao Funcionário</span></div>
             <button class="modal-close" onclick="fecharModal('modal-beneficio')"><i data-lucide="x"></i></button>
         </div>
         <div class="modal-body">
-            <div class="form-grid cols-1">
-                <div class="form-group">
+            <div class="form-grid">
+                <div class="form-group span-2">
                     <label>Funcionário *</label>
                     <select id="benef-func-id" required>
                         <option value="">Selecione o funcionário</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>Tipo de Benefício *</label>
-                    <select id="benef-tipo" required>
-                        <option value="">Selecione</option>
-                        <option value="VT">Vale Transporte</option>
-                        <option value="VA">Vale Alimentação</option>
-                        <option value="VR">Vale Refeição</option>
-                        <option value="PLANO_SAUDE">Plano de Saúde</option>
-                        <option value="PLANO_ODONTO">Plano Odontológico</option>
-                        <option value="SEGURO_VIDA">Seguro de Vida</option>
-                        <option value="OUTROS">Outros</option>
+                <div class="form-group span-2">
+                    <label>Benefício do Catálogo</label>
+                    <select id="benef-catalogo-id" onchange="aoSelecionarBeneficioCatalogo()">
+                        <option value="">Selecione um benefício pré-cadastrado...</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Descrição</label>
-                    <input type="text" id="benef-desc" placeholder="Detalhes do benefício">
+                    <label>Descrição / Nome</label>
+                    <input type="text" id="benef-desc" placeholder="Ex: Vale Transporte Sindi, Unimed Max...">
                 </div>
                 <div class="form-group">
                     <label>Valor da Empresa (R$)</label>
@@ -2497,7 +2462,7 @@
                         <option value="false">Não</option>
                     </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group span-2">
                     <label>Observações</label>
                     <textarea id="benef-obs" placeholder="Observações..."></textarea>
                 </div>
@@ -2506,6 +2471,53 @@
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="fecharModal('modal-beneficio')">Cancelar</button>
             <button class="btn btn-primary btn-save" onclick="salvarBeneficio()"><i data-lucide="save"></i> Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: CATÁLOGO DE BENEFÍCIOS (TIPO DISPONÍVEL)
+════════════════════════════════════════════ -->
+<div id="modal-beneficio-catalogo" class="dp-modal-overlay">
+    <div class="dp-modal narrow">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="list-checks"></i> <span id="modal-benef-cat-title">Cadastrar Novo Benefício</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-beneficio-catalogo')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid cols-1">
+                <div class="form-group">
+                    <label>Nome do Benefício *</label>
+                    <input type="text" id="benef-cat-nome" required placeholder="Ex: Vale Transporte, Vale Alimentação, Unimed Max...">
+                </div>
+                <div class="form-group">
+                    <label>Valor Padrão da Empresa (R$)</label>
+                    <input type="number" id="benef-cat-valor-padrao" step="0.01" min="0" placeholder="0,00">
+                </div>
+                <div class="form-group">
+                    <label>Desconto Padrão do Funcionário (R$)</label>
+                    <input type="number" id="benef-cat-desconto-padrao" step="0.01" min="0" placeholder="0,00">
+                </div>
+                <div class="form-group">
+                    <label>Operadora / Fornecedor</label>
+                    <input type="text" id="benef-cat-operadora" placeholder="Ex: Ticket, Alelo, Unimed, SulAmérica...">
+                </div>
+                <div class="form-group">
+                    <label>Descrição / Detalhes</label>
+                    <textarea id="benef-cat-desc" placeholder="Detalhes do benefício para referência..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Ativo?</label>
+                    <select id="benef-cat-ativo">
+                        <option value="true">Sim</option>
+                        <option value="false">Não</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-beneficio-catalogo')">Cancelar</button>
+            <button class="btn btn-primary btn-save" onclick="salvarBeneficioCatalogo()"><i data-lucide="save"></i> Salvar</button>
         </div>
     </div>
 </div>

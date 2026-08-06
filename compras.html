@@ -1886,8 +1886,8 @@
                     </div>
                 </div>
 
-                <!-- Row 4: Parcelado + Qtd + Vencimento -->
-                <div style="display: grid; grid-template-columns: auto 1fr 1fr; gap: 1rem; align-items: end;">
+                <!-- Row 4: Parcelado + Qtd + Prazo + Vencimento -->
+                <div style="display: grid; grid-template-columns: auto 1fr 1fr 1fr; gap: 1rem; align-items: end;">
                     <div class="input-group"
                         style="flex-direction: row; align-items: center; gap: 0.5rem; margin-bottom: 0; padding-bottom: 0.5rem;">
                         <input type="checkbox" id="fatValesParcelado" onchange="toggleFatValesParcelado(this)"
@@ -1899,6 +1899,12 @@
                         style="opacity: 0.5; pointer-events: none; margin-bottom: 0;">
                         <label>Qtd Parcelas</label>
                         <input type="number" id="fatValesQtdParcelas" class="compra-input" value="1" min="1" max="72"
+                            oninput="gerarParcelasFaturamento()" onchange="gerarParcelasFaturamento()">
+                    </div>
+                    <div class="input-group" id="fatValesPrazoWrapper"
+                        style="opacity: 0.5; pointer-events: none; margin-bottom: 0;">
+                        <label>Prazo (dias)</label>
+                        <input type="number" id="fatValesPrazoParcelas" class="compra-input" value="30" min="1"
                             oninput="gerarParcelasFaturamento()" onchange="gerarParcelasFaturamento()">
                     </div>
                     <div class="input-group" id="fatValesVencimentoWrapper" style="margin-bottom: 0;">
