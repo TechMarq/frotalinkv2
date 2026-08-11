@@ -1203,9 +1203,9 @@ window.openViewModal = (id) => {
         let linkInfo = '';
         if (it.veiculoId) {
             const v = vehicles.find(veh => veh.id == it.veiculoId);
-            if (v) linkInfo = `<span style="background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; font-size:0.6rem;">🚗 ${v.placa}</span>`;
+            if (v) linkInfo = `<span class="placa-badge" style="font-size:0.6rem;">🚗 ${v.placa}</span>`;
         } else if (it.pessoa) {
-            linkInfo = `<span style="background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; font-size:0.6rem;">👤 ${it.pessoa}</span>`;
+            linkInfo = `<span class="placa-badge" style="font-size:0.6rem;">👤 ${it.pessoa}</span>`;
         }
 
         return `
@@ -1242,10 +1242,10 @@ window.openViewModal = (id) => {
                 if (firstItem) {
                     if (firstItem.veiculoId) {
                         const veh = (vehicles || []).find(veh => veh.id == firstItem.veiculoId);
-                        if (veh) linkInfo += `<span style="background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; font-size:0.6rem; color: #94a3b8;">🚗 ${veh.placa}</span>`;
+                        if (veh) linkInfo += `<span class="placa-badge" style="font-size:0.6rem;">🚗 ${veh.placa}</span>`;
                     }
                     if (firstItem.pessoa) {
-                        linkInfo += `<span style="background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; font-size:0.6rem; color: #94a3b8; margin-left: 4px;">👤 ${firstItem.pessoa}</span>`;
+                        linkInfo += `<span class="placa-badge" style="font-size:0.6rem; margin-left: 4px;">👤 ${firstItem.pessoa}</span>`;
                     }
                     if (firstItem.produto) {
                         linkInfo += `<span style="background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; font-size:0.6rem; color: #a78bfa; margin-left: 4px;">📦 ${firstItem.produto}</span>`;
@@ -3073,7 +3073,7 @@ function renderCompras() {
                 
                 return `<td data-label="Placa">
                     <div style="display:flex; flex-wrap:wrap; gap:4px;">
-                        ${uniquePlacas.map(p => `<span style="background:rgba(255,255,255,0.05); color:#fff; padding:0.2rem 0.5rem; border-radius:6px; font-size:0.65rem; font-weight:800; border:1px solid rgba(255,255,255,0.1); font-family:'JetBrains Mono';">${p}</span>`).join('')}
+                        ${uniquePlacas.map(p => `<span class="placa-badge">${p}</span>`).join('')}
                     </div>
                 </td>`;
             }
