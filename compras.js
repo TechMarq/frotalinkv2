@@ -1989,14 +1989,16 @@ window.handleCategoriaSearch = (el) => {
 
 window.selectCategoria = (id, label, itemEl) => {
     const wrapper = itemEl.closest('.autocomplete-wrapper');
-    const searchInput = wrapper.querySelector('#categoriaSearch');
-    const hiddenId = wrapper.querySelector('#categoriaId');
+    const searchInput = wrapper.querySelector('input[type="text"]');
+    const hiddenId = wrapper.querySelector('input[type="hidden"]');
     const resultsDiv = wrapper.querySelector('.autocomplete-results');
 
-    searchInput.value = label;
-    hiddenId.value = id;
-    resultsDiv.style.display = 'none';
-    resultsDiv.innerHTML = '';
+    if (searchInput) searchInput.value = label;
+    if (hiddenId) hiddenId.value = id;
+    if (resultsDiv) {
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+    }
 };
 
 window.handleProductSearch = (el) => {
@@ -4349,12 +4351,16 @@ window.integrarAoFinanceiro = async () => {
                 localComp.dataIntegracao = localComp.data_integracao;
             }
             
+            const pgto = config.tiposPgto.find(p => p.id === comp.forma_pagamento_id);
+            const formaPagamentoNome = pgto ? pgto.nome : '-';
+            
             notasIntegradasFull.push({
                 nota: comp.numero_nota || 'S/N',
                 fornecedor: fornecedorNome,
                 data: comp.data_emissao,
                 valor: comp.valor_total,
-                parcelamento: comp.financeiro_parcelado ? `Sim (${comp.qtd_parcelas}x)` : 'Não'
+                parcelamento: comp.financeiro_parcelado ? `Sim (${comp.qtd_parcelas}x)` : 'Não',
+                formaPagamento: formaPagamentoNome
             });
         }
         
@@ -4385,14 +4391,25 @@ window.baixarSemIntegrar = async () => {
         const now = new Date().toISOString();
         
         for (const id of ids) {
-            const { error: updError } = await supabaseClient.from('compras')
-                .update({ 
-                    integrado_financeiro: true, 
-                    data_integracao: now,
-                    baixado_sem_integrar: true
-                })
+            const updatePayload = { 
+                integrado_financeiro: true, 
+                data_integracao: now,
+                baixado_sem_integrar: true
+            };
+
+            let { error: updError } = await supabaseClient.from('compras')
+                .update(updatePayload)
                 .eq('id', id);
                 
+            // Fallback caso a coluna baixado_sem_integrar não exista no banco de dados
+            if (updError && (updError.message.includes('baixado_sem_integrar') || updError.code === 'PGRST204')) {
+                delete updatePayload.baixado_sem_integrar;
+                const res = await supabaseClient.from('compras')
+                    .update(updatePayload)
+                    .eq('id', id);
+                updError = res.error;
+            }
+
             if (updError) throw updError;
             
             const localComp = compras.find(c => c.id === id);
@@ -4421,7 +4438,7 @@ function gerarTermoIntegracaoPDF(notas) {
         return;
     }
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('p', 'pt', 'a4');
+    const doc = new jsPDF('l', 'pt', 'a4');
 
     const pageWidth = doc.internal.pageSize.getWidth();
     let cursorY = 40;
@@ -4436,13 +4453,14 @@ function gerarTermoIntegracaoPDF(notas) {
     const dataHora = new Date().toLocaleString('pt-BR');
     doc.text(`Data e Hora da Integração: ${dataHora}`, pageWidth / 2, cursorY, { align: 'center' });
     
-    cursorY += 40;
+    cursorY += 30;
     
     const tableData = notas.map(n => [
         n.nota,
         n.fornecedor,
         formatDateBR(n.data),
         n.parcelamento,
+        n.formaPagamento || '-',
         formatCurrency(n.valor)
     ]);
     
@@ -4450,12 +4468,29 @@ function gerarTermoIntegracaoPDF(notas) {
     
     doc.autoTable({
         startY: cursorY,
-        head: [['Nº Nota', 'Fornecedor', 'Data Emissão', 'Parcelamento', 'Valor Total']],
+        head: [['Nº Nota', 'Fornecedor', 'Data Emissão', 'Parcelamento', 'Forma Pagamento', 'Valor Total']],
         body: tableData,
         theme: 'grid',
-        headStyles: { fillColor: [92, 96, 245] },
-        foot: [['', '', '', 'TOTAL INTEGRADO:', formatCurrency(totalSoma)]],
-        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+        styles: { fontSize: 9, cellPadding: 6, overflow: 'linebreak' },
+        headStyles: { fillColor: [92, 96, 245], fontSize: 9.5, fontStyle: 'bold', halign: 'left' },
+        columnStyles: {
+            0: { cellWidth: 130 }, // Nº Nota
+            1: { cellWidth: 'auto' }, // Fornecedor
+            2: { cellWidth: 85, halign: 'center' }, // Data Emissão
+            3: { cellWidth: 90, halign: 'center' }, // Parcelamento
+            4: { cellWidth: 110, halign: 'left' }, // Forma Pagamento
+            5: { cellWidth: 100, halign: 'right' } // Valor Total
+        },
+        foot: [['', '', '', '', 'TOTAL INTEGRADO:', formatCurrency(totalSoma)]],
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 10 },
+        didParseCell: function (data) {
+            if (data.section === 'foot' && data.column.index === 4) {
+                data.cell.styles.halign = 'right';
+            }
+            if (data.section === 'foot' && data.column.index === 5) {
+                data.cell.styles.halign = 'right';
+            }
+        }
     });
     
     cursorY = doc.lastAutoTable.finalY + 80;
@@ -5289,7 +5324,7 @@ window.gerarParcelasFaturamento = () => {
         row.innerHTML = `
             <span style="font-size:0.75rem; font-weight:700; color:var(--text-muted);">#${i}</span>
             <input type="date" class="compra-input fat-parc-date" value="${dateStr}" ${onDateChangeAttr} style="padding:0.4rem 0.6rem; font-size:0.8rem;">
-            <input type="number" step="0.01" class="compra-input fat-parc-val" value="${val}" style="padding:0.4rem 0.6rem; font-size:0.8rem;">
+            <input type="number" step="0.01" class="compra-input fat-parc-val" value="${val.toFixed(2)}" style="padding:0.4rem 0.6rem; font-size:0.8rem;">
         `;
         container.appendChild(row);
     }
@@ -5297,19 +5332,24 @@ window.gerarParcelasFaturamento = () => {
 
 window.handleConfirmarFaturamentoVales = async (e) => {
     e.preventDefault();
-    const client = window.authClient || supabaseClient;
-    if (!client) return;
 
-    const btnSubmit = document.querySelector('#faturamentoValesForm button[type="submit"]');
-    const origText = btnSubmit.innerHTML;
-    btnSubmit.disabled = true;
-    btnSubmit.innerHTML = 'Processando...';
+    const client = window.authClient || supabaseClient;
+    if (!client) {
+        alert('Cliente Supabase não inicializado.');
+        return;
+    }
+
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalBtnText = submitBtn ? submitBtn.innerHTML : 'Confirmar Fechamento';
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Processando...';
+    }
 
     try {
-        const uniqueId = 'NC-FAT-' + Date.now().toString().slice(-6);
         const fornecedorId = document.getElementById('fatValesFornecedorId').value;
         const valorTotalConsolidado = parseFloat(document.getElementById('fatValesValorTotal').dataset.rawTotal) || 0;
-
+        
         // Coletar todas as linhas de custos adicionais do container
         const adicionaisRows = [];
         document.querySelectorAll('#fatValesAdditionalContainer > div').forEach(row => {
@@ -5332,6 +5372,7 @@ window.handleConfirmarFaturamentoVales = async (e) => {
 
         const especieId = document.getElementById('fatValesEspecieId').value;
         const numeroNota = document.getElementById('fatValesNumeroNota').value;
+        const categoriaId = document.getElementById('fatValesCategoriaId')?.value || null;
         const dataEmissao = document.getElementById('fatValesDataEmissao').value;
         const formaPgtoId = document.getElementById('fatValesFormaPgtoId').value;
         const parcelado = document.getElementById('fatValesParcelado').checked;
@@ -5348,11 +5389,13 @@ window.handleConfirmarFaturamentoVales = async (e) => {
             ? ` Adicionais: ${adicionaisRows.map(a => a.descricao + ' R$' + a.valor.toFixed(2)).join(', ')}.` : '';
         const descontosDesc = descontosRows.length > 0
             ? ` Descontos: ${descontosRows.map(d => d.descricao + ' -R$' + d.valor.toFixed(2)).join(', ')}.` : '';
+        const uniqueId = 'NC-FAT-' + Date.now().toString().slice(-6);
         const payloadFat = {
             id: uniqueId,
             data_emissao: dataEmissao,
             numero_nota: numeroNota,
             especie_id: especieId,
+            categoria_id: categoriaId,
             fornecedor_id: fornecedorId,
             forma_pagamento_id: formaPgtoId,
             data_vencimento: dataVencimento || null,
@@ -5443,8 +5486,10 @@ window.handleConfirmarFaturamentoVales = async (e) => {
         console.error('Erro ao faturar vales:', err);
         alert('Erro ao realizar faturamento: ' + err.message);
     } finally {
-        btnSubmit.disabled = false;
-        btnSubmit.innerHTML = origText;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+        }
     }
 };
 

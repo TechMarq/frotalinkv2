@@ -691,6 +691,9 @@ function applyPermissions(modulo) {
                 if (onClick.includes("'contratos'")) {
                     if (!canDo('comercial_contratos', 'view')) el.style.display = 'none';
                     else el.style.display = '';
+                } else if (onClick.includes("'prestadores'")) {
+                    if (!canDo('comercial_prestadores', 'view')) el.style.display = 'none';
+                    else el.style.display = '';
                 } else if (onClick.includes("'admin'")) {
                     if (!canDo('comercial_cadastros', 'view')) el.style.display = 'none';
                     else el.style.display = '';
@@ -702,6 +705,11 @@ function applyPermissions(modulo) {
             if (secContratos && !canDo('comercial_contratos', 'view')) {
                 secContratos.style.display = 'none';
                 secContratos.classList.remove('active');
+            }
+            const secPrestadores = document.getElementById('view-prestadores');
+            if (secPrestadores && !canDo('comercial_prestadores', 'view')) {
+                secPrestadores.style.display = 'none';
+                secPrestadores.classList.remove('active');
             }
             const secAdmin = document.getElementById('view-admin');
             if (secAdmin && !canDo('comercial_cadastros', 'view')) {
@@ -731,19 +739,38 @@ function applyPermissions(modulo) {
                 }
             });
 
-            // E. Excluir Contrato (em tabelas)
+            // D. Excluir Contrato (em tabelas)
             document.querySelectorAll('button[onclick*="deleteContrato"]').forEach(el => {
                 if (!canDo('comercial_contratos', 'delete')) el.style.display = 'none';
                 else el.style.display = '';
             });
 
-            // F. Adicionar Cadastros
+            // E. Novo e Editar Prestador
+            document.querySelectorAll('button[onclick*="openPrestadorModal"]').forEach(el => {
+                const onclickAttr = el.getAttribute('onclick') || '';
+                const isEdit = /\('[^']+'\)/.test(onclickAttr) || /\("[^"]+"\)/.test(onclickAttr);
+                if (isEdit) {
+                    if (!canDo('comercial_prestadores', 'edit')) el.style.display = 'none';
+                    else el.style.display = '';
+                } else {
+                    if (!canDo('comercial_prestadores', 'add')) el.style.display = 'none';
+                    else el.style.display = '';
+                }
+            });
+
+            // F. Excluir Prestador
+            document.querySelectorAll('button[onclick*="deletePrestador"]').forEach(el => {
+                if (!canDo('comercial_prestadores', 'delete')) el.style.display = 'none';
+                else el.style.display = '';
+            });
+
+            // G. Adicionar Cadastros
             document.querySelectorAll('button[onclick*="openAdminModal"]').forEach(el => {
                 if (!canDo('comercial_cadastros', 'add')) el.style.display = 'none';
                 else el.style.display = '';
             });
 
-            // G. Excluir Cadastros
+            // H. Excluir Cadastros
             document.querySelectorAll('button[onclick*="deleteAdminItem"]').forEach(el => {
                 if (!canDo('comercial_cadastros', 'delete')) el.style.display = 'none';
                 else el.style.display = '';

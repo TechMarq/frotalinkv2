@@ -3070,6 +3070,14 @@ window.calcularProximaVistoria = () => {
 };
 
 window.openPrestadorModal = (id = null) => {
+    if (typeof canDo === 'function') {
+        const action = id ? 'edit' : 'add';
+        if (!canDo('comercial_prestadores', action)) {
+            alert('Você não tem permissão para esta ação.');
+            return;
+        }
+    }
+
     const modal = document.getElementById('prestadorModal');
     const form = document.getElementById('prestadorForm');
     if (!modal || !form) return;
@@ -3132,6 +3140,14 @@ window.handleSavePrestador = async (e) => {
     if (!supabaseClient) return alert('Supabase não conectado.');
 
     const editId = document.getElementById('prestadorEditId').value;
+    if (typeof canDo === 'function') {
+        const action = editId ? 'edit' : 'add';
+        if (!canDo('comercial_prestadores', action)) {
+            alert('Você não tem permissão para salvar prestadores.');
+            return;
+        }
+    }
+
     const tipoContrato = document.getElementById('p_tipo_contrato').value;
     const statusVal = document.getElementById('p_status').value;
     const temPendencia = document.getElementById('p_tem_pendencia').checked;
@@ -3187,6 +3203,11 @@ window.handleSavePrestador = async (e) => {
 };
 
 window.deletePrestador = async (id) => {
+    if (typeof canDo === 'function' && !canDo('comercial_prestadores', 'delete')) {
+        alert('Você não tem permissão para excluir prestadores.');
+        return;
+    }
+
     const p = prestadores.find(x => x.id === id);
     const nome = p ? p.nome_prestador : 'este prestador';
     
