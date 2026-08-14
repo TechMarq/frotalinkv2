@@ -1253,11 +1253,11 @@
                     </div>
                 </div>
                 <div style="display: flex; gap: 0.5rem;">
-                    <button id="btnMarcarFaturado" class="btn" onclick="handleMarcarValesComoFaturados()"
+                    <button id="btnMarcarFaturado" class="btn" onclick="handleMarcarValesComoFaturados()" data-perm="compras_vales:edit"
                         style="background: #475569; color: white; font-weight: 800; display: none; gap: 0.5rem; height:42px; align-items:center; padding: 0 1rem; border-radius: 8px; border:none; cursor:pointer;">
                         <i data-lucide="archive"></i> ARQUIVAR (LEGADO)
                     </button>
-                    <button id="btnFaturarVales" class="btn btn-primary" onclick="openFaturamentoValesModal()"
+                    <button id="btnFaturarVales" class="btn btn-primary" onclick="openFaturamentoValesModal()" data-perm="compras_vales:add"
                         style="background: #10b981; font-weight: 800; display: none; gap: 0.5rem; height:42px;">
                         <i data-lucide="file-signature"></i> FATURAR SELECIONADOS
                     </button>
@@ -1300,11 +1300,11 @@
                         formalizar e enviar ao setor Financeiro ou baixar diretamente se já pagas.</p>
                 </div>
                 <div style="display: flex; gap: 0.5rem;">
-                    <button class="btn" onclick="baixarSemIntegrar()"
+                    <button class="btn" onclick="baixarSemIntegrar()" data-perm="compras_integracao:edit"
                         style="background: #3b82f6; color: white; gap: 0.5rem; font-weight: 800; padding: 0.8rem 1.5rem; border: none; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center;">
                         <i data-lucide="check-square"></i> BAIXAR (JÁ PAGO)
                     </button>
-                    <button class="btn btn-primary" onclick="integrarAoFinanceiro()"
+                    <button class="btn btn-primary" onclick="integrarAoFinanceiro()" data-perm="compras_integracao:add"
                         style="background:#10b981; gap: 0.5rem; font-weight: 800; padding: 0.8rem 1.5rem;">
                         <i data-lucide="file-check-2"></i> GERAR INTEGRAÇÃO
                     </button>

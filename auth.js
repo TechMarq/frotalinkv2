@@ -303,6 +303,11 @@ function canDo(modulo, acao) {
     if (targetMod === 'compras_historico') {
         targetMod = 'compras_notas';
     }
+    if ((targetMod === 'compras_vales' || targetMod === 'compras_integracao') && window.currentUserPermissions) {
+        if (!window.currentUserPermissions[targetMod] && (window.currentUserPermissions['compras_notas'] || window.currentUserPermissions['compras_historico'])) {
+            targetMod = window.currentUserPermissions['compras_notas'] ? 'compras_notas' : 'compras_historico';
+        }
+    }
     
     let targetAcao = acao;
     if (targetAcao === 'create') {
@@ -369,8 +374,14 @@ function applyPermissions(modulo) {
             // A. Controle de abas
             document.querySelectorAll('.tab-btn').forEach(el => {
                 const onClick = el.getAttribute('onclick') || '';
-                if (onClick.includes('dashboard') || onClick.includes('compras')) {
-                    if (!canDo('compras_historico', 'view')) el.style.display = 'none';
+                if (onClick.includes('dashboard') || onClick.includes("'compras'")) {
+                    if (!canDo('compras_historico', 'view') && !canDo('compras_notas', 'view')) el.style.display = 'none';
+                    else el.style.display = '';
+                } else if (onClick.includes('vales')) {
+                    if (!canDo('compras_vales', 'view')) el.style.display = 'none';
+                    else el.style.display = '';
+                } else if (onClick.includes('integracao')) {
+                    if (!canDo('compras_integracao', 'view')) el.style.display = 'none';
                     else el.style.display = '';
                 } else if (onClick.includes('cadastro')) {
                     if (!canDo('compras_cadastros', 'view')) el.style.display = 'none';
@@ -380,7 +391,7 @@ function applyPermissions(modulo) {
 
             // B. Botão de Lançar Compra
             document.querySelectorAll('button[onclick*="openCompraModal"]').forEach(el => {
-                if (!canDo('compras_historico', 'add')) el.style.display = 'none';
+                if (!canDo('compras_historico', 'add') && !canDo('compras_notas', 'add')) el.style.display = 'none';
                 else el.style.display = '';
             });
 
@@ -395,15 +406,38 @@ function applyPermissions(modulo) {
             document.querySelectorAll('.action-btn-mini').forEach(el => {
                 const title = el.getAttribute('title') || '';
                 if (title.includes('Editar')) {
-                    if (!canDo('compras_historico', 'edit')) el.style.display = 'none';
+                    if (!canDo('compras_historico', 'edit') && !canDo('compras_notas', 'edit')) el.style.display = 'none';
                     else el.style.display = '';
                 } else if (title.includes('Excluir')) {
-                    if (!canDo('compras_historico', 'delete')) el.style.display = 'none';
+                    if (!canDo('compras_historico', 'delete') && !canDo('compras_notas', 'delete')) el.style.display = 'none';
                     else el.style.display = '';
                 }
             });
 
-            // E. Botões de ação do Cadastro (Editar / Excluir)
+            // E. Botões de Vales
+            const btnFaturarVales = document.getElementById('btnFaturarVales');
+            if (btnFaturarVales) {
+                if (!canDo('compras_vales', 'add') && !canDo('compras_vales', 'edit')) btnFaturarVales.style.display = 'none';
+            }
+            const btnMarcarFaturado = document.getElementById('btnMarcarFaturado');
+            if (btnMarcarFaturado) {
+                if (!canDo('compras_vales', 'edit')) btnMarcarFaturado.style.display = 'none';
+            }
+
+            // F. Botões de Integração Financeira
+            const viewIntegracao = document.getElementById('view-integracao');
+            if (viewIntegracao) {
+                viewIntegracao.querySelectorAll('button').forEach(btn => {
+                    const onclick = btn.getAttribute('onclick') || '';
+                    if (onclick.includes('integrarAoFinanceiro')) {
+                        if (!canDo('compras_integracao', 'add') && !canDo('compras_integracao', 'edit')) btn.style.display = 'none';
+                    } else if (onclick.includes('baixarSemIntegrar')) {
+                        if (!canDo('compras_integracao', 'edit')) btn.style.display = 'none';
+                    }
+                });
+            }
+
+            // G. Botões de ação do Cadastro (Editar / Excluir)
             document.querySelectorAll('.btn-edit, .btn-delete').forEach(el => {
                 if (el.classList.contains('btn-edit')) {
                     if (!canDo('compras_cadastros', 'edit')) el.style.display = 'none';
@@ -413,6 +447,13 @@ function applyPermissions(modulo) {
                     else el.style.display = '';
                 }
             });
+
+            // H. Se a aba ativa estiver oculta por falta de permissão, seleciona a primeira aba visível
+            const visibleTabs = Array.from(document.querySelectorAll('.tab-btn')).filter(el => el.style.display !== 'none');
+            const activeTabBtn = document.querySelector('.tab-btn.active');
+            if (activeTabBtn && activeTabBtn.style.display === 'none' && visibleTabs.length > 0) {
+                visibleTabs[0].click();
+            }
         }
 
         // 6. Regras Específicas para o Módulo de Estoque (por aba)

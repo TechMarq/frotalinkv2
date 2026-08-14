@@ -24,6 +24,7 @@ let dpBeneficios = [];
 let dpContratos = [];
 let dpChecklist = [];
 let dpCargos = [];
+let dpSetores = [];
 let dpEstoqueItens = [];
 let dpEstoqueMovs = [];
 
@@ -35,7 +36,7 @@ let histFiltrosAtivos = {};
 const PER_PAGE = 200;
 const pages = {
     funcionarios: 1, asos: 1, ferias: 1, ponto: 1, atestados: 1,
-    epis: 1, uniformes: 1, beneficios_catalogo: 1, beneficios: 1, contratos: 1, checklist: 1, cargos: 1,
+    epis: 1, uniformes: 1, beneficios_catalogo: 1, beneficios: 1, contratos: 1, checklist: 1, cargos: 1, setores: 1,
     estoque: 1
 };
 
@@ -53,13 +54,14 @@ const sorts = {
     contratos: { key: 'data_inicio', dir: 'desc' },
     checklist: { key: 'data_avaliacao', dir: 'desc' },
     cargos: { key: 'nome', dir: 'asc' },
+    setores: { key: 'nome', dir: 'asc' },
     estoque: { key: 'nome', dir: 'asc' }
 };
 
 // IDs em edição
 let editIds = {
     funcionario: null, aso: null, ferias: null, ponto: null, atestado: null,
-    epi: null, uniforme: null, beneficio_catalogo: null, beneficio: null, contrato: null, checklist: null, cargo: null,
+    epi: null, uniforme: null, beneficio_catalogo: null, beneficio: null, contrato: null, checklist: null, cargo: null, setor: null,
     estoque_item: null
 };
 
@@ -151,13 +153,85 @@ document.addEventListener('DOMContentLoaded', () => {
     // Injetar dicas visuais de atalhos nos botões
     injetarIndicadoresAtalhos();
 
+    // Aplicar máscaras de formatação nos campos de entrada do funcionário
+    bindMasksFuncionario();
+
     lucide.createIcons();
 });
+
+// Helper de aplicar máscara visual
+function applyMaskToInput(inputEl, maskFn) {
+    if (!inputEl) return;
+    inputEl.addEventListener('input', (e) => {
+        const start = e.target.selectionStart;
+        const oldLen = e.target.value.length;
+        e.target.value = maskFn(e.target.value);
+        const newLen = e.target.value.length;
+        if (start != null) {
+            const newPos = Math.max(0, start + (newLen - oldLen));
+            e.target.setSelectionRange(newPos, newPos);
+        }
+    });
+}
+
+function maskCpf(val) {
+    if (!val) return '';
+    const v = val.replace(/\D/g, '').slice(0, 11);
+    if (v.length <= 3) return v;
+    if (v.length <= 6) return `${v.slice(0, 3)}.${v.slice(3)}`;
+    if (v.length <= 9) return `${v.slice(0, 3)}.${v.slice(3, 6)}.${v.slice(6)}`;
+    return `${v.slice(0, 3)}.${v.slice(3, 6)}.${v.slice(6, 9)}-${v.slice(9)}`;
+}
+
+function maskRg(val) {
+    if (!val) return '';
+    const v = val.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 9);
+    if (v.length <= 2) return v;
+    if (v.length <= 5) return `${v.slice(0, 2)}.${v.slice(2)}`;
+    if (v.length <= 8) return `${v.slice(0, 2)}.${v.slice(2, 5)}.${v.slice(5)}`;
+    return `${v.slice(0, 2)}.${v.slice(2, 5)}.${v.slice(5, 8)}-${v.slice(8)}`;
+}
+
+function maskTelefoneDinamico(val) {
+    if (!val) return '';
+    const v = val.replace(/\D/g, '').slice(0, 11);
+    if (v.length <= 2) return v ? `(${v}` : '';
+    if (v.length <= 6) return `(${v.slice(0, 2)}) ${v.slice(2)}`;
+    if (v.length <= 10) return `(${v.slice(0, 2)}) ${v.slice(2, 6)}-${v.slice(6)}`;
+    return `(${v.slice(0, 2)}) ${v.slice(2, 7)}-${v.slice(7)}`;
+}
+
+function maskCep(val) {
+    if (!val) return '';
+    const v = val.replace(/\D/g, '').slice(0, 8);
+    if (v.length <= 5) return v;
+    return `${v.slice(0, 5)}-${v.slice(5)}`;
+}
+
+function maskPis(val) {
+    if (!val) return '';
+    const v = val.replace(/\D/g, '').slice(0, 11);
+    if (v.length <= 3) return v;
+    if (v.length <= 8) return `${v.slice(0, 3)}.${v.slice(3)}`;
+    if (v.length <= 10) return `${v.slice(0, 3)}.${v.slice(3, 8)}.${v.slice(8)}`;
+    return `${v.slice(0, 3)}.${v.slice(3, 8)}.${v.slice(8, 10)}-${v.slice(10)}`;
+}
+
+function bindMasksFuncionario() {
+    applyMaskToInput(document.getElementById('func-cpf'), maskCpf);
+    applyMaskToInput(document.getElementById('func-rg'), maskRg);
+    applyMaskToInput(document.getElementById('func-celular'), maskTelefoneDinamico);
+    applyMaskToInput(document.getElementById('func-telefone'), maskTelefoneDinamico);
+    applyMaskToInput(document.getElementById('func-emerg-tel'), maskTelefoneDinamico);
+    applyMaskToInput(document.getElementById('func-cep'), maskCep);
+    applyMaskToInput(document.getElementById('func-pis'), maskPis);
+}
 
 async function init() {
     try {
         await Promise.all([
             loadCargos(),
+            loadSetores(),
             loadFuncionarios(),
         ]);
         await Promise.all([
@@ -202,6 +276,13 @@ async function loadCargos() {
         .select('*')
         .order('nome', { ascending: true });
     if (!error) dpCargos = data || [];
+}
+
+async function loadSetores() {
+    const { data, error } = await sb.from('dp_setores')
+        .select('*')
+        .order('nome', { ascending: true });
+    if (!error) dpSetores = data || [];
 }
 
 async function loadAsos() {
@@ -367,9 +448,27 @@ function populateFuncSelects() {
         if (cur) cargoSel.value = cur;
     }
 
+    // Populate setor select no modal funcionário
+    const setorSel = document.getElementById('func-setor');
+    if (setorSel) {
+        const cur = setorSel.value;
+        setorSel.innerHTML = '<option value="">Selecione o setor</option>';
+        // Mesclar setores cadastrados na tabela com setores existentes em funcionários
+        const setoresCadastrados = dpSetores.filter(s => s.ativo !== false).map(s => s.nome);
+        const todosSetores = [...new Set([...setoresCadastrados, ...dpFuncionarios.map(f => f.setor).filter(Boolean)])].sort();
+        todosSetores.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            setorSel.appendChild(opt);
+        });
+        if (cur) setorSel.value = cur;
+    }
+
     // Filtros de cargo e setor em funcionários
     const cargosUnicos = [...new Set(dpFuncionarios.map(f => f.cargo_nome).filter(Boolean))].sort();
-    const setoresUnicos = [...new Set(dpFuncionarios.map(f => f.setor).filter(Boolean))].sort();
+    const setoresCadastrados = dpSetores.filter(s => s.ativo !== false).map(s => s.nome);
+    const setoresUnicos = [...new Set([...setoresCadastrados, ...dpFuncionarios.map(f => f.setor).filter(Boolean)])].sort();
     const selCargo = document.getElementById('func-filter-cargo');
     const selSetor = document.getElementById('func-filter-setor');
     if (selCargo) {
@@ -419,7 +518,8 @@ function populateEstoqueSelects() {
         dpEstoqueItens.filter(i => i.tipo === 'UNIFORME').forEach(i => {
             const opt = document.createElement('option');
             opt.value = i.id;
-            opt.textContent = `${i.nome} ${i.tamanho ? '[' + i.tamanho + ']' : ''} (Saldo: ${i.quantidade_atual})`;
+            const varDetails = [i.tamanho ? `Tam: ${i.tamanho}` : '', i.cor ? `Cor: ${i.cor}` : '', i.condicao ? `Condição: ${i.condicao}` : ''].filter(Boolean).join(' | ');
+            opt.textContent = `${i.nome} ${varDetails ? '[' + varDetails + ']' : ''} (Saldo: ${i.quantidade_atual})`;
             unifSelect.appendChild(opt);
         });
         if (cur) unifSelect.value = cur;
@@ -659,7 +759,11 @@ function renderFuncionarios() {
     tbody.innerHTML = slice.map(f => `
         <tr>
             <td data-label="Matrícula">${f.matricula || '<span style="color:var(--text-muted)">—</span>'}</td>
-            <td data-label="Nome" style="font-weight:600;">${f.nome_completo}</td>
+            <td data-label="Nome" style="font-weight:600;">
+                <a href="javascript:void(0)" onclick="verFicha('${f.id}')" style="color:var(--text-main); text-decoration:none; transition:color 0.15s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-main)'" title="Clique para abrir a ficha de ${f.nome_completo}">
+                    ${f.nome_completo}
+                </a>
+            </td>
             <td data-label="Cargo">${f.cargo_nome || '<span style="color:var(--text-muted)">—</span>'}</td>
             <td data-label="Setor">${f.setor || '<span style="color:var(--text-muted)">—</span>'}</td>
             <td data-label="Admissão">${formatDate(f.data_admissao)}</td>
@@ -893,7 +997,7 @@ function renderUniformes() {
     let list = dpUniformes.filter(u => {
         const s = `${u.funcionario_nome} ${u.item}`.toLowerCase();
         if (search && !s.includes(search)) return false;
-        if (filterEstado && u.estado !== filterEstado) return false;
+        if (filterEstado && (u.estado || '') !== filterEstado) return false;
         return true;
     });
 
@@ -907,21 +1011,61 @@ function renderUniformes() {
         lucide.createIcons(); return;
     }
 
-    const estadoColors = { NOVO: 'ok', BOM: 'ferias', DESGASTADO: 'afastado', DANIFICADO: 'vencido' };
-    tbody.innerHTML = slice.map(u => `
-        <tr>
-            <td data-label="Funcionário" style="font-weight:600;">${u.funcionario_nome}</td>
-            <td data-label="Item">${u.item}</td>
-            <td data-label="Tamanho">${u.tamanho || '<span style="color:var(--text-muted)">—</span>'}</td>
-            <td data-label="Qtd">${u.quantidade || 1}</td>
-            <td data-label="Entrega">${formatDate(u.data_entrega)}</td>
-            <td data-label="Estado"><span class="badge badge-${estadoColors[u.estado]||'info'}">${u.estado}</span></td>
-            <td data-label="Motivo">${u.motivo || '<span style="color:var(--text-muted)">—</span>'}</td>
-            <td data-label="Ações" style="white-space:nowrap;">
-                <button class="btn-icon" onclick="editarUniforme('${u.id}')" title="Editar"><i data-lucide="pencil"></i></button>
-                <button class="btn-icon danger" onclick="deletarRegistro('uniforme','${u.id}')" title="Excluir"><i data-lucide="trash-2"></i></button>
-            </td>
-        </tr>`).join('');
+    const estadoColors = { 
+        NOVO: 'ok', 
+        USADO_BOM: 'ferias', 
+        SEMI_NOVO: 'ferias', 
+        RESERVADO: 'afastado', 
+        BOM: 'ferias', 
+        DESGASTADO: 'afastado', 
+        DANIFICADO: 'vencido' 
+    };
+
+    const estadoLabels = {
+        NOVO: 'Novo',
+        USADO_BOM: 'Usado - Bom Estado',
+        SEMI_NOVO: 'Semi-Novo',
+        RESERVADO: 'Reservado',
+        BOM: 'Bom',
+        DESGASTADO: 'Desgastado',
+        DANIFICADO: 'Danificado'
+    };
+
+    tbody.innerHTML = slice.map(u => {
+        const estVal = u.estado || 'NOVO';
+        const estBadgeClass = estadoColors[estVal] || 'info';
+        const estText = estadoLabels[estVal] || estVal;
+
+        // Vencimento e status de troca
+        let vencStr = '<span style="color:var(--text-muted)">—</span>';
+        if (u.data_vencimento) {
+            const dtVenc = new Date(u.data_vencimento + 'T00:00:00');
+            const hoje = new Date(); hoje.setHours(0,0,0,0);
+            const diffDias = Math.ceil((dtVenc - hoje) / (1000 * 60 * 60 * 24));
+            
+            let statusBadge = 'badge-ok';
+            if (diffDias < 0) statusBadge = 'badge-vencido';
+            else if (diffDias <= 30) statusBadge = 'badge-afastado';
+
+            vencStr = `<span class="badge ${statusBadge}">${formatDate(u.data_vencimento)}</span>`;
+        }
+
+        return `
+            <tr>
+                <td data-label="Funcionário" style="font-weight:600;">${u.funcionario_nome}</td>
+                <td data-label="Item">${u.item}</td>
+                <td data-label="Tamanho">${u.tamanho || '<span style="color:var(--text-muted)">—</span>'}</td>
+                <td data-label="Qtd">${u.quantidade || 1}</td>
+                <td data-label="Entrega">${formatDate(u.data_entrega)}</td>
+                <td data-label="Vencimento / Troca">${vencStr}</td>
+                <td data-label="Estado"><span class="badge badge-${estBadgeClass}">${estText}</span></td>
+                <td data-label="Motivo">${u.motivo || '<span style="color:var(--text-muted)">—</span>'}</td>
+                <td data-label="Ações" style="white-space:nowrap;">
+                    <button class="btn-icon" onclick="editarUniforme('${u.id}')" title="Editar"><i data-lucide="pencil"></i></button>
+                    <button class="btn-icon danger" onclick="deletarRegistro('uniforme','${u.id}')" title="Excluir"><i data-lucide="trash-2"></i></button>
+                </td>
+            </tr>`;
+    }).join('');
 
     renderPagination('uniforme-pagination', 'uniforme-page-info', page, total, list.length, 'renderUniformes');
     lucide.createIcons();
@@ -1150,7 +1294,7 @@ function renderCargos() {
     if (!tbody) return;
 
     if (slice.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="table-empty"><i data-lucide="briefcase" style="display:block;margin:0 auto 0.5rem;width:32px;height:32px;"></i>Nenhum cargo encontrado</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="table-empty"><i data-lucide="briefcase" style="display:block;margin:0 auto 0.5rem;width:32px;height:32px;"></i>Nenhum cargo encontrado</td></tr>`;
         lucide.createIcons(); return;
     }
 
@@ -1159,7 +1303,6 @@ function renderCargos() {
             <td data-label="Cargo" style="font-weight:600;">${c.nome}</td>
             <td data-label="CBO"><code style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">${c.cbo || '—'}</code></td>
             <td data-label="Nível"><span class="badge badge-purple">${c.nivel || '—'}</span></td>
-            <td data-label="Setor">${c.setor || '<span style="color:var(--text-muted)">—</span>'}</td>
             <td data-label="Salário Base">${c.salario_base ? 'R$ ' + parseFloat(c.salario_base).toLocaleString('pt-BR', {minimumFractionDigits:2}) : '<span style="color:var(--text-muted)">—</span>'}</td>
             <td data-label="Faixa" style="font-size:0.82rem;color:var(--text-muted);">${c.salario_minimo && c.salario_maximo ? `R$ ${parseFloat(c.salario_minimo).toLocaleString('pt-BR',{minimumFractionDigits:0})} – R$ ${parseFloat(c.salario_maximo).toLocaleString('pt-BR',{minimumFractionDigits:0})}` : '—'}</td>
             <td data-label="C.H.">${c.carga_horaria || '—'}h</td>
@@ -1172,6 +1315,48 @@ function renderCargos() {
         </tr>`).join('');
 
     renderPagination('cargo-pagination', 'cargo-page-info', page, total, list.length, 'renderCargos');
+    lucide.createIcons();
+}
+
+// ============================================================
+//  RENDER: SETORES / DEPARTAMENTOS
+// ============================================================
+
+function renderSetores() {
+    const search = (document.getElementById('setor-search')?.value || '').toLowerCase();
+    const filterAtivo = document.getElementById('setor-filter-ativo')?.value || '';
+
+    let list = dpSetores.filter(s => {
+        const text = `${s.nome} ${s.descricao || ''}`.toLowerCase();
+        if (search && !text.includes(search)) return false;
+        if (filterAtivo !== '' && String(s.ativo) !== filterAtivo) return false;
+        return true;
+    });
+
+    list = semanticSort(list, sorts.setores);
+    const { page, total } = paginate('setores', list.length);
+    const slice = list.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
+    const tbody = document.getElementById('setor-tbody');
+    if (!tbody) return;
+
+    if (slice.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="table-empty"><i data-lucide="building-2" style="display:block;margin:0 auto 0.5rem;width:32px;height:32px;"></i>Nenhum setor/departamento encontrado</td></tr>`;
+        lucide.createIcons(); return;
+    }
+
+    tbody.innerHTML = slice.map(s => `
+        <tr>
+            <td data-label="Nome do Setor" style="font-weight:600;">${s.nome}</td>
+            <td data-label="Descrição">${s.descricao || '<span style="color:var(--text-muted)">—</span>'}</td>
+            <td data-label="Status"><span class="badge ${s.ativo !== false ? 'badge-ativo' : 'badge-desligado'}">${s.ativo !== false ? 'Ativo' : 'Inativo'}</span></td>
+            <td data-label="Ações" style="white-space:nowrap;">
+                <button class="btn-icon" onclick="editarSetor('${s.id}')" title="Editar"><i data-lucide="pencil"></i></button>
+                <button class="btn-icon danger" onclick="deletarRegistro('setor','${s.id}')" title="Excluir"><i data-lucide="trash-2"></i></button>
+            </td>
+        </tr>`).join('');
+
+    renderPagination('setor-pagination', 'setor-page-info', page, total, list.length, 'renderSetores');
     lucide.createIcons();
 }
 
@@ -1261,6 +1446,7 @@ function abrirNovoRegistroAbaAtiva() {
             const subId = activeSub.id.replace('sub-cargos-', '');
             if (subId === 'cargos') abrirModalCargo();
             if (subId === 'catalogo') abrirModalBeneficioCatalogo();
+            if (subId === 'setores') abrirModalSetor();
         }
     } else {
         // Sem sub-abas
@@ -1366,13 +1552,12 @@ function abrirModalEpi() {
 function abrirModalUniforme() {
     editIds.uniforme = null;
     document.getElementById('modal-uniforme-title').textContent = 'Registrar Uniforme';
-    ['unif-func-id','unif-item','unif-tamanho','unif-entrega','unif-obs'].forEach(id => {
+    ['unif-func-id','unif-item','unif-tamanho','unif-entrega','unif-validade-meses','unif-vencimento','unif-obs'].forEach(id => {
         const el = document.getElementById(id); if (el) el.value = '';
     });
     const selectEst = document.getElementById('unif-estoque-id');
     if (selectEst) selectEst.value = '';
     document.getElementById('unif-qtd').value = '1';
-    document.getElementById('unif-estado').value = 'NOVO';
     document.getElementById('unif-motivo').value = 'ADMISSIONAL';
     abrirModalPadrao('modal-uniforme');
     lucide.createIcons();
@@ -1426,7 +1611,7 @@ function abrirModalChecklist() {
 function abrirModalCargo() {
     editIds.cargo = null;
     document.getElementById('modal-cargo-title').textContent = 'Novo Cargo';
-    ['cargo-nome','cargo-cbo','cargo-setor','cargo-descricao','cargo-responsabilidades','cargo-requisitos','cargo-beneficios'].forEach(id => {
+    ['cargo-nome','cargo-cbo','cargo-descricao','cargo-responsabilidades','cargo-requisitos','cargo-beneficios'].forEach(id => {
         const el = document.getElementById(id); if (el) el.value = '';
     });
     document.getElementById('cargo-ch').value = '220';
@@ -1449,21 +1634,21 @@ function editarFuncionario(id) {
     editIds.funcionario = id;
     document.getElementById('modal-func-title').textContent = 'Editar Funcionário';
     const fields = {
-        'func-nome': f.nome_completo, 'func-cpf': f.cpf, 'func-rg': f.rg,
+        'func-nome': f.nome_completo, 'func-cpf': maskCpf(f.cpf), 'func-rg': maskRg(f.rg),
         'func-rg-orgao': f.rg_orgao_emissor, 'func-nascimento': f.data_nascimento,
         'func-sexo': f.sexo, 'func-estado-civil': f.estado_civil, 'func-escolaridade': f.escolaridade,
         'func-mae': f.nome_mae, 'func-pai': f.nome_pai, 'func-naturalidade': f.naturalidade,
-        'func-celular': f.celular, 'func-telefone': f.telefone, 'func-email': f.email,
-        'func-cep': f.cep, 'func-logradouro': f.logradouro, 'func-numero': f.numero,
+        'func-celular': maskTelefoneDinamico(f.celular), 'func-telefone': maskTelefoneDinamico(f.telefone), 'func-email': f.email,
+        'func-cep': maskCep(f.cep), 'func-logradouro': f.logradouro, 'func-numero': f.numero,
         'func-complemento': f.complemento, 'func-bairro': f.bairro, 'func-cidade': f.cidade,
-        'func-uf': f.uf, 'func-emerg-nome': f.emergencia_nome, 'func-emerg-tel': f.emergencia_telefone,
+        'func-uf': f.uf, 'func-emerg-nome': f.emergencia_nome, 'func-emerg-tel': maskTelefoneDinamico(f.emergencia_telefone),
         'func-emerg-parent': f.emergencia_parentesco, 'func-matricula': f.matricula,
         'func-cargo-id': f.cargo_id, 'func-setor': f.setor, 'func-admissao': f.data_admissao,
         'func-tipo-contrato': f.tipo_contrato, 'func-turno': f.turno,
         'func-horario-de': f.horario_de, 'func-horario-ate': f.horario_ate,
         'func-salario': f.salario,
         'func-status': f.status, 'func-motivo-deslig': f.motivo_desligamento, 'func-demissao': f.data_demissao,
-        'func-pis': f.pis_pasep, 'func-ctps-num': f.ctps_numero, 'func-ctps-serie': f.ctps_serie,
+        'func-pis': maskPis(f.pis_pasep), 'func-ctps-num': f.ctps_numero, 'func-ctps-serie': f.ctps_serie,
         'func-ctps-uf': f.ctps_uf, 'func-ctps-data': f.ctps_data_emissao,
         'func-certidao-tipo': f.tipo_certidao, 'func-certidao-livro': f.certidao_livro,
         'func-certidao-folha': f.certidao_folha, 'func-certidao-termo': f.certidao_termo,
@@ -1567,8 +1752,9 @@ function editarUniforme(id) {
     document.getElementById('modal-uniforme-title').textContent = 'Editar Uniforme';
     const fields = {
         'unif-func-id': u.funcionario_id, 'unif-item': u.item, 'unif-tamanho': u.tamanho,
-        'unif-qtd': u.quantidade, 'unif-entrega': u.data_entrega, 'unif-estado': u.estado,
-        'unif-motivo': u.motivo, 'unif-obs': u.observacoes,
+        'unif-qtd': u.quantidade, 'unif-entrega': u.data_entrega,
+        'unif-validade-meses': u.validade_meses, 'unif-vencimento': u.data_vencimento,
+        'unif-estado': u.estado, 'unif-motivo': u.motivo, 'unif-obs': u.observacoes,
     };
     Object.entries(fields).forEach(([id, val]) => { const el = document.getElementById(id); if (el && val != null) el.value = val; });
     
@@ -1692,7 +1878,7 @@ function editarCargo(id) {
     editIds.cargo = id;
     document.getElementById('modal-cargo-title').textContent = 'Editar Cargo';
     const fields = {
-        'cargo-nome': c.nome, 'cargo-cbo': c.cbo, 'cargo-nivel': c.nivel, 'cargo-setor': c.setor,
+        'cargo-nome': c.nome, 'cargo-cbo': c.cbo, 'cargo-nivel': c.nivel,
         'cargo-ch': c.carga_horaria, 'cargo-salario-base': c.salario_base,
         'cargo-salario-min': c.salario_minimo, 'cargo-salario-max': c.salario_maximo,
         'cargo-descricao': c.descricao, 'cargo-responsabilidades': c.responsabilidades,
@@ -1700,6 +1886,30 @@ function editarCargo(id) {
     };
     Object.entries(fields).forEach(([id, val]) => { const el = document.getElementById(id); if (el && val != null) el.value = val; });
     abrirModalPadrao('modal-cargo');
+    lucide.createIcons();
+}
+
+function abrirModalSetor() {
+    editIds.setor = null;
+    document.getElementById('modal-setor-title').textContent = 'Novo Setor / Departamento';
+    ['setor-nome','setor-descricao'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+    });
+    document.getElementById('setor-ativo').value = 'true';
+    abrirModalPadrao('modal-setor');
+    lucide.createIcons();
+}
+
+function editarSetor(id) {
+    const s = dpSetores.find(x => x.id === id);
+    if (!s) return;
+    editIds.setor = id;
+    document.getElementById('modal-setor-title').textContent = 'Editar Setor / Departamento';
+    const fields = {
+        'setor-nome': s.nome, 'setor-descricao': s.descricao, 'setor-ativo': s.ativo !== false ? 'true' : 'false'
+    };
+    Object.entries(fields).forEach(([id, val]) => { const el = document.getElementById(id); if (el && val != null) el.value = val; });
+    abrirModalPadrao('modal-setor');
     lucide.createIcons();
 }
 
@@ -1721,16 +1931,154 @@ function verFicha(id) {
     const sec = (title) => `<div class="ficha-section">${title}</div>`;
 
     body.innerHTML = `
-        <div style="display:flex;align-items:center;gap:1.25rem;padding:0 0 1.5rem;border-bottom:1px solid var(--border-color);margin-bottom:1.25rem;">
-            <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--purple));display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:800;color:#fff;flex-shrink:0;">
-                ${f.nome_completo.split(' ').slice(0,2).map(n=>n[0]).join('')}
+        <!-- CABEÇALHO SUPERIOR (FOTO/NOME NA ESQUERDA | HISTÓRICO NA DIREITA) -->
+        <div style="display:grid; grid-template-columns: 1.1fr 1fr; gap:1.5rem; align-items:stretch; padding:0 0 1.5rem; border-bottom:1px solid var(--border-color); margin-bottom:1.5rem;">
+            
+            <!-- BLOCÃO ESQUERDA: NOME, CARGO E STATUS -->
+            <div style="display:flex; flex-direction:column; justify-content:center; gap:1rem; padding:1.25rem; background:rgba(45,158,107,0.06); border:1px solid rgba(45,158,107,0.18); border-radius:16px;">
+                <div style="display:flex; align-items:center; gap:1.25rem;">
+                    <div style="width:68px; height:68px; border-radius:50%; background:linear-gradient(135deg,var(--primary),#10b981); display:flex; align-items:center; justify-content:center; font-size:1.6rem; font-weight:800; color:#fff; flex-shrink:0; box-shadow:0 4px 15px rgba(16,185,129,0.25);">
+                        ${f.nome_completo.split(' ').slice(0,2).map(n=>n[0]).join('')}
+                    </div>
+                    <div>
+                        <div style="font-size:1.35rem; font-weight:800; color:var(--text-main);">${f.nome_completo}</div>
+                        <div style="color:var(--text-muted); font-size:0.88rem; margin-top:0.15rem;">
+                            ${f.cargo_nome || 'Sem Cargo'} ${f.setor ? '• ' + f.setor : ''} ${f.matricula ? ' • Matrícula: ' + f.matricula : ''}
+                        </div>
+                        <span class="badge badge-${(f.status||'').toLowerCase().replace('_','')}" style="margin-top:0.5rem; font-size:0.75rem;">${labelStatus(f.status)}</span>
+                    </div>
+                </div>
             </div>
-            <div>
-                <div style="font-size:1.3rem;font-weight:800;">${f.nome_completo}</div>
-                <div style="color:var(--text-muted);font-size:0.9rem;">${f.cargo_nome || ''} ${f.setor ? '• ' + f.setor : ''}</div>
-                <span class="badge badge-${(f.status||'').toLowerCase().replace('_','')}" style="margin-top:0.4rem;">${labelStatus(f.status)}</span>
+
+            <!-- BLOCÃO DIREITA: ÚLTIMAS ATIVIDADES NO TOPO -->
+            <div style="display:flex; flex-direction:column; background:rgba(45,158,107,0.04); border:1px solid rgba(45,158,107,0.18); border-radius:16px; padding:1rem 1.25rem; max-height:210px;">
+                <div style="font-size:0.82rem; font-weight:700; color:var(--primary); text-transform:uppercase; letter-spacing:0.05em; display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem; border-bottom:1px solid rgba(45,158,107,0.15); padding-bottom:0.4rem;">
+                    <span style="display:flex; align-items:center; gap:0.4rem;"><i data-lucide="history" style="width:16px; height:16px;"></i> Últimas Atividades</span>
+                    <button class="btn btn-secondary btn-sm" onclick="abrirModalHistoricoAtividades('${f.id}')" style="font-size:0.72rem; padding:0.2rem 0.6rem; border-color:rgba(45,158,107,0.3); color:var(--primary);" title="Ver Histórico Completo">
+                        <i data-lucide="external-link" style="width:12px; height:12px;"></i> Ver Tudo
+                    </button>
+                </div>
+                ${(() => {
+                    const atividades = [];
+
+                    // 1. ASOs (Ciano / Teal)
+                    dpAsos.filter(a => a.funcionario_id === id).forEach(a => {
+                        atividades.push({
+                            dataEvento: a.data_exame,
+                            dataRegistro: a.created_at || a.updated_at || a.data_exame,
+                            icone: 'stethoscope',
+                            cor: '#06b6d4',
+                            titulo: `Exame ASO (${a.tipo || 'Ocupacional'})`,
+                            detalhe: `Resultado: <b>${a.resultado || 'APTO'}</b> ${a.data_vencimento ? '• Venc: ' + formatDate(a.data_vencimento) : ''}`
+                        });
+                    });
+
+                    // 2. Férias (Âmbar / Laranja)
+                    dpFerias.filter(fr => fr.funcionario_id === id).forEach(fr => {
+                        atividades.push({
+                            dataEvento: fr.data_inicio_gozo,
+                            dataRegistro: fr.created_at || fr.updated_at || fr.data_inicio_gozo,
+                            icone: 'umbrella',
+                            cor: '#f59e0b',
+                            titulo: `Férias (${fr.dias_gozados || '?'} dias)`,
+                            detalhe: `Período: ${formatDate(fr.data_inicio_gozo)} a ${formatDate(fr.data_fim_gozo)} • Status: <b>${fr.status || 'PROGRAMADA'}</b>`
+                        });
+                    });
+
+                    // 3. Atestados / Afastamentos (Vermelho / Coral)
+                    dpAtestados.filter(at => at.funcionario_id === id).forEach(at => {
+                        atividades.push({
+                            dataEvento: at.data_inicio,
+                            dataRegistro: at.created_at || at.updated_at || at.data_inicio,
+                            icone: 'file-heart',
+                            cor: '#ef4444',
+                            titulo: `Atestado / Afastamento (${at.tipo || 'Médico'})`,
+                            detalhe: `${at.dias ? at.dias + ' dia(s)' : ''} ${at.cid ? '• CID: ' + at.cid : ''} • Início: ${formatDate(at.data_inicio)}`
+                        });
+                    });
+
+                    // 4. Entrega de EPI (Roxo Violeta)
+                    dpEpis.filter(ep => ep.funcionario_id === id).forEach(ep => {
+                        atividades.push({
+                            dataEvento: ep.data_entrega,
+                            dataRegistro: ep.created_at || ep.updated_at || ep.data_entrega,
+                            icone: 'hard-hat',
+                            cor: '#a855f7',
+                            titulo: `Entrega de EPI: ${ep.nome_epi}`,
+                            detalhe: `Qtd: ${ep.quantidade || 1} ${ep.ca_numero ? '• CA: ' + ep.ca_numero : ''} • Motivo: ${ep.motivo || 'Admissional'}`
+                        });
+                    });
+
+                    // 5. Entrega de Uniforme (Rosa Choque / Magenta)
+                    dpUniformes.filter(u => u.funcionario_id === id).forEach(u => {
+                        atividades.push({
+                            dataEvento: u.data_entrega,
+                            dataRegistro: u.created_at || u.updated_at || u.data_entrega,
+                            icone: 'shirt',
+                            cor: '#ec4899',
+                            titulo: `Entrega de Uniforme: ${u.item}`,
+                            detalhe: `Qtd: ${u.quantidade || 1} ${u.tamanho ? '• Tam: ' + u.tamanho : ''} • Estado: ${u.estado || 'NOVO'}`
+                        });
+                    });
+
+                    // 6. Benefícios (Azul Elétrico)
+                    dpBeneficios.filter(b => b.funcionario_id === id).forEach(b => {
+                        atividades.push({
+                            dataEvento: b.data_inicio,
+                            dataRegistro: b.created_at || b.updated_at || b.data_inicio,
+                            icone: 'credit-card',
+                            cor: '#3b82f6',
+                            titulo: `Benefício: ${b.descricao || b.tipo}`,
+                            detalhe: `Início: ${formatDate(b.data_inicio)} • Valor: R$ ${b.valor || '0,00'} ${b.operadora ? '• Operadora: ' + b.operadora : ''}`
+                        });
+                    });
+
+                    // 7. Contratos / Checklist (Verde Esmeralda)
+                    dpContratos.filter(c => c.funcionario_id === id).forEach(c => {
+                        atividades.push({
+                            dataEvento: c.data_inicio,
+                            dataRegistro: c.created_at || c.updated_at || c.data_inicio,
+                            icone: 'file-text',
+                            cor: '#10b981',
+                            titulo: `Contrato de Experiência`,
+                            detalhe: `Admissão: ${formatDate(c.data_inicio)} • Status 45d: ${c.status_45 || 'PENDENTE'} • Status 90d: ${c.status_90 || 'PENDENTE'}`
+                        });
+                    });
+
+                    // Ordenar por data da AÇÃO/CRIAÇÃO do registro (mais recente para mais antiga)
+                    atividades.sort((a, b) => {
+                        const dtA = a.dataRegistro ? new Date(a.dataRegistro).getTime() : 0;
+                        const dtB = b.dataRegistro ? new Date(b.dataRegistro).getTime() : 0;
+                        return dtB - dtA;
+                    });
+
+                    if (atividades.length === 0) {
+                        return `<div style="text-align:center; color:var(--text-muted); padding:1rem; font-size:0.8rem;">
+                            Nenhuma atividade registrada até o momento.
+                        </div>`;
+                    }
+
+                    return `<div style="display:flex; flex-direction:column; gap:0.45rem; overflow-y:auto; padding-right:0.2rem;">` +
+                        atividades.map(act => `
+                            <div style="display:flex; align-items:center; gap:0.6rem; padding:0.45rem 0.65rem; background:rgba(255,255,255,0.03); border:1px solid rgba(45,158,107,0.12); border-radius:8px;">
+                                <div style="width:26px; height:26px; border-radius:6px; background:${act.cor}1f; border:1px solid ${act.cor}40; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:${act.cor};">
+                                    <i data-lucide="${act.icone}" style="width:14px; height:14px;"></i>
+                                </div>
+                                <div style="flex:1; min-width:0;">
+                                    <div style="font-size:0.8rem; font-weight:600; color:var(--text-main); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${act.titulo}</div>
+                                    <div style="font-size:0.72rem; color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${act.detalhe}</div>
+                                </div>
+                                <div style="font-size:0.7rem; font-weight:600; color:var(--text-muted); white-space:nowrap;">
+                                    ${formatDate(act.dataEvento || act.dataRegistro)}
+                                </div>
+                            </div>
+                        `).join('') +
+                    `</div>`;
+                })()}
             </div>
         </div>
+
+        <!-- DADOS CADASTRAIS ORIGINAIS EM LAYOUT GRID DE NAVEGAÇÃO COMPLETA -->
         <div class="ficha-grid">
             ${sec('📋 Dados Pessoais')}
             ${campo('CPF', f.cpf)}
@@ -1788,6 +2136,146 @@ function verCargo(id) {
     if (!c) return;
     const funcsNoCargo = dpFuncionarios.filter(f => f.cargo_id === id && f.status !== 'DESLIGADO').length;
     toast(`Cargo "${c.nome}" — ${funcsNoCargo} funcionário(s) neste cargo`, 'info');
+}
+
+// Global para guardar lista do histórico do funcionário atualmente em visualização
+let histAtividadesFuncionarioAtual = [];
+
+function abrirModalHistoricoAtividades(funcId) {
+    const f = dpFuncionarios.find(x => x.id === funcId);
+    if (!f) return;
+
+    document.getElementById('modal-hist-title').textContent = `Histórico de Atividades — ${f.nome_completo}`;
+
+    // Coletar TODAS as atividades vinculadas ao funcionário
+    const atividades = [];
+
+    // 1. ASOs (Ciano / Teal)
+    dpAsos.filter(a => a.funcionario_id === funcId).forEach(a => {
+        atividades.push({
+            tipo: 'ASO', dataEvento: a.data_exame, dataRegistro: a.created_at || a.updated_at || a.data_exame, icone: 'stethoscope', cor: '#06b6d4',
+            titulo: `Exame ASO (${a.tipo || 'Ocupacional'})`,
+            detalhe: `Resultado: <b>${a.resultado || 'APTO'}</b> ${a.data_vencimento ? '• Venc: ' + formatDate(a.data_vencimento) : ''} ${a.medico_nome ? '• Médico: ' + a.medico_nome : ''} ${a.clinica ? '• Clínica: ' + a.clinica : ''}`
+        });
+    });
+
+    // 2. Férias (Âmbar / Laranja)
+    dpFerias.filter(fr => fr.funcionario_id === funcId).forEach(fr => {
+        atividades.push({
+            tipo: 'FERIAS', dataEvento: fr.data_inicio_gozo, dataRegistro: fr.created_at || fr.updated_at || fr.data_inicio_gozo, icone: 'umbrella', cor: '#f59e0b',
+            titulo: `Férias (${fr.dias_gozados || '?'} dias)`,
+            detalhe: `Período de Gozo: <b>${formatDate(fr.data_inicio_gozo)} até ${formatDate(fr.data_fim_gozo)}</b> • Status: <b>${fr.status || 'PROGRAMADA'}</b> ${fr.valor_pago ? '• Pago: R$ ' + parseFloat(fr.valor_pago).toLocaleString('pt-BR',{minimumFractionDigits:2}) : ''}`
+        });
+    });
+
+    // 3. Atestados / Afastamentos (Vermelho / Coral)
+    dpAtestados.filter(at => at.funcionario_id === funcId).forEach(at => {
+        atividades.push({
+            tipo: 'ATESTADO', dataEvento: at.data_inicio, dataRegistro: at.created_at || at.updated_at || at.data_inicio, icone: 'file-heart', cor: '#ef4444',
+            titulo: `Atestado / Afastamento (${at.tipo || 'Médico'})`,
+            detalhe: `Início: ${formatDate(at.data_inicio)} ${at.data_fim ? 'até ' + formatDate(at.data_fim) : ''} ${at.dias ? '(' + at.dias + ' dias)' : ''} ${at.cid ? '• CID: ' + at.cid : ''} ${at.medico_nome ? '• Dr(a): ' + at.medico_nome : ''}`
+        });
+    });
+
+    // 4. EPIs (Roxo Violeta)
+    dpEpis.filter(ep => ep.funcionario_id === funcId).forEach(ep => {
+        atividades.push({
+            tipo: 'EPI', dataEvento: ep.data_entrega, dataRegistro: ep.created_at || ep.updated_at || ep.data_entrega, icone: 'hard-hat', cor: '#a855f7',
+            titulo: `Entrega de EPI: ${ep.nome_epi}`,
+            detalhe: `Quantidade: ${ep.quantidade || 1} ${ep.ca_numero ? '• CA: ' + ep.ca_numero : ''} ${ep.fabricante ? '• Fabricante: ' + ep.fabricante : ''} • Motivo: ${ep.motivo || 'Admissional'}`
+        });
+    });
+
+    // 5. Uniformes (Rosa Choque / Magenta)
+    dpUniformes.filter(u => u.funcionario_id === funcId).forEach(u => {
+        atividades.push({
+            tipo: 'UNIFORME', dataEvento: u.data_entrega, dataRegistro: u.created_at || u.updated_at || u.data_entrega, icone: 'shirt', cor: '#ec4899',
+            titulo: `Entrega de Uniforme: ${u.item}`,
+            detalhe: `Quantidade: ${u.quantidade || 1} ${u.tamanho ? '• Tam: ' + u.tamanho : ''} • Estado: ${u.estado || 'NOVO'} • Motivo: ${u.motivo || 'Admissional'}`
+        });
+    });
+
+    // 6. Benefícios (Azul Elétrico)
+    dpBeneficios.filter(b => b.funcionario_id === funcId).forEach(b => {
+        atividades.push({
+            tipo: 'BENEFICIO', dataEvento: b.data_inicio, dataRegistro: b.created_at || b.updated_at || b.data_inicio, icone: 'credit-card', cor: '#3b82f6',
+            titulo: `Benefício: ${b.descricao || b.tipo}`,
+            detalhe: `Data Início: ${formatDate(b.data_inicio)} ${b.data_fim ? 'até ' + formatDate(b.data_fim) : ''} ${b.valor ? '• Valor: R$ ' + parseFloat(b.valor).toLocaleString('pt-BR',{minimumFractionDigits:2}) : ''} ${b.operadora ? '• Operadora: ' + b.operadora : ''}`
+        });
+    });
+
+    // 7. Contratos (Verde Esmeralda)
+    dpContratos.filter(c => c.funcionario_id === funcId).forEach(c => {
+        atividades.push({
+            tipo: 'CONTRATO', dataEvento: c.data_inicio, dataRegistro: c.created_at || c.updated_at || c.data_inicio, icone: 'file-text', cor: '#10b981',
+            titulo: `Contrato de Experiência`,
+            detalhe: `Admissão: ${formatDate(c.data_inicio)} • 45 dias: ${formatDate(c.data_fim_45)} (${c.status_45 || 'PENDENTE'}) • 90 dias: ${formatDate(c.data_fim_90)} (${c.status_90 || 'PENDENTE'})`
+        });
+    });
+
+    // Ordenar rigorosamente pela data/hora em que a atividade FOI CRIADA (Decrescente)
+    atividades.sort((a, b) => {
+        const dtA = a.dataRegistro ? new Date(a.dataRegistro).getTime() : 0;
+        const dtB = b.dataRegistro ? new Date(b.dataRegistro).getTime() : 0;
+        return dtB - dtA;
+    });
+    histAtividadesFuncionarioAtual = atividades;
+
+    // Resetar filtro de abas para "Todos"
+    const tabs = document.querySelectorAll('#modal-historico-atividades .tabs-header .tab-item');
+    tabs.forEach((tb, idx) => {
+        if (idx === 0) tb.classList.add('active');
+        else tb.classList.remove('active');
+    });
+
+    renderListaHistoricoModal('TODOS');
+    abrirModalPadrao('modal-historico-atividades');
+    lucide.createIcons();
+}
+
+function filtrarHistoricoModal(tipoFiltro, btnEl) {
+    if (btnEl) {
+        const tabs = btnEl.parentElement.querySelectorAll('.tab-item');
+        tabs.forEach(t => t.classList.remove('active'));
+        btnEl.classList.add('active');
+    }
+    renderListaHistoricoModal(tipoFiltro);
+}
+
+function renderListaHistoricoModal(tipoFiltro) {
+    const container = document.getElementById('historico-atividades-lista');
+    if (!container) return;
+
+    let lista = histAtividadesFuncionarioAtual;
+    if (tipoFiltro !== 'TODOS') {
+        lista = lista.filter(item => item.tipo === tipoFiltro);
+    }
+
+    if (lista.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center; color:var(--text-muted); padding:3rem 1rem; font-size:0.9rem; background:rgba(255,255,255,0.02); border-radius:12px; border:1px solid var(--border-color);">
+                <i data-lucide="inbox" style="display:block; margin:0 auto 0.5rem; width:36px; height:36px; opacity:0.5;"></i>
+                Nenhum registro encontrado para esta categoria.
+            </div>`;
+        lucide.createIcons();
+        return;
+    }
+
+    container.innerHTML = lista.map(act => `
+        <div style="display:flex; align-items:start; gap:0.85rem; padding:0.85rem 1rem; background:rgba(45,158,107,0.03); border:1px solid rgba(45,158,107,0.18); border-radius:12px; transition:transform 0.15s, border-color 0.15s;" onmouseover="this.style.borderColor='var(--primary)';" onmouseout="this.style.borderColor='rgba(45,158,107,0.18)';">
+            <div style="width:36px; height:36px; border-radius:10px; background:${act.cor}1f; border:1px solid ${act.cor}40; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:${act.cor}; margin-top:2px;">
+                <i data-lucide="${act.icone}" style="width:18px; height:18px;"></i>
+            </div>
+            <div style="flex:1; min-width:0;">
+                <div style="font-size:0.9rem; font-weight:700; color:var(--text-main);">${act.titulo}</div>
+                <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.2rem; line-height:1.4;">${act.detalhe}</div>
+            </div>
+            <div style="font-size:0.75rem; font-weight:600; color:var(--text-muted); white-space:nowrap; background:${act.cor}10; padding:0.25rem 0.65rem; border-radius:6px; border:1px solid ${act.cor}30;">
+                ${formatDate(act.dataEvento || act.dataRegistro)}
+            </div>
+        </div>
+    `).join('');
+    lucide.createIcons();
 }
 
 // ============================================================
@@ -1952,16 +2440,35 @@ async function salvarEpi() {
     }
 }
 
+function calcularVencimentoUniforme() {
+    const dtEntregaStr = v('unif-entrega');
+    const meses = parseInt(v('unif-validade-meses')) || 0;
+    if (dtEntregaStr && meses > 0) {
+        const dt = new Date(dtEntregaStr + 'T00:00:00');
+        dt.setMonth(dt.getMonth() + meses);
+        const yyyy = dt.getFullYear();
+        const mm = String(dt.getMonth() + 1).padStart(2, '0');
+        const dd = String(dt.getDate()).padStart(2, '0');
+        document.getElementById('unif-vencimento').value = `${yyyy}-${mm}-${dd}`;
+    }
+}
+
 async function salvarUniforme() {
     const funcId = v('unif-func-id');
     const item = v('unif-item');
     const entrega = v('unif-entrega');
     if (!funcId || !item || !entrega) { toast('Preencha funcionário, item e data de entrega.', 'error'); return; }
 
+    const itemId = v('unif-estoque-id');
+    const estoqueItem = dpEstoqueItens.find(i => i.id === itemId);
+    const estadoUniforme = estoqueItem?.condicao || 'NOVO';
+
     const payload = {
         empresa_id: empresaId, funcionario_id: funcId, item, tamanho: v('unif-tamanho'),
         quantidade: parseInt(v('unif-qtd')) || 1, data_entrega: entrega,
-        estado: v('unif-estado'), motivo: v('unif-motivo'), observacoes: v('unif-obs'),
+        validade_meses: parseInt(v('unif-validade-meses')) || null,
+        data_vencimento: v('unif-vencimento') || null,
+        estado: estadoUniforme, motivo: v('unif-motivo'), observacoes: v('unif-obs'),
         updated_at: new Date().toISOString(),
     };
 
@@ -2044,7 +2551,7 @@ async function salvarCargo() {
 
     const payload = {
         empresa_id: empresaId, nome, cbo: v('cargo-cbo'), nivel: v('cargo-nivel'),
-        setor: v('cargo-setor'), carga_horaria: parseInt(v('cargo-ch')) || 220,
+        carga_horaria: parseInt(v('cargo-ch')) || 220,
         salario_base: parseFloatOrNull('cargo-salario-base'),
         salario_minimo: parseFloatOrNull('cargo-salario-min'),
         salario_maximo: parseFloatOrNull('cargo-salario-max'),
@@ -2056,6 +2563,7 @@ async function salvarCargo() {
     try {
         let err;
         let descLog = '';
+        let novoCargoId = null;
         if (editIds.cargo) {
             const original = dpCargos.find(c => c.id === editIds.cargo);
             const diffs = obterDiferencas(original, payload);
@@ -2075,17 +2583,77 @@ async function salvarCargo() {
             ({ error: err } = await sb.from('dp_cargos').update(payload).eq('id', editIds.cargo));
             if (!err) registrarLog('dp', 'ALTERAÇÃO', descLog);
         } else {
-            ({ error: err } = await sb.from('dp_cargos').insert(payload));
+            let res;
+            ({ error: err, data: res } = await sb.from('dp_cargos').insert(payload).select());
             if (!err) registrarLog('dp', 'INCLUSÃO', `DETALHE: Cadastrou novo cargo: ${nome}`);
+            if (res && res.length > 0) novoCargoId = res[0].id;
         }
         if (err) throw err;
         fecharModal('modal-cargo');
         await loadCargos();
         renderCargos();
         populateFuncSelects();
+        if (novoCargoId) {
+            const cargoSel = document.getElementById('func-cargo-id');
+            if (cargoSel) cargoSel.value = novoCargoId;
+        }
         toast(editIds.cargo ? 'Cargo atualizado!' : 'Cargo cadastrado!', 'success');
     } catch(e) {
         toast('Erro ao salvar cargo: ' + (e.message || ''), 'error');
+    }
+}
+
+async function salvarSetor() {
+    const nome = v('setor-nome')?.trim();
+    if (!nome) { toast('Nome do setor é obrigatório.', 'error'); return; }
+
+    const payload = {
+        empresa_id: empresaId, nome,
+        descricao: v('setor-descricao'),
+        ativo: v('setor-ativo') !== 'false', updated_at: new Date().toISOString(),
+    };
+
+    try {
+        let err;
+        let descLog = '';
+        let novoSetorNome = null;
+        if (editIds.setor) {
+            const original = dpSetores.find(s => s.id === editIds.setor);
+            const diffs = obterDiferencas(original, payload);
+            
+            if (diffs) {
+                const motivo = prompt("Por favor, informe o motivo da alteração deste setor:");
+                if (motivo === null) return;
+                if (!motivo.trim()) {
+                    toast('Justificativa é obrigatória para salvar as alterações.', 'error');
+                    return;
+                }
+                descLog = `DETALHE: Alterou dados do setor: ${nome} | ALTERACAO: ${diffs} | MOTIVO: ${motivo}`;
+            } else {
+                descLog = `DETALHE: Re-salvou cadastro do setor: ${nome} (Sem modificações)`;
+            }
+
+            ({ error: err } = await sb.from('dp_setores').update(payload).eq('id', editIds.setor));
+            if (!err) registrarLog('dp', 'ALTERAÇÃO', descLog);
+        } else {
+            let res;
+            ({ error: err, data: res } = await sb.from('dp_setores').insert(payload).select());
+            if (!err) registrarLog('dp', 'INCLUSÃO', `DETALHE: Cadastrou novo setor: ${nome}`);
+            if (res && res.length > 0) novoSetorNome = res[0].nome;
+            else novoSetorNome = nome;
+        }
+        if (err) throw err;
+        fecharModal('modal-setor');
+        await loadSetores();
+        renderSetores();
+        populateFuncSelects();
+        if (novoSetorNome) {
+            const setorSel = document.getElementById('func-setor');
+            if (setorSel) setorSel.value = novoSetorNome;
+        }
+        toast(editIds.setor ? 'Setor atualizado!' : 'Setor cadastrado!', 'success');
+    } catch(e) {
+        toast('Erro ao salvar setor: ' + (e.message || ''), 'error');
     }
 }
 
@@ -2191,6 +2759,102 @@ async function crudSave(table, editKey, payload, loadFn, renderFn) {
 //  DELETAR
 // ============================================================
 
+// Global modal security resolver
+let currentSecurityConfirmResolver = null;
+let currentSecurityGeneratedCode = '';
+
+function requestSecurityConfirmation() {
+    return new Promise((resolve) => {
+        currentSecurityConfirmResolver = resolve;
+        
+        // Gerar código aleatório de 6 dígitos
+        currentSecurityGeneratedCode = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        const displayBox = document.getElementById('secConfirmDisplayCode');
+        if (displayBox) displayBox.innerText = currentSecurityGeneratedCode;
+
+        // Limpar inputs de PIN
+        const inputs = document.querySelectorAll('.sec-pin-input');
+        inputs.forEach(inp => {
+            inp.value = '';
+            inp.style.borderColor = 'transparent';
+        });
+
+        const errorMsg = document.getElementById('secConfirmErrorMsg');
+        if (errorMsg) errorMsg.style.display = 'none';
+
+        const modal = document.getElementById('modalSecurityConfirm');
+        if (modal) {
+            modal.style.display = 'flex';
+            setTimeout(() => { if (inputs[0]) inputs[0].focus(); }, 100);
+        }
+        if (window.lucide) lucide.createIcons();
+    });
+}
+
+function closeSecurityConfirmModal() {
+    const modal = document.getElementById('modalSecurityConfirm');
+    if (modal) modal.style.display = 'none';
+    if (currentSecurityConfirmResolver) {
+        currentSecurityConfirmResolver(false);
+        currentSecurityConfirmResolver = null;
+    }
+}
+
+function secPinInputHandler(input, index) {
+    const inputs = document.querySelectorAll('.sec-pin-input');
+    const val = input.value.replace(/[^0-9]/g, '');
+    input.value = val;
+
+    if (val) {
+        input.style.borderColor = '#10b981';
+        if (index < inputs.length - 1) {
+            inputs[index + 1].focus();
+        }
+    } else {
+        input.style.borderColor = 'transparent';
+    }
+
+    const fullCode = Array.from(inputs).map(i => i.value).join('');
+    if (fullCode.length === 6 && index === 5) {
+        const btn = document.getElementById('btnSecConfirmSubmit');
+        if (btn) btn.focus();
+    }
+}
+
+function secPinKeyDownHandler(input, event, index) {
+    const inputs = document.querySelectorAll('.sec-pin-input');
+    if (event.key === 'Backspace' && !input.value && index > 0) {
+        inputs[index - 1].focus();
+    }
+}
+
+function secConfirmSubmit() {
+    const inputs = document.querySelectorAll('.sec-pin-input');
+    const enteredCode = Array.from(inputs).map(i => i.value).join('');
+    const errorMsg = document.getElementById('secConfirmErrorMsg');
+
+    if (enteredCode === currentSecurityGeneratedCode) {
+        if (errorMsg) errorMsg.style.display = 'none';
+        const modal = document.getElementById('modalSecurityConfirm');
+        if (modal) modal.style.display = 'none';
+        if (currentSecurityConfirmResolver) {
+            currentSecurityConfirmResolver(true);
+            currentSecurityConfirmResolver = null;
+        }
+    } else {
+        if (errorMsg) {
+            errorMsg.innerText = 'Código incorreto! Tente novamente.';
+            errorMsg.style.display = 'block';
+        }
+        inputs.forEach(i => {
+            i.value = '';
+            i.style.borderColor = '#ef4444';
+        });
+        if (inputs[0]) inputs[0].focus();
+    }
+}
+
 async function deletarRegistro(tipo, id) {
     // 🔍 Validação de Integridade Referencial antes de confirmar exclusão
     if (tipo === 'funcionario') {
@@ -2222,7 +2886,6 @@ async function deletarRegistro(tipo, id) {
                 const funcObj = dpFuncionarios.find(x => x.id === id);
                 const nomeFunc = funcObj ? funcObj.nome_completo : 'o funcionário';
                 toast(`Não é possível excluir ${nomeFunc}. Existem vínculos ativos.`, 'error');
-                alert(`⚠️ Exclusão Bloqueada!\n\nNão é possível excluir o funcionário "${nomeFunc}" pois existem os seguintes registros vinculados a ele:\n\n• ${vinculados.join('\n• ')}\n\nPor favor, remova ou desvincule estes registros antes de excluir o funcionário.`);
                 return;
             }
         } catch (errCheck) {
@@ -2235,35 +2898,50 @@ async function deletarRegistro(tipo, id) {
                 const cargoObj = dpCargos.find(x => x.id === id);
                 const nomeCargo = cargoObj ? cargoObj.nome : 'este cargo';
                 toast(`Não é possível excluir o cargo ${nomeCargo}. Há funcionário(s) associado(s).`, 'error');
-                alert(`⚠️ Exclusão Bloqueada!\n\nNão é possível excluir o cargo "${nomeCargo}" pois existem ${count} funcionário(s) vinculado(s) a ele.`);
                 return;
             }
         } catch (errCheck) {
             console.error('[Integridade] Erro ao verificar vínculos do cargo:', errCheck);
         }
+    } else if (tipo === 'setor') {
+        try {
+            const setorObj = dpSetores.find(x => x.id === id);
+            const nomeSetor = setorObj ? setorObj.nome : '';
+            if (nomeSetor) {
+                const count = dpFuncionarios.filter(f => (f.setor || '').trim().toLowerCase() === nomeSetor.trim().toLowerCase()).length;
+                if (count > 0) {
+                    toast(`Não é possível excluir o setor ${nomeSetor}. Há funcionário(s) associado(s).`, 'error');
+                    return;
+                }
+            }
+        } catch (errCheck) {
+            console.error('[Integridade] Erro ao verificar vínculos do setor:', errCheck);
+        }
     }
 
-    if (!confirm('Confirma a exclusão deste registro? Esta ação não pode ser desfeita.')) return;
+    // Solicitar confirmação no modal oficial de 6 dígitos
+    const confirmado = await requestSecurityConfirmation();
+    if (!confirmado) return;
+
     const tableMap = {
         funcionario: 'dp_funcionarios', aso: 'dp_asos', ferias: 'dp_ferias',
         atestado: 'dp_atestados', epi: 'dp_epis', uniforme: 'dp_uniformes', beneficio_catalogo: 'dp_beneficios_catalogo', beneficio: 'dp_beneficios',
-        contrato: 'dp_contratos_exp', checklist: 'dp_checklist_exp', cargo: 'dp_cargos',
+        contrato: 'dp_contratos_exp', checklist: 'dp_checklist_exp', cargo: 'dp_cargos', setor: 'dp_setores',
         estoque_item: 'dp_estoque_itens',
     };
     const loadMap = {
         funcionario: loadFuncionarios, aso: loadAsos, ferias: loadFerias,
         atestado: loadAtestados, epi: loadEpis, uniforme: loadUniformes, beneficio_catalogo: loadBeneficiosCatalogo, beneficio: loadBeneficios,
-        contrato: loadContratos, checklist: loadChecklist, cargo: loadCargos,
+        contrato: loadContratos, checklist: loadChecklist, cargo: loadCargos, setor: loadSetores,
         estoque_item: loadEstoqueItens,
     };
     const renderMap = {
         funcionario: renderFuncionarios, aso: renderAsos, ferias: renderFerias,
         atestado: renderAtestados, epi: renderEpis, uniforme: renderUniformes, beneficio_catalogo: renderBeneficiosCatalogo, beneficio: renderBeneficios,
-        contrato: renderContratos, checklist: renderChecklist, cargo: renderCargos,
+        contrato: renderContratos, checklist: renderChecklist, cargo: renderCargos, setor: renderSetores,
         estoque_item: renderEstoque,
     };
 
-    // Buscar informações do item antes de excluir para enriquecer o log de auditoria
     let descExclusao = `Excluiu registro do tipo ${tipo} (ID: ${id})`;
     try {
         if (tipo === 'funcionario') {
@@ -2352,7 +3030,7 @@ async function deletarRegistro(tipo, id) {
         if (loadMap[tipo]) await loadMap[tipo]();
         if (renderMap[tipo]) renderMap[tipo]();
         if (typeof renderDashboard === 'function') renderDashboard();
-        toast('Registro excluído.', 'success');
+        toast('Registro excluído com sucesso!', 'success');
     } catch(e) {
         toast('Erro ao excluir: ' + (e.message || ''), 'error');
     }
@@ -2363,8 +3041,8 @@ async function deletarRegistro(tipo, id) {
 // ============================================================
 
 function switchTab(tabId) {
-    document.querySelectorAll('.tabs-header > .tab-item').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tabs-wrapper > .tabs-header > .tab-item').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.dp-container > .view-section').forEach(s => s.classList.remove('active'));
 
     const btn = document.getElementById(`tab-${tabId}`);
     if (btn) btn.classList.add('active');
@@ -2392,8 +3070,8 @@ function switchTab(tabId) {
 function switchSubTab(prefix, subId) {
     const container = document.getElementById(`view-${prefix}`);
     if (!container) return;
-    container.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
-    container.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+    container.querySelectorAll('.tabs-header > .tab-item').forEach(b => b.classList.remove('active'));
+    container.querySelectorAll(':scope > .view-section').forEach(s => s.classList.remove('active'));
     const btn = document.getElementById(`sub-${prefix}-${subId}`);
     if (btn) btn.classList.add('active');
     const sec = document.getElementById(`sub-view-${prefix}-${subId}`);
@@ -2407,7 +3085,8 @@ function switchSubTab(prefix, subId) {
         'contratos-check': renderChecklist,
         'cargos-cargos': renderCargos,
         'cargos-catalogo': renderBeneficiosCatalogo,
-        'cargos-beneficios': renderBeneficios
+        'cargos-beneficios': renderBeneficios,
+        'cargos-setores': renderSetores
     };
     if (renderMap[`${prefix}-${subId}`]) renderMap[`${prefix}-${subId}`]();
     if (window.lucide) lucide.createIcons();
@@ -2675,18 +3354,66 @@ function exportarExcel(tipo) {
     if (!window.XLSX) { toast('Aguarde o carregamento da biblioteca Excel...', 'error'); return; }
     let data = [], title = 'Funcionarios';
     if (tipo === 'funcionarios' || !tipo) {
-        data = dpFuncionarios.map(f => ({
-            'Matrícula': f.matricula || '', 'Nome': f.nome_completo, 'CPF': f.cpf || '',
-            'Cargo': f.cargo_nome || '', 'Setor': f.setor || '', 'Admissão': formatDate(f.data_admissao),
-            'Nascimento': formatDate(f.data_nascimento), 'Salário': f.salario || '',
-            'Status': f.status, 'Celular': f.celular || '', 'E-mail': f.email || '',
-        }));
+        data = dpFuncionarios.map(f => {
+            const cargo = dpCargos.find(c => c.id === f.cargo_id);
+            return {
+                'Matrícula': f.matricula || '',
+                'Nome Completo': f.nome_completo || '',
+                'Status': labelStatus(f.status) || '',
+                'CPF': f.cpf || '',
+                'RG': f.rg || '',
+                'Órgão Emissor RG': f.rg_orgao_emissor || '',
+                'Data de Nascimento': f.data_nascimento ? new Date(f.data_nascimento + 'T00:00:00').toLocaleDateString('pt-BR') : '',
+                'Sexo': f.sexo === 'M' ? 'Masculino' : f.sexo === 'F' ? 'Feminino' : (f.sexo || ''),
+                'Estado Civil': f.estado_civil || '',
+                'Naturalidade': f.naturalidade || '',
+                'Escolaridade': f.escolaridade || '',
+                'Nome da Mãe': f.nome_mae || '',
+                'Nome do Pai': f.nome_pai || '',
+                'Celular': f.celular || '',
+                'Telefone': f.telefone || '',
+                'E-mail': f.email || '',
+                'Logradouro': f.logradouro || '',
+                'Número': f.numero || '',
+                'Complemento': f.complemento || '',
+                'Bairro': f.bairro || '',
+                'Cidade': f.cidade || '',
+                'UF': f.uf || '',
+                'CEP': f.cep || '',
+                'Contato de Emergência - Nome': f.emergencia_nome || '',
+                'Contato de Emergência - Parentesco': f.emergencia_parentesco || '',
+                'Contato de Emergência - Telefone': f.emergencia_telefone || '',
+                'Cargo': f.cargo_nome || (cargo ? cargo.nome : ''),
+                'Setor': f.setor || '',
+                'Data de Admissão': f.data_admissao ? new Date(f.data_admissao + 'T00:00:00').toLocaleDateString('pt-BR') : '',
+                'Data de Demissão': f.data_demissao ? new Date(f.data_demissao + 'T00:00:00').toLocaleDateString('pt-BR') : '',
+                'Tipo de Contrato': f.tipo_contrato || '',
+                'Turno': f.turno || '',
+                'Horário de Entrada': f.horario_de || '',
+                'Horário de Saída': f.horario_ate || '',
+                'Salário Base': f.salario ? parseFloat(f.salario) : '',
+                'PIS / PASEP': f.pis_pasep || '',
+                'CTPS Número': f.ctps_numero || '',
+                'CTPS Série': f.ctps_serie || '',
+                'CTPS UF': f.ctps_uf || '',
+                'Tipo de Certidão': f.tipo_certidao || '',
+                'Certidão Livro': f.certidao_livro || '',
+                'Certidão Folha': f.certidao_folha || '',
+                'Certidão Termo': f.certidao_termo || '',
+                'Banco': f.banco || '',
+                'Agência': f.agencia || '',
+                'Conta': f.conta || '',
+                'Tipo de Conta': f.tipo_conta || '',
+                'Chave PIX': f.chave_pix || '',
+                'Observações': f.observacoes || ''
+            };
+        });
     }
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, title);
     XLSX.writeFile(wb, `FrotaLink_DP_${title}_${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.xlsx`);
-    toast('Exportação Excel concluída!', 'success');
+    toast('Exportação Excel concluída com sucesso!', 'success');
 }
 
 // ============================================================
@@ -2900,9 +3627,13 @@ function renderEstoque() {
             ? '<span class="badge badge-vencido">⚠️ Reposição</span>' 
             : '<span class="badge badge-ok">OK</span>';
             
-        const detail = i.tipo === 'EPI' 
-            ? (i.ca_numero ? `CA: ${i.ca_numero}` : '—') 
-            : (i.tamanho ? `Tamanho: ${i.tamanho}` : '—');
+        let detail = '—';
+        if (i.tipo === 'EPI') {
+            detail = i.ca_numero ? `CA: ${i.ca_numero}` : '—';
+        } else {
+            const parts = [i.tamanho ? `Tam: ${i.tamanho}` : '', i.cor ? `Cor: ${i.cor}` : '', i.condicao ? `Estado: ${i.condicao}` : ''].filter(Boolean);
+            detail = parts.length > 0 ? parts.join(' | ') : '—';
+        }
 
         return `
             <tr ${isCritico ? 'style="background:rgba(239,68,68,0.02);"' : ''}>
@@ -2925,17 +3656,66 @@ function renderEstoque() {
 }
 
 function toggleCamposEstoqueItem() {
-    const tipo = v('est-item-tipo');
-    const tamWrap = document.getElementById('est-item-tamanho-wrap');
+    const tipo = document.getElementById('est-item-tipo')?.value;
+    const unifWrap = document.getElementById('est-item-uniforme-wrap');
     const epiFields = document.querySelectorAll('.est-item-epi-fields');
-    
     if (tipo === 'UNIFORME') {
-        if (tamWrap) tamWrap.style.display = 'flex';
+        if (unifWrap) unifWrap.style.display = 'block';
         epiFields.forEach(el => el.style.display = 'none');
+        if (document.querySelectorAll('.variacao-row').length === 0) {
+            adicionarLinhaVariacao();
+        }
     } else {
-        if (tamWrap) tamWrap.style.display = 'none';
+        if (unifWrap) unifWrap.style.display = 'none';
         epiFields.forEach(el => el.style.display = 'flex');
     }
+}
+
+function adicionarLinhaVariacao(tam = '', cor = '', cond = 'NOVO') {
+    const container = document.getElementById('container-variacoes');
+    if (!container) return;
+    const idx = Date.now() + Math.random().toString(36).substr(2, 4);
+    const row = document.createElement('div');
+    row.className = 'variacao-row';
+    row.style.cssText = 'display:grid; grid-template-columns: 1fr 1fr 1.2fr auto; gap:0.5rem; align-items:end; background:rgba(15,23,42,0.4); padding:0.6rem; border-radius:8px; border:1px solid rgba(255,255,255,0.06);';
+    row.innerHTML = `
+        <div class="form-group" style="margin:0;">
+            <label style="font-size:0.7rem;">Tamanho</label>
+            <input type="text" class="var-tamanho" value="${tam}" placeholder="Ex: P, M, G, 40...">
+        </div>
+        <div class="form-group" style="margin:0;">
+            <label style="font-size:0.7rem;">Cor</label>
+            <input type="text" class="var-cor" value="${cor}" placeholder="Ex: Preta, Azul...">
+        </div>
+        <div class="form-group" style="margin:0;">
+            <label style="font-size:0.7rem;">Condição / Estado</label>
+            <select class="var-condicao">
+                <option value="NOVO" ${cond==='NOVO'?'selected':''}>Novo</option>
+                <option value="USADO_BOM" ${cond==='USADO_BOM'?'selected':''}>Usado - Bom Estado</option>
+                <option value="SEMI_NOVO" ${cond==='SEMI_NOVO'?'selected':''}>Semi-Novo</option>
+                <option value="RESERVADO" ${cond==='RESERVADO'?'selected':''}>Reservado</option>
+            </select>
+        </div>
+        <button type="button" class="btn-icon danger" onclick="removerLinhaVariacao(this)" title="Remover variação" style="margin-bottom:2px;">
+            <i data-lucide="trash-2"></i>
+        </button>
+    `;
+    container.appendChild(row);
+    lucide.createIcons();
+}
+
+function removerLinhaVariacao(btn) {
+    const rows = document.querySelectorAll('.variacao-row');
+    if (rows.length <= 1) {
+        toast('É necessário pelo menos uma variação para o uniforme.', 'warning');
+        return;
+    }
+    btn.closest('.variacao-row').remove();
+}
+
+function resetarLinhasVariacao() {
+    const container = document.getElementById('container-variacoes');
+    if (container) container.innerHTML = '';
 }
 
 function abrirModalEstoqueItem() {
@@ -2943,12 +3723,15 @@ function abrirModalEstoqueItem() {
     document.getElementById('modal-estoque-item-title').textContent = 'Novo Item no Catálogo';
     document.getElementById('est-item-tipo').value = 'EPI';
     document.getElementById('est-item-nome').value = '';
-    document.getElementById('est-item-tamanho').value = '';
     document.getElementById('est-item-ca').value = '';
     document.getElementById('est-item-ca-venc').value = '';
     document.getElementById('est-item-fabricante').value = '';
     document.getElementById('est-item-minimo').value = '5';
     
+    const btnAddVar = document.getElementById('btn-add-variacao');
+    if (btnAddVar) btnAddVar.style.display = 'inline-flex';
+
+    resetarLinhasVariacao();
     toggleCamposEstoqueItem();
     abrirModalPadrao('modal-estoque-item');
     lucide.createIcons();
@@ -2962,11 +3745,18 @@ function editarEstoqueItem(id) {
     document.getElementById('modal-estoque-item-title').textContent = 'Editar Item do Catálogo';
     document.getElementById('est-item-tipo').value = item.tipo;
     document.getElementById('est-item-nome').value = item.nome;
-    document.getElementById('est-item-tamanho').value = item.tamanho || '';
     document.getElementById('est-item-ca').value = item.ca_numero || '';
     document.getElementById('est-item-ca-venc').value = item.ca_vencimento || '';
     document.getElementById('est-item-fabricante').value = item.fabricante || '';
     document.getElementById('est-item-minimo').value = item.quantidade_minima || 0;
+    
+    const btnAddVar = document.getElementById('btn-add-variacao');
+    if (btnAddVar) btnAddVar.style.display = 'none';
+
+    resetarLinhasVariacao();
+    if (item.tipo === 'UNIFORME') {
+        adicionarLinhaVariacao(item.tamanho || '', item.cor || '', item.condicao || 'NOVO');
+    }
     
     toggleCamposEstoqueItem();
     abrirModalPadrao('modal-estoque-item');
@@ -2985,6 +3775,7 @@ function abrirModalEstoqueMov() {
 async function salvarEstoqueItem() {
     const tipo = v('est-item-tipo');
     const nome = v('est-item-nome');
+    const fabricante = v('est-item-fabricante');
     const minimo = parseInt(v('est-item-minimo')) || 0;
     
     if (!nome) {
@@ -2992,35 +3783,85 @@ async function salvarEstoqueItem() {
         return;
     }
     
-    const payload = {
-        empresa_id: empresaId,
-        tipo,
-        nome,
-        tamanho: tipo === 'UNIFORME' ? v('est-item-tamanho') : null,
-        ca_numero: tipo === 'EPI' ? v('est-item-ca') : null,
-        ca_vencimento: tipo === 'EPI' && v('est-item-ca-venc') ? v('est-item-ca-venc') : null,
-        fabricante: v('est-item-fabricante'),
-        quantidade_minima: minimo,
-        updated_at: new Date()
-    };
-    
     try {
         let error;
         if (editIds.estoque_item) {
+            // Edição de um item individual existente
+            const varRow = document.querySelector('.variacao-row');
+            const tamanho = tipo === 'UNIFORME' ? (varRow?.querySelector('.var-tamanho')?.value || null) : null;
+            const cor = tipo === 'UNIFORME' ? (varRow?.querySelector('.var-cor')?.value || null) : null;
+            const condicao = tipo === 'UNIFORME' ? (varRow?.querySelector('.var-condicao')?.value || 'NOVO') : null;
+
+            const payload = {
+                empresa_id: empresaId,
+                tipo,
+                nome,
+                tamanho,
+                cor,
+                condicao,
+                ca_numero: tipo === 'EPI' ? v('est-item-ca') : null,
+                ca_vencimento: tipo === 'EPI' && v('est-item-ca-venc') ? v('est-item-ca-venc') : null,
+                fabricante,
+                quantidade_minima: minimo,
+                updated_at: new Date()
+            };
+
             const { error: err } = await sb.from('dp_estoque_itens')
                 .update(payload)
                 .eq('id', editIds.estoque_item);
             error = err;
+        } else if (tipo === 'UNIFORME') {
+            // Cadastro de novo uniforme -> pode gerar múltiplos registros por variação
+            const varRows = document.querySelectorAll('.variacao-row');
+            const itemsToInsert = [];
+            
+            varRows.forEach(row => {
+                const tamanho = row.querySelector('.var-tamanho')?.value || null;
+                const cor = row.querySelector('.var-cor')?.value || null;
+                const condicao = row.querySelector('.var-condicao')?.value || 'NOVO';
+
+                itemsToInsert.push({
+                    empresa_id: empresaId,
+                    tipo: 'UNIFORME',
+                    nome,
+                    tamanho,
+                    cor,
+                    condicao,
+                    fabricante,
+                    quantidade_atual: 0,
+                    quantidade_minima: minimo,
+                    updated_at: new Date()
+                });
+            });
+
+            if (itemsToInsert.length === 0) {
+                toast('Adicione pelo menos uma variação para o uniforme.', 'warning');
+                return;
+            }
+
+            const { error: err } = await sb.from('dp_estoque_itens').insert(itemsToInsert);
+            error = err;
         } else {
-            payload.quantidade_atual = 0;
-            const { error: err } = await sb.from('dp_estoque_itens')
-                .insert([payload]);
+            // Cadastro de novo EPI
+            const payload = {
+                empresa_id: empresaId,
+                tipo: 'EPI',
+                nome,
+                ca_numero: v('est-item-ca'),
+                ca_vencimento: v('est-item-ca-venc') || null,
+                fabricante,
+                quantidade_atual: 0,
+                quantidade_minima: minimo,
+                updated_at: new Date()
+            };
+
+            const { error: err } = await sb.from('dp_estoque_itens').insert([payload]);
             error = err;
         }
         
         if (error) throw error;
         
-        toast('Item salvo com sucesso!', 'success');
+        toast(editIds.estoque_item ? 'Item salvo com sucesso!' : 'Itens/Variações cadastrados com sucesso no catálogo!', 'success');
         fecharModal('modal-estoque-item', true);
         await loadEstoqueItens();
         populateEstoqueSelects();

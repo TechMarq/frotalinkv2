@@ -1175,6 +1175,9 @@
                 <select id="uniforme-filter-estado" onchange="renderUniformes()">
                     <option value="">Todos os Estados</option>
                     <option value="NOVO">Novo</option>
+                    <option value="USADO_BOM">Usado - Bom Estado</option>
+                    <option value="SEMI_NOVO">Semi-Novo</option>
+                    <option value="RESERVADO">Reservado</option>
                     <option value="BOM">Bom</option>
                     <option value="DESGASTADO">Desgastado</option>
                     <option value="DANIFICADO">Danificado</option>
@@ -1190,13 +1193,14 @@
                                 <th onclick="sortTable('uniformes','tamanho')">Tamanho</th>
                                 <th onclick="sortTable('uniformes','quantidade')">Qtd</th>
                                 <th onclick="sortTable('uniformes','data_entrega')">Entrega</th>
+                                <th onclick="sortTable('uniformes','data_vencimento')">Vencimento / Troca</th>
                                 <th onclick="sortTable('uniformes','estado')">Estado</th>
                                 <th onclick="sortTable('uniformes','motivo')">Motivo</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
                         <tbody id="uniforme-tbody">
-                            <tr><td colspan="8" class="table-empty">Carregando...</td></tr>
+                            <tr><td colspan="9" class="table-empty">Carregando...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1418,6 +1422,7 @@
         <div class="tabs-header" style="margin-bottom:1.5rem;">
             <button class="tab-item active" onclick="switchSubTab('cargos','cargos')" id="sub-cargos-cargos"><i data-lucide="briefcase" style="width:16px;"></i> Cargos & Salários</button>
             <button class="tab-item" onclick="switchSubTab('cargos','catalogo')" id="sub-cargos-catalogo"><i data-lucide="list-checks" style="width:16px;"></i> Catálogo de Benefícios</button>
+            <button class="tab-item" onclick="switchSubTab('cargos','setores')" id="sub-cargos-setores"><i data-lucide="building-2" style="width:16px;"></i> Setores & Departamentos</button>
         </div>
 
         <!-- Sub: Cargos & Salários -->
@@ -1450,7 +1455,6 @@
                                 <th onclick="sortTable('cargos','nome')">Cargo</th>
                                 <th onclick="sortTable('cargos','cbo')">CBO</th>
                                 <th onclick="sortTable('cargos','nivel')">Nível</th>
-                                <th onclick="sortTable('cargos','setor')">Setor</th>
                                 <th onclick="sortTable('cargos','salario_base')">Salário Base</th>
                                 <th>Faixa</th>
                                 <th onclick="sortTable('cargos','carga_horaria')">C.H. Mensal</th>
@@ -1496,7 +1500,6 @@
                                 <th onclick="sortTable('beneficios_catalogo','ativo')">Status</th>
                                 <th>Ações</th>
                             </tr>
-                        </thead>
                         <tbody id="benef-cat-tbody">
                             <tr><td colspan="6" class="table-empty">Carregando...</td></tr>
                         </tbody>
@@ -1505,6 +1508,43 @@
                 <div class="pagination">
                     <span id="benef-cat-page-info">Mostrando 0 registros</span>
                     <div class="pagination-btns" id="benef-cat-pagination"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sub: Setores & Departamentos -->
+        <div id="sub-view-cargos-setores" class="view-section">
+            <div class="section-header">
+                <div class="section-title-text"><i data-lucide="building-2"></i> Setores e Departamentos</div>
+                <button class="btn btn-primary btn-sm" onclick="abrirModalSetor()" data-perm="dp_cargos:create"><i data-lucide="plus"></i> Novo Setor / Departamento</button>
+            </div>
+            <div class="filter-bar">
+                <input type="text" id="setor-search" placeholder="🔍 Buscar setor ou departamento..." oninput="renderSetores()">
+                <select id="setor-filter-ativo" onchange="renderSetores()">
+                    <option value="">Todos</option>
+                    <option value="true">Ativos</option>
+                    <option value="false">Inativos</option>
+                </select>
+            </div>
+            <div class="table-container">
+                <div class="scroll-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('setores','nome')">Nome do Setor / Departamento</th>
+                                <th>Descrição</th>
+                                <th onclick="sortTable('setores','ativo')">Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="setor-tbody">
+                            <tr><td colspan="4" class="table-empty">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <span id="setor-page-info">Mostrando 0 registros</span>
+                    <div class="pagination-btns" id="setor-pagination"></div>
                 </div>
             </div>
         </div>
@@ -1748,13 +1788,25 @@
                     </div>
                     <div class="form-group">
                         <label>Cargo *</label>
-                        <select id="func-cargo-id">
-                            <option value="">Selecione o cargo</option>
-                        </select>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <select id="func-cargo-id" style="flex: 1;">
+                                <option value="">Selecione o cargo</option>
+                            </select>
+                            <button type="button" class="btn btn-primary" onclick="abrirModalCargo()" title="Cadastrar Novo Cargo" style="padding: 0.6rem 0.75rem; flex-shrink: 0;" data-perm="dp_cargos:create">
+                                <i data-lucide="plus"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Setor / Departamento</label>
-                        <input type="text" id="func-setor" placeholder="Administrativo, Operacional...">
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <select id="func-setor" style="flex: 1;">
+                                <option value="">Selecione o setor</option>
+                            </select>
+                            <button type="button" class="btn btn-primary" onclick="abrirModalSetor()" title="Cadastrar Novo Setor / Departamento" style="padding: 0.6rem 0.75rem; flex-shrink: 0;" data-perm="dp_cargos:create">
+                                <i data-lucide="plus"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Data de Admissão *</label>
@@ -2248,20 +2300,20 @@
      MODAL: UNIFORME
 ════════════════════════════════════════════ -->
 <div id="modal-uniforme" class="dp-modal-overlay">
-    <div class="dp-modal narrow">
+    <div class="dp-modal">
         <div class="modal-header">
             <div class="modal-title"><i data-lucide="shirt"></i> <span id="modal-uniforme-title">Registrar Uniforme</span></div>
             <button class="modal-close" onclick="fecharModal('modal-uniforme')"><i data-lucide="x"></i></button>
         </div>
         <div class="modal-body">
-            <div class="form-grid cols-1">
-                <div class="form-group">
+            <div class="form-grid">
+                <div class="form-group span-2">
                     <label>Funcionário *</label>
                     <select id="unif-func-id" required>
                         <option value="">Selecione o funcionário</option>
                     </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group span-2">
                     <label>Uniforme do Estoque *</label>
                     <select id="unif-estoque-id" required onchange="aoSelecionarUniformeEstoque()">
                         <option value="">Selecione o uniforme no estoque...</option>
@@ -2278,16 +2330,15 @@
                 </div>
                 <div class="form-group">
                     <label>Data de Entrega *</label>
-                    <input type="date" id="unif-entrega" required>
+                    <input type="date" id="unif-entrega" required onchange="calcularVencimentoUniforme()">
                 </div>
                 <div class="form-group">
-                    <label>Estado</label>
-                    <select id="unif-estado">
-                        <option value="NOVO">Novo</option>
-                        <option value="BOM">Bom</option>
-                        <option value="DESGASTADO">Desgastado</option>
-                        <option value="DANIFICADO">Danificado</option>
-                    </select>
+                    <label>Validade / Prazo (Meses)</label>
+                    <input type="number" id="unif-validade-meses" placeholder="Ex: 6, 12, 24..." min="1" oninput="calcularVencimentoUniforme()">
+                </div>
+                <div class="form-group">
+                    <label>Previsão de Troca / Vencimento</label>
+                    <input type="date" id="unif-vencimento">
                 </div>
                 <div class="form-group">
                     <label>Motivo</label>
@@ -2298,7 +2349,7 @@
                         <option value="OUTROS">Outros</option>
                     </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group span-2">
                     <label>Observações</label>
                     <textarea id="unif-obs" placeholder="Observações..."></textarea>
                 </div>
@@ -2333,9 +2384,16 @@
                     <label>Nome do Item *</label>
                     <input type="text" id="est-item-nome" required placeholder="Ex: Óculos de proteção, Calça operacional, Bota de PVC...">
                 </div>
-                <div class="form-group" id="est-item-tamanho-wrap" style="display:none;">
-                    <label>Tamanho</label>
-                    <input type="text" id="est-item-tamanho" placeholder="P, M, G, GG, 40, 42...">
+                <div class="form-group span-2 est-item-uniforme-fields" id="est-item-uniforme-wrap" style="display:none; padding: 0.85rem; background: rgba(14,165,233,0.05); border: 1px dashed rgba(14,165,233,0.2); border-radius: 12px; margin-bottom: 0.5rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                        <div style="font-size:0.78rem; font-weight:700; color:var(--primary); text-transform:uppercase; letter-spacing:0.05em;">🎨 Variações do Uniforme</div>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-add-variacao" onclick="adicionarLinhaVariacao()" style="padding:0.35rem 0.65rem; font-size:0.78rem;">
+                            <i data-lucide="plus"></i> Adicionar Variação
+                        </button>
+                    </div>
+                    <div id="container-variacoes" style="display:flex; flex-direction:column; gap:0.75rem;">
+                        <!-- Linhas de variação injetadas dinamicamente via JS -->
+                    </div>
                 </div>
                 <div class="form-group est-item-epi-fields">
                     <label>Número do CA</label>
@@ -2737,10 +2795,6 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Setor / Departamento</label>
-                    <input type="text" id="cargo-setor" placeholder="Administrativo, Operacional...">
-                </div>
-                <div class="form-group">
                     <label>Carga Horária Mensal</label>
                     <input type="number" id="cargo-ch" value="220" min="1">
                 </div>
@@ -2789,6 +2843,41 @@
 </div>
 
 <!-- ════════════════════════════════════════════
+     MODAL: SETOR / DEPARTAMENTO
+════════════════════════════════════════════ -->
+<div id="modal-setor" class="dp-modal-overlay">
+    <div class="dp-modal">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="building-2"></i> <span id="modal-setor-title">Novo Setor / Departamento</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-setor')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="form-group span-2">
+                    <label>Nome do Setor / Departamento *</label>
+                    <input type="text" id="setor-nome" required placeholder="Ex: Financeiro, Recursos Humanos, Operacional...">
+                </div>
+                <div class="form-group span-2">
+                    <label>Descrição</label>
+                    <textarea id="setor-descricao" placeholder="Descrição ou atribuições do setor..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Ativo</label>
+                    <select id="setor-ativo">
+                        <option value="true">Sim</option>
+                        <option value="false">Não</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-setor')">Cancelar</button>
+            <button class="btn btn-primary btn-save" onclick="salvarSetor()"><i data-lucide="save"></i> Salvar Setor</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
      MODAL: FICHA DO FUNCIONÁRIO (VIEW)
 ════════════════════════════════════════════ -->
 <div id="modal-ficha" class="dp-modal-overlay">
@@ -2803,6 +2892,81 @@
         <div class="modal-body" id="ficha-body">
             <!-- Preenchido via JS -->
         </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: HISTÓRICO COMPLETO DE ATIVIDADES DO FUNCIONÁRIO
+════════════════════════════════════════════ -->
+<div id="modal-historico-atividades" class="dp-modal-overlay">
+    <div class="dp-modal wide" style="max-width:900px;">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="history"></i> <span id="modal-hist-title">Histórico de Atividades</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-historico-atividades')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <!-- Abas / Filtros -->
+            <div class="tabs-header" style="margin-bottom:1.25rem; flex-wrap:wrap; gap:0.4rem;">
+                <button class="tab-item active" onclick="filtrarHistoricoModal('TODOS', this)"><i data-lucide="layers"></i> Todos</button>
+                <button class="tab-item" onclick="filtrarHistoricoModal('ASO', this)"><i data-lucide="stethoscope"></i> ASOs</button>
+                <button class="tab-item" onclick="filtrarHistoricoModal('FERIAS', this)"><i data-lucide="umbrella"></i> Férias</button>
+                <button class="tab-item" onclick="filtrarHistoricoModal('ATESTADO', this)"><i data-lucide="file-heart"></i> Atestados</button>
+                <button class="tab-item" onclick="filtrarHistoricoModal('EPI', this)"><i data-lucide="hard-hat"></i> EPIs</button>
+                <button class="tab-item" onclick="filtrarHistoricoModal('UNIFORME', this)"><i data-lucide="shirt"></i> Uniformes</button>
+                <button class="tab-item" onclick="filtrarHistoricoModal('BENEFICIO', this)"><i data-lucide="credit-card"></i> Benefícios</button>
+                <button class="tab-item" onclick="filtrarHistoricoModal('CONTRATO', this)"><i data-lucide="file-text"></i> Contratos</button>
+            </div>
+
+            <!-- Lista em Linha do Tempo -->
+            <div id="historico-atividades-lista" style="display:flex; flex-direction:column; gap:0.65rem; max-height:550px; overflow-y:auto; padding-right:0.4rem;">
+                <!-- Preenchido via JS -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-historico-atividades')">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL DE CONFIRMAÇÃO DE SEGURANÇA (PADRÃO SISTEMA)
+════════════════════════════════════════════ -->
+<div id="modalSecurityConfirm" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 9999; align-items: center; justify-content: center; padding: 1rem;">
+    <div style="background: #0d1322; border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; width: 100%; max-width: 400px; padding: 2rem 1.5rem; text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7); display: flex; flex-direction: column; align-items: center; font-family: 'Inter', sans-serif;">
+        
+        <!-- Ícone Shield Warning -->
+        <div style="width: 52px; height: 52px; border-radius: 50%; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); display: flex; align-items: center; justify-content: center; margin-bottom: 1.25rem;">
+            <i data-lucide="shield-alert" style="width: 26px; height: 26px; color: #ef4444;"></i>
+        </div>
+
+        <h3 style="font-size: 1.35rem; font-weight: 800; color: #ffffff; margin-bottom: 0.35rem; letter-spacing: -0.02em;">Confirmação de Segurança</h3>
+        <p style="font-size: 0.82rem; color: #94a3b8; margin-bottom: 1.5rem;">Insira o código abaixo para confirmar a exclusão:</p>
+
+        <!-- Box do Código de Segurança -->
+        <div id="secConfirmDisplayCode" style="width: 100%; background: #172033; border: 1.5px dashed rgba(99, 102, 241, 0.4); border-radius: 12px; padding: 1rem 0; font-family: 'JetBrains Mono', monospace; font-size: 2rem; font-weight: 800; letter-spacing: 0.4em; color: #818cf8; text-align: center; margin-bottom: 1.5rem; user-select: none;">
+            000000
+        </div>
+
+        <!-- 6 PIN Inputs -->
+        <div style="display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 1.75rem; width: 100%;">
+            <input type="text" class="sec-pin-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" style="width: 44px; height: 52px; background: #ffffff; border: 2px solid transparent; border-radius: 10px; text-align: center; font-size: 1.4rem; font-weight: 800; color: #0f172a; outline: none; transition: all 0.2s;" oninput="secPinInputHandler(this, 0)" onkeydown="secPinKeyDownHandler(this, event, 0)">
+            <input type="text" class="sec-pin-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" style="width: 44px; height: 52px; background: #ffffff; border: 2px solid transparent; border-radius: 10px; text-align: center; font-size: 1.4rem; font-weight: 800; color: #0f172a; outline: none; transition: all 0.2s;" oninput="secPinInputHandler(this, 1)" onkeydown="secPinKeyDownHandler(this, event, 1)">
+            <input type="text" class="sec-pin-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" style="width: 44px; height: 52px; background: #ffffff; border: 2px solid transparent; border-radius: 10px; text-align: center; font-size: 1.4rem; font-weight: 800; color: #0f172a; outline: none; transition: all 0.2s;" oninput="secPinInputHandler(this, 2)" onkeydown="secPinKeyDownHandler(this, event, 2)">
+            <input type="text" class="sec-pin-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" style="width: 44px; height: 52px; background: #ffffff; border: 2px solid transparent; border-radius: 10px; text-align: center; font-size: 1.4rem; font-weight: 800; color: #0f172a; outline: none; transition: all 0.2s;" oninput="secPinInputHandler(this, 3)" onkeydown="secPinKeyDownHandler(this, event, 3)">
+            <input type="text" class="sec-pin-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" style="width: 44px; height: 52px; background: #ffffff; border: 2px solid transparent; border-radius: 10px; text-align: center; font-size: 1.4rem; font-weight: 800; color: #0f172a; outline: none; transition: all 0.2s;" oninput="secPinInputHandler(this, 4)" onkeydown="secPinKeyDownHandler(this, event, 4)">
+            <input type="text" class="sec-pin-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" style="width: 44px; height: 52px; background: #ffffff; border: 2px solid transparent; border-radius: 10px; text-align: center; font-size: 1.4rem; font-weight: 800; color: #0f172a; outline: none; transition: all 0.2s;" oninput="secPinInputHandler(this, 5)" onkeydown="secPinKeyDownHandler(this, event, 5)">
+        </div>
+
+        <!-- Mensagem de Erro -->
+        <div id="secConfirmErrorMsg" style="display: none; color: #f87171; font-size: 0.78rem; font-weight: 700; margin-bottom: 1rem;">Código incorreto. Tente novamente.</div>
+
+        <!-- Botões de Ação -->
+        <button id="btnSecConfirmSubmit" onclick="secConfirmSubmit()" style="width: 100%; height: 46px; background: #ef4444; color: #ffffff; border: none; border-radius: 12px; font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); margin-bottom: 0.75rem;">
+            CONFIRMAR EXCLUSÃO
+        </button>
+        <button onclick="closeSecurityConfirmModal()" style="background: transparent; border: none; color: #94a3b8; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; cursor: pointer; padding: 0.5rem 1rem; transition: color 0.2s;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='#94a3b8'">
+            CANCELAR
+        </button>
     </div>
 </div>
 

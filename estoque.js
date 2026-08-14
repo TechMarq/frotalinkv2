@@ -483,7 +483,8 @@ function setupEventListeners() {
                 e.preventDefault(); // Evita que envie o form geral
                 const query = vendaSearchInput.value.trim();
                 if (query.length > 0) {
-                    const filtered = inventoryData.filter(item => 
+                    const activeItems = inventoryData.filter(item => item.status !== 'INATIVO');
+                    const filtered = activeItems.filter(item => 
                         item.nome.toLowerCase().includes(query.toLowerCase()) || 
                         (item.ref && item.ref.toLowerCase().includes(query.toLowerCase())) ||
                         (item.marca && item.marca.toLowerCase().includes(query.toLowerCase())) ||
@@ -549,6 +550,66 @@ function setupEventListeners() {
             if (typeof applyHistoryFilters === 'function') applyHistoryFilters();
         });
     }
+
+    // Atalhos Globais de Teclado (ESC para fechar, Ctrl + S / Ctrl + Enter para salvar)
+    window.addEventListener('keydown', (e) => {
+        const vModal = document.getElementById('vendaModal');
+        const pModal = document.getElementById('productModal');
+        const pvModal = document.getElementById('productViewModal');
+
+        const isVendaActive = vModal && vModal.classList.contains('active');
+        const isProdActive = pModal && pModal.classList.contains('active');
+        const isViewActive = pvModal && pvModal.classList.contains('active');
+
+        // ESC: Fechar Modal
+        if (e.key === 'Escape') {
+            if (isVendaActive) {
+                const searchResults = document.getElementById('v_search_results');
+                if (searchResults && searchResults.style.display === 'block') {
+                    searchResults.style.display = 'none';
+                    return;
+                }
+                if (vendaItems && vendaItems.length > 0) {
+                    if (confirm('Há itens adicionados no carrinho de saída. Tem certeza de que deseja sair e descartar?')) {
+                        closeVendaModal();
+                    }
+                } else {
+                    closeVendaModal();
+                }
+                return;
+            }
+
+            if (isProdActive) {
+                closeProductModal();
+                return;
+            }
+
+            if (isViewActive) {
+                closeProductViewModal();
+                return;
+            }
+        }
+
+        // CTRL + S ou CTRL + ENTER: Salvar / Confirmar
+        if ((e.ctrlKey && (e.key === 's' || e.key === 'S')) || (e.ctrlKey && e.key === 'Enter')) {
+            if (isVendaActive) {
+                e.preventDefault();
+                const btnConfirm = document.getElementById('btn_confirm_venda');
+                if (btnConfirm && !btnConfirm.disabled) {
+                    saveVenda(e);
+                } else if (vendaItems && vendaItems.length === 0) {
+                    alert('Adicione pelo menos um produto ao carrinho antes de confirmar a saída.');
+                }
+                return;
+            }
+
+            if (isProdActive) {
+                e.preventDefault();
+                saveProduct(e);
+                return;
+            }
+        }
+    });
 }
 
 function checkDuplicateBarcode() {
@@ -634,9 +695,9 @@ async function loadProductHistory(productId) {
             .from('estoque_movimentacoes')
             .select('*')
             .eq('item_id', productId)
-            .order('data', { ascending: false })
             .order('created_at', { ascending: false })
-            .limit(10);
+            .order('data', { ascending: false })
+            .limit(20);
 
         if (error) throw error;
 
@@ -647,12 +708,19 @@ async function loadProductHistory(productId) {
             return;
         }
 
+        // Ordena estritamente por timestamp real de criação (mais recente no topo)
+        let sortedData = (data || []).slice().sort((a, b) => {
+            const timeA = new Date(a.created_at || a.data).getTime();
+            const timeB = new Date(b.created_at || b.data).getTime();
+            return timeB - timeA;
+        });
+
         tbody.innerHTML = '';
-        if (data && data.length > 0) {
-            // Cálculo de Saldo Progressivo
+        if (sortedData && sortedData.length > 0) {
+            // Cálculo de Saldo Progressivo (do mais recente para o mais antigo)
             let runningSaldo = item.estoque_atual;
             
-            data.forEach(h => {
+            sortedData.forEach(h => {
                 const row = document.createElement('tr');
                 const date = new Date(h.data).toLocaleDateString('pt-BR');
                 const isEstorno = h.tipo === 'ESTORNO';
@@ -683,19 +751,19 @@ async function loadProductHistory(productId) {
                 const isCancelled = h.motivo && h.motivo.includes('[CANCELADA]');
                 
                 row.innerHTML = `
-                    <td style="color: var(--text-muted); font-size: 0.75rem;">${date}</td>
-                    <td><span style="color: ${isCancelled ? '#9ca3af' : color}; font-weight: 800; font-size: 0.7rem; ${isCancelled ? 'text-decoration: line-through;' : ''}">${displayTipo}</span></td>
-                    <td style="font-weight: 700; text-align: center; ${isCancelled ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${Math.round(h.quantidade)}</td>
-                    <td style="font-weight: 900; color: var(--accent); text-align: center; font-size: 0.85rem;">${Math.round(rowSaldo)}</td>
-                    <td style="color: var(--text-muted); ${isCancelled ? 'text-decoration: line-through;' : ''}">R$ ${parseFloat(h.valor_unitario || 0).toFixed(2)}</td>
-                    <td style="font-size: 0.7rem; color: ${isCancelled ? '#ef4444' : 'var(--text-muted)'}; font-weight: ${isCancelled ? '700' : 'normal'};">
-                        ${isAjuste ? h.motivo.replace('[AJUSTE] ', '') : (h.motivo || '---').replace(' | ', '<br><span style="color:var(--primary); font-weight:700;">')}</span>
+                    <td style="color: #334155; font-size: 0.75rem; font-weight: 600; padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9;">${date}</td>
+                    <td style="padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9;"><span style="color: ${isCancelled ? '#9ca3af' : color}; font-weight: 800; font-size: 0.72rem; ${isCancelled ? 'text-decoration: line-through;' : ''}">${displayTipo}</span></td>
+                    <td style="font-weight: 800; color: #0f172a; text-align: center; padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9; ${isCancelled ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${Math.round(h.quantidade)}</td>
+                    <td style="font-weight: 900; color: #059669; text-align: center; font-size: 0.85rem; padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9;">${Math.round(rowSaldo)}</td>
+                    <td style="color: #0f172a; font-weight: 700; padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9; ${isCancelled ? 'text-decoration: line-through;' : ''}">R$ ${parseFloat(h.valor_unitario || 0).toFixed(2)}</td>
+                    <td style="font-size: 0.75rem; color: ${isCancelled ? '#ef4444' : '#475569'}; font-weight: ${isCancelled ? '700' : '500'}; padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9;">
+                        ${isAjuste ? h.motivo.replace('[AJUSTE] ', '') : (h.motivo || '---').replace(' | ', '<br><span style="color:#059669; font-weight:700;">')}</span>
                     </td>
                 `;
                 tbody.appendChild(row);
             });
         } else {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 2rem; color: var(--text-muted);">Nenhuma movimentação registrada.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 2rem; color: #64748b; font-weight: 600;">Nenhuma movimentação registrada.</td></tr>';
         }
     } catch (err) {
         console.error('Erro ao carregar histórico do produto:', err);
@@ -784,12 +852,18 @@ async function loadHistory(forceReload = false) {
                     *,
                     estoque (nome, ref, codigo_interno)
                 `)
-                .order('data', { ascending: false })
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .order('data', { ascending: false });
 
             const { data, error } = await query;
             if (error) throw error;
-            historyData = data || [];
+            
+            // Ordena estritamente por timestamp real de criação (mais recente no topo)
+            historyData = (data || []).slice().sort((a, b) => {
+                const timeA = new Date(a.created_at || a.data).getTime();
+                const timeB = new Date(b.created_at || b.data).getTime();
+                return timeB - timeA;
+            });
         }
 
         applyHistoryFilters();
@@ -1659,6 +1733,12 @@ async function openVendaModal() {
     const vModal = document.getElementById('vendaModal');
     if (vModal) vModal.classList.add('active');
     
+    // Foco automático no 1º campo (Tipo de Saída)
+    setTimeout(() => {
+        const firstInput = document.getElementById('v_tipo');
+        if (firstInput) firstInput.focus();
+    }, 50);
+
     // Carregar veículos e retornar a promessa
     return await loadVehicles();
 }
@@ -1693,7 +1773,9 @@ function searchVendaProduct(query) {
         return;
     }
 
-    const filtered = inventoryData.filter(item => 
+    const activeItems = inventoryData.filter(item => item.status !== 'INATIVO');
+
+    const filtered = activeItems.filter(item => 
         item.nome.toLowerCase().includes(query.toLowerCase()) || 
         (item.ref && item.ref.toLowerCase().includes(query.toLowerCase())) ||
         (item.marca && item.marca.toLowerCase().includes(query.toLowerCase())) ||
@@ -1702,7 +1784,7 @@ function searchVendaProduct(query) {
     );
 
     // Check for exact barcode/internal code match to auto-select
-    const exactMatch = inventoryData.find(item => 
+    const exactMatch = activeItems.find(item => 
         (item.codigo_barras && item.codigo_barras.toLowerCase() === query.trim().toLowerCase()) || 
         (item.codigo_interno && item.codigo_interno.toLowerCase() === query.trim().toLowerCase())
     );
@@ -1734,6 +1816,11 @@ function searchVendaProduct(query) {
 function selectVendaProduct(id) {
     const item = inventoryData.find(p => p.id === id);
     if (!item) return;
+
+    if (item.status === 'INATIVO') {
+        alert('Este produto encontra-se INATIVO no sistema e não pode ter saída lançada.');
+        return;
+    }
 
     document.getElementById('v_selected_product_id').value = item.id;
     document.getElementById('v_search_input').value = item.nome;
@@ -1811,8 +1898,8 @@ function addItemToVendaList() {
     const qtd = parseFloat(document.getElementById('v_quantidade').value) || 0;
     const unitVal = parseFloat(document.getElementById('v_valor_unitario').value) || 0;
 
-    if (!item || qtd <= 0) {
-        alert('Selecione um produto e informe uma quantidade válida.');
+    if (!item || item.status === 'INATIVO' || qtd <= 0) {
+        alert('Selecione um produto ativo e informe uma quantidade válida.');
         return;
     }
 
@@ -2034,19 +2121,42 @@ async function saveVenda(event) {
             await supabaseClient.from('venda_itens').delete().eq('venda_id', currentVendaId);
 
             // 3. Atualizar registro da venda
-            const { data: vData, error: vErr } = await supabaseClient
+            let { data: vData, error: vErr } = await supabaseClient
                 .from('vendas')
                 .update(vendaObj)
                 .eq('id', currentVendaId)
                 .select();
+                
+            if (vErr && (vErr.message.includes('plano_contas_codigo') || vErr.message.includes('plano_contas_nome') || vErr.code === 'PGRST204')) {
+                delete vendaObj.plano_contas_codigo;
+                delete vendaObj.plano_contas_nome;
+                const retryRes = await supabaseClient
+                    .from('vendas')
+                    .update(vendaObj)
+                    .eq('id', currentVendaId)
+                    .select();
+                vErr = retryRes.error;
+                vData = retryRes.data;
+            }
             if (vErr) throw vErr;
             newVenda = vData[0];
         } else {
             // Criar Nova Venda
-            const { data: vData, error: vErr } = await supabaseClient
+            let { data: vData, error: vErr } = await supabaseClient
                 .from('vendas')
                 .insert([vendaObj])
                 .select();
+
+            if (vErr && (vErr.message.includes('plano_contas_codigo') || vErr.message.includes('plano_contas_nome') || vErr.code === 'PGRST204')) {
+                delete vendaObj.plano_contas_codigo;
+                delete vendaObj.plano_contas_nome;
+                const retryRes = await supabaseClient
+                    .from('vendas')
+                    .insert([vendaObj])
+                    .select();
+                vErr = retryRes.error;
+                vData = retryRes.data;
+            }
             if (vErr) throw vErr;
             newVenda = vData[0];
         }
@@ -2075,7 +2185,7 @@ async function saveVenda(event) {
                     .ilike('motivo', `%VENDA: ${newVenda.codigo}%`);
             }
 
-            await supabaseClient.from('estoque_movimentacoes').insert([{
+            const moveObj = {
                 item_id: item.produto_id,
                 tipo: 'SAIDA',
                 quantidade: item.quantidade,
@@ -2086,7 +2196,14 @@ async function saveVenda(event) {
                 data: dataVenda + 'T12:00:00Z',
                 plano_contas_codigo: '04.018.0091',
                 plano_contas_nome: 'SAIDAS DE ESTOQUE'
-            }]);
+            };
+
+            let { error: moveErr } = await supabaseClient.from('estoque_movimentacoes').insert([moveObj]);
+            if (moveErr && (moveErr.message.includes('plano_contas_codigo') || moveErr.message.includes('plano_contas_nome') || moveErr.code === 'PGRST204')) {
+                delete moveObj.plano_contas_codigo;
+                delete moveObj.plano_contas_nome;
+                await supabaseClient.from('estoque_movimentacoes').insert([moveObj]);
+            }
 
             // Saldo Final
             const prod = inventoryData.find(p => p.id === item.produto_id);

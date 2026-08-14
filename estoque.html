@@ -588,8 +588,8 @@
 
         /* New Product View Modal Styles — Clean Verde */
         #productViewModal {
-            background: #0d1322;
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
             border-radius: 24px;
             width: 90%;
             max-width: 1100px;
@@ -600,13 +600,14 @@
             transform: translate(-50%, -50%) scale(0.95);
             max-height: 90vh;
             overflow-y: auto;
-            box-shadow: 0 0 0 100vw rgba(0, 0, 0, 0.8), 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+            box-shadow: 0 0 0 100vw rgba(15, 23, 42, 0.45), 0 25px 50px -12px rgba(15, 23, 42, 0.25);
             z-index: 4000;
             display: none;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             opacity: 0;
             visibility: hidden;
             font-family: 'Inter', sans-serif;
+            color: #0f172a;
         }
 
         #productViewModal.active {
@@ -624,7 +625,7 @@
             transform: translate(-50%, -50%) scale(0.95);
             max-height: 90vh;
             overflow-y: auto;
-            box-shadow: 0 0 0 100vw rgba(0, 0, 0, 0.75), 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+            box-shadow: 0 0 0 100vw rgba(15, 23, 42, 0.45), 0 25px 50px -12px rgba(15, 23, 42, 0.25);
             z-index: 4000;
             display: none;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -643,7 +644,9 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 2.5rem;
+            margin-bottom: 2rem;
+            padding-bottom: 1.2rem;
+            border-bottom: 1px solid #e2e8f0;
         }
 
         .view-header-left {
@@ -655,26 +658,26 @@
         .view-icon-box {
             width: 64px;
             height: 64px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: #f0fdf4;
+            border: 1px solid #a7f3d0;
             border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #fff;
+            color: #059669;
         }
 
         .view-title-group h2 {
             font-size: 1.8rem;
             font-weight: 800;
             margin-bottom: 0.2rem;
-            color: #fff;
+            color: #0f172a;
         }
 
         .view-meta {
             font-size: 0.75rem;
             font-weight: 700;
-            color: var(--text-muted);
+            color: #64748b;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             display: flex;
@@ -684,6 +687,7 @@
         .view-header-right {
             display: flex;
             gap: 0.8rem;
+            align-items: center;
         }
 
         .view-grid {
@@ -699,8 +703,8 @@
         }
 
         .info-section {
-            background: #172033;
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
             border-radius: 20px;
             padding: 1.5rem;
         }
@@ -708,7 +712,7 @@
         .info-section h3 {
             font-size: 0.72rem;
             font-weight: 800;
-            color: #94a3b8;
+            color: #475569;
             text-transform: uppercase;
             margin-bottom: 1.2rem;
             letter-spacing: 1px;
@@ -718,7 +722,7 @@
             display: flex;
             justify-content: space-between;
             padding: 0.8rem 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid #e2e8f0;
             font-size: 0.85rem;
         }
 
@@ -727,12 +731,12 @@
         }
 
         .info-label {
-            color: #94a3b8;
+            color: #64748b;
             font-weight: 600;
         }
 
         .info-value {
-            color: #ffffff;
+            color: #0f172a;
             font-weight: 800;
         }
 
@@ -751,13 +755,13 @@
         }
 
         .price-card.cost {
-            background: rgba(245, 158, 11, 0.12);
-            border: 1px solid rgba(245, 158, 11, 0.25);
+            background: #fffbeb;
+            border: 1px solid #fde68a;
         }
 
         .price-card.sell {
-            background: rgba(5, 150, 105, 0.15);
-            border: 1px solid rgba(5, 150, 105, 0.3);
+            background: #f0fdf4;
+            border: 1px solid #a7f3d0;
         }
 
         .price-label {
@@ -772,32 +776,32 @@
         }
 
         .price-card.cost .price-label {
-            color: var(--accent);
+            color: #d97706;
         }
 
         .price-card.cost .price-val {
-            color: var(--accent);
+            color: #d97706;
         }
 
         .price-card.sell .price-label {
-            color: #10b981;
+            color: #059669;
         }
 
         .price-card.sell .price-val {
-            color: #10b981;
+            color: #059669;
         }
 
         .adjust-form {
-            background: rgba(249, 115, 22, 0.03);
-            border: 1px solid rgba(249, 115, 22, 0.1);
-            border-radius: 24px;
-            padding: 2rem;
+            background: #fff7ed;
+            border: 1px solid #ffedd5;
+            border-radius: 20px;
+            padding: 1.5rem;
         }
 
         .history-section {
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
+            gap: 1.2rem;
         }
 
         .history-header {
@@ -812,26 +816,28 @@
             gap: 0.8rem;
             font-size: 0.9rem;
             font-weight: 800;
-            color: #fff;
+            color: #0f172a;
             text-transform: uppercase;
         }
 
         .balance-badge {
-            background: #000;
-            color: #fff;
+            background: #059669;
+            color: #ffffff;
             padding: 0.5rem 1rem;
             border-radius: 8px;
             font-size: 0.75rem;
             font-weight: 800;
             letter-spacing: 0.5px;
+            box-shadow: 0 2px 8px rgba(5,150,105,0.25);
         }
 
         .history-table-container {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 24px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
             padding: 1rem;
             min-height: 400px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
         }
 
         .action-btn-view {
@@ -848,15 +854,23 @@
         }
 
         .btn-view-edit {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: #fff;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            color: #0f172a;
+        }
+
+        .btn-view-edit:hover {
+            background: #f1f5f9;
         }
 
         .btn-view-delete {
-            background: rgba(239, 68, 68, 0.05);
-            border: 1px solid rgba(239, 68, 68, 0.1);
-            color: #ef4444;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+        }
+
+        .btn-view-delete:hover {
+            background: #fee2e2;
         }
 
         .inventory_row_clickable {
@@ -1720,14 +1734,11 @@
                         <!-- List items here -->
                     </div>
                 </div>
-
             </div>
         </div>
     </div>
 
-
-
-
+    <!-- Modal de Visualização de Produto — Clean Verde -->
     <div id="productViewModal">
         <div class="view-header">
             <div class="view-header-left">
@@ -1738,7 +1749,7 @@
                     <h2 id="view_prod_nome">DISCO FREIO</h2>
                     <div class="view-meta">
                         <span>SKU: <span id="view_prod_ref">1561</span></span>
-                        <span id="view_prod_categoria" style="color: var(--accent);">ACESSÓRIOS</span>
+                        <span id="view_prod_categoria" style="color: #059669;">ACESSÓRIOS</span>
                     </div>
                 </div>
             </div>
@@ -1749,8 +1760,8 @@
                 <button class="action-btn-view btn-view-delete" id="btn_view_delete_trigger">
                     <i data-lucide="trash-2" style="width: 14px;"></i> EXCLUIR
                 </button>
-                <button class="close-btn" onclick="closeProductViewModal()"
-                    style="margin-left: 1rem; background: rgba(255,255,255,0.05); border-radius: 12px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">
+                <button class="close-btn" onclick="closeProductViewModal()" title="Fechar (ESC)"
+                    style="margin-left: 1rem; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 12px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #475569; cursor: pointer;">
                     <i data-lucide="x" style="width: 20px;"></i>
                 </button>
             </div>
@@ -1778,53 +1789,53 @@
                         <span class="info-value" id="view_prod_data">30/04/2026</span>
                     </div>
                     <div class="info-row"
-                        style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05);">
-                        <span class="info-label" style="color: var(--accent);"><i data-lucide="map-pin"
-                                style="width: 12px; margin-right: 4px;"></i> LocalizaÃ§Ã£o</span>
+                        style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                        <span class="info-label" style="color: #059669; font-weight: 700;"><i data-lucide="map-pin"
+                                style="width: 12px; margin-right: 4px;"></i> Localização</span>
                         <span class="info-value" id="view_prod_localizacao"
-                            style="font-weight: 800; color: #fff;">---</span>
+                            style="font-weight: 800; color: #0f172a;">---</span>
                     </div>
                 </div>
 
                 <div class="price-grid">
                     <div class="price-card cost">
-                        <span class="price-label">Custo MÃ©dio</span>
+                        <span class="price-label">Custo Médio</span>
                         <span class="price-val" id="view_prod_custo">R$ 10,00</span>
                     </div>
                     <div class="price-card sell">
-                        <span class="price-label">PreÃ§o Venda</span>
+                        <span class="price-label">Preço Venda</span>
                         <span class="price-val" id="view_prod_venda">R$ 15,00</span>
                     </div>
                 </div>
 
                 <div class="adjust-form">
                     <h3
-                        style="font-size: 0.75rem; font-weight: 800; color: var(--accent); text-transform: uppercase; margin-bottom: 1rem;">
+                        style="font-size: 0.75rem; font-weight: 800; color: #ea580c; text-transform: uppercase; margin-bottom: 0.4rem;">
                         Ajuste de Inventário</h3>
-                    <p style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 1.5rem;">Correção manual de
+                    <p style="font-size: 0.68rem; color: #64748b; margin-bottom: 1.2rem; font-weight: 500;">Correção manual de
                         saldo em estoque</p>
 
-                    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                         <div class="form-group">
-                            <label style="font-size: 0.6rem;">Novo Saldo</label>
+                            <label style="font-size: 0.68rem; font-weight: 700; color: #475569;">Novo Saldo</label>
                             <input type="number" id="adjust_new_qty"
-                                style="height: 44px; background: rgba(255,255,255,0.05);">
+                                style="height: 42px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-weight: 700; padding: 0 0.8rem;">
                         </div>
                         <div class="form-group">
-                            <label style="font-size: 0.6rem;">Unidade</label>
-                            <div style="height: 44px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: var(--text-muted);"
+                            <label style="font-size: 0.68rem; font-weight: 700; color: #475569;">Unidade</label>
+                            <div style="height: 42px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.82rem; font-weight: 800; color: #334155;"
                                 id="view_prod_unidade_label">CJ</div>
                         </div>
                     </div>
 
-                    <div class="form-group" style="margin-bottom: 1.5rem;">
-                        <label style="font-size: 0.6rem;">Motivo do Ajuste</label>
-                        <textarea id="adjust_reason" rows="2" placeholder="Ex: InventÃ¡rio rotativo, perda, quebra..."
-                            style="background: rgba(255,255,255,0.05); font-size: 0.8rem;"></textarea>
+                    <div class="form-group" style="margin-bottom: 1.2rem;">
+                        <label style="font-size: 0.68rem; font-weight: 700; color: #475569;">Motivo do Ajuste</label>
+                        <textarea id="adjust_reason" rows="2" placeholder="Ex: Inventário rotativo, perda, quebra..."
+                            style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.82rem; padding: 0.6rem 0.8rem; font-weight: 500; width: 100%;"></textarea>
                     </div>
 
                     <button class="btn-new-product" onclick="saveQuickAdjustment()"
-                        style="width: 100%; height: 48px; justify-content: center;">SALVAR REAJUSTE</button>
+                        style="width: 100%; height: 44px; justify-content: center; background: #ea580c; border: none; border-radius: 10px; color: #fff; font-weight: 800; font-size: 0.8rem; cursor: pointer; box-shadow: 0 2px 8px rgba(234,88,12,0.3);">SALVAR REAJUSTE</button>
                 </div>
             </div>
 
@@ -1832,22 +1843,22 @@
             <div class="history-section">
                 <div class="history-header">
                     <div class="history-title">
-                        <i data-lucide="history" style="width: 18px; color: var(--primary);"></i>
+                        <i data-lucide="history" style="width: 18px; color: #059669;"></i>
                         Histórico de Movimentação do Item
                     </div>
                     <div class="balance-badge">SALDO ATUAL: <span id="view_prod_saldo_final">10</span></div>
                 </div>
 
                 <div class="history-table-container">
-                    <table style="font-size: 0.8rem;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
                         <thead>
-                            <tr>
-                                <th style="font-size: 0.65rem;">Data</th>
-                                <th style="font-size: 0.65rem;">Operação</th>
-                                <th style="font-size: 0.65rem;">Qtd</th>
-                                <th style="font-size: 0.65rem; color: var(--accent); text-align: center;">Saldo</th>
-                                <th style="font-size: 0.65rem;">Valor</th>
-<th style="font-size: 0.65rem;">Referência / Lote</th>
+                            <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                                <th style="font-size: 0.72rem; color: #334155; font-weight: 800; padding: 0.75rem 0.6rem; text-align: left;">Data</th>
+                                <th style="font-size: 0.72rem; color: #334155; font-weight: 800; padding: 0.75rem 0.6rem; text-align: left;">Operação</th>
+                                <th style="font-size: 0.72rem; color: #334155; font-weight: 800; padding: 0.75rem 0.6rem; text-align: center;">Qtd</th>
+                                <th style="font-size: 0.72rem; color: #059669; font-weight: 800; text-align: center; padding: 0.75rem 0.6rem;">Saldo</th>
+                                <th style="font-size: 0.72rem; color: #334155; font-weight: 800; padding: 0.75rem 0.6rem; text-align: left;">Valor</th>
+                                <th style="font-size: 0.72rem; color: #334155; font-weight: 800; padding: 0.75rem 0.6rem; text-align: left;">Referência / Lote</th>
                             </tr>
                         </thead>
                         <tbody id="view_prod_history_body">
@@ -1856,7 +1867,6 @@
                     </table>
                 </div>
             </div>
-        </div>
     </div>
 
     <!-- Venda / Saída Modal — Clean Verde -->
@@ -1875,7 +1885,7 @@
                         Geração de Código Sequencial Automático</p>
                 </div>
             </div>
-            <button class="close-btn" onclick="closeVendaModal()"
+            <button class="close-btn" onclick="closeVendaModal()" title="Fechar (ESC)"
                 style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 10px; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; color: #475569; cursor: pointer;">
                 <i data-lucide="x" style="width: 20px; height: 20px;"></i>
             </button>
@@ -2116,9 +2126,9 @@
                     </div>
 
                     <div style="display: flex; gap: 0.75rem;">
-                        <button type="button" class="btn-cancel" onclick="closeVendaModal()"
+                        <button type="button" class="btn-cancel" onclick="closeVendaModal()" title="Cancelar (ESC)"
                             style="height: 40px; padding: 0 1.25rem; border-radius: 10px; font-weight: 700; font-size: 0.78rem; background: #ffffff; border: 1px solid #cbd5e1; color: #475569; cursor: pointer;">CANCELAR</button>
-                        <button type="submit" class="btn-save" id="btn_confirm_venda" disabled
+                        <button type="submit" class="btn-save" id="btn_confirm_venda" disabled title="Confirmar Saída (Ctrl + S ou Ctrl + Enter)"
                             style="height: 40px; padding: 0 1.5rem; background: #059669; border: none; color: #ffffff; border-radius: 10px; font-weight: 800; font-size: 0.78rem; opacity: 0.5; cursor: not-allowed; box-shadow: 0 4px 12px rgba(5,150,105,0.3);">CONFIRMAR SAÍDA</button>
                     </div>
                 </div>

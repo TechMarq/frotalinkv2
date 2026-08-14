@@ -4213,6 +4213,10 @@ window.toggleSelectAllIntegracao = (el) => {
 };
 
 window.integrarAoFinanceiro = async () => {
+    if (typeof canDo === 'function' && !canDo('compras_integracao', 'add') && !canDo('compras_integracao', 'edit')) {
+        alert('Você não possui permissão para integrar compras ao financeiro.');
+        return;
+    }
     const chks = document.querySelectorAll('.chk-integracao:checked');
     if (chks.length === 0) {
         alert('Selecione ao menos uma nota para integrar.');
@@ -4354,10 +4358,16 @@ window.integrarAoFinanceiro = async () => {
             const pgto = config.tiposPgto.find(p => p.id === comp.forma_pagamento_id);
             const formaPagamentoNome = pgto ? pgto.nome : '-';
             
+            let vencimento = comp.data_vencimento || comp.data_emissao;
+            if (lancamentos && lancamentos.length > 0 && lancamentos[0].data_vencimento) {
+                vencimento = lancamentos[0].data_vencimento;
+            }
+            
             notasIntegradasFull.push({
                 nota: comp.numero_nota || 'S/N',
                 fornecedor: fornecedorNome,
                 data: comp.data_emissao,
+                dataVencimento: vencimento,
                 valor: comp.valor_total,
                 parcelamento: comp.financeiro_parcelado ? `Sim (${comp.qtd_parcelas}x)` : 'Não',
                 formaPagamento: formaPagamentoNome
@@ -4378,6 +4388,10 @@ window.integrarAoFinanceiro = async () => {
 };
 
 window.baixarSemIntegrar = async () => {
+    if (typeof canDo === 'function' && !canDo('compras_integracao', 'edit')) {
+        alert('Você não possui permissão para dar baixa em compras.');
+        return;
+    }
     const chks = document.querySelectorAll('.chk-integracao:checked');
     if (chks.length === 0) {
         alert('Selecione ao menos uma nota para baixar.');
@@ -4437,6 +4451,14 @@ function gerarTermoIntegracaoPDF(notas) {
         alert('Biblioteca de PDF não carregada.');
         return;
     }
+
+    // Ordenar da data mais próxima do vencimento para a mais distante (crescente)
+    notas.sort((a, b) => {
+        const dA = a.dataVencimento ? new Date(a.dataVencimento).getTime() : (a.data ? new Date(a.data).getTime() : 0);
+        const dB = b.dataVencimento ? new Date(b.dataVencimento).getTime() : (b.data ? new Date(b.data).getTime() : 0);
+        return dA - dB;
+    });
+
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('l', 'pt', 'a4');
 
@@ -4456,11 +4478,12 @@ function gerarTermoIntegracaoPDF(notas) {
     cursorY += 30;
     
     const tableData = notas.map(n => [
+        formatDateBR(n.data),
         n.nota,
         n.fornecedor,
-        formatDateBR(n.data),
-        n.parcelamento,
         n.formaPagamento || '-',
+        n.parcelamento,
+        formatDateBR(n.dataVencimento || n.data),
         formatCurrency(n.valor)
     ]);
     
@@ -4468,26 +4491,27 @@ function gerarTermoIntegracaoPDF(notas) {
     
     doc.autoTable({
         startY: cursorY,
-        head: [['Nº Nota', 'Fornecedor', 'Data Emissão', 'Parcelamento', 'Forma Pagamento', 'Valor Total']],
+        head: [['Data Emissão', 'Nº Nota', 'Fornecedor', 'Forma Pagamento', 'Parcelamento', 'Data Vencimento', 'Valor Total']],
         body: tableData,
         theme: 'grid',
         styles: { fontSize: 9, cellPadding: 6, overflow: 'linebreak' },
         headStyles: { fillColor: [92, 96, 245], fontSize: 9.5, fontStyle: 'bold', halign: 'left' },
         columnStyles: {
-            0: { cellWidth: 130 }, // Nº Nota
-            1: { cellWidth: 'auto' }, // Fornecedor
-            2: { cellWidth: 85, halign: 'center' }, // Data Emissão
-            3: { cellWidth: 90, halign: 'center' }, // Parcelamento
-            4: { cellWidth: 110, halign: 'left' }, // Forma Pagamento
-            5: { cellWidth: 100, halign: 'right' } // Valor Total
+            0: { cellWidth: 80, halign: 'center' },  // Data Emissão
+            1: { cellWidth: 120 },                   // Nº Nota
+            2: { cellWidth: 'auto' },                // Fornecedor
+            3: { cellWidth: 100, halign: 'left' },   // Forma Pagamento
+            4: { cellWidth: 80, halign: 'center' },  // Parcelamento
+            5: { cellWidth: 85, halign: 'center' },  // Data Vencimento
+            6: { cellWidth: 90, halign: 'right' }    // Valor Total
         },
-        foot: [['', '', '', '', 'TOTAL INTEGRADO:', formatCurrency(totalSoma)]],
+        foot: [['', '', '', '', '', 'TOTAL INTEGRADO:', formatCurrency(totalSoma)]],
         footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 10 },
         didParseCell: function (data) {
-            if (data.section === 'foot' && data.column.index === 4) {
+            if (data.section === 'foot' && data.column.index === 5) {
                 data.cell.styles.halign = 'right';
             }
-            if (data.section === 'foot' && data.column.index === 5) {
+            if (data.section === 'foot' && data.column.index === 6) {
                 data.cell.styles.halign = 'right';
             }
         }
@@ -5118,6 +5142,10 @@ function updateValesKPIs() {
 }
 
 window.openFaturamentoValesModal = async () => {
+    if (typeof canDo === 'function' && !canDo('compras_vales', 'add') && !canDo('compras_vales', 'edit')) {
+        alert('Você não possui permissão para faturar vales.');
+        return;
+    }
     if (valesSelecionados.size === 0) return;
     
     const firstId = Array.from(valesSelecionados)[0];
@@ -5494,6 +5522,10 @@ window.handleConfirmarFaturamentoVales = async (e) => {
 };
 
 window.handleMarcarValesComoFaturados = async () => {
+    if (typeof canDo === 'function' && !canDo('compras_vales', 'edit')) {
+        alert('Você não possui permissão para alterar vales.');
+        return;
+    }
     if (valesSelecionados.size === 0) return;
 
     const confirmacao = confirm(`Deseja realmente marcar os ${valesSelecionados.size} vales selecionados como faturados (sem gerar uma nova Nota Fiscal)?\nEsta ação serve para conciliar e arquivar vales de meses anteriores.`);
