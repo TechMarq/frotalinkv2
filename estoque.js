@@ -7,6 +7,14 @@ let selectedApplications = [];
 let clientesData = [];
 let historyData = [];
 
+function logEstoque(acao, descricao) {
+    if (typeof window.registrarLog === 'function') {
+        window.registrarLog('estoque', acao, descricao);
+    } else if (typeof registrarLog === 'function') {
+        registrarLog('estoque', acao, descricao);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     initSupabase();
     await loadInventory();
@@ -379,15 +387,19 @@ async function deleteProduct(id) {
                     .eq('id', id);
 
                 if (updateErr) throw updateErr;
+                logEstoque('ALTERAÇÃO', `DETALHE: Inativou produto no estoque (ID: ${id})`);
                 await loadInventory();
                 if (typeof showToast === 'function') showToast('Produto inativado com sucesso!', 'success');
             }
             return;
         }
 
-        // Se excluiu do Supabase sem erros:
-        await loadInventory();
-        if (typeof showToast === 'function') showToast('Produto excluído permanentemente!', 'success');
+        if (!error) {
+            logEstoque('EXCLUSÃO', `DETALHE: Excluiu produto permanentemente do estoque (ID: ${id})`);
+            await loadInventory();
+            if (typeof showToast === 'function') showToast('Produto excluído permanentemente!', 'success');
+            return;
+        }
 
     } catch (err) {
         console.error('Erro de exclusão:', err);
@@ -448,8 +460,14 @@ async function saveProduct(event) {
         let result;
         if (productId) {
             result = await supabaseClient.from('estoque').update(product).eq('id', productId);
+            if (!result.error) {
+                logEstoque('ALTERAÇÃO', `DETALHE: Alterou produto no estoque: ${product.nome} (Marca: ${product.marca}, Ref: ${product.ref || 'S/R'}) - Saldo: ${product.estoque_atual} ${product.unidade}, Custo: R$ ${product.valor_custo}, Venda: R$ ${product.valor_venda}`);
+            }
         } else {
             result = await supabaseClient.from('estoque').insert([product]);
+            if (!result.error) {
+                logEstoque('INCLUSÃO', `DETALHE: Cadastrou novo produto no estoque: ${product.nome} (Marca: ${product.marca}, Ref: ${product.ref || 'S/R'}, Saldo Inicial: ${product.estoque_atual} ${product.unidade})`);
+            }
         }
 
         if (result.error) throw result.error;
@@ -831,6 +849,8 @@ async function saveQuickAdjustment() {
 
         if (itemError) throw itemError;
 
+        logEstoque('ALTERAÇÃO', `DETALHE: Reajuste manual de saldo do produto "${item.nome}": Saldo anterior: ${item.estoque_atual} ${item.unidade} ➡️ Novo saldo: ${newQty} ${item.unidade} (${diff > 0 ? '+' : ''}${diff}). Motivo: ${reason}`);
+
         alert('Saldo reajustado com sucesso!');
         await loadInventory();
         if (typeof loadHistory === 'function') await loadHistory(true);
@@ -1190,6 +1210,10 @@ function renderHistory(history) {
 }
 
 async function undoMovement(id) {
+    if (typeof canDo === 'function' && !canDo('estoque_historico', 'delete')) {
+        alert('Você não possui permissão para estornar movimentações do histórico.');
+        return;
+    }
     if (!confirm('Deseja estornar esta movimentação? O saldo do produto será revertido.')) return;
     
     try {
@@ -1216,6 +1240,7 @@ async function undoMovement(id) {
         
         await supabaseClient.from('estoque').update({ estoque_atual: newBalance }).eq('id', mov.item_id);
 
+        logEstoque('ALTERAÇÃO', `DETALHE: Estornou movimentação de estoque (ID: ${id}) de ${mov.quantidade} unidade(s) - Motivo original: ${mov.motivo}`);
         alert('Estorno realizado com sucesso!');
         await loadHistory(true);
         await loadInventory();
@@ -1420,6 +1445,7 @@ async function addCategory() {
     if (!nome) return;
     try {
         await supabaseClient.from('estoque_categorias').insert([{ nome }]);
+        logEstoque('INCLUSÃO', `DETALHE: Cadastrou categoria de estoque: ${nome}`);
         document.getElementById('new_category_name').value = '';
         await loadSetup();
     } catch (err) { console.error(err); }
@@ -1435,6 +1461,7 @@ async function addModel() {
     if (!modelo) return;
     try {
         await supabaseClient.from('estoque_modelos').insert([{ marca, modelo, potencia, ano }]);
+        logEstoque('INCLUSÃO', `DETALHE: Cadastrou modelo de aplicação: ${marca} ${modelo}`);
         document.getElementById('new_model_nome').value = '';
         document.getElementById('new_model_marca').value = '';
         document.getElementById('new_model_potencia').value = '';
@@ -1449,6 +1476,7 @@ async function addUnit() {
     if (!nome) return;
     try {
         await supabaseClient.from('estoque_unidades').insert([{ nome, sigla: nome.substring(0,2).toUpperCase() }]);
+        logEstoque('INCLUSÃO', `DETALHE: Cadastrou unidade de estoque: ${nome}`);
         document.getElementById('new_unit_name').value = '';
         await loadSetup();
     } catch (err) { console.error(err); }
@@ -1461,6 +1489,7 @@ async function deleteCategory(id) {
     if (!confirm('Excluir?')) return;
     try {
         await supabaseClient.from('estoque_categorias').delete().eq('id', id);
+        logEstoque('EXCLUSÃO', `DETALHE: Excluiu categoria de estoque (ID: ${id})`);
         await loadSetup();
     } catch (err) { console.error(err); }
 }
@@ -1470,6 +1499,7 @@ async function deleteModel(id) {
     if (!confirm('Excluir?')) return;
     try {
         await supabaseClient.from('estoque_modelos').delete().eq('id', id);
+        logEstoque('EXCLUSÃO', `DETALHE: Excluiu modelo de aplicação (ID: ${id})`);
         await loadSetup();
     } catch (err) { console.error(err); }
 }
@@ -1479,6 +1509,7 @@ async function deleteUnit(id) {
     if (!confirm('Excluir?')) return;
     try {
         await supabaseClient.from('estoque_unidades').delete().eq('id', id);
+        logEstoque('EXCLUSÃO', `DETALHE: Excluiu unidade de estoque (ID: ${id})`);
         await loadSetup();
     } catch (err) { console.error(err); }
 }
@@ -1501,6 +1532,7 @@ async function addCliente() {
         if (supabaseClient) {
             const { data, error } = await supabaseClient.from('estoque_clientes').insert([newCliente]).select();
             if (error) throw error;
+            logEstoque('INCLUSÃO', `DETALHE: Cadastrou cliente no estoque: ${nome}`);
         } else {
             throw new Error("Supabase Client não inicializado");
         }
@@ -1528,6 +1560,7 @@ async function deleteCliente(id) {
         if (supabaseClient && !id.toString().startsWith('local_')) {
             const { error } = await supabaseClient.from('estoque_clientes').delete().eq('id', id);
             if (error) throw error;
+            logEstoque('EXCLUSÃO', `DETALHE: Excluiu cliente do estoque (ID: ${id})`);
         } else {
             throw new Error("Local item or no Supabase connection");
         }
@@ -1579,6 +1612,7 @@ async function addBrand() {
     if (!nome) return;
     try {
         await supabaseClient.from('estoque_marcas').insert([{ nome: nome.toUpperCase() }]);
+        logEstoque('INCLUSÃO', `DETALHE: Cadastrou marca no estoque: ${nome.toUpperCase()}`);
         document.getElementById('new_brand_name').value = '';
         await loadSetup();
     } catch (err) { console.error(err); }
@@ -1589,6 +1623,7 @@ async function deleteBrand(id) {
     if (!confirm('Excluir esta marca?')) return;
     try {
         await supabaseClient.from('estoque_marcas').delete().eq('id', id);
+        logEstoque('EXCLUSÃO', `DETALHE: Excluiu marca do estoque (ID: ${id})`);
         await loadSetup();
     } catch (err) { console.error(err); }
 }
@@ -2051,6 +2086,17 @@ async function saveVenda(event) {
     if (event) event.preventDefault();
     if (vendaItems.length === 0) return;
 
+    if (typeof canDo === 'function') {
+        if (!currentVendaId && !canDo('estoque_vendas', 'add')) {
+            alert('Você não possui permissão para registrar novas saídas de estoque.');
+            return;
+        }
+        if (currentVendaId && !canDo('estoque_vendas', 'edit')) {
+            alert('Você não possui permissão para editar saídas de estoque.');
+            return;
+        }
+    }
+
     const tipo = document.getElementById('v_tipo').value;
     const veiculoId = document.getElementById('v_veiculo_id').value;
     const veiculo = vehiclesData.find(v => v.id === veiculoId);
@@ -2216,6 +2262,15 @@ async function saveVenda(event) {
             }
         }
 
+        const descItens = vendaItems.map(i => `${i.nome} (Qtd: ${i.quantidade})`).join(', ');
+        const detalheComplemento = vendaObj.placa ? ` - Veículo: ${vendaObj.placa}` : (vendaObj.os_id ? ` - OS: #${vendaObj.os_id}` : (vendaObj.cliente_nome ? ` - Cliente: ${vendaObj.cliente_nome}` : ''));
+
+        if (currentVendaId) {
+            logEstoque('ALTERAÇÃO', `DETALHE: Editou saída de estoque [${newVenda.codigo}] (${tipo}): ${descItens} - Valor Total: R$ ${vendaObj.valor_total.toFixed(2)}${detalheComplemento}`);
+        } else {
+            logEstoque('INCLUSÃO', `DETALHE: Registrou nova saída de estoque [${newVenda.codigo}] (${tipo}): ${descItens} - Valor Total: R$ ${vendaObj.valor_total.toFixed(2)}${detalheComplemento}`);
+        }
+
         alert(currentVendaId ? 'Venda atualizada com sucesso!' : `Saída registrada com sucesso! Código: ${newVenda.codigo}`);
         closeVendaModal();
         currentVendaId = null;
@@ -2306,9 +2361,19 @@ async function openReceiptModal(vendaCodigo) {
         
         document.getElementById('receipt_responsavel').innerText = `Vendedor: Sistema`;
         
-        // Configurar botões de edição e exclusão
-        document.getElementById('btn_edit_sale').onclick = () => editSale(vendaData.id);
-        document.getElementById('btn_delete_sale').onclick = () => deleteSale(vendaData.id);
+        // Configurar botões de edição e exclusão conforme matriz de permissões
+        const btnEditSale = document.getElementById('btn_edit_sale');
+        if (btnEditSale) {
+            btnEditSale.onclick = () => editSale(vendaData.id);
+            if (typeof canDo === 'function' && !canDo('estoque_vendas', 'edit')) btnEditSale.style.display = 'none';
+            else btnEditSale.style.display = '';
+        }
+        const btnDeleteSale = document.getElementById('btn_delete_sale');
+        if (btnDeleteSale) {
+            btnDeleteSale.onclick = () => deleteSale(vendaData.id);
+            if (typeof canDo === 'function' && !canDo('estoque_vendas', 'delete')) btnDeleteSale.style.display = 'none';
+            else btnDeleteSale.style.display = '';
+        }
 
         document.getElementById('receiptModal').classList.add('active');
         if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -2319,6 +2384,10 @@ async function openReceiptModal(vendaCodigo) {
 }
 
 async function deleteSale(vendaId) {
+    if (typeof canDo === 'function' && !canDo('estoque_vendas', 'delete')) {
+        alert('Você não possui permissão para cancelar/excluir saídas de estoque.');
+        return;
+    }
     if (!confirm('AVISO: Esta venda será marcada como CANCELADA. O estoque será revertido e um registro de ESTORNO será adicionado ao histórico para auditoria. Deseja continuar?')) return;
 
     try {
@@ -2404,6 +2473,7 @@ async function deleteSale(vendaId) {
             console.error('Erro ao atualizar status da venda:', updateErr);
             alert('Venda cancelada no estoque, mas houve um erro ao atualizar o status para CANCELADA. Verifique se a coluna "status" existe no banco.');
         } else {
+            logEstoque('EXCLUSÃO', `DETALHE: Cancelou saída de estoque [${venda.codigo}] - Estoque revertido para os produtos e venda marcada como CANCELADA.`);
             alert('Venda cancelada e estoque revertido com sucesso! O registro de auditoria foi mantido.');
         }
 
@@ -2440,6 +2510,10 @@ async function editSaleByCodigo(vendaCodigo) {
 }
 
 async function editSale(vendaId) {
+    if (typeof canDo === 'function' && !canDo('estoque_vendas', 'edit')) {
+        alert('Você não possui permissão para editar saídas de estoque.');
+        return;
+    }
     console.log('--- Iniciando edição da venda ---');
     console.log('Venda ID:', vendaId);
     

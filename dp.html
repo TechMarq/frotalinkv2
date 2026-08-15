@@ -415,6 +415,24 @@
             box-shadow: 0 0 0 3.5px rgba(14, 165, 233, 0.25) !important;
             background: rgba(15, 23, 42, 0.95) !important;
         }
+
+        /* ── Destaque de Erro para Campos Obrigatórios ── */
+        .dp-modal .form-group input.input-error,
+        .dp-modal .form-group select.input-error,
+        .dp-modal .form-group textarea.input-error,
+        .input-error {
+            border-color: #ef4444 !important;
+            background-color: rgba(239, 68, 68, 0.12) !important;
+            box-shadow: 0 0 0 3.5px rgba(239, 68, 68, 0.35) !important;
+            animation: shakeError 0.35s ease-in-out;
+        }
+
+        @keyframes shakeError {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-4px); }
+            40%, 80% { transform: translateX(4px); }
+        }
+
         .dp-modal .form-group textarea { resize: vertical; min-height: 85px; }
         .dp-modal .form-group select option {
             background-color: #1e293b !important;
@@ -905,6 +923,7 @@
             <div class="section-title-text"><i data-lucide="users"></i> Lista de Funcionários</div>
             <div style="display:flex; gap:0.5rem;">
                 <button class="btn btn-secondary btn-sm" onclick="exportarExcel('funcionarios')"><i data-lucide="download"></i> Exportar</button>
+                <button class="btn btn-secondary btn-sm" onclick="abrirModalImportarFuncionarios()" data-perm="dp:create"><i data-lucide="upload"></i> Importar</button>
                 <button class="btn btn-primary btn-sm" onclick="abrirModalFuncionario()" data-perm="dp:create"><i data-lucide="user-plus"></i> Novo</button>
             </div>
         </div>
@@ -2891,6 +2910,67 @@
         </div>
         <div class="modal-body" id="ficha-body">
             <!-- Preenchido via JS -->
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: IMPORTAR FUNCIONÁRIOS EM LOTE
+════════════════════════════════════════════ -->
+<div id="modal-importar-funcionarios" class="dp-modal-overlay">
+    <div class="dp-modal wide" style="max-width: 900px;">
+        <div class="modal-header">
+            <div class="modal-title"><i data-lucide="upload"></i> <span>Importação de Funcionários em Lote</span></div>
+            <button class="modal-close" onclick="fecharModal('modal-importar-funcionarios')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.2); border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem; font-size: 0.88rem;">
+                <p style="margin-bottom: 0.5rem; font-weight: 600; color: var(--primary);"><i data-lucide="info" style="width: 16px; vertical-align: middle;"></i> Instruções de Importação:</p>
+                <ul style="margin-left: 1.25rem; color: #cbd5e1; font-size: 0.83rem; line-height: 1.5;">
+                    <li>A planilha deve seguir a mesma estrutura do modelo gerado pelo botão <strong>Exportar</strong>.</li>
+                    <li>O campo <strong>Nome Completo</strong> é obrigatório em cada linha.</li>
+                    <li>As datas podem ser informadas nos formatos: <code>DD/MM/AAAA</code>, <code>AAAA-MM-DD</code> ou formato de data nativo do Excel.</li>
+                    <li>Valores numéricos de Salário Base são formatados automaticamente.</li>
+                    <li>Cargos serão associados automaticamente se o nome corresponder a um cargo cadastrado no sistema.</li>
+                </ul>
+            </div>
+
+            <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap;">
+                <input type="file" id="import-func-file" accept=".xlsx, .xls, .csv" style="display: none;" onchange="processarArquivoImportacao(event)">
+                <button class="btn btn-secondary" onclick="document.getElementById('import-func-file').click()"><i data-lucide="file-spreadsheet"></i> Selecionar Arquivo Excel / CSV</button>
+                <button class="btn btn-secondary btn-sm" onclick="exportarExcel('funcionarios')"><i data-lucide="download"></i> Baixar Modelo de Exportação</button>
+                <span id="import-file-name" style="font-size: 0.85rem; color: #94a3b8; font-style: italic;">Nenhum arquivo selecionado</span>
+            </div>
+
+            <div id="import-preview-area" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                    <h4 style="font-size: 0.95rem; font-weight: 700; color: #f8fafc;" id="import-summary-title">Pré-visualização do Arquivo</h4>
+                    <div id="import-badges" style="display: flex; gap: 0.5rem; font-size: 0.8rem;"></div>
+                </div>
+
+                <div style="max-height: 350px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; background: rgba(15, 23, 42, 0.6);">
+                    <table style="width: 100%; font-size: 0.8rem; border-collapse: collapse;">
+                        <thead style="position: sticky; top: 0; background: #1e293b; z-index: 2;">
+                            <tr style="text-align: left; color: #94a3b8; border-bottom: 1px solid var(--border-color);">
+                                <th style="padding: 8px 12px;">#</th>
+                                <th style="padding: 8px 12px;">Nome Completo</th>
+                                <th style="padding: 8px 12px;">CPF</th>
+                                <th style="padding: 8px 12px;">Cargo</th>
+                                <th style="padding: 8px 12px;">Admissão</th>
+                                <th style="padding: 8px 12px;">Salário</th>
+                                <th style="padding: 8px 12px;">Status</th>
+                                <th style="padding: 8px 12px;">Validação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="import-preview-tbody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modal-importar-funcionarios')">Cancelar</button>
+            <button class="btn btn-primary" id="btn-executar-importacao" onclick="executarImportacaoFuncionarios()" disabled><i data-lucide="check-circle"></i> Confirmar Importação em Lote</button>
         </div>
     </div>
 </div>

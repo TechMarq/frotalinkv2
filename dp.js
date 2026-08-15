@@ -174,6 +174,18 @@ function applyMaskToInput(inputEl, maskFn) {
     });
 }
 
+function cleanDigits(val) {
+    if (!val && val !== 0) return null;
+    const str = String(val).replace(/\D/g, '');
+    return str || null;
+}
+
+function cleanAlphaNum(val) {
+    if (!val && val !== 0) return null;
+    const str = String(val).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    return str || null;
+}
+
 function maskCpf(val) {
     if (!val) return '';
     const v = val.replace(/\D/g, '').slice(0, 11);
@@ -1476,6 +1488,7 @@ function abrirModalFuncionario() {
     editIds.funcionario = null;
     document.getElementById('modal-func-title').textContent = 'Novo Funcionário';
     document.getElementById('form-funcionario').reset();
+    document.querySelectorAll('#modal-funcionario .input-error').forEach(el => el.classList.remove('input-error'));
     document.getElementById('func-motivo-deslig-wrap').style.display = 'none';
     document.getElementById('func-data-demissao-wrap').style.display = 'none';
     abrirModalPadrao('modal-funcionario');
@@ -1631,6 +1644,7 @@ function abrirModalCargo() {
 function editarFuncionario(id) {
     const f = dpFuncionarios.find(x => x.id === id);
     if (!f) return;
+    document.querySelectorAll('#modal-funcionario .input-error').forEach(el => el.classList.remove('input-error'));
     editIds.funcionario = id;
     document.getElementById('modal-func-title').textContent = 'Editar Funcionário';
     const fields = {
@@ -2283,31 +2297,38 @@ function renderListaHistoricoModal(tipoFiltro) {
 // ============================================================
 
 async function salvarFuncionario() {
+    const obrigatorios = [
+        { id: 'func-nome', label: 'Nome Completo' },
+        { id: 'func-cargo-id', label: 'Cargo' },
+        { id: 'func-admissao', label: 'Data de Admissão' }
+    ];
+
+    if (!validarCamposObrigatorios('modal-funcionario', obrigatorios)) {
+        return;
+    }
+
     const nome = document.getElementById('func-nome')?.value?.trim();
     const admissao = document.getElementById('func-admissao')?.value;
-    if (!nome) { toast('Nome do funcionário é obrigatório.', 'error'); return; }
-    if (!admissao) { toast('Data de admissão é obrigatória.', 'error'); return; }
-
     const cargoId = document.getElementById('func-cargo-id')?.value || null;
     const cargo = dpCargos.find(c => c.id === cargoId);
 
     const payload = {
         empresa_id: empresaId,
         nome_completo: nome,
-        cpf: v('func-cpf'), rg: v('func-rg'), rg_orgao_emissor: v('func-rg-orgao'),
+        cpf: cleanDigits(v('func-cpf')), rg: cleanAlphaNum(v('func-rg')), rg_orgao_emissor: v('func-rg-orgao'),
         data_nascimento: v('func-nascimento') || null, sexo: v('func-sexo'),
         estado_civil: v('func-estado-civil'), escolaridade: v('func-escolaridade'),
         nome_mae: v('func-mae'), nome_pai: v('func-pai'), naturalidade: v('func-naturalidade'),
-        celular: v('func-celular'), telefone: v('func-telefone'), email: v('func-email'),
-        cep: v('func-cep'), logradouro: v('func-logradouro'), numero: v('func-numero'),
+        celular: cleanDigits(v('func-celular')), telefone: cleanDigits(v('func-telefone')), email: v('func-email'),
+        cep: cleanDigits(v('func-cep')), logradouro: v('func-logradouro'), numero: v('func-numero'),
         complemento: v('func-complemento'), bairro: v('func-bairro'), cidade: v('func-cidade'), uf: v('func-uf'),
-        emergencia_nome: v('func-emerg-nome'), emergencia_telefone: v('func-emerg-tel'), emergencia_parentesco: v('func-emerg-parent'),
+        emergencia_nome: v('func-emerg-nome'), emergencia_telefone: cleanDigits(v('func-emerg-tel')), emergencia_parentesco: v('func-emerg-parent'),
         matricula: v('func-matricula'), cargo_id: cargoId || null, cargo_nome: cargo?.nome || v('func-cargo-id'),
         setor: v('func-setor'), data_admissao: admissao, tipo_contrato: v('func-tipo-contrato'),
         turno: v('func-turno'), horario_de: v('func-horario-de') || null, horario_ate: v('func-horario-ate') || null,
         salario: parseFloatOrNull('func-salario'), status: v('func-status'),
         motivo_desligamento: v('func-motivo-deslig'), data_demissao: v('func-demissao') || null,
-        pis_pasep: v('func-pis'), ctps_numero: v('func-ctps-num'), ctps_serie: v('func-ctps-serie'),
+        pis_pasep: cleanDigits(v('func-pis')), ctps_numero: v('func-ctps-num'), ctps_serie: v('func-ctps-serie'),
         ctps_uf: v('func-ctps-uf'), ctps_data_emissao: v('func-ctps-data') || null,
         tipo_certidao: v('func-certidao-tipo'), certidao_livro: v('func-certidao-livro'),
         certidao_folha: v('func-certidao-folha'), certidao_termo: v('func-certidao-termo'),
@@ -3360,8 +3381,8 @@ function exportarExcel(tipo) {
                 'Matrícula': f.matricula || '',
                 'Nome Completo': f.nome_completo || '',
                 'Status': labelStatus(f.status) || '',
-                'CPF': f.cpf || '',
-                'RG': f.rg || '',
+                'CPF': cleanDigits(f.cpf) || '',
+                'RG': cleanAlphaNum(f.rg) || '',
                 'Órgão Emissor RG': f.rg_orgao_emissor || '',
                 'Data de Nascimento': f.data_nascimento ? new Date(f.data_nascimento + 'T00:00:00').toLocaleDateString('pt-BR') : '',
                 'Sexo': f.sexo === 'M' ? 'Masculino' : f.sexo === 'F' ? 'Feminino' : (f.sexo || ''),
@@ -3370,8 +3391,8 @@ function exportarExcel(tipo) {
                 'Escolaridade': f.escolaridade || '',
                 'Nome da Mãe': f.nome_mae || '',
                 'Nome do Pai': f.nome_pai || '',
-                'Celular': f.celular || '',
-                'Telefone': f.telefone || '',
+                'Celular': cleanDigits(f.celular) || '',
+                'Telefone': cleanDigits(f.telefone) || '',
                 'E-mail': f.email || '',
                 'Logradouro': f.logradouro || '',
                 'Número': f.numero || '',
@@ -3379,10 +3400,10 @@ function exportarExcel(tipo) {
                 'Bairro': f.bairro || '',
                 'Cidade': f.cidade || '',
                 'UF': f.uf || '',
-                'CEP': f.cep || '',
+                'CEP': cleanDigits(f.cep) || '',
                 'Contato de Emergência - Nome': f.emergencia_nome || '',
                 'Contato de Emergência - Parentesco': f.emergencia_parentesco || '',
-                'Contato de Emergência - Telefone': f.emergencia_telefone || '',
+                'Contato de Emergência - Telefone': cleanDigits(f.emergencia_telefone) || '',
                 'Cargo': f.cargo_nome || (cargo ? cargo.nome : ''),
                 'Setor': f.setor || '',
                 'Data de Admissão': f.data_admissao ? new Date(f.data_admissao + 'T00:00:00').toLocaleDateString('pt-BR') : '',
@@ -3392,7 +3413,7 @@ function exportarExcel(tipo) {
                 'Horário de Entrada': f.horario_de || '',
                 'Horário de Saída': f.horario_ate || '',
                 'Salário Base': f.salario ? parseFloat(f.salario) : '',
-                'PIS / PASEP': f.pis_pasep || '',
+                'PIS / PASEP': cleanDigits(f.pis_pasep) || '',
                 'CTPS Número': f.ctps_numero || '',
                 'CTPS Série': f.ctps_serie || '',
                 'CTPS UF': f.ctps_uf || '',
@@ -3414,6 +3435,411 @@ function exportarExcel(tipo) {
     XLSX.utils.book_append_sheet(wb, ws, title);
     XLSX.writeFile(wb, `FrotaLink_DP_${title}_${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.xlsx`);
     toast('Exportação Excel concluída com sucesso!', 'success');
+}
+
+// ============================================================
+//  IMPORTAÇÃO DE FUNCIONÁRIOS EM LOTE (MODELO EXPORTAÇÃO)
+// ============================================================
+
+let importFuncionariosLote = [];
+
+function abrirModalImportarFuncionarios() {
+    importFuncionariosLote = [];
+    const fileInput = document.getElementById('import-func-file');
+    if (fileInput) fileInput.value = '';
+    const fileNameSpan = document.getElementById('import-file-name');
+    if (fileNameSpan) fileNameSpan.textContent = 'Nenhum arquivo selecionado';
+    
+    const previewArea = document.getElementById('import-preview-area');
+    if (previewArea) previewArea.style.display = 'none';
+
+    const btnExec = document.getElementById('btn-executar-importacao');
+    if (btnExec) btnExec.disabled = true;
+
+    abrirModalPadrao('modal-importar-funcionarios');
+    if (window.lucide) lucide.createIcons();
+}
+
+function parseExcelValue(val) {
+    if (val === null || val === undefined) return '';
+    return String(val).trim();
+}
+
+function parseExcelDate(val) {
+    if (!val && val !== 0) return null;
+    if (val instanceof Date) {
+        if (!isNaN(val.getTime())) {
+            const yyyy = val.getFullYear();
+            const mm = String(val.getMonth() + 1).padStart(2, '0');
+            const dd = String(val.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+        return null;
+    }
+    if (typeof val === 'number') {
+        const jsDate = new Date(Math.round((val - 25569) * 86400 * 1000));
+        if (!isNaN(jsDate.getTime())) {
+            return jsDate.toISOString().slice(0, 10);
+        }
+    }
+    const str = String(val).trim();
+    if (!str) return null;
+
+    if (str.match(/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/)) {
+        const parts = str.split(/[\/\-]/);
+        const day = parts[0].padStart(2, '0');
+        const month = parts[1].padStart(2, '0');
+        const year = parts[2];
+        return `${year}-${month}-${day}`;
+    }
+
+    if (str.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return str;
+    }
+
+    return null;
+}
+
+function normalizarStatus(statusStr) {
+    if (!statusStr) return 'ATIVO';
+    const s = String(statusStr).trim().toUpperCase();
+    if (s.includes('INATIV') || s === 'DESLIGADO') return 'INATIVO';
+    if (s.includes('FERIA')) return 'FERIAS';
+    if (s.includes('AFAST')) return 'AFASTADO';
+    if (s.includes('EXPERIEN')) return 'EXPERIENCIA';
+    if (s.includes('AVISO')) return 'AVISO_PREVIO';
+    if (s.includes('ATIVO')) return 'ATIVO';
+    return 'ATIVO';
+}
+
+function normalizarSexo(sexoStr) {
+    if (!sexoStr) return null;
+    const s = String(sexoStr).trim().toUpperCase();
+    if (s.startsWith('M')) return 'M';
+    if (s.startsWith('F')) return 'F';
+    return null;
+}
+
+function processarArquivoImportacao(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const fileNameSpan = document.getElementById('import-file-name');
+    if (fileNameSpan) fileNameSpan.textContent = file.name;
+
+    if (!window.XLSX) {
+        toast('Aguarde o carregamento da biblioteca Excel...', 'error');
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array', cellDates: true, cellNF: false, cellText: false });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: true });
+
+            if (!jsonRows || jsonRows.length === 0) {
+                toast('O arquivo selecionado está vazio.', 'warning');
+                return;
+            }
+
+            importFuncionariosLote = [];
+            let validCount = 0;
+            let invalidCount = 0;
+
+            const tbody = document.getElementById('import-preview-tbody');
+            if (tbody) tbody.innerHTML = '';
+
+            jsonRows.forEach((row, index) => {
+                const nomeCompleto = parseExcelValue(row['Nome Completo'] || row['NOME COMPLETO'] || row['Nome'] || row['NOME']);
+                const matricula = parseExcelValue(row['Matrícula'] || row['MATRICULA'] || row['Matricula']);
+                const cpf = parseExcelValue(row['CPF'] || row['cpf']);
+                const rg = parseExcelValue(row['RG'] || row['rg']);
+                const rgOrgao = parseExcelValue(row['Órgão Emissor RG'] || row['Orgao Emissor RG'] || row['RG Orgao Emissor']);
+                const dataNasc = parseExcelDate(row['Data de Nascimento'] || row['Data Nascimento'] || row['Nascimento']);
+                const sexo = normalizarSexo(row['Sexo'] || row['SEXO']);
+                const estadoCivil = parseExcelValue(row['Estado Civil'] || row['ESTADO CIVIL']);
+                const naturalidade = parseExcelValue(row['Naturalidade']);
+                const escolaridade = parseExcelValue(row['Escolaridade']);
+                const nomeMae = parseExcelValue(row['Nome da Mãe'] || row['Nome da Mae'] || row['Mae']);
+                const nomePai = parseExcelValue(row['Nome do Pai'] || row['Pai']);
+                const celular = parseExcelValue(row['Celular']);
+                const telefone = parseExcelValue(row['Telefone']);
+                const email = parseExcelValue(row['E-mail'] || row['Email'] || row['E-Mail']);
+                const logradouro = parseExcelValue(row['Logradouro'] || row['Rua'] || row['Endereco']);
+                const numero = parseExcelValue(row['Número'] || row['Numero']);
+                const complemento = parseExcelValue(row['Complemento']);
+                const bairro = parseExcelValue(row['Bairro']);
+                const cidade = parseExcelValue(row['Cidade']);
+                const uf = parseExcelValue(row['UF'] || row['Estado']);
+                const cep = parseExcelValue(row['CEP'] || row['Cep']);
+                const emergNome = parseExcelValue(row['Contato de Emergência - Nome'] || row['Emergencia Nome']);
+                const emergParent = parseExcelValue(row['Contato de Emergência - Parentesco'] || row['Emergencia Parentesco']);
+                const emergTel = parseExcelValue(row['Contato de Emergência - Telefone'] || row['Emergencia Telefone']);
+                
+                const cargoStr = parseExcelValue(row['Cargo'] || row['CARGO']);
+                let cargoObj = cargoStr ? dpCargos.find(c => c.nome.trim().toLowerCase() === cargoStr.toLowerCase()) : null;
+                
+                const setor = parseExcelValue(row['Setor'] || row['SETOR']);
+                const dataAdmissao = parseExcelDate(row['Data de Admissão'] || row['Data Admissao'] || row['Admissao']);
+                const dataDemissao = parseExcelDate(row['Data de Demissão'] || row['Data Demissao'] || row['Demissao']);
+                const tipoContrato = parseExcelValue(row['Tipo de Contrato'] || row['Tipo Contrato'] || row['Contrato']);
+                const turno = parseExcelValue(row['Turno']);
+                const horarioDe = parseExcelValue(row['Horário de Entrada'] || row['Horario Entrada'] || row['Horario De']);
+                const horarioAte = parseExcelValue(row['Horário de Saída'] || row['Horario Saida'] || row['Horario Ate']);
+                
+                const rawSalario = row['Salário Base'] || row['Salario Base'] || row['Salário'] || row['Salario'];
+                let salarioNum = null;
+                if (rawSalario !== '' && rawSalario !== null && rawSalario !== undefined) {
+                    const parsed = parseFloat(String(rawSalario).replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
+                    if (!isNaN(parsed)) salarioNum = parsed;
+                }
+
+                const statusNorm = normalizarStatus(row['Status'] || row['STATUS']);
+                const pis = parseExcelValue(row['PIS / PASEP'] || row['PIS/PASEP'] || row['PIS'] || row['Pasep']);
+                const ctpsNum = parseExcelValue(row['CTPS Número'] || row['CTPS Numero'] || row['CTPS']);
+                const ctpsSerie = parseExcelValue(row['CTPS Série'] || row['CTPS Serie']);
+                const ctpsUf = parseExcelValue(row['CTPS UF']);
+                const tipoCertidao = parseExcelValue(row['Tipo de Certidão'] || row['Tipo Certidao']);
+                const certidaoLivro = parseExcelValue(row['Certidão Livro'] || row['Certidao Livro']);
+                const certidaoFolha = parseExcelValue(row['Certidão Folha'] || row['Certidao Folha']);
+                const certidaoTermo = parseExcelValue(row['Certidão Termo'] || row['Certidao Termo']);
+                const banco = parseExcelValue(row['Banco']);
+                const agencia = parseExcelValue(row['Agência'] || row['Agencia']);
+                const conta = parseExcelValue(row['Conta']);
+                const tipoConta = parseExcelValue(row['Tipo de Conta'] || row['Tipo Conta']);
+                const chavePix = parseExcelValue(row['Chave PIX'] || row['Chave Pix'] || row['PIX']);
+                const observacoes = parseExcelValue(row['Observações'] || row['Observacoes'] || row['Obs']);
+
+                let erros = [];
+                if (!nomeCompleto) {
+                    erros.push('Nome Completo é obrigatório');
+                }
+
+                const isValid = erros.length === 0;
+                if (isValid) validCount++; else invalidCount++;
+
+                const payload = {
+                    empresa_id: empresaId,
+                    nome_completo: nomeCompleto,
+                    matricula: matricula || null,
+                    cpf: cleanDigits(cpf),
+                    rg: cleanAlphaNum(rg),
+                    rg_orgao_emissor: rgOrgao || null,
+                    data_nascimento: dataNasc || null,
+                    sexo: sexo || null,
+                    estado_civil: estadoCivil || null,
+                    naturalidade: naturalidade || null,
+                    escolaridade: escolaridade || null,
+                    nome_mae: nomeMae || null,
+                    nome_pai: nomePai || null,
+                    celular: cleanDigits(celular),
+                    telefone: cleanDigits(telefone),
+                    email: email || null,
+                    logradouro: logradouro || null,
+                    numero: numero || null,
+                    complemento: complemento || null,
+                    bairro: bairro || null,
+                    cidade: cidade || null,
+                    uf: uf || null,
+                    cep: cleanDigits(cep),
+                    emergencia_nome: emergNome || null,
+                    emergencia_parentesco: emergParent || null,
+                    emergencia_telefone: cleanDigits(emergTel),
+                    cargo_id: cargoObj ? cargoObj.id : null,
+                    cargo_nome: cargoObj ? cargoObj.nome : (cargoStr || null),
+                    setor: setor || null,
+                    data_admissao: dataAdmissao || null,
+                    data_demissao: dataDemissao || null,
+                    tipo_contrato: tipoContrato || null,
+                    turno: turno || null,
+                    horario_de: horarioDe || null,
+                    horario_ate: horarioAte || null,
+                    salario: salarioNum,
+                    status: statusNorm,
+                    pis_pasep: cleanDigits(pis),
+                    ctps_numero: ctpsNum || null,
+                    ctps_serie: ctpsSerie || null,
+                    ctps_uf: ctpsUf || null,
+                    tipo_certidao: tipoCertidao || null,
+                    certidao_livro: certidaoLivro || null,
+                    certidao_folha: certidaoFolha || null,
+                    certidao_termo: certidaoTermo || null,
+                    banco: banco || null,
+                    agencia: agencia || null,
+                    conta: conta || null,
+                    tipo_conta: tipoConta || null,
+                    chave_pix: chavePix || null,
+                    observacoes: observacoes || null,
+                    updated_at: new Date().toISOString()
+                };
+
+                importFuncionariosLote.push({
+                    index: index + 1,
+                    isValid,
+                    erros,
+                    payload
+                });
+
+                if (index < 100 && tbody) {
+                    const tr = document.createElement('tr');
+                    tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+                    tr.style.background = isValid ? 'transparent' : 'rgba(239, 68, 68, 0.1)';
+                    
+                    tr.innerHTML = `
+                        <td style="padding:8px 12px;">${index + 1}</td>
+                        <td style="padding:8px 12px; font-weight:600; color:${isValid ? '#f8fafc' : '#fca5a5'};">${nomeCompleto || '—'}</td>
+                        <td style="padding:8px 12px;">${cpf || '—'}</td>
+                        <td style="padding:8px 12px;">${cargoObj ? cargoObj.nome : (cargoStr || '—')}</td>
+                        <td style="padding:8px 12px;">${dataAdmissao ? new Date(dataAdmissao + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</td>
+                        <td style="padding:8px 12px;">${salarioNum ? `R$ ${salarioNum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}</td>
+                        <td style="padding:8px 12px;"><span class="badge badge-${statusNorm.toLowerCase()}">${statusNorm}</span></td>
+                        <td style="padding:8px 12px; font-size:0.75rem;">
+                            ${isValid ? '<span style="color:#4ade80; font-weight:700;">✓ Válido</span>' : `<span style="color:#ef4444; font-weight:700;">✕ ${erros.join(', ')}</span>`}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            });
+
+            const badgesArea = document.getElementById('import-badges');
+            if (badgesArea) {
+                badgesArea.innerHTML = `
+                    <span style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); padding: 4px 8px; border-radius: 6px; font-weight: 700;">Total: ${jsonRows.length}</span>
+                    <span style="background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); padding: 4px 8px; border-radius: 6px; font-weight: 700;">Válidos: ${validCount}</span>
+                    ${invalidCount > 0 ? `<span style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); padding: 4px 8px; border-radius: 6px; font-weight: 700;">Inválidos: ${invalidCount}</span>` : ''}
+                `;
+            }
+
+            const previewArea = document.getElementById('import-preview-area');
+            if (previewArea) previewArea.style.display = 'block';
+
+            const btnExec = document.getElementById('btn-executar-importacao');
+            if (btnExec) btnExec.disabled = validCount === 0;
+
+            if (validCount > 0) {
+                toast(`${validCount} funcionário(s) pronto(s) para importação.`, 'info');
+            } else {
+                toast('Nenhum funcionário válido encontrado no arquivo.', 'error');
+            }
+
+        } catch (err) {
+            console.error('Erro ao ler planilha de importação:', err);
+            toast('Erro ao processar o arquivo Excel: ' + err.message, 'error');
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+async function executarImportacaoFuncionarios() {
+    const validItems = importFuncionariosLote.filter(item => item.isValid);
+    if (!validItems.length) {
+        toast('Nenhum funcionário válido para importar.', 'error');
+        return;
+    }
+
+    const confirmMessage = `Deseja cadastrar em lote ${validItems.length} funcionário(s)?`;
+    if (!confirm(confirmMessage)) return;
+
+    const btnExec = document.getElementById('btn-executar-importacao');
+    if (btnExec) {
+        btnExec.disabled = true;
+        btnExec.innerHTML = `<i data-lucide="loader" class="spin"></i> Importando...`;
+    }
+
+    try {
+        const payloads = validItems.map(item => item.payload);
+        
+        const BATCH_SIZE = 50;
+        let sucessos = 0;
+        let errosBatch = 0;
+
+        for (let i = 0; i < payloads.length; i += BATCH_SIZE) {
+            const chunk = payloads.slice(i, i + BATCH_SIZE);
+            const { data, error } = await sb.from('dp_funcionarios').insert(chunk);
+            if (error) {
+                console.error('Erro ao inserir lote:', error);
+                errosBatch += chunk.length;
+            } else {
+                sucessos += chunk.length;
+            }
+        }
+
+        if (sucessos > 0) {
+            registrarLog('dp', 'INCLUSÃO', `DETALHE: Importação em lote de ${sucessos} funcionário(s) via Excel.`);
+            toast(`${sucessos} funcionário(s) cadastrado(s) com sucesso!`, 'success');
+        }
+
+        if (errosBatch > 0) {
+            toast(`Ocorreram falhas na inserção de ${errosBatch} registros.`, 'error');
+        }
+
+        fecharModal('modal-importar-funcionarios');
+        await loadFuncionarios();
+        populateFuncSelects();
+        renderFuncionarios();
+        renderDashboard();
+
+    } catch (err) {
+        console.error('Erro na importação em lote:', err);
+        toast('Erro ao executar importação: ' + err.message, 'error');
+    } finally {
+        if (btnExec) {
+            btnExec.disabled = false;
+            btnExec.innerHTML = `<i data-lucide="check-circle"></i> Confirmar Importação em Lote`;
+        }
+    }
+}
+
+// ============================================================
+//  VALIDAÇÃO DE FORMULÁRIO (DESTAQUE EM VERMELHO)
+// ============================================================
+
+function validarCamposObrigatorios(containerId, campos) {
+    const container = document.getElementById(containerId);
+    if (container) {
+        container.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
+    }
+
+    let temErro = false;
+    let primeiroCampoErro = null;
+    const faltantes = [];
+
+    campos.forEach(item => {
+        const id = typeof item === 'string' ? item : item.id;
+        const label = typeof item === 'object' ? item.label : null;
+        const el = document.getElementById(id);
+        if (!el) return;
+
+        const val = el.value ? String(el.value).trim() : '';
+        if (!val) {
+            temErro = true;
+            el.classList.add('input-error');
+            if (label) faltantes.push(label);
+            if (!primeiroCampoErro) primeiroCampoErro = el;
+
+            const removerErro = () => el.classList.remove('input-error');
+            el.addEventListener('input', removerErro, { once: true });
+            el.addEventListener('change', removerErro, { once: true });
+        }
+    });
+
+    if (temErro && primeiroCampoErro) {
+        primeiroCampoErro.focus();
+        primeiroCampoErro.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        if (faltantes.length > 0) {
+            toast(`Preencha o(s) campo(s) obrigatório(s): ${faltantes.join(', ')}`, 'error');
+        } else {
+            toast('Preencha os campos obrigatórios destacados em vermelho.', 'error');
+        }
+    }
+
+    return !temErro;
 }
 
 // ============================================================
