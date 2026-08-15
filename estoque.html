@@ -534,6 +534,31 @@
             background: rgba(255, 255, 255, 0.06);
         }
 
+        /* ── Campos Desabilitados / Não Alteráveis (Fundo Cinza Claro) ── */
+        input:disabled,
+        select:disabled,
+        textarea:disabled,
+        button:disabled,
+        input[disabled],
+        select[disabled],
+        textarea[disabled],
+        button[disabled],
+        .inventory-control-card input:disabled,
+        .inventory-control-card select:disabled,
+        .inventory-control-card textarea:disabled,
+        .inventory-control-card button:disabled,
+        .form-group input:disabled,
+        .form-group select:disabled {
+            background: #d1d5db !important;
+            background-color: #d1d5db !important;
+            border-color: #9ca3af !important;
+            color: #374151 !important;
+            cursor: not-allowed !important;
+            opacity: 1 !important;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+            font-weight: 700 !important;
+        }
+
         /* Corrigir placeholders cortados e altura nos inputs/selects do Modal de Venda */
         #vendaModal input,
         #vendaModal select {
@@ -1448,11 +1473,11 @@
                             <div class="form-group">
                                 <label>Código Interno</label>
                                 <div style="display: flex; gap: 0.5rem;">
-                                    <input type="text" id="mp_interno" placeholder="Gere automÃ¡tico..."
+                                    <input type="text" id="mp_interno" placeholder="Gere automático..."
                                         style="height: 48px; flex: 1;">
-                                    <button type="button" onclick="generateInternalCode()"
+                                    <button type="button" id="btn_gen_internal_code" onclick="generateInternalCode()"
                                         style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-card); border-radius: 10px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); cursor: pointer;"
-                                        title="Gerar CÃ³digo">
+                                        title="Gerar Código">
                                         <i data-lucide="refresh-cw" style="width: 18px;"></i>
                                     </button>
                                 </div>

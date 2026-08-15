@@ -213,9 +213,24 @@ function editProduct(id) {
     document.getElementById('mp_local_nivel').value = item.local_nivel || '';
     document.getElementById('mp_local_gaveta').value = item.local_gaveta || '';
 
-    // Bloquear campos críticos na edição
-    document.getElementById('mp_barras').disabled = true;
-    document.getElementById('mp_interno').disabled = true;
+    // Bloquear campos críticos na edição e aplicar fundo cinza claro no campo todo
+    ['mp_barras', 'mp_interno', 'mp_estoque_atual'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.disabled = true;
+            el.style.background = '#d1d5db';
+            el.style.backgroundColor = '#d1d5db';
+            el.style.borderColor = '#9ca3af';
+            el.style.color = '#374151';
+        }
+    });
+    const btnGen = document.getElementById('btn_gen_internal_code');
+    if (btnGen) {
+        btnGen.disabled = true;
+        btnGen.style.background = '#d1d5db';
+        btnGen.style.backgroundColor = '#d1d5db';
+        btnGen.style.borderColor = '#9ca3af';
+    }
 
     // Atualizar título
     document.getElementById('newProductTitle').innerText = 'Editar Produto';
@@ -238,9 +253,24 @@ function prepareNewProduct() {
     selectedApplications = [];
     renderApplications();
 
-    // Habilitar campos críticos para novo cadastro
-    document.getElementById('mp_barras').disabled = false;
-    document.getElementById('mp_interno').disabled = false;
+    // Habilitar campos para novo cadastro e restaurar fundo padrão
+    ['mp_barras', 'mp_interno', 'mp_estoque_atual'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.disabled = false;
+            el.style.background = '';
+            el.style.backgroundColor = '';
+            el.style.borderColor = '';
+            el.style.color = '';
+        }
+    });
+    const btnGen = document.getElementById('btn_gen_internal_code');
+    if (btnGen) {
+        btnGen.disabled = false;
+        btnGen.style.background = '';
+        btnGen.style.backgroundColor = '';
+        btnGen.style.borderColor = '';
+    }
     
     switchTab('new');
 }
@@ -416,6 +446,7 @@ async function saveProduct(event) {
     if (event) event.preventDefault();
     
     const productId = document.getElementById('mp_id').value;
+    const item = inventoryData.find(p => p.id === productId);
     // Verificar permissão: add para novo, edit para existente
     if (typeof canDo === 'function') {
         if (!productId && !canDo('estoque_inventario', 'add')) {
@@ -459,9 +490,11 @@ async function saveProduct(event) {
     try {
         let result;
         if (productId) {
+            const currentStock = item ? item.estoque_atual : product.estoque_atual;
+            delete product.estoque_atual; // Garante que o saldo de estoque só pode ser alterado por movimentação/reajuste oficial
             result = await supabaseClient.from('estoque').update(product).eq('id', productId);
             if (!result.error) {
-                logEstoque('ALTERAÇÃO', `DETALHE: Alterou produto no estoque: ${product.nome} (Marca: ${product.marca}, Ref: ${product.ref || 'S/R'}) - Saldo: ${product.estoque_atual} ${product.unidade}, Custo: R$ ${product.valor_custo}, Venda: R$ ${product.valor_venda}`);
+                logEstoque('ALTERAÇÃO', `DETALHE: Alterou produto no estoque: ${product.nome} (Marca: ${product.marca}, Ref: ${product.ref || 'S/R'}) - Saldo Mantido: ${currentStock} ${product.unidade}, Custo: R$ ${product.valor_custo}, Venda: R$ ${product.valor_venda}`);
             }
         } else {
             result = await supabaseClient.from('estoque').insert([product]);

@@ -4072,6 +4072,15 @@ window.handleDatePresetChange = (el, triggerFetch = true) => {
                 const lastDay = new Date(py, pm + 1, 0).getDate();
                 startStr = `${py}-${String(pm + 1).padStart(2, '0')}-01`;
                 endStr = `${py}-${String(pm + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+            } else if (val === 'nextMonth') {
+                const y = today.getFullYear();
+                const m = today.getMonth();
+                const nextDate = new Date(y, m + 1, 1);
+                const ny = nextDate.getFullYear();
+                const nm = nextDate.getMonth();
+                const lastDay = new Date(ny, nm + 1, 0).getDate();
+                startStr = `${ny}-${String(nm + 1).padStart(2, '0')}-01`;
+                endStr = `${ny}-${String(nm + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
             }
             
             startInput.value = startStr;
@@ -4840,6 +4849,15 @@ window.handleValesDatePresetChange = (el) => {
             const lastDay = new Date(py, pm + 1, 0).getDate();
             startStr = `${py}-${String(pm + 1).padStart(2, '0')}-01`;
             endStr = `${py}-${String(pm + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        } else if (val === 'nextMonth') {
+            const y = today.getFullYear();
+            const m = today.getMonth();
+            const nextDate = new Date(y, m + 1, 1);
+            const ny = nextDate.getFullYear();
+            const nm = nextDate.getMonth();
+            const lastDay = new Date(ny, nm + 1, 0).getDate();
+            startStr = `${ny}-${String(nm + 1).padStart(2, '0')}-01`;
+            endStr = `${ny}-${String(nm + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
         }
         
         startInput.value = startStr;
