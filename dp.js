@@ -619,6 +619,37 @@ function renderDashboard() {
     const elEpisVenc = document.getElementById('kpi-epis-venc');
     if (elEpisVenc) elEpisVenc.textContent = episAlert.length;
 
+    // Férias vencidas / concessivo expirando
+    const feriasVencidas = dpFerias.filter(f => f.status !== 'CONCLUIDA' && f.periodo_conc_fim && new Date(f.periodo_conc_fim + 'T00:00:00') <= em60);
+    const feriasExpiringCount = feriasVencidas.length;
+
+    // Atualiza os novos Cards no topo do DP
+    const cardAsoVal = document.getElementById('kpi-card-aso');
+    if (cardAsoVal) cardAsoVal.textContent = asosAlert.length;
+    const cardAsoSub = document.getElementById('kpi-card-aso-sub');
+    if (cardAsoSub) cardAsoSub.textContent = `${asoVenc} vencidos, ${asoAVencer} a vencer em 30d`;
+
+    const cardFeriasVal = document.getElementById('kpi-card-ferias');
+    if (cardFeriasVal) cardFeriasVal.textContent = feriasExpiringCount;
+    const cardFeriasSub = document.getElementById('kpi-card-ferias-sub');
+    if (cardFeriasSub) {
+        const concVencidas = feriasVencidas.filter(f => new Date(f.periodo_conc_fim + 'T00:00:00') < hoje).length;
+        cardFeriasSub.textContent = `${concVencidas} vencidas, ${feriasExpiringCount - concVencidas} alerta concessivo`;
+    }
+
+    const cardEpisVal = document.getElementById('kpi-card-epis');
+    if (cardEpisVal) cardEpisVal.textContent = episAlert.length;
+    const cardEpisSub = document.getElementById('kpi-card-epis-sub');
+    if (cardEpisSub) {
+        const episVencidos = episAlert.filter(e => new Date(e.ca_vencimento + 'T00:00:00') < hoje).length;
+        cardEpisSub.textContent = `${episVencidos} vencidos, ${episAlert.length - episVencidos} vencendo em 60d`;
+    }
+
+    const cardContrVal = document.getElementById('kpi-card-contratos');
+    if (cardContrVal) cardContrVal.textContent = contrAlerts.length;
+    const cardContrSub = document.getElementById('kpi-card-contratos-sub');
+    if (cardContrSub) cardContrSub.textContent = `${contrAlerts.length} vencendo em 15 dias`;
+
     // Aniversariantes do mês
     const mesAtual = hoje.getMonth() + 1;
     const aniversariantes = dpFuncionarios

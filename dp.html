@@ -20,18 +20,18 @@
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <style>
         :root {
-            --primary: #0ea5e9;
-            --primary-hover: #0284c7;
-            --primary-glow: rgba(14, 165, 233, 0.25);
-            --secondary: #1e293b;
-            --bg-dark: #0f172a;
-            --card-bg: rgba(30, 41, 59, 0.7);
-            --border-color: rgba(255, 255, 255, 0.08);
-            --text-main: #f1f5f9;
-            --text-muted: #94a3b8;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
+            --primary: #2d9e6b;
+            --primary-hover: #228a5a;
+            --primary-glow: rgba(45, 158, 107, 0.25);
+            --secondary: #e2ece7;
+            --bg-dark: #f0f7f4;
+            --card-bg: var(--bg-card, rgba(255, 255, 255, 0.92));
+            --border-color: var(--border-card, rgba(45, 158, 107, 0.15));
+            --text-main: var(--text-main, #1a2e25);
+            --text-muted: var(--text-muted, #5a7a6a);
+            --success: #27ae6f;
+            --warning: #d4891a;
+            --danger: #e05252;
             --purple: #8b5cf6;
             --pink: #ec4899;
         }
@@ -881,6 +881,50 @@
 
     <!-- Banner de Alertas Críticos -->
     <div id="dp-alert-banner" style="display:none;"></div>
+
+    <!-- Cards de Alertas de Vencimento -->
+    <div class="kpi-row" id="dp-kpi-cards">
+        <div class="kpi-box" onclick="switchTab('aso')" title="Clique para ver o controle de ASO">
+            <div class="kpi-box-icon" style="background: rgba(212, 137, 26, 0.12); color: var(--warning, #d4891a);">
+                <i data-lucide="stethoscope"></i>
+            </div>
+            <div class="kpi-box-info">
+                <div class="kpi-box-value" id="kpi-card-aso" style="color: var(--warning, #d4891a);">0</div>
+                <div class="kpi-box-label" style="color: var(--text-main, #1a2e25);">ASO a Vencer / Vencidos</div>
+                <div class="kpi-box-sub" id="kpi-card-aso-sub" style="color: var(--text-muted, #5a7a6a);">0 em 30 dias</div>
+            </div>
+        </div>
+        <div class="kpi-box" onclick="switchTab('ferias')" title="Clique para ver a gestão de Férias">
+            <div class="kpi-box-icon" style="background: rgba(45, 158, 107, 0.12); color: var(--primary, #2d9e6b);">
+                <i data-lucide="umbrella"></i>
+            </div>
+            <div class="kpi-box-info">
+                <div class="kpi-box-value" id="kpi-card-ferias" style="color: var(--primary, #2d9e6b);">0</div>
+                <div class="kpi-box-label" style="color: var(--text-main, #1a2e25);">Férias Vencidas / Alerta</div>
+                <div class="kpi-box-sub" id="kpi-card-ferias-sub" style="color: var(--text-muted, #5a7a6a);">Período concessivo</div>
+            </div>
+        </div>
+        <div class="kpi-box" onclick="switchTab('epis')" title="Clique para ver o controle de EPIs e Uniformes">
+            <div class="kpi-box-icon" style="background: rgba(224, 82, 82, 0.12); color: var(--danger, #e05252);">
+                <i data-lucide="hard-hat"></i>
+            </div>
+            <div class="kpi-box-info">
+                <div class="kpi-box-value" id="kpi-card-epis" style="color: var(--danger, #e05252);">0</div>
+                <div class="kpi-box-label" style="color: var(--text-main, #1a2e25);">EPIs / CA Vencendo</div>
+                <div class="kpi-box-sub" id="kpi-card-epis-sub" style="color: var(--text-muted, #5a7a6a);">0 em 60 dias</div>
+            </div>
+        </div>
+        <div class="kpi-box" onclick="switchTab('contratos')" title="Clique para ver os Contratos e Experiências">
+            <div class="kpi-box-icon" style="background: rgba(139, 92, 246, 0.12); color: var(--purple, #8b5cf6);">
+                <i data-lucide="file-text"></i>
+            </div>
+            <div class="kpi-box-info">
+                <div class="kpi-box-value" id="kpi-card-contratos" style="color: var(--purple, #8b5cf6);">0</div>
+                <div class="kpi-box-label" style="color: var(--text-main, #1a2e25);">Contratos de Experiência</div>
+                <div class="kpi-box-sub" id="kpi-card-contratos-sub" style="color: var(--text-muted, #5a7a6a);">Vencendo em 15 dias</div>
+            </div>
+        </div>
+    </div>
 
     <!-- Tabs -->
     <div class="tabs-wrapper">

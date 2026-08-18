@@ -312,7 +312,10 @@
 
     <div class="modal-overlay" id="addModal">
         <div class="modal">
-            <h2 id="vehicleModalTitle">Cadastrar Novo Veiculo</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2 id="vehicleModalTitle" style="margin:0;">Cadastrar Novo Veiculo</h2>
+                <button type="button" class="detail-close-btn" onclick="closeAddModal()">&times;</button>
+            </div>
             <form id="addForm">
                 <input type="hidden" id="addVehicleId">
                 <div class="form-grid">
@@ -411,12 +414,21 @@
                     </div>
 
                     <!-- Documentos Ext -->
-                    <div class="form-section-header">Documentação & FIPE</div>
-                    <div class="form-group" style="grid-column: span 2;">
+                    <div class="form-section-header">Documentação, Canvas & FIPE</div>
+                    <div class="form-group">
                         <label><i data-lucide="folder-git-2" style="width:14px; vertical-align:middle; color:#3b82f6;"></i> Link Pasta de Documentos (Google Drive)</label>
                         <div style="display: flex; gap: 0.5rem;">
                             <input type="url" id="addDriveFolderUrl" placeholder="https://drive.google.com/drive/folders/..." style="flex:1;">
                             <button type="button" class="btn" onclick="openDriveLink()" title="Abrir pasta no Google Drive" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); padding: 0 0.8rem; border-radius: 8px;">
+                                <i data-lucide="external-link" style="width:16px;"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label><i data-lucide="file-warning" style="width:14px; vertical-align:middle; color:#f59e0b;"></i> Link Canvas Avarias</label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="url" id="addCanvasUrl" placeholder="https://..." style="flex:1;">
+                            <button type="button" class="btn" onclick="openCanvasLink()" title="Abrir Canvas de Avarias" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); padding: 0 0.8rem; border-radius: 8px;">
                                 <i data-lucide="external-link" style="width:16px;"></i>
                             </button>
                         </div>

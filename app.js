@@ -88,6 +88,7 @@ const COL_DEFS = {
         { key: 'valor_fipe_mes', label: 'Valor FIPE', visible: false },
         { key: 'nome_documento', label: 'Nome Doc.', visible: false },
         { key: 'cpf_cnpj', label: 'CPF/CNPJ', visible: false },
+        { key: 'canvas_url', label: 'Canvas Avarias', visible: false },
         { key: 'condutor_principal', label: 'Condutor Seguro', visible: false },
         { key: 'data_aquisicao_nf', label: 'Dt. Aquisição', visible: false },
         { key: 'data_saida_nf', label: 'Dt. Saída', visible: false },
@@ -582,6 +583,7 @@ function openVehicleDetail(id) {
         <div class="detail-item"><strong>Chassi:</strong> ${v.chassi || '-'}</div>
         <div class="detail-item"><strong>Motor:</strong> ${v.numero_motor || '-'}</div>
         <div class="detail-item"><strong>FIPE:</strong> ${v.codigo_fipe || '-'} / R$ ${Number(v.valor_fipe_mes || 0).toLocaleString('pt-BR')}</div>
+        <div class="detail-item"><strong>Canvas Avarias:</strong> ${v.canvas_url ? `<a href="${v.canvas_url}" target="_blank" style="color: #f59e0b; text-decoration: underline;">Abrir Canvas Avarias <i data-lucide="external-link" style="width:12px; display:inline;"></i></a>` : '-'}</div>
         <div class="detail-item"><strong>Controle de Média:</strong> ${v.ignorar_media ? '<span class="badge danger">IGNORADO</span>' : '<span class="badge success">ATIVO</span>'}</div>
     `;
 
@@ -1572,8 +1574,18 @@ function renderFullVehicles() {
                 <i data-lucide="folder" style="width: 16px;"></i>
                </button>`;
 
+        const canvasUrl = v.canvas_url || '';
+        const canvasBtn = canvasUrl
+            ? `<button class="btn-edit" onclick="window.open('${canvasUrl}', '_blank')" title="Abrir Registro de Avarias (Canvas)" style="color: #f59e0b; border-color: rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.08);">
+                <i data-lucide="file-warning" style="width: 16px;"></i>
+               </button>`
+            : `<button class="btn-edit" onclick="alert('Nenhum link de avarias (Canvas) cadastrado para este veículo.')" title="Sem registro de avarias" style="opacity: 0.35; cursor: not-allowed;">
+                <i data-lucide="file-warning" style="width: 16px;"></i>
+               </button>`;
+
         return `<div class="table-actions">
             ${driveBtn}
+            ${canvasBtn}
             <button class="btn-edit" onclick="editVehicle('${v.id}')" title="Editar" data-perm="frota_veiculos:edit">
                 <i data-lucide="edit-2" style="width: 16px;"></i>
             </button>
@@ -1623,6 +1635,7 @@ function renderFullVehicles() {
                 case 'valor_fipe_mes': return `<td>${v.valor_fipe_mes ? 'R$ ' + Number(v.valor_fipe_mes).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</td>`;
                 case 'nome_documento': return `<td>${v.nome_documento || '-'}</td>`;
                 case 'cpf_cnpj': return `<td>${v.cpf_cnpj || '-'}</td>`;
+                case 'canvas_url': return `<td>${v.canvas_url ? `<a href="${v.canvas_url}" target="_blank" style="color:#f59e0b;">Canvas Avarias</a>` : '-'}</td>`;
                 case 'data_aquisicao_nf': return `<td>${formatDate(v.data_aquisicao_nf)}</td>`;
                 case 'data_saida_nf': return `<td>${formatDate(v.data_saida_nf)}</td>`;
                 case 'fornecedor_aquisicao': return `<td>${v.fornecedor_aquisicao || '-'}</td>`;
@@ -1773,7 +1786,7 @@ async function fetchVehicles() {
             id, placa, modelo, marca, proprietario, classificacao, status,
             tipo_combustivel, cor, ano_fabricacao, ano_modelo, renavam,
             chassi, numero_motor, codigo_fipe, valor_fipe_mes,
-            nome_documento, drive_folder_url, cpf_cnpj, data_aquisicao_nf, data_saida_nf, fornecedor_aquisicao,
+            nome_documento, drive_folder_url, canvas_url, cpf_cnpj, data_aquisicao_nf, data_saida_nf, fornecedor_aquisicao,
             vencimento_seguro, seguradora, numero_apolice, corretor_seguro,
             valor_premio, valor_franquia, parcelas_pagamento, forma_pagamento,
             proponente_seguro, endosso_proposta, ci_seguro,
@@ -2272,6 +2285,7 @@ async function handleAddVehicle(e) {
         parcelas_pagamento: getInt('addParcelas'),
         nome_documento: getVal('addNomeDocumento'),
         drive_folder_url: getVal('addDriveFolderUrl'),
+        canvas_url: getVal('addCanvasUrl'),
         cpf_cnpj: getVal('addCpfCnpj'),
         codigo_fipe: getVal('addCodigoFipe'),
         valor_fipe_mes: getNum('addValorFipeMes'),
@@ -2464,6 +2478,7 @@ function editVehicle(id) {
     document.getElementById('addParcelas').value = v.parcelas_pagamento || 0;
     document.getElementById('addNomeDocumento').value = v.nome_documento || '';
     document.getElementById('addDriveFolderUrl').value = v.drive_folder_url || '';
+    if (document.getElementById('addCanvasUrl')) document.getElementById('addCanvasUrl').value = v.canvas_url || '';
     document.getElementById('addCpfCnpj').value = v.cpf_cnpj || '';
     document.getElementById('addCodigoFipe').value = v.codigo_fipe || '';
     document.getElementById('addValorFipeMes').value = v.valor_fipe_mes || 0;
@@ -2549,10 +2564,20 @@ function openDriveLink() {
     if (url && url.trim()) {
         window.open(url.trim(), '_blank');
     } else {
-        alert('Nenhum link de pasta informando. Insira o link do Google Drive no campo.');
+        alert('Nenhum link de pasta informado. Insira o link do Google Drive no campo.');
     }
 }
 window.openDriveLink = openDriveLink;
+
+function openCanvasLink() {
+    const url = document.getElementById('addCanvasUrl')?.value;
+    if (url && url.trim()) {
+        window.open(url.trim(), '_blank');
+    } else {
+        alert('Nenhum link de Canvas Avarias informado. Insira o link no campo.');
+    }
+}
+window.openCanvasLink = openCanvasLink;
 
 function openAddModal() {
     document.getElementById('vehicleModalTitle').innerText = 'Cadastrar Novo Veículo';
@@ -2562,9 +2587,14 @@ function openAddModal() {
     const parcelaEl = document.getElementById('addValorParcelaSeguro');
     if (parcelaEl) parcelaEl.value = '';
     addModal.style.display = 'flex';
+    addModal.classList.add('active');
 }
 
-function closeAddModal() { addModal.style.display = 'none'; addForm.reset(); }
+function closeAddModal() {
+    addModal.style.display = 'none';
+    addModal.classList.remove('active');
+    addForm.reset();
+}
 
 function openDriverModal() {
     document.getElementById('driverModalTitle').innerText = 'Cadastrar Novo Motorista';
@@ -2572,9 +2602,65 @@ function openDriverModal() {
     driverForm.reset();
     document.getElementById('driverIdade').value = '';
     driverModal.style.display = 'flex';
+    driverModal.classList.add('active');
 }
-function closeDriverModal() { driverModal.style.display = 'none'; driverForm.reset(); }
-function closeModal() { editModal.style.display = 'none'; } // Generic close for edit
+
+function closeDriverModal() {
+    driverModal.style.display = 'none';
+    driverModal.classList.remove('active');
+    driverForm.reset();
+}
+
+function closeModal() {
+    if (typeof editModal !== 'undefined' && editModal) {
+        editModal.style.display = 'none';
+        editModal.classList.remove('active');
+    }
+}
+
+// Global Keyboard Shortcuts (Esc to close, Ctrl+Enter to save, F2 for new vehicle)
+window.addEventListener('keydown', (e) => {
+    // 1. ESC: Fechar modal ativo
+    if (e.key === 'Escape') {
+        const modalsToClose = [
+            { el: document.getElementById('addModal'), closeFn: closeAddModal },
+            { el: document.getElementById('driverModal'), closeFn: closeDriverModal },
+            { el: document.getElementById('vehicleDetailModal'), closeFn: () => typeof closeVehicleDetail === 'function' && closeVehicleDetail() },
+            { el: document.getElementById('driverDetailModal'), closeFn: () => typeof closeDriverDetail === 'function' && closeDriverDetail() },
+            { el: document.getElementById('workshopModal'), closeFn: () => typeof closeWorkshopModal === 'function' && closeWorkshopModal() },
+            { el: document.getElementById('fuelTypeModal'), closeFn: () => typeof closeFuelTypeModal === 'function' && closeFuelTypeModal() },
+            { el: document.getElementById('whatsappConfigModal'), closeFn: () => typeof closeWhatsAppConfig === 'function' && closeWhatsAppConfig() },
+            { el: document.getElementById('maintenanceModal'), closeFn: () => typeof closeMaintenanceModal === 'function' && closeMaintenanceModal() }
+        ];
+
+        for (const m of modalsToClose) {
+            if (m.el && (m.el.style.display === 'flex' || m.el.classList.contains('active') || m.el.classList.contains('open'))) {
+                e.preventDefault();
+                m.closeFn();
+                return;
+            }
+        }
+    }
+
+    // 2. Ctrl + Enter ou Cmd + Enter: Salvar formulário do modal ativo
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        const activeModal = document.querySelector('.modal-overlay[style*="display: flex"], .modal-overlay.active, .modal-overlay.open');
+        if (activeModal) {
+            e.preventDefault();
+            const submitBtn = activeModal.querySelector('button[type="submit"], .btn-primary');
+            if (submitBtn) submitBtn.click();
+        }
+    }
+
+    // 3. F2: Abrir modal de novo veículo (se nenhum modal estiver aberto)
+    if (e.key === 'F2') {
+        const anyModalOpen = document.querySelector('.modal-overlay[style*="display: flex"], .modal-overlay.active, .modal-overlay.open');
+        if (!anyModalOpen) {
+            e.preventDefault();
+            if (typeof openAddModal === 'function') openAddModal();
+        }
+    }
+});
 
 // --- Real-time ---
 function subscribeToChanges() {
