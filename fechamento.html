@@ -1044,6 +1044,85 @@
         </div>
     </div>
 
+    <!-- MODAL: Adicionar Custo Adicional Veicular -->
+    <div id="modalCustoAdicional" class="modal-export" style="display: none;">
+        <div class="modal-export-content" style="max-width: 450px;">
+            <div class="modal-export-header">
+                <h2>Adicionar Custo Adicional</h2>
+                <button class="modal-export-close" onclick="closeCustoAdicionalModal()">&times;</button>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">Veículo/Placa: <strong id="lblCustoAdicionalPlaca" style="color: var(--primary-light);">---</strong></p>
+            <form id="formCustoAdicional" onsubmit="salvarCustoAdicional(event)">
+                <div style="margin-bottom: 1rem; text-align: left;">
+                    <label style="display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.4rem; color: var(--text-muted);">Descrição do Custo</label>
+                    <input type="text" id="custo_add_descricao" required placeholder="Ex: Multa de Trânsito, Taxa Extra, Peça Avulsa..." style="width: 100%; padding: 0.7rem; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-card); border-radius: 8px; color: white; font-size: 0.85rem; outline: none;">
+                </div>
+                <div style="margin-bottom: 1.5rem; text-align: left;">
+                    <label style="display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.4rem; color: var(--text-muted);">Valor (R$)</label>
+                    <input type="number" step="0.01" min="0.01" id="custo_add_valor" required placeholder="0,00" style="width: 100%; padding: 0.7rem; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-card); border-radius: 8px; color: white; font-size: 0.85rem; outline: none;">
+                </div>
+                <div style="display: flex; gap: 0.8rem; justify-content: flex-end;">
+                    <button type="button" onclick="closeCustoAdicionalModal()" style="padding: 0.6rem 1.2rem; background: rgba(255,255,255,0.05); border: 1px solid var(--border-card); border-radius: 8px; color: var(--text-muted); cursor: pointer; font-weight: 600;">Cancelar</button>
+                    <button type="submit" style="padding: 0.6rem 1.2rem; background: var(--primary); border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: 700;">Salvar Custo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Parcelamento de Custo/Compra/Manutenção -->
+    <div id="modalParcelamento" class="modal-export" style="display: none;">
+        <div class="modal-export-content" style="max-width: 480px;">
+            <div class="modal-export-header">
+                <h2>Configurar Parcelamento</h2>
+                <button class="modal-export-close" onclick="closeParcelamentoModal()">&times;</button>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Item: <strong id="lblParcelaItem" style="color: white;">---</strong></p>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">Valor Total: <strong id="lblParcelaValorTotal" style="color: var(--success);">R$ 0,00</strong></p>
+            
+            <form id="formParcelamento" onsubmit="salvarParcelamento(event)">
+                <input type="hidden" id="parc_origem_id">
+                <input type="hidden" id="parc_origem_tipo">
+                <input type="hidden" id="parc_placa">
+                <input type="hidden" id="parc_valor_total">
+                
+                <div style="margin-bottom: 1rem; text-align: left;">
+                    <label style="display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.4rem; color: var(--text-muted);">Número de Parcelas</label>
+                    <select id="parc_total_parcelas" required onchange="calcularValorParcelaSimulacao()" style="width: 100%; padding: 0.7rem; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-card); border-radius: 8px; color: white; font-size: 0.85rem; outline: none;">
+                        <option value="1">À vista (1x)</option>
+                        <option value="2">2x</option>
+                        <option value="3">3x</option>
+                        <option value="4">4x</option>
+                        <option value="5">5x</option>
+                        <option value="6">6x</option>
+                        <option value="10">10x</option>
+                        <option value="12">12x</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 1rem; text-align: left;">
+                    <label style="display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.4rem; color: var(--text-muted);">Desconto da 1ª Parcela</label>
+                    <select id="parc_descontar_mes_vigente" required style="width: 100%; padding: 0.7rem; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-card); border-radius: 8px; color: white; font-size: 0.85rem; outline: none;">
+                        <option value="true">Descontar 1ª Parcela no Mês Vigente</option>
+                        <option value="false">Descontar a partir do Próximo Mês</option>
+                    </select>
+                </div>
+
+                <div style="padding: 0.8rem; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 8px; margin-bottom: 1.5rem; text-align: center;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Valor por Parcela</span>
+                    <strong id="lblSimulacaoParcela" style="font-size: 1.2rem; color: var(--primary-light);">R$ 0,00 /mês</strong>
+                </div>
+
+                <div style="display: flex; gap: 0.8rem; justify-content: space-between;">
+                    <button type="button" id="btnRemoverParcelamento" onclick="removerParcelamento()" style="display: none; padding: 0.6rem 1rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; color: #ef4444; cursor: pointer; font-weight: 600; font-size: 0.75rem;">Remover Parcelamento</button>
+                    <div style="display: flex; gap: 0.8rem; margin-left: auto;">
+                        <button type="button" onclick="closeParcelamentoModal()" style="padding: 0.6rem 1.2rem; background: rgba(255,255,255,0.05); border: 1px solid var(--border-card); border-radius: 8px; color: var(--text-muted); cursor: pointer; font-weight: 600;">Cancelar</button>
+                        <button type="submit" style="padding: 0.6rem 1.2rem; background: var(--primary); border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: 700;">Salvar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
         <p id="loadingText">Processando dados...</p>

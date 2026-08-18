@@ -4,9 +4,12 @@ const state = {
     fueling: [],
     maintenance: [],
     fornecedores: [],
-    closingData: {}, // Grouped data: { ownerName: { plate: { fuel: [], maint: [], total: 0 } } }
+    closingData: {}, // Grouped data: { ownerName: { plate: { fuel: [], maint: [], estoque: [], custosAdicionais: [], total: 0 } } }
     supplierClosingData: {}, // Grouped data for suppliers: { supplierName: { purchases: [], total: 0 } }
     fuelClosingData: {}, // Grouped data for fuel stations: { stationIdOrName: { nome: '', categoria: '', records: [], totalVal: 0, totalLitros: 0, totalGas: 0 } }
+    custosAdicionais: [], // Raw custos adicionais fetched for period
+    parcelamentosMap: {}, // Map of origem_tipo + '_' + origem_id -> parcelamento rule
+    disabledGroups: {}, // { 'LUJ9F00': { fuel: true, maint: false, estoque: false, custosAdicionais: false } }
     selectedPlate: null,
     selectedSupplier: null,
     selectedPosto: null,
@@ -571,6 +574,35 @@ async function generateClosing() {
         ]);
         const drivers = driverRes.data || [];
 
+        // Buscas auxiliares: Custos Adicionais e Parcelamentos
+        let custosAddRes = [];
+        let parcelamentosMap = {};
+        try {
+            const periodKey = periodType === 'month' ? document.getElementById('filter_period').value : `${startDate}_${endDate}`;
+            const { data: addData } = await supabaseClient
+                .from('fechamento_custos_adicionais')
+                .select('*')
+                .eq('periodo', periodKey);
+            custosAddRes = addData || [];
+        } catch (eAdd) {
+            console.warn("Tabela fechamento_custos_adicionais não disponível no Supabase ainda.", eAdd);
+        }
+        state.custosAdicionais = custosAddRes;
+
+        try {
+            const { data: pMapData } = await supabaseClient
+                .from('fechamento_parcelamentos')
+                .select('*');
+            if (pMapData) {
+                pMapData.forEach(pRule => {
+                    parcelamentosMap[`${pRule.origem_tipo}_${pRule.origem_id}`] = pRule;
+                });
+            }
+        } catch (eParc) {
+            console.warn("Tabela fechamento_parcelamentos não disponível no Supabase ainda.", eParc);
+        }
+        state.parcelamentosMap = parcelamentosMap;
+
         let purchases = [];
         try {
             purchases = await fetchAllRecords('compras', '*, fornecedores:fornecedor_id(nome), compra_itens(*)', startDate, endDate, 'data_emissao');
@@ -816,25 +848,126 @@ function processData(fuel, maint, vehicles, purchases, sales) {
                 fuel: [],
                 maint: [],
                 estoque: [],
+                custosAdicionais: [],
                 totalFuel: 0,
                 totalMaint: 0,
                 totalEstoque: 0,
+                totalCustosAdicionais: 0,
                 total: 0
             };
         });
 
         // Add Fueling
         fuel.forEach(f => {
-            const plate = f.veiculos?.placa;
-            const owner = f.veiculos?.proprietario || 'NÃO INFORMADO';
-            if (grouped[owner] && grouped[owner][plate]) {
+            let vehicle = f.veiculos;
+            if (!vehicle && f.veiculo_id) {
+                vehicle = vehicles.find(v => v.id === f.veiculo_id);
+            }
+            if (!vehicle && f.placa) {
+                vehicle = vehicles.find(v => v.placa === f.placa);
+            }
+            
+            const plate = vehicle?.placa || f.placa;
+            const owner = vehicle?.proprietario || 'NÃO INFORMADO';
+            
+            if (plate && grouped[owner] && grouped[owner][plate]) {
                 grouped[owner][plate].fuel.push(f);
                 grouped[owner][plate].totalFuel += (parseFloat(f.valor_total) || 0);
                 grouped[owner][plate].total += (parseFloat(f.valor_total) || 0);
             }
         });
 
-        // Add Purchases linked to vehicles (module COMPRAS only)
+        // Helper para resolver valor de custo com parcelamento
+        const getValorComParcelamento = (origemTipo, origemId, valorOriginal, dataEmissao) => {
+            const key = `${origemTipo}_${origemId}`;
+            const rule = state.parcelamentosMap[key];
+            if (!rule || rule.total_parcelas <= 1) {
+                return { valorVigente: valorOriginal, isParcelado: false, parcelaInfo: null };
+            }
+
+            // Calcular mes de inicio da parcela
+            const startPeriod = rule.periodo_inicio; // e.g. '2026-08'
+            const [startYear, startMonth] = startPeriod.split('-').map(Number);
+            
+            // Periodo atual do fechamento
+            const currentPeriod = document.getElementById('filter_period')?.value || '';
+            let currentYear, currentMonth;
+            if (currentPeriod) {
+                [currentYear, currentMonth] = currentPeriod.split('-').map(Number);
+            } else {
+                const now = new Date();
+                currentYear = now.getFullYear();
+                currentMonth = now.getMonth() + 1;
+            }
+
+            let firstInstallmentMonth = startMonth;
+            let firstInstallmentYear = startYear;
+            if (rule.descontar_mes_vigente === false) {
+                firstInstallmentMonth += 1;
+                if (firstInstallmentMonth > 12) {
+                    firstInstallmentMonth = 1;
+                    firstInstallmentYear += 1;
+                }
+            }
+
+            // Diferença em meses entre o primeiro mes da parcela e o fechamento selecionado
+            const diffMonths = (currentYear - firstInstallmentYear) * 12 + (currentMonth - firstInstallmentMonth);
+            
+            if (diffMonths >= 0 && diffMonths < rule.total_parcelas) {
+                const numParcela = diffMonths + 1;
+                const parcelasRestantes = rule.total_parcelas - numParcela;
+                const valParc = parseFloat(rule.valor_parcela) || (valorOriginal / rule.total_parcelas);
+                const saldoAVencer = parcelasRestantes * valParc;
+                return {
+                    valorVigente: valParc,
+                    isParcelado: true,
+                    numParcela: numParcela,
+                    totalParcelas: rule.total_parcelas,
+                    parcelasRestantes: parcelasRestantes,
+                    saldoAVencer: saldoAVencer,
+                    parcelaInfo: `Parc. ${numParcela}/${rule.total_parcelas} (R$ ${valParc.toLocaleString('pt-BR', {minimumFractionDigits: 2})})`
+                };
+            } else {
+                // Fora do intervalo de parcelas para o periodo do fechamento
+                return { valorVigente: 0, isParcelado: true, numParcela: 0, totalParcelas: rule.total_parcelas, parcelasRestantes: 0, saldoAVencer: 0, parcelaInfo: `Parcelado (${rule.total_parcelas}x) - fora do período` };
+            }
+        };
+
+        // Add Manutenções Nativas (tabela manutencoes)
+        maint.forEach(m => {
+            const plate = m.veiculos?.placa;
+            const owner = m.veiculos?.proprietario || 'NÃO INFORMADO';
+
+            if (grouped[owner] && grouped[owner][plate]) {
+                const rawVal = parseFloat(m.valor_total || m.valor || 0);
+                const pRes = getValorComParcelamento('MANUTENCAO', m.id, rawVal, m.data);
+
+                if (pRes.valorVigente > 0 || pRes.isParcelado) {
+                    grouped[owner][plate].maint.push({
+                        origem_id: m.id,
+                        origem_tipo: 'MANUTENCAO',
+                        data: m.data,
+                        quantidade: 1,
+                        servicos: m.descricao || m.servico || 'MANUTENÇÃO VEICULAR',
+                        tipo: 'MANUTENÇÃO',
+                        fornecedor: m.fornecedores?.nome || m.oficina_nome || 'Oficina não inf.',
+                        valorOriginal: rawVal,
+                        valor: pRes.valorVigente,
+                        isParcelado: pRes.isParcelado,
+                        numParcela: pRes.numParcela,
+                        totalParcelas: pRes.totalParcelas,
+                        parcelasRestantes: pRes.parcelasRestantes,
+                        saldoAVencer: pRes.saldoAVencer,
+                        parcelaInfo: pRes.parcelaInfo
+                    });
+                    
+                    grouped[owner][plate].totalMaint += pRes.valorVigente;
+                    grouped[owner][plate].total += pRes.valorVigente;
+                }
+            }
+        });
+
+        // Add Purchases linked to vehicles (module COMPRAS)
         purchases.forEach(p => {
             (p.compra_itens || []).forEach(it => {
                 if (it.vinculo_pessoa) return; // Skip person links under vehicle costs
@@ -847,19 +980,32 @@ function processData(fuel, maint, vehicles, purchases, sales) {
                 const owner = vehicle.proprietario || 'NÃO INFORMADO';
 
                 if (grouped[owner] && grouped[owner][plate]) {
-                    const val = (parseFloat(it.quantidade) || 0) * (parseFloat(it.valor_unitario) || 0);
-                    
-                    grouped[owner][plate].maint.push({
-                        data: p.data_emissao,
-                        quantidade: parseFloat(it.quantidade) || 1,
-                        servicos: `${it.produto}${it.marca ? ' ('+it.marca+')' : ''}`,
-                        tipo: it.tipo === 'servico' ? 'SERVIÇO (COMPRAS)' : 'PEÇA (COMPRAS)',
-                        fornecedor: p.fornecedor_nome || 'Fornecedor não inf.',
-                        valor: val
-                    });
-                    
-                    grouped[owner][plate].totalMaint += val;
-                    grouped[owner][plate].total += val;
+                    const rawVal = (parseFloat(it.quantidade) || 0) * (parseFloat(it.valor_unitario) || 0);
+                    const itemId = it.id || `${p.id}_${it.produto}`;
+                    const pRes = getValorComParcelamento('COMPRA', itemId, rawVal, p.data_emissao);
+
+                    if (pRes.valorVigente > 0 || pRes.isParcelado) {
+                        grouped[owner][plate].maint.push({
+                            origem_id: itemId,
+                            origem_tipo: 'COMPRA',
+                            data: p.data_emissao,
+                            quantidade: parseFloat(it.quantidade) || 1,
+                            servicos: `${it.produto}${it.marca ? ' ('+it.marca+')' : ''}`,
+                            tipo: it.tipo === 'servico' ? 'SERVIÇO (COMPRAS)' : 'PEÇA (COMPRAS)',
+                            fornecedor: p.fornecedores?.nome || p.fornecedor_nome || 'Fornecedor não inf.',
+                            valorOriginal: rawVal,
+                            valor: pRes.valorVigente,
+                            isParcelado: pRes.isParcelado,
+                            numParcela: pRes.numParcela,
+                            totalParcelas: pRes.totalParcelas,
+                            parcelasRestantes: pRes.parcelasRestantes,
+                            saldoAVencer: pRes.saldoAVencer,
+                            parcelaInfo: pRes.parcelaInfo
+                        });
+                        
+                        grouped[owner][plate].totalMaint += pRes.valorVigente;
+                        grouped[owner][plate].total += pRes.valorVigente;
+                    }
                 }
             });
         });
@@ -896,6 +1042,36 @@ function processData(fuel, maint, vehicles, purchases, sales) {
                     grouped[owner][plate].totalEstoque += val;
                     grouped[owner][plate].total += val;
                 }
+            });
+        });
+
+        // Add Custos Adicionais Manuais da tabela fechamento_custos_adicionais
+        (state.custosAdicionais || []).forEach(cAdd => {
+            const plate = cAdd.placa;
+            const vehicle = vehicles.find(v => v.placa === plate);
+            const owner = vehicle?.proprietario || 'NÃO INFORMADO';
+
+            if (grouped[owner] && grouped[owner][plate]) {
+                const val = parseFloat(cAdd.valor) || 0;
+                grouped[owner][plate].custosAdicionais.push(cAdd);
+                grouped[owner][plate].totalCustosAdicionais += val;
+                grouped[owner][plate].total += val;
+            }
+        });
+
+        // Aplicar filtro de grupos desabilitados por veículo (disabledGroups)
+        Object.keys(grouped).forEach(owner => {
+            Object.keys(grouped[owner]).forEach(plate => {
+                const item = grouped[owner][plate];
+                const dis = state.disabledGroups[plate] || {};
+                
+                let calcTotal = 0;
+                if (!dis.fuel) calcTotal += item.totalFuel;
+                if (!dis.maint) calcTotal += item.totalMaint;
+                if (!dis.estoque) calcTotal += (item.totalEstoque || 0);
+                if (!dis.custosAdicionais) calcTotal += (item.totalCustosAdicionais || 0);
+                
+                item.total = calcTotal;
             });
         });
     }
@@ -1307,6 +1483,8 @@ function selectPlate(plate, owner) {
         </div>
     `;
 
+    const plateDis = state.disabledGroups[plate] || {};
+
     if (plate !== 'VENDA ESTOQUE' && plate !== 'VÍNCULO PESSOA') {
         // Hierarchical Fueling by Driver
         const fuelByDriver = {};
@@ -1317,9 +1495,17 @@ function selectPlate(plate, owner) {
             fuelByDriver[dName].total += (parseFloat(f.valor_total) || 0);
         });
 
+        const fuelDisabled = !!plateDis.fuel;
+
         html += `
-            <div class="section-block">
-                <h4><i data-lucide="fuel" style="width: 14px;"></i> Abastecimentos por Condutor (${data.fuel.length})</h4>
+            <div class="section-block" style="${fuelDisabled ? 'opacity: 0.5; filter: grayscale(0.8);' : ''}">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+                    <h4 style="margin:0;"><i data-lucide="fuel" style="width: 14px;"></i> Abastecimentos por Condutor (${data.fuel.length})</h4>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; font-weight: 700; cursor: pointer; color: ${fuelDisabled ? 'var(--text-muted)' : '#10b981'}; background: rgba(255,255,255,0.03); padding: 0.3rem 0.6rem; border-radius: 6px; border: 1px solid var(--border-card);">
+                        <input type="checkbox" ${!fuelDisabled ? 'checked' : ''} onchange="togglePlateGroup('${plate}', '${owner}', 'fuel', !this.checked)" style="cursor: pointer;">
+                        <span>${!fuelDisabled ? 'Considerar no Custo' : 'Custo Desconsiderado'}</span>
+                    </label>
+                </div>
                 <div class="hierarchical-list">
                     ${data.fuel.length === 0 ? '<p style="text-align:center; color:var(--text-muted); padding: 1rem;">Nenhum abastecimento no período.</p>' : 
                         Object.keys(fuelByDriver).sort().map(dName => {
@@ -1365,8 +1551,8 @@ function selectPlate(plate, owner) {
                     }
                     ${data.fuel.length > 0 ? `
                         <div style="display: flex; justify-content: space-between; padding: 1rem; background: rgba(16, 185, 129, 0.1); border-radius: 10px; margin-top: 0.5rem;">
-                            <span style="font-weight: 800; font-size: 0.9rem;">Total Abastecimento Placa</span>
-                            <span style="font-weight: 900; color: #10b981; font-size: 1.1rem;">${data.totalFuel.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                            <span style="font-weight: 800; font-size: 0.9rem;">Total Abastecimento Placa ${fuelDisabled ? '(DESCONSIDERADO)' : ''}</span>
+                            <span style="font-weight: 900; color: ${fuelDisabled ? 'var(--text-muted)' : '#10b981'}; font-size: 1.1rem; ${fuelDisabled ? 'text-decoration: line-through;' : ''}">${data.totalFuel.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                         </div>
                     ` : ''}
                 </div>
@@ -1376,9 +1562,17 @@ function selectPlate(plate, owner) {
 
     if (plate !== 'VENDA ESTOQUE') {
         // Manutenções Section
+        const maintDisabled = !!plateDis.maint;
+
         html += `
-            <div class="section-block">
-                <h4><i data-lucide="wrench" style="width: 14px;"></i> Manutenções (${data.maint.length})</h4>
+            <div class="section-block" style="${maintDisabled ? 'opacity: 0.5; filter: grayscale(0.8);' : ''}">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+                    <h4 style="margin:0;"><i data-lucide="wrench" style="width: 14px;"></i> Manutenções / Compras (${data.maint.length})</h4>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; font-weight: 700; cursor: pointer; color: ${maintDisabled ? 'var(--text-muted)' : '#f59e0b'}; background: rgba(255,255,255,0.03); padding: 0.3rem 0.6rem; border-radius: 6px; border: 1px solid var(--border-card);">
+                        <input type="checkbox" ${!maintDisabled ? 'checked' : ''} onchange="togglePlateGroup('${plate}', '${owner}', 'maint', !this.checked)" style="cursor: pointer;">
+                        <span>${!maintDisabled ? 'Considerar no Custo' : 'Custo Desconsiderado'}</span>
+                    </label>
+                </div>
                 <table class="mobile-cards">
                     <thead>
                         <tr>
@@ -1386,12 +1580,19 @@ function selectPlate(plate, owner) {
                             <th style="text-align: center;">Qtd</th>
                             <th>Serviços / Itens</th>
                             <th>Fornecedor</th>
-                            <th class="val-col">Valor</th>
+                            <th class="val-col">Valor Total</th>
+                            <th style="text-align: center;">Ações / Parcelamento</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${data.maint.length === 0 ? '<tr><td colspan="5" data-label="Aviso" style="text-align:center; color:var(--text-muted);">Nenhuma manutenção no período.</td></tr>' : 
+                        ${data.maint.length === 0 ? '<tr><td colspan="6" data-label="Aviso" style="text-align:center; color:var(--text-muted);">Nenhuma manutenção/compra no período.</td></tr>' : 
                             data.maint.sort((a,b) => new Date(a.data) - new Date(b.data)).map(m => {
+                                const isParc = m.isParcelado;
+                                const parcBadge = isParc ? `<span class="status-pill" style="font-size: 0.65rem; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); display: block; margin-top: 2px;">${m.parcelaInfo}</span>` : '';
+                                const origTipo = m.origem_tipo || 'MANUTENCAO';
+                                const origId = m.origem_id || '';
+                                const valTotalOriginal = m.valorOriginal || m.valor;
+
                                 return `
                                     <tr>
                                         <td data-label="Data">${new Date(m.data + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
@@ -1399,9 +1600,18 @@ function selectPlate(plate, owner) {
                                         <td data-label="Serviços / Itens">
                                             <div style="font-weight: 700;">${m.servicos}</div>
                                             <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">${m.tipo}</div>
+                                            ${parcBadge}
                                         </td>
                                         <td data-label="Fornecedor">${m.fornecedor}</td>
-                                        <td data-label="Valor" class="val-col" style="font-weight: 700;">R$ ${m.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                        <td data-label="Valor" class="val-col" style="font-weight: 700;">
+                                            R$ ${m.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                                            ${isParc ? `<div style="font-size: 0.65rem; color: var(--text-muted); text-decoration: line-through;">Total: R$ ${valTotalOriginal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>` : ''}
+                                        </td>
+                                        <td data-label="Parcelamento" style="text-align: center;">
+                                            <button onclick="openParcelamentoModal('${origTipo}', '${origId}', '${plate}', ${valTotalOriginal}, '${m.servicos.replace(/'/g, "\\'")}')" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.25); color: var(--primary-light); border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                                                <i data-lucide="credit-card" style="width: 13px; height: 13px;"></i> ${isParc ? 'Editar Parc.' : 'Parcelar'}
+                                            </button>
+                                        </td>
                                     </tr>
                                   `;
                             }).join('')
@@ -1410,8 +1620,8 @@ function selectPlate(plate, owner) {
                 </table>
                 ${data.maint.length > 0 ? `
                     <div style="display: flex; justify-content: space-between; padding: 1rem; background: rgba(245, 158, 11, 0.1); border-radius: 10px; margin-top: 0.8rem;">
-                        <span style="font-weight: 800; font-size: 0.9rem;">Subtotal Manutenção</span>
-                        <span style="font-weight: 900; color: #f59e0b; font-size: 1.1rem;">${data.totalMaint.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                        <span style="font-weight: 800; font-size: 0.9rem;">Subtotal Manutenção ${maintDisabled ? '(DESCONSIDERADO)' : ''}</span>
+                        <span style="font-weight: 900; color: ${maintDisabled ? 'var(--text-muted)' : '#f59e0b'}; font-size: 1.1rem; ${maintDisabled ? 'text-decoration: line-through;' : ''}">${data.totalMaint.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                     </div>
                 ` : ''}
             </div>
@@ -1420,9 +1630,17 @@ function selectPlate(plate, owner) {
 
     // Saídas / Venda de Estoque Section
     const listEstoque = data.estoque || [];
+    const estoqueDisabled = !!plateDis.estoque;
+
     html += `
-        <div class="section-block">
-            <h4><i data-lucide="package" style="width: 14px;"></i> Saídas e Vendas de Estoque (${listEstoque.length})</h4>
+        <div class="section-block" style="${estoqueDisabled ? 'opacity: 0.5; filter: grayscale(0.8);' : ''}">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+                <h4 style="margin:0;"><i data-lucide="package" style="width: 14px;"></i> Saídas e Vendas de Estoque (${listEstoque.length})</h4>
+                <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; font-weight: 700; cursor: pointer; color: ${estoqueDisabled ? 'var(--text-muted)' : 'var(--primary-light)'}; background: rgba(255,255,255,0.03); padding: 0.3rem 0.6rem; border-radius: 6px; border: 1px solid var(--border-card);">
+                    <input type="checkbox" ${!estoqueDisabled ? 'checked' : ''} onchange="togglePlateGroup('${plate}', '${owner}', 'estoque', !this.checked)" style="cursor: pointer;">
+                    <span>${!estoqueDisabled ? 'Considerar no Custo' : 'Custo Desconsiderado'}</span>
+                </label>
+            </div>
             <table class="mobile-cards">
                 <thead>
                     <tr>
@@ -1453,12 +1671,65 @@ function selectPlate(plate, owner) {
             </table>
             ${listEstoque.length > 0 ? `
                 <div style="display: flex; justify-content: space-between; padding: 1rem; background: rgba(99, 102, 241, 0.1); border-radius: 10px; margin-top: 0.8rem;">
-                    <span style="font-weight: 800; font-size: 0.9rem;">Subtotal Estoque</span>
-                    <span style="font-weight: 900; color: var(--primary-light); font-size: 1.1rem;">${data.totalEstoque.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                    <span style="font-weight: 800; font-size: 0.9rem;">Subtotal Estoque ${estoqueDisabled ? '(DESCONSIDERADO)' : ''}</span>
+                    <span style="font-weight: 900; color: ${estoqueDisabled ? 'var(--text-muted)' : 'var(--primary-light)'}; font-size: 1.1rem; ${estoqueDisabled ? 'text-decoration: line-through;' : ''}">${data.totalEstoque.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                 </div>
             ` : ''}
         </div>
     `;
+
+    if (plate !== 'VENDA ESTOQUE' && plate !== 'VÍNCULO PESSOA') {
+        // Custos Adicionais Section
+        const listCustosAdd = data.custosAdicionais || [];
+        const custosAddDisabled = !!plateDis.custosAdicionais;
+
+        html += `
+            <div class="section-block" style="${custosAddDisabled ? 'opacity: 0.5; filter: grayscale(0.8);' : ''}">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+                    <h4 style="margin: 0;"><i data-lucide="plus-circle" style="width: 14px;"></i> Custos Adicionais Manuais (${listCustosAdd.length})</h4>
+                    <div style="display: flex; align-items: center; gap: 0.8rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; font-weight: 700; cursor: pointer; color: ${custosAddDisabled ? 'var(--text-muted)' : '#ef4444'}; background: rgba(255,255,255,0.03); padding: 0.3rem 0.6rem; border-radius: 6px; border: 1px solid var(--border-card);">
+                            <input type="checkbox" ${!custosAddDisabled ? 'checked' : ''} onchange="togglePlateGroup('${plate}', '${owner}', 'custosAdicionais', !this.checked)" style="cursor: pointer;">
+                            <span>${!custosAddDisabled ? 'Considerar no Custo' : 'Custo Desconsiderado'}</span>
+                        </label>
+                        <button onclick="openCustoAdicionalModal('${plate}')" style="padding: 0.4rem 0.8rem; font-size: 0.75rem; background: var(--primary); border: none; border-radius: 6px; color: white; cursor: pointer; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                            <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Adicionar Custo
+                        </button>
+                    </div>
+                </div>
+                <table class="mobile-cards">
+                    <thead>
+                        <tr>
+                            <th>Descrição</th>
+                            <th class="val-col">Valor (R$)</th>
+                            <th style="text-align: center; width: 80px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${listCustosAdd.length === 0 ? '<tr><td colspan="3" data-label="Aviso" style="text-align:center; color:var(--text-muted);">Nenhum custo adicional lançado para esta placa no período.</td></tr>' : 
+                            listCustosAdd.map(c => `
+                                <tr>
+                                    <td data-label="Descrição" style="font-weight: 700;">${c.descricao}</td>
+                                    <td data-label="Valor" class="val-col" style="font-weight: 800; color: #ef4444;">R$ ${parseFloat(c.valor).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                    <td data-label="Ações" style="text-align: center;">
+                                        <button onclick="excluirCustoAdicional('${c.id}')" style="padding: 0.3rem 0.5rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 6px; color: #ef4444; cursor: pointer;">
+                                            <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')
+                        }
+                    </tbody>
+                </table>
+                ${listCustosAdd.length > 0 ? `
+                    <div style="display: flex; justify-content: space-between; padding: 1rem; background: rgba(239, 68, 68, 0.1); border-radius: 10px; margin-top: 0.8rem;">
+                        <span style="font-weight: 800; font-size: 0.9rem;">Subtotal Custos Adicionais ${custosAddDisabled ? '(DESCONSIDERADO)' : ''}</span>
+                        <span style="font-weight: 900; color: ${custosAddDisabled ? 'var(--text-muted)' : '#ef4444'}; font-size: 1.1rem; ${custosAddDisabled ? 'text-decoration: line-through;' : ''}">${(data.totalCustosAdicionais || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
 
     detailArea.innerHTML = html;
     lucide.createIcons();
@@ -1813,6 +2084,7 @@ function exportToPDF() {
     // Table of Summary
     const summaryRows = [];
     let grandTotal = 0;
+    let grandFutureTotal = 0;
 
     Object.keys(state.closingData).sort().forEach(owner => {
         const plates = state.closingData[owner];
@@ -1821,45 +2093,126 @@ function exportToPDF() {
 
         // Header for Owner
         summaryRows.push([
-            { content: owner.toUpperCase(), colSpan: 5, styles: { fillColor: [230, 230, 230], fontStyle: 'bold' } }
+            { content: owner.toUpperCase(), colSpan: 7, styles: { fillColor: [230, 230, 230], fontStyle: 'bold' } }
         ]);
 
         Object.keys(plates).sort().forEach(plate => {
             const data = plates[plate];
+            const dis = state.disabledGroups[plate] || {};
+
+            // Calcular saldo a vencer futuro das parcelas desta placa
+            let plateFutureBalance = 0;
+            if (data.maint && !dis.maint) {
+                data.maint.forEach(m => {
+                    if (m.isParcelado && m.saldoAVencer > 0) {
+                        plateFutureBalance += m.saldoAVencer;
+                    }
+                });
+            }
+            grandFutureTotal += plateFutureBalance;
+
+            const futureStr = plateFutureBalance > 0 ? plateFutureBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-';
+
+            const fuelValStr = dis.fuel ? `(DESC.) ${data.totalFuel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : data.totalFuel.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+            const maintValStr = dis.maint ? `(DESC.) ${data.totalMaint.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : data.totalMaint.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+            const estoqueValStr = dis.estoque ? `(DESC.) ${(data.totalEstoque || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : (data.totalEstoque || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+            const addValStr = dis.custosAdicionais ? `(DESC.) ${(data.totalCustosAdicionais || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : (data.totalCustosAdicionais || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
             summaryRows.push([
                 plate,
-                data.totalFuel.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                data.totalMaint.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                (data.totalEstoque || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                fuelValStr,
+                maintValStr,
+                estoqueValStr,
+                addValStr,
+                data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+                futureStr
             ]);
         });
 
         summaryRows.push([
-            { content: 'SUBTOTAL', colSpan: 4, styles: { fontStyle: 'bold', halign: 'right' } },
-            { content: ownerTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold' } }
+            { content: 'SUBTOTAL', colSpan: 5, styles: { fontStyle: 'bold', halign: 'right' } },
+            { content: ownerTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold' } },
+            { content: '', styles: { fontStyle: 'bold' } }
         ]);
     });
 
     summaryRows.push([
-        { content: 'TOTAL GERAL DO PERÍODO', colSpan: 4, styles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'right' } },
-        { content: grandTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold' } }
+        { content: 'TOTAL GERAL DO PERÍODO', colSpan: 5, styles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'right' } },
+        { content: grandTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold' } },
+        { content: grandFutureTotal > 0 ? grandFutureTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-', styles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'right' } }
     ]);
 
     doc.autoTable({
         startY: y,
-        head: [['IDENTIFICAÇÃO', 'ABASTECIMENTO (R$)', 'MANUTENÇÃO (R$)', 'ESTOQUE (R$)', 'TOTAL (R$)']],
+        head: [['IDENTIFICAÇÃO', 'ABASTECIMENTO (R$)', 'MANUTENÇÃO (R$)', 'ESTOQUE (R$)', 'CUSTOS ADICIONAL (R$)', 'TOTAL PERÍODO (R$)', 'A DESCONTAR PRÓX. MESES (R$)']],
         body: summaryRows,
         theme: 'grid',
         headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
-        styles: { fontSize: 8 },
+        styles: { fontSize: 7, cellPadding: 2 },
         columnStyles: {
             1: { halign: 'right' },
             2: { halign: 'right' },
             3: { halign: 'right' },
-            4: { halign: 'right' }
+            4: { halign: 'right' },
+            5: { halign: 'right' },
+            6: { halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] }
         }
     });
+
+    // Se houver parcelamentos com saldo a vencer futuro, adiciona a tabela analítica de parcelamentos futuros para o financeiro
+    if (grandFutureTotal > 0) {
+        let finalY = doc.lastAutoTable.finalY + 12;
+        if (finalY > 230) { doc.addPage(); finalY = 20; }
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(220, 38, 38);
+        doc.text('DETALHAMENTO DE DESCONTOS FUTUROS (PARCELAMENTOS A VENCER NOS PRÓXIMOS MESES)', margin, finalY);
+        finalY += 4;
+
+        const parcRows = [];
+        Object.keys(state.closingData).sort().forEach(owner => {
+            const plates = state.closingData[owner];
+            Object.keys(plates).sort().forEach(plate => {
+                const data = plates[plate];
+                if (data.maint) {
+                    data.maint.forEach(m => {
+                        if (m.isParcelado && m.saldoAVencer > 0) {
+                            parcRows.push([
+                                plate,
+                                owner.toUpperCase(),
+                                m.servicos,
+                                m.fornecedor,
+                                m.parcelaInfo,
+                                m.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+                                `${m.parcelasRestantes}x`,
+                                m.saldoAVencer.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                            ]);
+                        }
+                    });
+                }
+            });
+        });
+
+        parcRows.push([
+            { content: 'TOTAL A DESCONTAR EM MESES FUTUROS', colSpan: 7, styles: { halign: 'right', fontStyle: 'bold', fillColor: [254, 226, 226] } },
+            { content: grandFutureTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold', fillColor: [254, 226, 226], textColor: [220, 38, 38], halign: 'right' } }
+        ]);
+
+        doc.autoTable({
+            startY: finalY,
+            head: [['PLACA', 'PROPRIETÁRIO', 'DESCRIÇÃO DO ITEM', 'FORNECEDOR', 'PARCELA MÊS', 'VALOR MÊS (R$)', 'PARC. RESTANTES', 'SALDO A VENCER (R$)']],
+            body: parcRows,
+            theme: 'grid',
+            headStyles: { fillColor: [185, 28, 28], textColor: [255, 255, 255] },
+            styles: { fontSize: 7, cellPadding: 2 },
+            columnStyles: {
+                5: { halign: 'right' },
+                6: { halign: 'center' },
+                7: { halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] }
+            }
+        });
+    }
 
     doc.save(`FECHAMENTO_${state.periodLabel.replace(' ','_')}_${selectedClasses.join('_') || 'TODAS'}.pdf`);
 }
@@ -2087,6 +2440,7 @@ function generateDetailedReportPDF() {
         const plates = state.closingData[owner];
         Object.keys(plates).sort().forEach(plate => {
             const data = plates[plate];
+            const dis = state.disabledGroups[plate] || {};
             
             // Check page overflow
             if (y > 230) {
@@ -2103,13 +2457,13 @@ function generateDetailedReportPDF() {
             doc.text(`${plate} | PROPRIETÁRIO: ${owner.toUpperCase()}`, margin + 5, y + 6.5);
             
             // Right-aligned cost
-            const totalStr = `TOTAL: R$ ${data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            const totalStr = `TOTAL CUSTO: R$ ${data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
             doc.text(totalStr, margin + 175 - doc.getTextWidth(totalStr), y + 6.5);
             
             y += 15;
 
             // SECTION 1: Abastecimentos
-            if (data.fuel && data.fuel.length > 0) {
+            if (data.fuel && data.fuel.length > 0 && !dis.fuel) {
                 if (y > 250) { doc.addPage(); y = 20; }
                 
                 doc.setFont('helvetica', 'bold');
@@ -2157,40 +2511,48 @@ function generateDetailedReportPDF() {
                 y = doc.lastAutoTable.finalY + 8;
             }
 
-            // SECTION 2: Manutenções
-            if (data.maint && data.maint.length > 0) {
+            // SECTION 2: Manutenções / Compras
+            if (data.maint && data.maint.length > 0 && !dis.maint) {
                 if (y > 250) { doc.addPage(); y = 20; }
                 
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(9);
                 doc.setTextColor(99, 102, 241); // var(--primary-light) blue
-                doc.text(`MANUTENÇÕES (${data.maint.length})`, margin, y);
+                doc.text(`MANUTENÇÕES / COMPRAS (${data.maint.length})`, margin, y);
                 y += 4;
 
+                let totalAVencerSection = 0;
                 const maintRows = data.maint.sort((a,b) => new Date(a.data) - new Date(b.data)).map(m => {
+                    const descServico = m.isParcelado ? `${m.servicos} (${m.tipo}) [${m.parcelaInfo}]` : `${m.servicos} (${m.tipo})`;
+                    const saldoFuturo = (m.isParcelado && m.saldoAVencer > 0) ? m.saldoAVencer : 0;
+                    totalAVencerSection += saldoFuturo;
+
                     return [
                         new Date(m.data + 'T12:00:00').toLocaleDateString('pt-BR'),
-                        `${m.servicos} (${m.tipo})`,
+                        descServico,
                         m.fornecedor,
-                        m.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                        m.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+                        saldoFuturo > 0 ? saldoFuturo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'
                     ];
                 });
 
                 // Add subtotal row
                 maintRows.push([
                     { content: 'Subtotal Manutenção', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold', fillColor: [241, 245, 249] } },
-                    { content: data.totalMaint.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold', fillColor: [254, 243, 199], textColor: [217, 119, 6] } }
+                    { content: data.totalMaint.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold', fillColor: [254, 243, 199], textColor: [217, 119, 6] } },
+                    { content: totalAVencerSection > 0 ? totalAVencerSection.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-', styles: { fontStyle: 'bold', fillColor: [254, 226, 226], textColor: [220, 38, 38], halign: 'right' } }
                 ]);
 
                 doc.autoTable({
                     startY: y,
-                    head: [['DATA', 'SERVIÇOS / ITENS', 'FORNECEDOR', 'VALOR (R$)']],
+                    head: [['DATA', 'SERVIÇOS / ITENS', 'FORNECEDOR', 'VALOR MÊS (R$)', 'A DESCONTAR PRÓX. MESES (R$)']],
                     body: maintRows,
                     theme: 'grid',
                     headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255] },
-                    styles: { fontSize: 7.5, cellPadding: 2 },
+                    styles: { fontSize: 7, cellPadding: 2 },
                     columnStyles: {
-                        3: { halign: 'right' }
+                        3: { halign: 'right' },
+                        4: { halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] }
                     }
                 });
 
@@ -2198,7 +2560,7 @@ function generateDetailedReportPDF() {
             }
 
             // SECTION 3: Saídas e Vendas de Estoque
-            if (data.estoque && data.estoque.length > 0) {
+            if (data.estoque && data.estoque.length > 0 && !dis.estoque) {
                 if (y > 250) { doc.addPage(); y = 20; }
                 
                 doc.setFont('helvetica', 'bold');
@@ -2233,6 +2595,41 @@ function generateDetailedReportPDF() {
                     styles: { fontSize: 7.5, cellPadding: 2 },
                     columnStyles: {
                         5: { halign: 'right' }
+                    }
+                });
+
+                y = doc.lastAutoTable.finalY + 8;
+            }
+
+            // SECTION 4: Custos Adicionais Manuais
+            if (data.custosAdicionais && data.custosAdicionais.length > 0 && !dis.custosAdicionais) {
+                if (y > 250) { doc.addPage(); y = 20; }
+                
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9);
+                doc.setTextColor(239, 68, 68); // Red
+                doc.text(`CUSTOS ADICIONAIS MANUAIS (${data.custosAdicionais.length})`, margin, y);
+                y += 4;
+
+                const addRows = data.custosAdicionais.map(c => [
+                    c.descricao,
+                    parseFloat(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                ]);
+
+                addRows.push([
+                    { content: 'Subtotal Custos Adicionais', styles: { halign: 'right', fontStyle: 'bold', fillColor: [254, 226, 226] } },
+                    { content: (data.totalCustosAdicionais || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold', fillColor: [254, 226, 226], textColor: [220, 38, 38] } }
+                ]);
+
+                doc.autoTable({
+                    startY: y,
+                    head: [['DESCRIÇÃO DO CUSTO', 'VALOR (R$)']],
+                    body: addRows,
+                    theme: 'grid',
+                    headStyles: { fillColor: [185, 28, 28], textColor: [255, 255, 255] },
+                    styles: { fontSize: 7.5, cellPadding: 2 },
+                    columnStyles: {
+                        1: { halign: 'right' }
                     }
                 });
 
@@ -2750,4 +3147,263 @@ function exportFuelDetailedExcel() {
     XLSX.utils.book_append_sheet(wb, ws, "Postos Detalhado");
     XLSX.writeFile(wb, `DETALHADO_ABASTECIMENTO_POSTOS_${state.periodLabel.replace(' ','_')}.xlsx`);
 }
+
+// --- Funções Auxiliares: Custo Adicional e Parcelamento ---
+
+let targetCustoAdicionalPlaca = null;
+
+window.openCustoAdicionalModal = (placa) => {
+    targetCustoAdicionalPlaca = placa;
+    document.getElementById('lblCustoAdicionalPlaca').innerText = placa;
+    document.getElementById('custo_add_descricao').value = '';
+    document.getElementById('custo_add_valor').value = '';
+    
+    const modal = document.getElementById('modalCustoAdicional');
+    if (modal) modal.style.display = 'flex';
+};
+
+window.closeCustoAdicionalModal = () => {
+    const modal = document.getElementById('modalCustoAdicional');
+    if (modal) modal.style.display = 'none';
+};
+
+window.salvarCustoAdicional = async (e) => {
+    e.preventDefault();
+    const desc = document.getElementById('custo_add_descricao').value.trim();
+    const val = parseFloat(document.getElementById('custo_add_valor').value);
+    
+    if (!desc || isNaN(val) || val <= 0) {
+        alert('Por favor, preencha uma descrição e um valor válido.');
+        return;
+    }
+
+    const periodType = document.getElementById('period_type')?.value || 'month';
+    let periodKey = '';
+    if (periodType === 'month') {
+        periodKey = document.getElementById('filter_period').value;
+    } else {
+        const s = document.getElementById('filter_start_date').value;
+        const end = document.getElementById('filter_end_date').value;
+        periodKey = `${s}_${end}`;
+    }
+
+    const vehicle = state.vehicles.find(v => v.placa === targetCustoAdicionalPlaca);
+
+    showLoading(true, 'Salvando custo adicional...');
+    try {
+        const { data, error } = await supabaseClient
+            .from('fechamento_custos_adicionais')
+            .insert([{
+                periodo: periodKey,
+                veiculo_id: vehicle?.id || null,
+                placa: targetCustoAdicionalPlaca,
+                descricao: desc,
+                valor: val
+            }])
+            .select();
+
+        if (error) throw error;
+
+        closeCustoAdicionalModal();
+        await generateClosing();
+        if (state.selectedPlate) {
+            const owner = Object.keys(state.closingData).find(o => state.closingData[o][targetCustoAdicionalPlaca]);
+            if (owner) selectPlate(targetCustoAdicionalPlaca, owner);
+        }
+    } catch (err) {
+        console.error('Erro ao salvar custo adicional:', err);
+        alert('Erro ao salvar custo adicional no Supabase: ' + err.message);
+    } finally {
+        showLoading(false);
+    }
+};
+
+window.excluirCustoAdicional = async (id) => {
+    if (!confirm('Deseja realmente remover este custo adicional?')) return;
+    
+    showLoading(true, 'Removendo custo adicional...');
+    try {
+        const { error } = await supabaseClient
+            .from('fechamento_custos_adicionais')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+
+        await generateClosing();
+        if (state.selectedPlate) {
+            const plate = state.selectedPlate;
+            const owner = Object.keys(state.closingData).find(o => state.closingData[o][plate]);
+            if (owner) selectPlate(plate, owner);
+        }
+    } catch (err) {
+        console.error('Erro ao excluir custo adicional:', err);
+        alert('Erro ao excluir custo adicional: ' + err.message);
+    } finally {
+        showLoading(false);
+    }
+};
+
+// --- Modal de Parcelamento ---
+
+window.openParcelamentoModal = (origemTipo, origemId, placa, valorTotal, itemNome) => {
+    document.getElementById('parc_origem_tipo').value = origemTipo;
+    document.getElementById('parc_origem_id').value = origemId;
+    document.getElementById('parc_placa').value = placa;
+    document.getElementById('parc_valor_total').value = valorTotal;
+
+    document.getElementById('lblParcelaItem').innerText = itemNome;
+    document.getElementById('lblParcelaValorTotal').innerText = `R$ ${valorTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+
+    const key = `${origemTipo}_${origemId}`;
+    const rule = state.parcelamentosMap[key];
+
+    const btnRemover = document.getElementById('btnRemoverParcelamento');
+    if (rule) {
+        document.getElementById('parc_total_parcelas').value = rule.total_parcelas;
+        document.getElementById('parc_descontar_mes_vigente').value = rule.descontar_mes_vigente ? 'true' : 'false';
+        if (btnRemover) btnRemover.style.display = 'block';
+    } else {
+        document.getElementById('parc_total_parcelas').value = '1';
+        document.getElementById('parc_descontar_mes_vigente').value = 'true';
+        if (btnRemover) btnRemover.style.display = 'none';
+    }
+
+    calcularValorParcelaSimulacao();
+
+    const modal = document.getElementById('modalParcelamento');
+    if (modal) modal.style.display = 'flex';
+};
+
+window.closeParcelamentoModal = () => {
+    const modal = document.getElementById('modalParcelamento');
+    if (modal) modal.style.display = 'none';
+};
+
+window.calcularValorParcelaSimulacao = () => {
+    const totalVal = parseFloat(document.getElementById('parc_valor_total').value) || 0;
+    const numParc = parseInt(document.getElementById('parc_total_parcelas').value) || 1;
+    const valParc = totalVal / numParc;
+
+    document.getElementById('lblSimulacaoParcela').innerText = `R$ ${valParc.toLocaleString('pt-BR', {minimumFractionDigits: 2})} /mês (${numParc}x)`;
+};
+
+window.salvarParcelamento = async (e) => {
+    e.preventDefault();
+    const origemTipo = document.getElementById('parc_origem_tipo').value;
+    const origemId = document.getElementById('parc_origem_id').value;
+    const placa = document.getElementById('parc_placa').value;
+    const valorTotal = parseFloat(document.getElementById('parc_valor_total').value);
+    const totalParcelas = parseInt(document.getElementById('parc_total_parcelas').value);
+    const descontarMesVigente = document.getElementById('parc_descontar_mes_vigente').value === 'true';
+
+    const periodInput = document.getElementById('filter_period').value || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    const valorParcela = valorTotal / totalParcelas;
+
+    showLoading(true, 'Salvando configuração de parcelamento...');
+    try {
+        const key = `${origemTipo}_${origemId}`;
+        const existingRule = state.parcelamentosMap[key];
+
+        if (existingRule) {
+            const { error } = await supabaseClient
+                .from('fechamento_parcelamentos')
+                .update({
+                    total_parcelas: totalParcelas,
+                    descontar_mes_vigente: descontarMesVigente,
+                    valor_total: valorTotal,
+                    valor_parcela: valorParcela,
+                    updated_at: new Date()
+                })
+                .eq('id', existingRule.id);
+            if (error) throw error;
+        } else {
+            const { error } = await supabaseClient
+                .from('fechamento_parcelamentos')
+                .insert([{
+                    origem_tipo: origemTipo,
+                    origem_id: origemId,
+                    placa: placa,
+                    total_parcelas: totalParcelas,
+                    descontar_mes_vigente: descontarMesVigente,
+                    periodo_inicio: periodInput,
+                    valor_total: valorTotal,
+                    valor_parcela: valorParcela
+                }]);
+            if (error) throw error;
+        }
+
+        closeParcelamentoModal();
+        await generateClosing();
+        if (state.selectedPlate) {
+            const owner = Object.keys(state.closingData).find(o => state.closingData[o][placa]);
+            if (owner) selectPlate(placa, owner);
+        }
+    } catch (err) {
+        console.error('Erro ao salvar parcelamento:', err);
+        alert('Erro ao salvar parcelamento no Supabase: ' + err.message);
+    } finally {
+        showLoading(false);
+    }
+};
+
+window.removerParcelamento = async () => {
+    const origemTipo = document.getElementById('parc_origem_tipo').value;
+    const origemId = document.getElementById('parc_origem_id').value;
+    const placa = document.getElementById('parc_placa').value;
+
+    const key = `${origemTipo}_${origemId}`;
+    const existingRule = state.parcelamentosMap[key];
+    if (!existingRule) return;
+
+    if (!confirm('Deseja realmente remover o parcelamento deste custo?')) return;
+
+    showLoading(true, 'Removendo parcelamento...');
+    try {
+        const { error } = await supabaseClient
+            .from('fechamento_parcelamentos')
+            .delete()
+            .eq('id', existingRule.id);
+
+        if (error) throw error;
+
+        closeParcelamentoModal();
+        await generateClosing();
+        if (state.selectedPlate) {
+            const owner = Object.keys(state.closingData).find(o => state.closingData[o][placa]);
+            if (owner) selectPlate(placa, owner);
+        }
+    } catch (err) {
+        console.error('Erro ao remover parcelamento:', err);
+        alert('Erro ao remover parcelamento: ' + err.message);
+    } finally {
+        showLoading(false);
+    }
+};
+
+window.togglePlateGroup = (plate, owner, groupType, isDisabled) => {
+    if (!state.disabledGroups[plate]) state.disabledGroups[plate] = {};
+    state.disabledGroups[plate][groupType] = isDisabled;
+
+    // Recalcular totais para todas as placas e proprietarios
+    Object.keys(state.closingData).forEach(o => {
+        Object.keys(state.closingData[o]).forEach(p => {
+            const item = state.closingData[o][p];
+            const dis = state.disabledGroups[p] || {};
+            
+            let calcTotal = 0;
+            if (!dis.fuel) calcTotal += item.totalFuel;
+            if (!dis.maint) calcTotal += item.totalMaint;
+            if (!dis.estoque) calcTotal += (item.totalEstoque || 0);
+            if (!dis.custosAdicionais) calcTotal += (item.totalCustosAdicionais || 0);
+            
+            item.total = calcTotal;
+        });
+    });
+
+    // Atualizar UI e KPIs imediatamente
+    updateKPIs();
+    renderSummary();
+    selectPlate(plate, owner);
+};
 

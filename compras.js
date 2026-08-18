@@ -1129,6 +1129,8 @@ window.openCompraModal = async (id = null) => {
         if (catSearch) catSearch.value = '';
         document.getElementById('itemsContainer').innerHTML = '';
         document.getElementById('additionalContainer').innerHTML = '';
+        const descContainer = document.getElementById('descontoContainer');
+        if (descContainer) descContainer.innerHTML = '';
         document.getElementById('parcelasContainer').innerHTML = '';
         document.getElementById('parcelasSection').style.display = 'none';
         document.getElementById('toggleParcelas').classList.remove('active');
@@ -1275,17 +1277,37 @@ window.openViewModal = (id) => {
         }
     }
 
-    // Adicionais
+    // Adicionais e Descontos
     const adSection = document.getElementById('viewAdicionaisSection');
     const adList = document.getElementById('viewAdicionaisList');
-    if (c.adicionais && c.adicionais.length > 0) {
+    const allAddsAndDescs = [...(c.adicionais || [])];
+    if (c.descontos && c.descontos.length > 0) {
+        c.descontos.forEach(d => {
+            allAddsAndDescs.push({
+                descricao: d.descricao.startsWith('[DESCONTO]') ? d.descricao : `[DESCONTO] ${d.descricao}`,
+                valor: -Math.abs(parseFloat(d.valor) || 0)
+            });
+        });
+    }
+
+    if (allAddsAndDescs.length > 0) {
         adSection.style.display = 'block';
-        adList.innerHTML = c.adicionais.map(ad => `
-            <div style="display:flex; justify-content:space-between; background:rgba(99,102,241,0.05); padding:0.6rem 1rem; border-radius:8px; border:1px solid rgba(99,102,241,0.1);">
-                <span style="font-size:0.8rem; font-weight:600; color:#818cf8;">${ad.descricao}</span>
-                <span style="font-size:0.8rem; font-weight:800; color:#fff;">+ R$ ${parseFloat(ad.valor).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-            </div>
-        `).join('');
+        adList.innerHTML = allAddsAndDescs.map(ad => {
+            const val = parseFloat(ad.valor) || 0;
+            const isDisc = val < 0 || (ad.descricao && ad.descricao.startsWith('[DESCONTO]'));
+            const absVal = Math.abs(val);
+            const descText = (ad.descricao || '').replace(/^\[DESCONTO\]\s*/, '');
+            const color = isDisc ? '#ef4444' : '#818cf8';
+            const bg = isDisc ? 'rgba(239,68,68,0.05)' : 'rgba(99,102,241,0.05)';
+            const border = isDisc ? 'rgba(239,68,68,0.15)' : 'rgba(99,102,241,0.1)';
+            const prefix = isDisc ? '- R$' : '+ R$';
+            return `
+                <div style="display:flex; justify-content:space-between; background:${bg}; padding:0.6rem 1rem; border-radius:8px; border:1px solid ${border};">
+                    <span style="font-size:0.8rem; font-weight:600; color:${color};">${isDisc ? '[DESCONTO] ' : ''}${descText}</span>
+                    <span style="font-size:0.8rem; font-weight:800; color:${color};">${prefix} ${absVal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                </div>
+            `;
+        }).join('');
     } else {
         adSection.style.display = 'none';
     }
@@ -1349,7 +1371,31 @@ function populateModal(c) {
     if (itns.length > 0) itns.forEach(it => addItemRow(it, false));
     else addItemRow(null, false);
 
-    if (c.adicionais?.length > 0) c.adicionais.forEach(ad => addAdditionalRow(ad));
+    if (c.adicionais?.length > 0) {
+        c.adicionais.forEach(ad => {
+            const val = parseFloat(ad.valor) || 0;
+            const isDisc = val < 0 || (ad.descricao && ad.descricao.startsWith('[DESCONTO]'));
+            if (isDisc) {
+                addDescontoRow({
+                    descricao: ad.descricao ? ad.descricao.replace(/^\[DESCONTO\]\s*/, '') : '',
+                    valor: Math.abs(val)
+                });
+            } else {
+                addAdditionalRow({
+                    descricao: ad.descricao || '',
+                    valor: Math.abs(val)
+                });
+            }
+        });
+    }
+    if (c.descontos?.length > 0) {
+        c.descontos.forEach(d => {
+            addDescontoRow({
+                descricao: d.descricao ? d.descricao.replace(/^\[DESCONTO\]\s*/, '') : '',
+                valor: Math.abs(parseFloat(d.valor) || 0)
+            });
+        });
+    }
 
     if (c.financeiro) {
         const toggle = document.getElementById('toggleParcelas');
@@ -1426,7 +1472,7 @@ function addItemRow(data = {}, shouldFocus = true) {
             <input type="number" class="item-qtd compra-input" placeholder="QTD" value="${data.quantidade || ''}" oninput="updateRowTotal(this)" style="text-align:center">
             <input type="number" class="item-unit compra-input" placeholder="VALOR UNIT." step="0.01" value="${data.valorUnitario || ''}" oninput="updateRowTotal(this)">
             <input type="text" class="item-total-row compra-input" placeholder="TOTAL" readonly style="background:rgba(255,255,255,0.05); font-weight:bold; color:#818cf8; text-align:right;">
-            <button type="button" class="btn-plus" style="background:#ef444422; border:1px solid #ef444444; color:#ef4444; width:36px; height:36px; padding:0; display:flex; align-items:center; justify-content:center; border-radius:10px;" onclick="document.getElementById('${rowId}').remove(); calculateTotal();">
+            <button type="button" class="btn-remove" onclick="document.getElementById('${rowId}').remove(); calculateTotal();" title="Excluir Item">
                 <i data-lucide="trash-2" style="width:16px;"></i>
             </button>
         </div>
@@ -2059,13 +2105,30 @@ document.addEventListener('click', (e) => {
     }
 });
 
-window.addAdditionalRow = () => {
+window.addAdditionalRow = (data) => {
     const container = document.getElementById('additionalContainer');
-    const rowId = 'add_' + Date.now() + Math.random();
+    if (!container) return;
+    const rowId = 'add_' + Date.now() + Math.random().toString(36).slice(2, 6);
     const row = document.createElement('div');
     row.style = "display: grid; grid-template-columns: 2fr 1fr auto; gap: 1rem; align-items: center; background:rgba(255,255,255,0.02); padding:0.8rem; border-radius:10px;";
     row.id = rowId;
-    row.innerHTML = `<input type="text" class="add-desc compra-input" placeholder="Ex: Frete"> <input type="number" step="0.01" class="add-val compra-input" value="0" onchange="calculateTotal()"> <button type="button" class="btn-plus" style="background:none; border:none; color:#64748b;" onclick="document.getElementById('${rowId}').remove(); calculateTotal();"><i data-lucide="x"></i></button>`;
+    const descVal = data?.descricao || '';
+    const numVal = data?.valor !== undefined ? data.valor : 0;
+    row.innerHTML = `<input type="text" class="add-desc compra-input" placeholder="Ex: Frete, Seguro, Imposto..." value="${descVal}"> <input type="number" step="0.01" class="add-val compra-input" value="${numVal}" onchange="calculateTotal()" oninput="calculateTotal()"> <button type="button" class="btn-remove" onclick="document.getElementById('${rowId}').remove(); calculateTotal();" title="Excluir Custo Adicional"><i data-lucide="x" style="width:16px;"></i></button>`;
+    container.appendChild(row);
+    if (window.lucide) lucide.createIcons();
+};
+
+window.addDescontoRow = (data) => {
+    const container = document.getElementById('descontoContainer');
+    if (!container) return;
+    const rowId = 'desc_' + Date.now() + Math.random().toString(36).slice(2, 6);
+    const row = document.createElement('div');
+    row.style = "display: grid; grid-template-columns: 2fr 1fr auto; gap: 1rem; align-items: center; background:rgba(239,68,68,0.05); padding:0.8rem; border-radius:10px; border: 1px solid rgba(239,68,68,0.15);";
+    row.id = rowId;
+    const descVal = data?.descricao || '';
+    const numVal = data?.valor !== undefined ? data.valor : 0;
+    row.innerHTML = `<input type="text" class="desc-desc compra-input" placeholder="Ex: Desconto pontualidade, abatimento..." value="${descVal}"> <input type="number" step="0.01" min="0" class="desc-val compra-input" value="${numVal}" style="color: #ef4444;" onchange="calculateTotal()" oninput="calculateTotal()"> <button type="button" class="btn-remove" onclick="document.getElementById('${rowId}').remove(); calculateTotal();" title="Excluir Desconto"><i data-lucide="x" style="width:16px;"></i></button>`;
     container.appendChild(row);
     if (window.lucide) lucide.createIcons();
 };
@@ -2193,6 +2256,7 @@ function calculateTotal() {
     let subtotalPecas = 0;
     let subtotalServicos = 0;
     let subtotalAdicionais = 0;
+    let subtotalDescontos = 0;
 
     document.querySelectorAll('.item-row').forEach(row => {
         const typeBtn = row.querySelector('.type-btn.active');
@@ -2210,33 +2274,55 @@ function calculateTotal() {
         subtotalAdicionais += parseFloat(input.value) || 0;
     });
 
-    const totalGeral = subtotalPecas + subtotalServicos + subtotalAdicionais;
+    document.querySelectorAll('.desc-val').forEach(input => {
+        subtotalDescontos += parseFloat(input.value) || 0;
+    });
 
-    document.getElementById('summaryText').innerHTML = `
-        <div style="display:flex; gap:1.2rem; font-size:0.65rem; color:var(--text-muted); font-weight:800; margin-top:0.3rem; text-transform:uppercase;">
-            <span>PEÇAS: R$ ${subtotalPecas.toFixed(2)}</span>
-            <span>SERVIÇOS: R$ ${subtotalServicos.toFixed(2)}</span>
-            <span>OUTROS: R$ ${subtotalAdicionais.toFixed(2)}</span>
-        </div>
-        <div style="margin-top:0.2rem; font-size:0.8rem; opacity:0.7;">
-            ${document.querySelectorAll('.item-row').length} itens + ${document.querySelectorAll('.add-val').length} adicionais
-        </div>
-    `;
+    const totalGeral = Math.max(0, subtotalPecas + subtotalServicos + subtotalAdicionais - subtotalDescontos);
+
+    const summaryText = document.getElementById('summaryText');
+    if (summaryText) {
+        const countItems = document.querySelectorAll('.item-row').length;
+        const countAdds = document.querySelectorAll('.add-val').length;
+        const countDescs = document.querySelectorAll('.desc-val').length;
+        summaryText.innerHTML = `
+            <div style="display:flex; gap:1.2rem; font-size:0.65rem; color:var(--text-muted); font-weight:800; margin-top:0.3rem; text-transform:uppercase; flex-wrap:wrap;">
+                <span>PEÇAS: R$ ${subtotalPecas.toFixed(2)}</span>
+                <span>SERVIÇOS: R$ ${subtotalServicos.toFixed(2)}</span>
+                <span>OUTROS: R$ ${subtotalAdicionais.toFixed(2)}</span>
+                ${subtotalDescontos > 0 ? `<span style="color:#ef4444;">DESCONTOS: -R$ ${subtotalDescontos.toFixed(2)}</span>` : ''}
+            </div>
+            <div style="margin-top:0.2rem; font-size:0.8rem; opacity:0.7;">
+                ${countItems} itens + ${countAdds} adicionais ${countDescs > 0 ? `+ ${countDescs} descontos` : ''}
+            </div>
+        `;
+    }
     
-    document.getElementById('totalNotaVisual').innerText = totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const totalVisual = document.getElementById('totalNotaVisual');
+    if (totalVisual) {
+        totalVisual.innerText = totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
 
     const toggleP = document.getElementById('toggleParcelas');
     if (toggleP?.classList.contains('active')) {
         let sumParc = 0;
         document.querySelectorAll('.parc-val').forEach(inp => sumParc += parseFloat(inp.value) || 0);
-        document.getElementById('sumParcelas').innerText = sumParc.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        const sumParcEl = document.getElementById('sumParcelas');
+        if (sumParcEl) sumParcEl.innerText = sumParc.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
         const isValid = Math.abs(totalGeral - sumParc) < 1;
-        document.getElementById('validationMsg').style.display = isValid ? 'none' : 'block';
-        document.getElementById('btnSaveCompra').disabled = !isValid;
-        document.getElementById('btnSaveCompra').style.opacity = isValid ? '1' : '0.5';
+        const valMsg = document.getElementById('validationMsg');
+        if (valMsg) valMsg.style.display = isValid ? 'none' : 'block';
+        const btnSave = document.getElementById('btnSaveCompra');
+        if (btnSave) {
+            btnSave.disabled = !isValid;
+            btnSave.style.opacity = isValid ? '1' : '0.5';
+        }
     } else {
-        document.getElementById('btnSaveCompra').disabled = false;
-        document.getElementById('btnSaveCompra').style.opacity = '1';
+        const btnSave = document.getElementById('btnSaveCompra');
+        if (btnSave) {
+            btnSave.disabled = false;
+            btnSave.style.opacity = '1';
+        }
     }
     return totalGeral;
 }
@@ -2468,10 +2554,14 @@ async function handleSaveCompra(e) {
             financeiro: isParcelado,
             qtdParcelas: qtdParcelas,
             prazoParcelas: isParcelado ? (parseInt(document.getElementById('prazoParcelas')?.value) || 30) : null,
-            adicionais: Array.from(document.querySelectorAll('.add-val')).map(inp => ({
-                descricao: inp.previousElementSibling?.value || 'Adicional',
-                valor: parseBr(inp.value)
-            })),
+            adicionais: Array.from(document.querySelectorAll('#additionalContainer > div')).map(row => ({
+                descricao: row.querySelector('.add-desc')?.value?.trim() || 'Adicional',
+                valor: parseBr(row.querySelector('.add-val')?.value)
+            })).filter(a => a.valor > 0 || (a.descricao && a.descricao !== 'Adicional')),
+            descontos: Array.from(document.querySelectorAll('#descontoContainer > div')).map(row => ({
+                descricao: row.querySelector('.desc-desc')?.value?.trim() || 'Desconto',
+                valor: parseBr(row.querySelector('.desc-val')?.value)
+            })).filter(d => d.valor > 0 || (d.descricao && d.descricao !== 'Desconto')),
             observacoes: document.getElementById('obsCompra')?.value || ''
         };
 
@@ -2582,17 +2672,25 @@ async function handleSaveCompra(e) {
                     }
                 }
 
-                // 3. Sync Additionals
+                // 3. Sync Additionals & Discounts
                 await client.from('compra_adicionais').delete().eq('compra_id', dbCompra.id);
-                const dbAdds = (compraData.adicionais || []).map(ad => ({
-                    compra_id: dbCompra.id,
-                    descricao: ad.descricao,
-                    valor: ad.valor,
-                    empresa_id: window.currentEmpresaId || null
-                }));
+                const dbAdds = [
+                    ...(compraData.adicionais || []).map(ad => ({
+                        compra_id: dbCompra.id,
+                        descricao: ad.descricao,
+                        valor: Math.abs(ad.valor),
+                        empresa_id: window.currentEmpresaId || null
+                    })),
+                    ...(compraData.descontos || []).map(d => ({
+                        compra_id: dbCompra.id,
+                        descricao: d.descricao.startsWith('[DESCONTO]') ? d.descricao : `[DESCONTO] ${d.descricao}`,
+                        valor: -Math.abs(d.valor),
+                        empresa_id: window.currentEmpresaId || null
+                    }))
+                ];
                 if (dbAdds.length > 0) {
                     const { error: addsError } = await client.from('compra_adicionais').insert(dbAdds);
-                    if (addsError) console.error("❌ Erro adicionais:", addsError);
+                    if (addsError) console.error("❌ Erro adicionais/descontos:", addsError);
                 }
 
                 // 4. Sync Installments
@@ -3248,17 +3346,21 @@ function updateSelectionKPIs(records) {
         records.forEach(c => {
             (c.itens || []).forEach(it => {
                 if (it.centroCustoId) {
-                    const cc = config.centrosCusto.find(x => x.id == it.centroCustoId);
+                    const cc = (config.centrosCusto || []).find(x => String(x.id) === String(it.centroCustoId));
+                    let parentName = 'Outros / Não Identificado';
                     if (cc) {
-                        // Find the parent
                         let parent = cc;
-                        if (cc.parentId) {
-                            const foundParent = config.centrosCusto.find(x => x.id == cc.parentId);
+                        const pId = cc.parentId || cc.parent_id;
+                        if (pId) {
+                            const foundParent = (config.centrosCusto || []).find(x => String(x.id) === String(pId));
                             if (foundParent) parent = foundParent;
                         }
-                        const name = parent.nome;
-                        const val = (parseFloat(it.quantidade) || 0) * (parseFloat(it.valorUnitario) || 0);
-                        ccMap[name] = (ccMap[name] || 0) + val;
+                        const pNome = parent.nome || parent.descricao || parent.nome_centro;
+                        parentName = (parent.cod ? `${parent.cod} - ` : '') + (pNome || 'Centro de Custo');
+                    }
+                    const val = (parseFloat(it.quantidade) || 0) * (parseFloat(it.valorUnitario) || 0);
+                    if (val > 0) {
+                        ccMap[parentName] = (ccMap[parentName] || 0) + val;
                         grandTotalItems += val;
                     }
                 }
@@ -3309,6 +3411,109 @@ function updateSelectionKPIs(records) {
     }
 }
 
+let ccDetailViewMode = 'list'; // 'list' | 'chart'
+let ccDetailChartInstance = null;
+
+window.toggleCCDetailView = () => {
+    ccDetailViewMode = ccDetailViewMode === 'list' ? 'chart' : 'list';
+    updateCCDetailView();
+};
+
+function updateCCDetailView() {
+    const listEl = document.getElementById('ccDetailList');
+    const chartContainer = document.getElementById('ccDetailChartContainer');
+    const toggleBtn = document.getElementById('btnToggleCCView');
+
+    if (!listEl || !chartContainer || !toggleBtn) return;
+
+    if (ccDetailViewMode === 'chart') {
+        listEl.style.display = 'none';
+        chartContainer.style.display = 'block';
+        toggleBtn.innerHTML = `<i data-lucide="list" style="width:16px; height:16px;"></i> Visão em Lista`;
+        renderCCDetailPieChart();
+    } else {
+        listEl.style.display = 'flex';
+        chartContainer.style.display = 'none';
+        toggleBtn.innerHTML = `<i data-lucide="pie-chart" style="width:16px; height:16px;"></i> Gráfico em Disco`;
+    }
+    if (window.lucide) lucide.createIcons();
+}
+
+function renderCCDetailPieChart() {
+    if (!window.Chart || !currentCCBreakdown || !currentCCBreakdown.sortedCCs) return;
+    const canvas = document.getElementById('ccDetailPieChart');
+    if (!canvas) return;
+
+    if (ccDetailChartInstance) {
+        ccDetailChartInstance.destroy();
+        ccDetailChartInstance = null;
+    }
+
+    const labels = currentCCBreakdown.sortedCCs;
+    const dataValues = labels.map(name => currentCCBreakdown.ccMap[name]);
+    const total = currentCCBreakdown.grandTotalItems || 1;
+    const colors = ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#10b981', '#f59e0b', '#3b82f6'];
+
+    const isDark = document.body.classList.contains('dark-theme') || !document.body.getAttribute('data-theme')?.includes('pastel');
+    const textColor = isDark ? '#f8fafc' : '#1e293b';
+
+    ccDetailChartInstance = new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: dataValues,
+                backgroundColor: colors.slice(0, labels.length),
+                borderColor: isDark ? '#0f172a' : '#ffffff',
+                borderWidth: 2,
+                hoverOffset: 10
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: textColor,
+                        padding: 14,
+                        font: { size: 12, weight: '700' },
+                        generateLabels: (chart) => {
+                            const data = chart.data;
+                            if (data.labels.length && data.datasets.length) {
+                                return data.labels.map((label, i) => {
+                                    const val = data.datasets[0].data[i];
+                                    const pct = ((val / total) * 100).toFixed(1);
+                                    return {
+                                        text: `${label} (${pct}%)`,
+                                        fillStyle: colors[i % colors.length],
+                                        strokeStyle: colors[i % colors.length],
+                                        lineWidth: 0,
+                                        hidden: isNaN(data.datasets[0].data[i]) || chart.getDatasetMeta(0).data[i].hidden,
+                                        index: i
+                                    };
+                                });
+                            }
+                            return [];
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const val = context.raw || 0;
+                            const pct = ((val / total) * 100).toFixed(1);
+                            return ` R$ ${val.toLocaleString('pt-BR', {minimumFractionDigits: 2})} (${pct}%)`;
+                        }
+                    }
+                }
+            },
+            cutout: '60%'
+        }
+    });
+}
+
 window.openCCDetailModal = () => {
     const listEl = document.getElementById('ccDetailList');
     const totalEl = document.getElementById('ccDetailGrandTotal');
@@ -3326,28 +3531,33 @@ window.openCCDetailModal = () => {
         const color = colors[i % colors.length];
 
         return `
-            <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 1rem; border-radius: 12px; display: flex; flex-direction: column; gap: 0.8rem;">
+            <div style="background: rgba(0,0,0,0.03); border: 1px solid var(--border-color, rgba(0,0,0,0.08)); padding: 1rem; border-radius: 12px; display: flex; flex-direction: column; gap: 0.8rem;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                     <div style="display: flex; flex-direction: column;">
-                        <span style="font-size: 0.85rem; font-weight: 800; color: #fff;">${name}</span>
+                        <span style="font-size: 0.95rem; font-weight: 800; color: var(--text-main);">${name || 'Centro de Custo'}</span>
                         <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-top: 0.2rem;">Centro de Custo Pai</span>
                     </div>
                     <div style="text-align: right;">
-                        <div style="font-size: 1.1rem; font-weight: 900; color: #fff;">R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                        <div style="font-size: 1.1rem; font-weight: 900; color: var(--text-main);">R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                         <div style="font-size: 0.75rem; font-weight: 800; color: ${color};">${pct.toFixed(1)}% do total</div>
                     </div>
                 </div>
-                <div style="height: 6px; background: rgba(0,0,0,0.2); border-radius: 3px; overflow: hidden;">
+                <div style="height: 6px; background: rgba(0,0,0,0.1); border-radius: 3px; overflow: hidden;">
                     <div style="height: 100%; width: ${pct}%; background: ${color}; box-shadow: 0 0 10px ${color}66;"></div>
                 </div>
             </div>
         `;
     }).join('');
 
+    updateCCDetailView();
     modal.classList.add('active');
 };
 
 window.closeCCDetailModal = () => {
+    if (ccDetailChartInstance) {
+        ccDetailChartInstance.destroy();
+        ccDetailChartInstance = null;
+    }
     document.getElementById('ccDetailModal').classList.remove('active');
 };
 
