@@ -3962,12 +3962,12 @@ window.renderCustoTotalList = (baseRecords, mode, maxKmDiff) => {
 
         const fuelHtml = Object.entries(fuelBreakdown)
             .sort((a,b) => b[1] - a[1])
-            .map(([k,v]) => `<div style="font-size: 0.75rem; color: var(--text-muted);"><span style="color: #fff;">${k}:</span> ${v.toLocaleString('pt-BR')} L</div>`)
+            .map(([k,v]) => `<div style="font-size: 0.75rem; color: var(--text-muted);"><span style="color: var(--text-main); font-weight: 600;">${k}:</span> ${v.toLocaleString('pt-BR')} L</div>`)
             .join('');
 
         const driverHtml = Object.values(driverBreakdown)
             .sort((a,b) => b.litros - a.litros)
-            .map(d => `<div style="font-size: 0.75rem; color: var(--text-muted);"><span style="color: #fff;" title="${d.name}">${d.name.length > 15 ? d.name.substring(0,15) + '..' : d.name}:</span> ${d.litros.toLocaleString('pt-BR')} L</div>`)
+            .map(d => `<div style="font-size: 0.75rem; color: var(--text-muted);"><span style="color: var(--text-main); font-weight: 600;" title="${d.name}">${d.name.length > 15 ? d.name.substring(0,15) + '..' : d.name}:</span> ${d.litros.toLocaleString('pt-BR')} L</div>`)
             .join('');
 
         computedRows.push({
@@ -3985,7 +3985,7 @@ window.renderCustoTotalList = (baseRecords, mode, maxKmDiff) => {
     });
 
     if (!hasData) {
-        container.innerHTML = `<div style="grid-column: 1 / -1; padding: 2rem; text-align: center; color: var(--text-muted); font-size: 0.9rem; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1);">Nenhum dado encontrado para o período selecionado.</div>`;
+        container.innerHTML = `<div style="grid-column: 1 / -1; padding: 2rem; text-align: center; color: var(--text-muted); font-size: 0.9rem; background: var(--bg-card, rgba(255,255,255,0.9)); border-radius: 12px; border: 1px dashed var(--border-card, rgba(45,158,107,0.2));">Nenhum dado encontrado para o período selecionado.</div>`;
         return;
     }
 
@@ -4007,13 +4007,13 @@ window.renderCustoTotalList = (baseRecords, mode, maxKmDiff) => {
 
     computedRows.forEach(row => {
         tableHtml += `
-            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.2s;">
+            <tr style="border-bottom: 1px solid var(--border-card, rgba(45,158,107,0.1)); transition: background 0.2s;">
                 <td style="padding: 1rem; vertical-align: top;">
                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.2rem;">
                         <i data-lucide="${row.iconName}" style="color: var(--primary); width: 14px;"></i>
-                        <span style="font-weight: 700; font-size: 0.95rem; color: #fff;">${row.entityName}</span>
+                        <span style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${row.entityName}</span>
                     </div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-left: 1.3rem;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-left: 1.3rem;">
                         ${row.entitySubtitle}
                     </div>
                 </td>
@@ -4023,19 +4023,19 @@ window.renderCustoTotalList = (baseRecords, mode, maxKmDiff) => {
                 <td style="padding: 1rem; vertical-align: top;">
                     ${row.driverHtml || '-'}
                 </td>
-                <td style="padding: 1rem; text-align: right; font-weight: 700; color: #fff; font-size: 0.95rem; vertical-align: top;">
+                <td style="padding: 1rem; text-align: right; font-weight: 800; color: var(--text-main); font-size: 0.95rem; vertical-align: top;">
                     ${row.totalGasto.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}
                 </td>
-                <td style="padding: 1rem; text-align: right; font-weight: 700; color: #fff; font-size: 0.95rem; vertical-align: top;">
+                <td style="padding: 1rem; text-align: right; font-weight: 700; color: var(--text-main); font-size: 0.95rem; vertical-align: top;">
                     ${row.totalLitros.toLocaleString('pt-BR')} L/m³
                 </td>
-                <td style="padding: 1rem; text-align: right; font-weight: 700; color: #fff; font-size: 0.95rem; vertical-align: top;">
+                <td style="padding: 1rem; text-align: right; font-weight: 700; color: var(--text-main); font-size: 0.95rem; vertical-align: top;">
                     ${row.kmRodado > 0 ? row.kmRodado.toLocaleString('pt-BR') + ' km' : '---'}
                 </td>
-                <td style="padding: 1rem; text-align: right; font-weight: 800; color: ${row.media > 0 ? 'var(--success)' : '#fff'}; font-size: 1rem; vertical-align: top;">
+                <td style="padding: 1rem; text-align: right; font-weight: 800; color: ${row.media > 0 ? 'var(--success)' : 'var(--text-main)'}; font-size: 1rem; vertical-align: top;">
                     ${row.media > 0 ? row.media.toFixed(2) + ' km/l' : '---'}
                 </td>
-                <td style="padding: 1rem; text-align: right; font-weight: 800; color: ${row.custoKm > 0 ? '#ef4444' : '#fff'}; font-size: 1rem; vertical-align: top;">
+                <td style="padding: 1rem; text-align: right; font-weight: 800; color: ${row.custoKm > 0 ? 'var(--danger, #ef4444)' : 'var(--text-main)'}; font-size: 1rem; vertical-align: top;">
                     ${row.custoKm > 0 ? row.custoKm.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'}) : '---'}
                 </td>
             </tr>
@@ -4231,15 +4231,15 @@ window.updateComparativo = () => {
         }
 
         // Prepare Fuel Breakdown HTML
-        let fuelHtml = '<div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed rgba(255,255,255,0.1);">';
+        let fuelHtml = '<div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border-card, rgba(45,158,107,0.2));">';
         fuelHtml += '<div style="font-size: 0.65rem; color: var(--primary); font-weight: 700; text-transform: uppercase; margin-bottom: 0.2rem;">Detalhamento por Combustível</div>';
         for (const ft in fuelBreakdown) {
             fuelHtml += `
                 <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.3rem;">
-                    <span style="font-size: 0.7rem; color: var(--text-muted); flex: 1;">${ft}</span>
+                    <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 600; flex: 1;">${ft}</span>
                     <div style="text-align: right;">
-                        <div style="font-size: 0.7rem; font-weight: 700; color: #fff;">${fuelBreakdown[ft].litros.toLocaleString('pt-BR')} L/m³</div>
-                        <div style="font-size: 0.65rem; color: var(--text-muted);">${fuelBreakdown[ft].gasto.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</div>
+                        <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-main);">${fuelBreakdown[ft].litros.toLocaleString('pt-BR')} L/m³</div>
+                        <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 600;">${fuelBreakdown[ft].gasto.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</div>
                     </div>
                 </div>
             `;
@@ -4251,17 +4251,17 @@ window.updateComparativo = () => {
         // 1. If 'veiculo' or 'modelo', show usage by Drivers (Condutores)
         if (tipo === 'veiculo' || tipo === 'modelo') {
             extraBreakdownHtml += `
-                <div style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed rgba(255,255,255,0.1);">
+                <div style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--border-card, rgba(45,158,107,0.2));">
                     <div style="font-size: 0.65rem; color: var(--primary); font-weight: 700; text-transform: uppercase; margin-bottom: 0.3rem; letter-spacing: 0.3px;">Uso por Condutores</div>
             `;
             const sortedDrivers = Object.values(driverBreakdown).sort((a,b) => b.gasto - a.gasto);
             sortedDrivers.forEach(d => {
                 extraBreakdownHtml += `
                     <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.3rem;">
-                        <span style="font-size: 0.7rem; color: var(--text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;" title="${d.name}">${d.name}</span>
+                        <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;" title="${d.name}">${d.name}</span>
                         <div style="text-align: right;">
-                            <div style="font-size: 0.7rem; font-weight: 700; color: #fff;">${d.litros.toLocaleString('pt-BR')} L/m³</div>
-                            <div style="font-size: 0.65rem; color: var(--text-muted);">${d.gasto.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</div>
+                            <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-main);">${d.litros.toLocaleString('pt-BR')} L/m³</div>
+                            <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 600;">${d.gasto.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</div>
                         </div>
                     </div>
                 `;
@@ -4272,20 +4272,20 @@ window.updateComparativo = () => {
         // 2. If 'motorista' or 'modelo', show usage by Vehicles (Placas)
         if (tipo === 'motorista' || tipo === 'modelo') {
             extraBreakdownHtml += `
-                <div style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed rgba(255,255,255,0.1);">
-                    <div style="font-size: 0.65rem; color: #10b981; font-weight: 700; text-transform: uppercase; margin-bottom: 0.3rem; letter-spacing: 0.3px;">Uso por Placas</div>
+                <div style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--border-card, rgba(45,158,107,0.2));">
+                    <div style="font-size: 0.65rem; color: var(--primary); font-weight: 700; text-transform: uppercase; margin-bottom: 0.3rem; letter-spacing: 0.3px;">Uso por Placas</div>
             `;
             const sortedVehs = Object.values(vehicleBreakdown).sort((a,b) => b.gasto - a.gasto);
             sortedVehs.forEach(v => {
                 extraBreakdownHtml += `
                     <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.3rem;">
                         <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;">
-                            <span style="font-size: 0.7rem; font-weight: 700; color: #fff;">${v.placa}</span>
-                            <span style="font-size: 0.65rem; color: var(--text-muted); display: block;">${v.modelo}</span>
+                            <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-main);">${v.placa}</span>
+                            <span style="font-size: 0.65rem; color: var(--text-muted); font-weight: 600; display: block;">${v.modelo}</span>
                         </div>
                         <div style="text-align: right;">
-                            <div style="font-size: 0.7rem; font-weight: 700; color: #fff;">${v.litros.toLocaleString('pt-BR')} L/m³</div>
-                            <div style="font-size: 0.65rem; color: var(--text-muted);">${v.gasto.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</div>
+                            <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-main);">${v.litros.toLocaleString('pt-BR')} L/m³</div>
+                            <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 600;">${v.gasto.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</div>
                         </div>
                     </div>
                 `;
@@ -4294,85 +4294,83 @@ window.updateComparativo = () => {
         }
 
         container.innerHTML = `
-            <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.8) 100%); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+            <div style="background: var(--bg-card, rgba(255, 255, 255, 0.92)); padding: 1rem; border-radius: 12px; border: 1px solid var(--border-card, rgba(45,158,107,0.15)); box-shadow: 0 4px 15px rgba(0,0,0,0.04);">
                 <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.2rem;">
                     <i data-lucide="${iconName}" style="color: var(--primary); width: 16px;"></i>
-                    <span style="font-weight: 800; font-size: 0.9rem; color: white;">${entityName}</span>
+                    <span style="font-weight: 800; font-size: 0.9rem; color: var(--text-main);">${entityName}</span>
                 </div>
-                <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 1rem; text-transform: uppercase;">
+                <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 600; margin-bottom: 1rem; text-transform: uppercase;">
                     ${entitySubtitle}
                 </div>
 
                 <div style="display: grid; gap: 0.8rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <span style="font-size: 0.75rem; color: var(--text-muted);">Total Gasto</span>
-                        <span style="font-weight: 700; color: #fff; font-size: 0.9rem;">${totalGasto.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-card, rgba(45,158,107,0.1));">
+                        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Total Gasto</span>
+                        <span style="font-weight: 800; color: var(--text-main); font-size: 0.9rem;">${totalGasto.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <span style="font-size: 0.75rem; color: var(--text-muted);">Qtd. Litros/m³</span>
-                        <span style="font-weight: 700; color: #fff; font-size: 0.9rem;">${totalLitros.toLocaleString('pt-BR')} L/m³</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-card, rgba(45,158,107,0.1));">
+                        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Qtd. Litros/m³</span>
+                        <span style="font-weight: 700; color: var(--text-main); font-size: 0.9rem;">${totalLitros.toLocaleString('pt-BR')} L/m³</span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <span style="font-size: 0.75rem; color: var(--text-muted);">KM Rodado</span>
-                        <span style="font-weight: 700; color: #fff; font-size: 0.9rem;">${kmRodado > 0 ? kmRodado.toLocaleString('pt-BR') + ' km' : '---'}</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-card, rgba(45,158,107,0.1));">
+                        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">KM Rodado</span>
+                        <span style="font-weight: 700; color: var(--text-main); font-size: 0.9rem;">${kmRodado > 0 ? kmRodado.toLocaleString('pt-BR') + ' km' : '---'}</span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <span style="font-size: 0.75rem; color: var(--text-muted);">Média Consumo</span>
-                        <span class="comp-media" data-val="${media}" style="font-weight: 800; color: ${media > 0 ? 'var(--success)' : '#fff'}; font-size: 1rem;">${media > 0 ? media.toFixed(2) + ' km/l' : '---'}</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-card, rgba(45,158,107,0.1));">
+                        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Média Consumo</span>
+                        <span class="comp-media" data-val="${media}" style="font-weight: 800; color: ${media > 0 ? 'var(--success)' : 'var(--text-main)'}; font-size: 1rem;">${media > 0 ? media.toFixed(2) + ' km/l' : '---'}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.5rem;">
-                        <span style="font-size: 0.75rem; color: var(--text-muted);">Custo por KM</span>
-                        <span class="comp-custo" data-val="${custoKm}" style="font-weight: 800; color: ${custoKm > 0 ? '#ef4444' : '#fff'}; font-size: 1rem;">${custoKm > 0 ? custoKm.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'}) : '---'}</span>
+                        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Custo por KM</span>
+                        <span class="comp-custo" data-val="${custoKm}" style="font-weight: 800; color: ${custoKm > 0 ? 'var(--danger, #ef4444)' : 'var(--text-main)'}; font-size: 1rem;">${custoKm > 0 ? custoKm.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'}) : '---'}</span>
                     </div>
                 </div>
                 
                 ${fuelHtml}
                 ${extraBreakdownHtml}
                 
-                <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 1rem; text-align: center; opacity: 0.7;">
+                <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 600; margin-top: 1rem; text-align: center; opacity: 0.85;">
                     ${vRecords.length} abastecimento(s) no período
                 </div>
             </div>`;
 
-        // --- NOVO: Relação de Abastecimentos Detalhada ---
+        // --- Relação de Abastecimentos Detalhada ---
         let listHtml = `
-            <div style="margin-top: 1rem; background: rgba(30, 41, 59, 0.4); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; animation: fadeIn 0.5s ease-out;">
-                <div style="padding: 0.8rem 1rem; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+            <div style="margin-top: 1rem; background: var(--bg-card, rgba(255, 255, 255, 0.92)); border-radius: 12px; border: 1px solid var(--border-card, rgba(45,158,107,0.15)); overflow: hidden; animation: fadeIn 0.5s ease-out; box-shadow: 0 4px 15px rgba(0,0,0,0.04);">
+                <div style="padding: 0.8rem 1rem; background: rgba(45,158,107,0.05); border-bottom: 1px solid var(--border-card, rgba(45,158,107,0.1)); display: flex; justify-content: space-between; align-items: center;">
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                         <i data-lucide="history" style="width: 14px; color: var(--primary);"></i>
-                        <span style="font-size: 0.7rem; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 0.5px;">Últimos Abastecimentos</span>
+                        <span style="font-size: 0.7rem; font-weight: 800; color: var(--text-main); text-transform: uppercase; letter-spacing: 0.5px;">Últimos Abastecimentos</span>
                     </div>
-                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">Top 20</span>
+                    <span style="font-size: 0.6rem; color: var(--text-muted); font-weight: 600; background: rgba(45,158,107,0.1); padding: 2px 6px; border-radius: 4px;">Top 20</span>
                 </div>
                 <div style="max-height: 400px; overflow-y: auto; scrollbar-width: thin;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.7rem;">
-                        <thead style="position: sticky; top: 0; z-index: 5; background: #1e293b;">
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                                <th style="padding: 0.6rem 0.5rem; text-align: left; color: var(--text-muted); font-weight: 600;">Data</th>
-                                <th style="padding: 0.6rem 0.5rem; text-align: left; color: var(--text-muted); font-weight: 600;">KM Atual</th>
-                                <th style="padding: 0.6rem 0.5rem; text-align: left; color: var(--text-muted); font-weight: 600;">KM Rod.</th>
-                                <th style="padding: 0.6rem 0.5rem; text-align: left; color: var(--text-muted); font-weight: 600;">Combust.</th>
-                                <th style="padding: 0.6rem 0.5rem; text-align: left; color: var(--text-muted); font-weight: 600;">Lts/m³</th>
-                                <th style="padding: 0.6rem 0.5rem; text-align: left; color: var(--text-muted); font-weight: 600;">Média</th>
-                                <th style="padding: 0.6rem 0.5rem; text-align: right; color: var(--text-muted); font-weight: 600;">Total</th>
+                        <thead style="position: sticky; top: 0; z-index: 5; background: var(--bg-card, #ffffff);">
+                            <tr style="border-bottom: 1px solid var(--border-card, rgba(45,158,107,0.15));">
+                                <th style="padding: 0.6rem 0.5rem; text-align: left; color: var(--text-muted); font-weight: 700;">Data</th>
+                                <th style="padding: 0.6rem 0.5rem; text-align: left; color: var(--text-muted); font-weight: 700;">KM Atual</th>
+                                <th style="padding: 0.6rem 0.5rem; text-align: left; color: var(--text-muted); font-weight: 700;">KM Rod.</th>
+                                <th style="padding: 0.6rem 0.5rem; text-align: left; color: var(--text-muted); font-weight: 700;">Combust.</th>
+                                <th style="padding: 0.6rem 0.5rem; text-align: left; color: var(--text-muted); font-weight: 700;">Lts/m³</th>
+                                <th style="padding: 0.6rem 0.5rem; text-align: left; color: var(--text-muted); font-weight: 700;">Média</th>
+                                <th style="padding: 0.6rem 0.5rem; text-align: right; color: var(--text-muted); font-weight: 700;">Total</th>
                             </tr>
                         </thead>
                         <tbody>
         `;
 
-        // Exibir os últimos 20 registros (já que vRecords está em ordem crescente, pegamos o final invertido)
+        // Exibir os últimos 20 registros
         const recentRecords = [...vRecords].reverse().slice(0, 20);
         
         recentRecords.forEach((r, idx) => {
-            // Cálculo de média pontual para esta linha específica
             let lineMedia = '---';
             let lineKmRodado = '---';
-            const sortedAll = vRecords; // Já está ordenado por data crescente
+            const sortedAll = vRecords;
             const currentRecordIdx = sortedAll.findIndex(rec => rec.id === r.id);
             
             if (currentRecordIdx > 0) {
                 const prev = sortedAll[currentRecordIdx - 1];
-                // Garantir que a média seja calculada apenas entre abastecimentos do mesmo veículo
                 if (prev.veiculo_id === r.veiculo_id) {
                     const diff = (parseFloat(r.km_atual) || 0) - (parseFloat(prev.km_atual) || 0);
                     const lts = parseFloat(r.litros) || 0;
@@ -4394,14 +4392,14 @@ window.updateComparativo = () => {
             const fuelType = (r.tipo_combustivel || 'N/A').replace('GASOLINA ', 'GAS. ').replace('DIESEL ', 'D. ');
 
             listHtml += `
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
-                    <td style="padding: 0.6rem 0.5rem; color: var(--text-muted);">${formattedDate}</td>
-                    <td style="padding: 0.6rem 0.5rem; color: #e2e8f0; font-weight: 500;">${(parseFloat(r.km_atual) || 0).toLocaleString('pt-BR')}</td>
-                    <td style="padding: 0.6rem 0.5rem; color: var(--primary-light); font-weight: 600;">${lineKmRodado}</td>
-                    <td style="padding: 0.6rem 0.5rem; color: var(--text-muted); font-size: 0.65rem;">${fuelType}</td>
-                    <td style="padding: 0.6rem 0.5rem; color: #e2e8f0;">${(parseFloat(r.litros) || 0).toLocaleString('pt-BR')}</td>
-                    <td style="padding: 0.6rem 0.5rem; font-weight: 700; color: ${lineMedia !== '---' ? 'var(--success)' : 'rgba(255,255,255,0.3)'};">${lineMedia}</td>
-                    <td style="padding: 0.6rem 0.5rem; text-align: right; font-weight: 700; color: #fff;">${(parseFloat(r.valor_total) || 0).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL', minimumFractionDigits: 2})}</td>
+                <tr style="border-bottom: 1px solid var(--border-card, rgba(45,158,107,0.08)); transition: background 0.2s;">
+                    <td style="padding: 0.6rem 0.5rem; color: var(--text-muted); font-weight: 600;">${formattedDate}</td>
+                    <td style="padding: 0.6rem 0.5rem; color: var(--text-main); font-weight: 600;">${(parseFloat(r.km_atual) || 0).toLocaleString('pt-BR')}</td>
+                    <td style="padding: 0.6rem 0.5rem; color: var(--primary); font-weight: 700;">${lineKmRodado}</td>
+                    <td style="padding: 0.6rem 0.5rem; color: var(--text-muted); font-size: 0.65rem; font-weight: 600;">${fuelType}</td>
+                    <td style="padding: 0.6rem 0.5rem; color: var(--text-main); font-weight: 600;">${(parseFloat(r.litros) || 0).toLocaleString('pt-BR')}</td>
+                    <td style="padding: 0.6rem 0.5rem; font-weight: 700; color: ${lineMedia !== '---' ? 'var(--success)' : 'var(--text-muted)'};">${lineMedia}</td>
+                    <td style="padding: 0.6rem 0.5rem; text-align: right; font-weight: 700; color: var(--text-main);">${(parseFloat(r.valor_total) || 0).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL', minimumFractionDigits: 2})}</td>
                 </tr>
             `;
         });

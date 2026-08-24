@@ -476,6 +476,13 @@ tr:hover td {
     background: transparent;
 }
 
+.direct-select-secondary {
+    margin-top: 4px;
+    font-size: 0.82rem;
+    border-style: dashed;
+    opacity: 0.9;
+}
+
 .direct-select option {
     background: #1e293b;
     color: white;
@@ -1876,6 +1883,45 @@ body,
 
 [data-theme="green_pastel"] .switch.active {
     background: var(--primary) !important;
+}
+
+/* 🌿 Clean Verde — Módulo de Abastecimento: Aba Custos e Comparativos */
+[data-theme="green_pastel"] #comparativoSection .intelligent-filter-bar,
+[data-theme="green_pastel"] #comparativoSection #custoTotalFilters,
+[data-theme="green_pastel"] #comparativoSection .subtabs-header {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-color: rgba(45, 158, 107, 0.18) !important;
+    box-shadow: 0 2px 12px rgba(45, 158, 107, 0.08) !important;
+}
+
+[data-theme="green_pastel"] #comparativoSection .intelligent-filter-bar select,
+[data-theme="green_pastel"] #comparativoSection .intelligent-filter-bar input {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-color: rgba(45, 158, 107, 0.25) !important;
+}
+
+[data-theme="green_pastel"] #comparativoSection .comp-modes-buttons {
+    background: rgba(45, 158, 107, 0.08) !important;
+    border-color: rgba(45, 158, 107, 0.18) !important;
+}
+
+[data-theme="green_pastel"] #comparativoSection .comp-mode-btn {
+    color: #475569 !important;
+}
+
+[data-theme="green_pastel"] #comparativoSection .comp-mode-btn.active {
+    background: #1a7a50 !important;
+    color: #ffffff !important;
+}
+
+[data-theme="green_pastel"] #comparativoSection table td span[style*="color: #fff"],
+[data-theme="green_pastel"] #comparativoSection table td span[style*="color: white"] {
+    color: #0f172a !important;
+}
+
+[data-theme="green_pastel"] #comparativoSection label {
+    color: #0f172a !important;
 }
 
 /* Botão genérico */

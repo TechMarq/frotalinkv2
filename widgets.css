@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Dancing+Script:wght@600;700&family=Outfit:wght@600;800&family=Permanent+Marker&display=swap');
+
 /* 🎨 FrotaLink Widget System Stylesheet */
 
 :root {
@@ -523,90 +525,287 @@
 /* --- 📌 Post-it / Sticky Notes Styles --- */
 .widget-postit-card {
     position: fixed;
-    width: 220px;
-    height: 220px;
-    min-width: 160px;
-    min-height: 160px;
+    width: 240px;
+    height: 240px;
+    min-width: 180px;
+    min-height: 180px;
     border-radius: 12px;
     z-index: 9980;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     resize: both;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    backdrop-filter: blur(8px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
     transition: opacity 0.3s, transform 0.3s;
+
+    /* Alto contraste por padrão para notas claras/pastel */
+    --postit-text: #0f172a;
+    --postit-muted: #475569;
+    --postit-border: rgba(15, 23, 42, 0.15);
+    --postit-header-bg: rgba(0, 0, 0, 0.05);
+    --postit-btn-hover: rgba(0, 0, 0, 0.1);
+    --postit-item-bg: rgba(255, 255, 255, 0.55);
+    --postit-input-border: rgba(15, 23, 42, 0.2);
 }
 
-/* Post-it Glassmorphic Color Variants */
+/* Tipografia / Fontes */
+.widget-postit-font-sans,
+.widget-postit-font-sans input,
+.widget-postit-font-sans textarea {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+.widget-postit-font-handwritten,
+.widget-postit-font-handwritten input,
+.widget-postit-font-handwritten textarea {
+    font-family: 'Caveat', 'Patrick Hand', cursive, sans-serif !important;
+}
+.widget-postit-font-handwritten .widget-postit-title-input {
+    font-size: 1.5rem !important;
+}
+.widget-postit-font-handwritten .widget-postit-textarea,
+.widget-postit-font-handwritten .widget-postit-check-input {
+    font-size: 1.2rem !important;
+    line-height: 1.3 !important;
+    font-weight: 700 !important;
+}
+
+.widget-postit-font-mono,
+.widget-postit-font-mono input,
+.widget-postit-font-mono textarea {
+    font-family: 'Fira Code', 'Consolas', 'Courier New', monospace !important;
+}
+.widget-postit-font-mono .widget-postit-textarea,
+.widget-postit-font-mono .widget-postit-check-input {
+    font-size: 0.82rem !important;
+}
+
+.widget-postit-font-serif,
+.widget-postit-font-serif input,
+.widget-postit-font-serif textarea {
+    font-family: 'Georgia', 'Playfair Display', serif !important;
+}
+
+.widget-postit-font-script,
+.widget-postit-font-script input,
+.widget-postit-font-script textarea {
+    font-family: 'Dancing Script', cursive !important;
+}
+.widget-postit-font-script .widget-postit-title-input {
+    font-size: 1.4rem !important;
+}
+.widget-postit-font-script .widget-postit-textarea,
+.widget-postit-font-script .widget-postit-check-input {
+    font-size: 1.1rem !important;
+    font-weight: 700 !important;
+}
+
+.widget-postit-font-marker,
+.widget-postit-font-marker input,
+.widget-postit-font-marker textarea {
+    font-family: 'Permanent Marker', cursive !important;
+}
+.widget-postit-font-marker .widget-postit-title-input {
+    font-size: 1.15rem !important;
+}
+.widget-postit-font-marker .widget-postit-textarea,
+.widget-postit-font-marker .widget-postit-check-input {
+    font-size: 0.85rem !important;
+}
+
+.widget-postit-font-modern,
+.widget-postit-font-modern input,
+.widget-postit-font-modern textarea {
+    font-family: 'Outfit', sans-serif !important;
+    font-weight: 600 !important;
+}
+.widget-postit-font-modern .widget-postit-title-input {
+    font-weight: 800 !important;
+    letter-spacing: -0.5px;
+}
+
+/* Post-it Paper Color Variants (Alta Visibilidade) */
 .widget-postit-yellow {
-    background: rgba(253, 224, 71, 0.22);
-    border-color: rgba(253, 224, 71, 0.35);
-    box-shadow: 0 8px 32px rgba(253, 224, 71, 0.1), var(--widget-shadow);
+    background: rgba(254, 240, 138, 0.94);
+    border: 1px solid rgba(234, 179, 8, 0.5);
+    box-shadow: 0 8px 30px rgba(234, 179, 8, 0.2);
 }
 .widget-postit-blue {
-    background: rgba(56, 189, 248, 0.22);
-    border-color: rgba(56, 189, 248, 0.35);
-    box-shadow: 0 8px 32px rgba(56, 189, 248, 0.1), var(--widget-shadow);
+    background: rgba(186, 230, 253, 0.94);
+    border: 1px solid rgba(14, 165, 233, 0.5);
+    box-shadow: 0 8px 30px rgba(14, 165, 233, 0.2);
 }
 .widget-postit-pink {
-    background: rgba(244, 114, 182, 0.22);
-    border-color: rgba(244, 114, 182, 0.35);
-    box-shadow: 0 8px 32px rgba(244, 114, 182, 0.1), var(--widget-shadow);
+    background: rgba(251, 207, 232, 0.94);
+    border: 1px solid rgba(236, 72, 153, 0.5);
+    box-shadow: 0 8px 30px rgba(236, 72, 153, 0.2);
 }
 .widget-postit-green {
-    background: rgba(74, 222, 128, 0.22);
-    border-color: rgba(74, 222, 128, 0.35);
-    box-shadow: 0 8px 32px rgba(74, 222, 128, 0.1), var(--widget-shadow);
+    background: rgba(187, 247, 208, 0.94);
+    border: 1px solid rgba(34, 197, 94, 0.5);
+    box-shadow: 0 8px 30px rgba(34, 197, 94, 0.2);
 }
 .widget-postit-orange {
-    background: rgba(251, 146, 60, 0.22);
-    border-color: rgba(251, 146, 60, 0.35);
-    box-shadow: 0 8px 32px rgba(251, 146, 60, 0.1), var(--widget-shadow);
+    background: rgba(254, 215, 170, 0.94);
+    border: 1px solid rgba(249, 115, 22, 0.5);
+    box-shadow: 0 8px 30px rgba(249, 115, 22, 0.2);
+}
+.widget-postit-purple {
+    background: rgba(233, 213, 255, 0.94);
+    border: 1px solid rgba(168, 85, 247, 0.5);
+    box-shadow: 0 8px 30px rgba(168, 85, 247, 0.2);
+}
+.widget-postit-teal {
+    background: rgba(153, 246, 228, 0.94);
+    border: 1px solid rgba(20, 184, 166, 0.5);
+    box-shadow: 0 8px 30px rgba(20, 184, 166, 0.2);
+}
+.widget-postit-red {
+    background: rgba(254, 202, 202, 0.94);
+    border: 1px solid rgba(239, 68, 68, 0.5);
+    box-shadow: 0 8px 30px rgba(239, 68, 68, 0.2);
+}
+.widget-postit-indigo {
+    background: rgba(199, 210, 254, 0.94);
+    border: 1px solid rgba(99, 102, 241, 0.5);
+    box-shadow: 0 8px 30px rgba(99, 102, 241, 0.2);
+}
+
+/* Post-it Versão Escura */
+.widget-postit-dark {
+    background: rgba(30, 41, 59, 0.94);
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+
+    --postit-text: #f8fafc;
+    --postit-muted: rgba(248, 250, 252, 0.6);
+    --postit-border: rgba(255, 255, 255, 0.15);
+    --postit-header-bg: rgba(255, 255, 255, 0.08);
+    --postit-btn-hover: rgba(255, 255, 255, 0.15);
+    --postit-item-bg: rgba(0, 0, 0, 0.3);
+    --postit-input-border: rgba(255, 255, 255, 0.2);
 }
 
 .widget-postit-header {
-    padding: 0.5rem 0.75rem;
-    background: rgba(255, 255, 255, 0.08);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0.4rem 0.6rem;
+    background: var(--postit-header-bg);
+    border-bottom: 1px solid var(--postit-border);
     display: flex;
     justify-content: space-between;
     align-items: center;
     cursor: move;
     user-select: none;
+    gap: 6px;
 }
 
 .widget-postit-colors {
     display: flex;
-    gap: 5px;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-width: 145px;
+    align-items: center;
 }
 
 .widget-postit-color-dot {
-    width: 12px;
-    height: 12px;
+    width: 11px;
+    height: 11px;
     border-radius: 50%;
     cursor: pointer;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    transition: transform 0.2s;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+    transition: transform 0.2s, border-color 0.2s;
+    box-sizing: border-box;
 }
 
-.widget-postit-color-dot:hover {
-    transform: scale(1.2);
+.widget-postit-color-dot:hover,
+.widget-postit-color-dot.active {
+    transform: scale(1.3);
+    border-color: #0f172a;
 }
 
-.widget-postit-color-dot.yellow { background: #fde047; }
-.widget-postit-color-dot.blue { background: #38bdf8; }
-.widget-postit-color-dot.pink { background: #f472b6; }
-.widget-postit-color-dot.green { background: #4ade80; }
-.widget-postit-color-dot.orange { background: #fb923c; }
+.widget-postit-dark .widget-postit-color-dot {
+    border-color: rgba(255, 255, 255, 0.35);
+}
+.widget-postit-dark .widget-postit-color-dot:hover,
+.widget-postit-dark .widget-postit-color-dot.active {
+    border-color: #fff;
+}
+
+.widget-postit-color-dot.yellow { background: #eab308; }
+.widget-postit-color-dot.blue { background: #0284c7; }
+.widget-postit-color-dot.pink { background: #db2777; }
+.widget-postit-color-dot.green { background: #16a34a; }
+.widget-postit-color-dot.orange { background: #ea580c; }
+.widget-postit-color-dot.purple { background: #9333ea; }
+.widget-postit-color-dot.teal { background: #0d9488; }
+.widget-postit-color-dot.red { background: #dc2626; }
+.widget-postit-color-dot.indigo { background: #4f46e5; }
+.widget-postit-color-dot.dark { background: #334155; }
+
+.widget-postit-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.widget-postit-btn-icon {
+    background: transparent;
+    border: none;
+    color: var(--postit-text);
+    opacity: 0.75;
+    cursor: pointer;
+    padding: 3px 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.widget-postit-btn-icon:hover {
+    opacity: 1;
+    background: var(--postit-btn-hover);
+}
+
+.widget-postit-btn-icon.active {
+    color: #0284c7;
+    background: rgba(2, 132, 199, 0.15);
+    opacity: 1;
+}
+
+.widget-postit-dark .widget-postit-btn-icon.active {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.2);
+}
+
+.widget-postit-font-select {
+    background: var(--postit-item-bg);
+    border: 1px solid var(--postit-input-border);
+    color: var(--postit-text);
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 1px 4px;
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+}
+
+.widget-postit-font-select option {
+    background: #ffffff;
+    color: #0f172a;
+}
+.widget-postit-dark .widget-postit-font-select option {
+    background: #1e293b;
+    color: #ffffff;
+}
 
 .widget-postit-delete {
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--postit-text);
+    opacity: 0.7;
     cursor: pointer;
-    padding: 2px;
+    padding: 3px 4px;
     border-radius: 4px;
     display: flex;
     align-items: center;
@@ -615,8 +814,9 @@
 }
 
 .widget-postit-delete:hover {
-    color: #ef4444;
-    background: rgba(239, 68, 68, 0.15);
+    color: #dc2626;
+    opacity: 1;
+    background: rgba(220, 38, 38, 0.15);
 }
 
 .widget-postit-body {
@@ -624,25 +824,25 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
-    padding: 0.75rem;
+    padding: 0.65rem 0.75rem;
 }
 
 .widget-postit-title-input {
     width: 100%;
     background: transparent;
     border: none;
-    color: #fff;
-    font-family: inherit;
-    font-size: 1.15rem;
+    color: var(--postit-text);
+    font-size: 1.1rem;
     font-weight: 800;
     outline: none;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.4rem;
     padding: 0 0 0.25rem 0;
-    border-bottom: 1px dashed rgba(255, 255, 255, 0.15);
+    border-bottom: 1px dashed var(--postit-input-border);
 }
 
 .widget-postit-title-input::placeholder {
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--postit-muted);
+    opacity: 0.85;
 }
 
 .widget-postit-textarea {
@@ -650,16 +850,127 @@
     flex: 1;
     background: transparent;
     border: none;
-    color: #fff;
-    font-family: inherit;
-    font-size: 0.85rem;
+    color: var(--postit-text);
+    font-size: 0.9rem;
+    font-weight: 600;
     line-height: 1.4;
     resize: none;
     outline: none;
 }
 
 .widget-postit-textarea::placeholder {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--postit-muted);
+    opacity: 0.8;
+}
+
+/* Checklist Mode Styles */
+.widget-postit-checklist-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    gap: 0.3rem;
+}
+
+.widget-postit-checklist-items {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding-right: 2px;
+}
+
+.widget-postit-checklist-items::-webkit-scrollbar {
+    width: 4px;
+}
+.widget-postit-checklist-items::-webkit-scrollbar-thumb {
+    background: var(--postit-input-border);
+    border-radius: 4px;
+}
+
+.widget-postit-check-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--postit-item-bg);
+    padding: 3px 6px;
+    border-radius: 6px;
+    border: 1px solid var(--postit-border);
+}
+
+.widget-postit-check-cb {
+    accent-color: #0284c7;
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+}
+
+.widget-postit-check-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--postit-text);
+    font-size: 0.88rem;
+    font-weight: 600;
+    outline: none;
+}
+
+.widget-postit-check-input::placeholder {
+    color: var(--postit-muted);
+    opacity: 0.8;
+}
+
+.widget-postit-check-input.done {
+    text-decoration: line-through;
+    color: var(--postit-muted);
+    opacity: 0.7;
+}
+
+.widget-postit-check-del {
+    background: transparent;
+    border: none;
+    color: var(--postit-muted);
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.widget-postit-check-del:hover {
+    color: #dc2626;
+}
+
+.widget-postit-add-item-btn {
+    background: var(--postit-item-bg);
+    border: 1px dashed var(--postit-input-border);
+    color: var(--postit-text);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 4px;
+    transition: all 0.2s;
+}
+
+.widget-postit-add-item-btn:hover {
+    background: var(--postit-btn-hover);
+}
+
+.widget-postit-progress {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--postit-muted);
+    margin-top: 2px;
+    text-align: right;
 }
 
 /* Post-it Launcher Widget styles */

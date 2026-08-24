@@ -1530,18 +1530,18 @@
             </div>
 
             <div class="intelligent-filter-bar"
-                style="margin-bottom: 1.5rem; padding: 0.8rem 1rem; background: rgba(30, 41, 59, 0.5); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); display: flex; gap: 0.8rem; flex-wrap: nowrap; align-items: center; overflow-x: auto;">
+                style="margin-bottom: 1.5rem; padding: 0.8rem 1rem; background: var(--bg-card, rgba(255, 255, 255, 0.92)); border-radius: 12px; border: 1px solid var(--border-card, rgba(45, 158, 107, 0.15)); display: flex; gap: 0.8rem; flex-wrap: nowrap; align-items: center; overflow-x: auto; box-shadow: 0 2px 12px rgba(45, 158, 107, 0.06);">
                 <div
                     style="display: flex; align-items: center; gap: 0.5rem; color: var(--primary); font-weight: 700; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; flex-shrink: 0;">
                     <i data-lucide="filter" style="width: 14px;"></i> Período
                 </div>
                 <div
-                    style="height: 20px; width: 1px; background: rgba(255,255,255,0.1); margin: 0 0.2rem; flex-shrink: 0;">
+                    style="height: 20px; width: 1px; background: rgba(45, 158, 107, 0.15); margin: 0 0.2rem; flex-shrink: 0;">
                 </div>
 
                 <div class="form-group" style="margin: 0; min-width: 150px;">
                     <select id="comp_filter_periodo" class="input-modern"
-                        style="width: 100%; height: 38px; font-size: 0.8rem; background: rgba(15, 23, 42, 0.6); border-radius: 8px; padding: 0 0.6rem;"
+                        style="width: 100%; height: 38px; font-size: 0.8rem; background: var(--bg-card, #ffffff); color: var(--text-main); border: 1px solid var(--border-card, rgba(45, 158, 107, 0.2)); border-radius: 8px; padding: 0 0.6rem;"
                         onchange="handleCompPeriodChange(this.value)">
                         <option value="all">Tudo</option>
                         <option value="7">Últimos 7 dias</option>
@@ -1560,18 +1560,18 @@
                     style="display: none; gap: 0.6rem; align-items: center; flex-wrap: nowrap; flex-shrink: 0;">
                     <div class="form-group" style="margin: 0; min-width: 110px;">
                         <input type="date" id="comp_filter_start" class="input-modern"
-                            style="width: 100%; height: 38px; font-size: 0.8rem; background: rgba(15, 23, 42, 0.6); border-radius: 8px; padding: 0 0.4rem;"
+                            style="width: 100%; height: 38px; font-size: 0.8rem; background: var(--bg-card, #ffffff); color: var(--text-main); border: 1px solid var(--border-card, rgba(45, 158, 107, 0.2)); border-radius: 8px; padding: 0 0.4rem;"
                             onchange="updateComparativo()">
                     </div>
                     <div class="form-group" style="margin: 0; min-width: 110px;">
                         <input type="date" id="comp_filter_end" class="input-modern"
-                            style="width: 100%; height: 38px; font-size: 0.8rem; background: rgba(15, 23, 42, 0.6); border-radius: 8px; padding: 0 0.4rem;"
+                            style="width: 100%; height: 38px; font-size: 0.8rem; background: var(--bg-card, #ffffff); color: var(--text-main); border: 1px solid var(--border-card, rgba(45, 158, 107, 0.2)); border-radius: 8px; padding: 0 0.4rem;"
                             onchange="updateComparativo()">
                     </div>
                 </div>
 
                 <div
-                    style="height: 20px; width: 1px; background: rgba(255,255,255,0.1); margin: 0 0.2rem; flex-shrink: 0;">
+                    style="height: 20px; width: 1px; background: rgba(45, 158, 107, 0.15); margin: 0 0.2rem; flex-shrink: 0;">
                 </div>
 
                 <div
@@ -1580,7 +1580,7 @@
                 </div>
 
                 <div class="comp-modes-buttons"
-                    style="display: flex; gap: 0.4rem; background: rgba(15, 23, 42, 0.4); padding: 3px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); flex-shrink: 0;">
+                    style="display: flex; gap: 0.4rem; background: rgba(45, 158, 107, 0.08); padding: 3px; border-radius: 8px; border: 1px solid rgba(45, 158, 107, 0.15); flex-shrink: 0;">
                     <button class="comp-mode-btn active" data-mode="veiculo" onclick="setCompMode('veiculo')"
                         style="padding: 0.4rem 0.8rem; background: transparent; border: none; border-radius: 6px; font-size: 0.75rem; color: var(--text-muted); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: all 0.2s ease;">
                         <i data-lucide="car" style="width: 14px;"></i> Placa
@@ -1596,7 +1596,7 @@
                 </div>
 
                 <button class="btn-import" onclick="exportComparativoToPDF()"
-                    style="padding: 0 1rem; height: 38px; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8rem; margin-left: auto; transition: all 0.2s;">
+                    style="padding: 0 1rem; height: 38px; background: rgba(45, 158, 107, 0.12); color: #1a7a50; border: 1px solid rgba(45, 158, 107, 0.25); border-radius: 8px; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8rem; margin-left: auto; transition: all 0.2s;">
                     <i data-lucide="file-text" style="width: 14px;"></i> Exportar PDF
                 </button>
 
@@ -1607,9 +1607,9 @@
             </div>
 
             <div class="subtabs-header"
-                style="display: flex; gap: 0.8rem; margin-bottom: 1.5rem; background: rgba(255, 255, 255, 0.02); padding: 0.4rem; border-radius: 10px; width: fit-content; border: 1px solid rgba(255,255,255,0.05);">
+                style="display: flex; gap: 0.8rem; margin-bottom: 1.5rem; background: var(--bg-card, rgba(255, 255, 255, 0.92)); padding: 0.4rem; border-radius: 10px; width: fit-content; border: 1px solid var(--border-card, rgba(45, 158, 107, 0.15)); box-shadow: 0 2px 8px rgba(45, 158, 107, 0.06);">
                 <button id="btnSubTabCustoTotal" onclick="switchCustosSubTab('custo_total')"
-                    style="padding: 0.6rem 1.2rem; border-radius: 7px; border: 1px solid rgba(99, 102, 241, 0.2); background: rgba(99, 102, 241, 0.1); color: var(--primary-light); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 0.5rem;">
+                    style="padding: 0.6rem 1.2rem; border-radius: 7px; border: 1px solid rgba(45, 158, 107, 0.2); background: rgba(45, 158, 107, 0.1); color: var(--primary); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 0.5rem;">
                     <i data-lucide="dollar-sign" style="width: 14px;"></i> Custo Total
                 </button>
                 <button id="btnSubTabComparativo" onclick="switchCustosSubTab('comparativo')"
@@ -1620,28 +1620,28 @@
 
             <div id="subtab_custo_total" style="display: block;">
                 <div id="custoTotalFilters"
-                    style="display: flex; gap: 1.2rem; align-items: center; margin-bottom: 1.5rem; background: rgba(15, 23, 42, 0.4); padding: 0.8rem 1rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05);">
+                    style="display: flex; gap: 1.2rem; align-items: center; margin-bottom: 1.5rem; background: var(--bg-card, rgba(255, 255, 255, 0.92)); padding: 0.8rem 1rem; border-radius: 10px; border: 1px solid var(--border-card, rgba(45, 158, 107, 0.15)); box-shadow: 0 2px 12px rgba(45, 158, 107, 0.06);">
                     <div
                         style="font-size: 0.75rem; color: var(--primary); text-transform: uppercase; font-weight: 700; display: flex; align-items: center; gap: 0.4rem;">
                         <i data-lucide="filter" style="width: 14px;"></i> Classificação:
                     </div>
                     <label
-                        style="display: flex; align-items: center; gap: 0.4rem; color: #e2e8f0; font-size: 0.85rem; cursor: pointer;">
+                        style="display: flex; align-items: center; gap: 0.4rem; color: var(--text-main); font-size: 0.85rem; font-weight: 600; cursor: pointer;">
                         <input type="checkbox" value="PROPRIO" class="filter-classificacao-ct" checked
                             onchange="updateComparativo()" style="cursor: pointer;"> Próprio
                     </label>
                     <label
-                        style="display: flex; align-items: center; gap: 0.4rem; color: #e2e8f0; font-size: 0.85rem; cursor: pointer;">
+                        style="display: flex; align-items: center; gap: 0.4rem; color: var(--text-main); font-size: 0.85rem; font-weight: 600; cursor: pointer;">
                         <input type="checkbox" value="TERCEIRO" class="filter-classificacao-ct" checked
                             onchange="updateComparativo()" style="cursor: pointer;"> Terceiro
                     </label>
                     <label
-                        style="display: flex; align-items: center; gap: 0.4rem; color: #e2e8f0; font-size: 0.85rem; cursor: pointer;">
+                        style="display: flex; align-items: center; gap: 0.4rem; color: var(--text-main); font-size: 0.85rem; font-weight: 600; cursor: pointer;">
                         <input type="checkbox" value="AGREGADO" class="filter-classificacao-ct" checked
                             onchange="updateComparativo()" style="cursor: pointer;"> Agregado
                     </label>
                     <label
-                        style="display: flex; align-items: center; gap: 0.4rem; color: #e2e8f0; font-size: 0.85rem; cursor: pointer;">
+                        style="display: flex; align-items: center; gap: 0.4rem; color: var(--text-main); font-size: 0.85rem; font-weight: 600; cursor: pointer;">
                         <input type="checkbox" value="ESPECIAL" class="filter-classificacao-ct" checked
                             onchange="updateComparativo()" style="cursor: pointer;"> Especial
                     </label>

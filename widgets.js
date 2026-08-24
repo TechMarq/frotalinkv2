@@ -617,7 +617,6 @@
 
         container.querySelector('.widget-postit-add-btn').addEventListener('click', () => {
             const id = 'postit_' + Date.now();
-            // Spawn in a semi-random spot near the center of the screen
             const randomX = (30 + Math.random() * 40).toFixed(0) + '%';
             const randomY = (20 + Math.random() * 40).toFixed(0) + '%';
             const newPost = {
@@ -625,10 +624,13 @@
                 title: '',
                 text: '',
                 color: 'yellow',
+                font: 'sans',
+                mode: 'text',
+                checklist: [],
                 x: randomX,
                 y: randomY,
-                w: '220px',
-                h: '220px'
+                w: '240px',
+                h: '240px'
             };
 
             postitsList.push(newPost);
@@ -642,39 +644,159 @@
     function renderFloatingPostit(data) {
         if (document.getElementById(data.id)) return;
 
+        // Fallbacks para compatibilidade
+        data.color = data.color || 'yellow';
+        data.font = data.font || 'sans';
+        data.mode = data.mode || 'text';
+        data.checklist = data.checklist || [];
+
         const card = document.createElement('div');
-        card.className = `widget-postit-card widget-postit-${data.color}`;
+        card.className = `widget-postit-card widget-postit-${data.color} widget-postit-font-${data.font}`;
         card.id = data.id;
         card.style.left = data.x;
         card.style.top = data.y;
-        card.style.width = data.w || '220px';
-        card.style.height = data.h || '220px';
+        card.style.width = data.w || '240px';
+        card.style.height = data.h || '240px';
 
         card.innerHTML = `
             <div class="widget-postit-header">
                 <div class="widget-postit-colors">
-                    <span class="widget-postit-color-dot yellow" data-color="yellow" title="Amarelo"></span>
-                    <span class="widget-postit-color-dot blue" data-color="blue" title="Azul"></span>
-                    <span class="widget-postit-color-dot pink" data-color="pink" title="Rosa"></span>
-                    <span class="widget-postit-color-dot green" data-color="green" title="Verde"></span>
-                    <span class="widget-postit-color-dot orange" data-color="orange" title="Laranja"></span>
+                    <span class="widget-postit-color-dot yellow ${data.color === 'yellow' ? 'active' : ''}" data-color="yellow" title="Amarelo"></span>
+                    <span class="widget-postit-color-dot blue ${data.color === 'blue' ? 'active' : ''}" data-color="blue" title="Azul"></span>
+                    <span class="widget-postit-color-dot pink ${data.color === 'pink' ? 'active' : ''}" data-color="pink" title="Rosa"></span>
+                    <span class="widget-postit-color-dot green ${data.color === 'green' ? 'active' : ''}" data-color="green" title="Verde"></span>
+                    <span class="widget-postit-color-dot orange ${data.color === 'orange' ? 'active' : ''}" data-color="orange" title="Laranja"></span>
+                    <span class="widget-postit-color-dot purple ${data.color === 'purple' ? 'active' : ''}" data-color="purple" title="Roxo"></span>
+                    <span class="widget-postit-color-dot teal ${data.color === 'teal' ? 'active' : ''}" data-color="teal" title="Turquesa"></span>
+                    <span class="widget-postit-color-dot red ${data.color === 'red' ? 'active' : ''}" data-color="red" title="Coral"></span>
+                    <span class="widget-postit-color-dot indigo ${data.color === 'indigo' ? 'active' : ''}" data-color="indigo" title="Índigo"></span>
+                    <span class="widget-postit-color-dot dark ${data.color === 'dark' ? 'active' : ''}" data-color="dark" title="Escuro"></span>
                 </div>
-                <button class="widget-postit-delete" title="Excluir Nota">
-                    <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
-                </button>
+                <div class="widget-postit-actions">
+                    <select class="widget-postit-font-select" title="Estilo da fonte">
+                        <option value="sans" ${data.font === 'sans' ? 'selected' : ''}>Sans</option>
+                        <option value="handwritten" ${data.font === 'handwritten' ? 'selected' : ''}>Manuscrita</option>
+                        <option value="script" ${data.font === 'script' ? 'selected' : ''}>Caligrafia</option>
+                        <option value="marker" ${data.font === 'marker' ? 'selected' : ''}>Marcador</option>
+                        <option value="modern" ${data.font === 'modern' ? 'selected' : ''}>Moderna</option>
+                        <option value="mono" ${data.font === 'mono' ? 'selected' : ''}>Código</option>
+                        <option value="serif" ${data.font === 'serif' ? 'selected' : ''}>Serif</option>
+                    </select>
+                    <button class="widget-postit-btn-icon widget-postit-mode-toggle ${data.mode === 'checklist' ? 'active' : ''}" title="${data.mode === 'checklist' ? 'Alternar para Texto' : 'Alternar para Checklist'}">
+                        <i data-lucide="${data.mode === 'checklist' ? 'align-left' : 'check-square'}" style="width: 14px; height: 14px;"></i>
+                    </button>
+                    <button class="widget-postit-delete" title="Excluir Nota">
+                        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                    </button>
+                </div>
             </div>
             <div class="widget-postit-body">
                 <input type="text" class="widget-postit-title-input" placeholder="Título..." value="${data.title || ''}">
-                <textarea class="widget-postit-textarea" placeholder="Escreva algo...">${data.text || ''}</textarea>
+                <div class="widget-postit-content-area" style="flex: 1; display: flex; flex-direction: column; min-height: 0;"></div>
             </div>
         `;
 
         document.body.appendChild(card);
+
+        const contentArea = card.querySelector('.widget-postit-content-area');
+        
+        function renderBodyContent() {
+            const post = postitsList.find(p => p.id === data.id) || data;
+            contentArea.innerHTML = '';
+
+            if (post.mode === 'checklist') {
+                const checklistContainer = document.createElement('div');
+                checklistContainer.className = 'widget-postit-checklist-container';
+                checklistContainer.innerHTML = `
+                    <div class="widget-postit-checklist-items"></div>
+                    <button class="widget-postit-add-item-btn">
+                        <i data-lucide="plus" style="width: 12px; height: 12px;"></i> Adicionar Item
+                    </button>
+                    <div class="widget-postit-progress">0 concluídos</div>
+                `;
+                contentArea.appendChild(checklistContainer);
+
+                const itemsList = checklistContainer.querySelector('.widget-postit-checklist-items');
+                const progressDiv = checklistContainer.querySelector('.widget-postit-progress');
+                const addItemBtn = checklistContainer.querySelector('.widget-postit-add-item-btn');
+
+                function renderChecklistItems() {
+                    itemsList.innerHTML = '';
+                    const doneCount = post.checklist.filter(i => i.done).length;
+                    progressDiv.innerText = `${doneCount}/${post.checklist.length} concluído(s)`;
+
+                    post.checklist.forEach((item, index) => {
+                        const row = document.createElement('div');
+                        row.className = 'widget-postit-check-item';
+                        row.innerHTML = `
+                            <input type="checkbox" class="widget-postit-check-cb" ${item.done ? 'checked' : ''}>
+                            <input type="text" class="widget-postit-check-input ${item.done ? 'done' : ''}" value="${item.text || ''}" placeholder="Tarefa...">
+                            <button class="widget-postit-check-del" title="Remover item"><i data-lucide="x" style="width: 12px; height: 12px;"></i></button>
+                        `;
+
+                        const cb = row.querySelector('.widget-postit-check-cb');
+                        const input = row.querySelector('.widget-postit-check-input');
+                        const delBtn = row.querySelector('.widget-postit-check-del');
+
+                        cb.addEventListener('change', (e) => {
+                            item.done = e.target.checked;
+                            input.classList.toggle('done', item.done);
+                            const currentDone = post.checklist.filter(i => i.done).length;
+                            progressDiv.innerText = `${currentDone}/${post.checklist.length} concluído(s)`;
+                            savePostits();
+                        });
+
+                        input.addEventListener('input', (e) => {
+                            item.text = e.target.value;
+                            savePostits();
+                        });
+
+                        delBtn.addEventListener('click', () => {
+                            post.checklist.splice(index, 1);
+                            savePostits();
+                            renderChecklistItems();
+                        });
+
+                        itemsList.appendChild(row);
+                    });
+
+                    if (window.lucide) lucide.createIcons();
+                }
+
+                addItemBtn.addEventListener('click', () => {
+                    post.checklist.push({ id: Date.now(), text: '', done: false });
+                    savePostits();
+                    renderChecklistItems();
+                    const newInputs = itemsList.querySelectorAll('.widget-postit-check-input');
+                    if (newInputs.length > 0) {
+                        newInputs[newInputs.length - 1].focus();
+                    }
+                });
+
+                renderChecklistItems();
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.className = 'widget-postit-textarea';
+                textarea.placeholder = 'Escreva algo...';
+                textarea.value = post.text || '';
+                contentArea.appendChild(textarea);
+
+                textarea.addEventListener('input', (e) => {
+                    post.text = e.target.value;
+                    savePostits();
+                });
+            }
+
+            if (window.lucide) lucide.createIcons();
+        }
+
+        renderBodyContent();
+
         if (window.lucide) lucide.createIcons();
 
         makeDraggablePostit(card, card.querySelector('.widget-postit-header'));
 
-        // Handle resize observation for specific Post-its
+        // Handle resize observation
         let resizeTimer = null;
         const ro = new ResizeObserver(entries => {
             for (let entry of entries) {
@@ -693,22 +815,7 @@
         });
         ro.observe(card);
 
-        // Events
-        card.querySelector('.widget-postit-delete').addEventListener('click', () => {
-            card.remove();
-            postitsList = postitsList.filter(p => p.id !== data.id);
-            savePostits();
-        });
-
-        const textarea = card.querySelector('.widget-postit-textarea');
-        textarea.addEventListener('input', (e) => {
-            const post = postitsList.find(p => p.id === data.id);
-            if (post) {
-                post.text = e.target.value;
-                savePostits();
-            }
-        });
-
+        // Title Input Event
         const titleInput = card.querySelector('.widget-postit-title-input');
         titleInput.addEventListener('input', (e) => {
             const post = postitsList.find(p => p.id === data.id);
@@ -718,16 +825,64 @@
             }
         });
 
+        // Font Select Event
+        const fontSelect = card.querySelector('.widget-postit-font-select');
+        fontSelect.addEventListener('mousedown', (e) => e.stopPropagation());
+        fontSelect.addEventListener('change', (e) => {
+            const font = e.target.value;
+            const post = postitsList.find(p => p.id === data.id);
+            if (post) {
+                post.font = font;
+                card.className = `widget-postit-card widget-postit-${post.color || 'yellow'} widget-postit-font-${font}`;
+                savePostits();
+            }
+        });
+
+        // Mode Toggle Event
+        const modeToggleBtn = card.querySelector('.widget-postit-mode-toggle');
+        modeToggleBtn.addEventListener('click', () => {
+            const post = postitsList.find(p => p.id === data.id);
+            if (post) {
+                post.mode = post.mode === 'checklist' ? 'text' : 'checklist';
+                if (post.mode === 'checklist' && (!post.checklist || post.checklist.length === 0)) {
+                    if (post.text && post.text.trim()) {
+                        post.checklist = post.text.split('\n').filter(t => t.trim()).map(t => ({
+                            id: Date.now() + Math.random(),
+                            text: t,
+                            done: false
+                        }));
+                    } else {
+                        post.checklist = [{ id: Date.now(), text: '', done: false }];
+                    }
+                }
+                modeToggleBtn.classList.toggle('active', post.mode === 'checklist');
+                modeToggleBtn.title = post.mode === 'checklist' ? 'Alternar para Texto' : 'Alternar para Checklist';
+                modeToggleBtn.innerHTML = `<i data-lucide="${post.mode === 'checklist' ? 'align-left' : 'check-square'}" style="width: 14px; height: 14px;"></i>`;
+                savePostits();
+                renderBodyContent();
+            }
+        });
+
+        // Color Dots Events
         card.querySelectorAll('.widget-postit-color-dot').forEach(dot => {
             dot.addEventListener('click', () => {
                 const color = dot.getAttribute('data-color');
-                card.className = `widget-postit-card widget-postit-${color}`;
                 const post = postitsList.find(p => p.id === data.id);
                 if (post) {
                     post.color = color;
+                    card.className = `widget-postit-card widget-postit-${color} widget-postit-font-${post.font || 'sans'}`;
+                    card.querySelectorAll('.widget-postit-color-dot').forEach(d => d.classList.remove('active'));
+                    dot.classList.add('active');
                     savePostits();
                 }
             });
+        });
+
+        // Delete Event
+        card.querySelector('.widget-postit-delete').addEventListener('click', () => {
+            card.remove();
+            postitsList = postitsList.filter(p => p.id !== data.id);
+            savePostits();
         });
     }
 
@@ -738,6 +893,9 @@
         handle.ontouchstart = dragTouchStart;
 
         function dragMouseDown(e) {
+            if (e.target.closest('select, button, input, .widget-postit-color-dot')) {
+                return;
+            }
             e.preventDefault();
             pos3 = e.clientX;
             pos4 = e.clientY;
@@ -746,6 +904,9 @@
         }
 
         function dragTouchStart(e) {
+            if (e.target.closest('select, button, input, .widget-postit-color-dot')) {
+                return;
+            }
             pos3 = e.touches[0].clientX;
             pos4 = e.touches[0].clientY;
             document.ontouchend = closeDragElement;
