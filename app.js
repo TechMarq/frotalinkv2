@@ -491,12 +491,14 @@ function updateUnlinkedDrivers() {
     // Motoristas ativos que não estão em NENHUMA alocação de veículo (incluindo principal se o carro não estiver em status especial)
     const occupiedDriverIds = vehicles
         .filter(v => v.status === 'ATIVO' || !v.status)
-        .map(v => {
-            if (v.motorista_alocado_id) return v.motorista_alocado_id;
+        .flatMap(v => {
+            const ids = [];
+            if (v.motorista_alocado_id) ids.push(v.motorista_alocado_id);
+            if (v.motorista_alocado_2_id) ids.push(v.motorista_alocado_2_id);
             if (!['MANUTENCAO', 'GARAGEM', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase()) && v.condutor_principal_id) {
-                return v.condutor_principal_id;
+                ids.push(v.condutor_principal_id);
             }
-            return null;
+            return ids;
         })
         .filter(id => id);
 
@@ -611,13 +613,13 @@ function openDriverDetail(id) {
 
     content.innerHTML = `
         <div class="detail-item"><strong>Nome:</strong> ${d.nome_completo}</div>
-        <div class="detail-item"><strong>CPF:</strong> ${d.cpf || '-'}</div>
-        <div class="detail-item"><strong>WhatsApp:</strong> ${d.contato_whatsapp || '-'}</div>
+        <div class="detail-item"><strong>CPF:</strong> ${maskCpfDriver(d.cpf) || '-'}</div>
+        <div class="detail-item"><strong>WhatsApp:</strong> ${maskTelefoneDriver(d.contato_whatsapp) || '-'}</div>
         <div class="detail-item"><strong>Idade:</strong> ${calcAge(d.data_nascimento)}</div>
         <div class="detail-item"><strong>Nascimento:</strong> ${formatDate(d.data_nascimento)}</div>
         
         <div class="form-section-header">Habilitação</div>
-        <div class="detail-item"><strong>Registro CNH:</strong> ${d.registro_cnh || '-'}</div>
+        <div class="detail-item"><strong>Registro CNH:</strong> ${maskCnhDriver(d.registro_cnh) || '-'}</div>
         <div class="detail-item"><strong>Categoria:</strong> ${d.categoria_cnh || '-'}</div>
         <div class="detail-item"><strong>Vencimento:</strong> ${formatDate(d.vencimento_cnh)}</div>
         
@@ -754,8 +756,8 @@ function renderVehicles() {
             let currentStatus = (v.status_alocacao || 'DISPONIVEL').toUpperCase();
             if (currentStatus === 'DISPONÍVEL') currentStatus = 'DISPONIVEL';
             
-            // Se possuir motorista alocado, não está disponível
-            const hasDriver = !!v.motorista_alocado_id;
+            // Se possuir motorista alocado (1º ou 2º), não está disponível
+            const hasDriver = !!v.motorista_alocado_id || !!v.motorista_alocado_2_id;
             if (currentStatus === 'DISPONIVEL' && hasDriver) {
                 currentStatus = 'ALOCADO';
             }
@@ -766,13 +768,27 @@ function renderVehicles() {
         }
 
         const isMainStatus = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase());
-        const condutorAtual = v.motorista_alocado ? v.motorista_alocado.nome_completo : (isMainStatus ? v.status_alocacao : 'DISPONÍVEL');
+        const d1Name = v.motorista_alocado ? v.motorista_alocado.nome_completo : null;
+        const d2Name = v.motorista_alocado_2 ? v.motorista_alocado_2.nome_completo : null;
+        
+        let condutorAtual = '';
+        if (d1Name && d2Name) {
+            condutorAtual = `${d1Name} / ${d2Name}`;
+        } else if (d1Name) {
+            condutorAtual = d1Name;
+        } else if (d2Name) {
+            condutorAtual = d2Name;
+        } else {
+            condutorAtual = isMainStatus ? v.status_alocacao : 'DISPONÍVEL';
+        }
         
         // Texto consolidado para busca (Null-safe)
         const searchableText = [
             v.placa,
             v.modelo,
             condutorAtual,
+            d1Name,
+            d2Name,
             v.chassi
         ].map(val => (val || '').toLowerCase()).join(' ');
 
@@ -786,14 +802,17 @@ function renderVehicles() {
     filtered.sort((a, b) => {
         let valA, valB;
         if (sort.key === 'condutor') {
-            const isMainA = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((a.status_alocacao || '').toUpperCase());
-            const nameA = a.motorista_alocado ? a.motorista_alocado.nome_completo : (isMainA ? a.status_alocacao : 'DISPONÍVEL');
-            
-            const isMainB = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((b.status_alocacao || '').toUpperCase());
-            const nameB = b.motorista_alocado ? b.motorista_alocado.nome_completo : (isMainB ? b.status_alocacao : 'DISPONÍVEL');
-
-            valA = (nameA || '').toLowerCase();
-            valB = (nameB || '').toLowerCase();
+            const getCondutorName = (veh) => {
+                const isMain = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((veh.status_alocacao || '').toUpperCase());
+                const d1 = veh.motorista_alocado ? veh.motorista_alocado.nome_completo : '';
+                const d2 = veh.motorista_alocado_2 ? veh.motorista_alocado_2.nome_completo : '';
+                if (d1 && d2) return `${d1} / ${d2}`;
+                if (d1) return d1;
+                if (d2) return d2;
+                return isMain ? veh.status_alocacao : 'DISPONÍVEL';
+            };
+            valA = (getCondutorName(a) || '').toLowerCase();
+            valB = (getCondutorName(b) || '').toLowerCase();
         } else if (typeof a[sort.key] === 'number') {
             valA = a[sort.key] || 0;
             valB = b[sort.key] || 0;
@@ -812,28 +831,50 @@ function renderVehicles() {
         return;
     }
 
-    // Descobrir quais motoristas já estão ocupados (ativos apenas)
+    // Descobrir quais motoristas já estão ocupados (1º ou 2º condutor em veículos ativos)
     const occupiedDriverIds = vehicles
-        .filter(v => (v.status === 'ATIVO' || !v.status) && v.motorista_alocado_id)
-        .map(v => v.motorista_alocado_id);
+        .filter(v => (v.status === 'ATIVO' || !v.status))
+        .flatMap(v => {
+            const ids = [];
+            if (v.motorista_alocado_id) ids.push(v.motorista_alocado_id);
+            if (v.motorista_alocado_2_id) ids.push(v.motorista_alocado_2_id);
+            return ids;
+        });
 
     const activeDrivers = drivers.filter(d => d.status === 'ATIVO');
 
     list.innerHTML = filtered.map(v => {
         const specialStatus = JSON.parse(localStorage.getItem('vehicleStatus')) || {};
         const currentSpecial = specialStatus[v.id];
+        
+        // Opções para o 1º Condutor / Status
         let options = '<option value="">-- Vincular Motorista --</option>';
         options += `<option value="MANUTENCAO" ${v.status_alocacao === 'MANUTENCAO' ? 'selected' : ''}>Manutenção</option>`;
         options += `<option value="GARAGEM" ${v.status_alocacao === 'GARAGEM' ? 'selected' : ''}>Garagem</option>`;
         options += `<option value="DISPONIVEL" ${v.status_alocacao === 'DISPONIVEL' ? 'selected' : ''}>Disponível</option>`;
         activeDrivers.forEach(d => {
-            const isCurrent = d.id === v.motorista_alocado_id;
-            const isOccupiedByAnother = occupiedDriverIds.includes(d.id) && !isCurrent;
+            const isCurrent1 = d.id === v.motorista_alocado_id;
+            const isCurrent2 = d.id === v.motorista_alocado_2_id;
+            const isOccupiedByAnother = occupiedDriverIds.includes(d.id) && !isCurrent1 && !isCurrent2;
             
-            if (!isOccupiedByAnother) {
-                options += `<option value="${d.id}" ${isCurrent ? 'selected' : ''}>${d.nome_completo}</option>`;
+            if (!isOccupiedByAnother && !isCurrent2) {
+                options += `<option value="${d.id}" ${isCurrent1 ? 'selected' : ''}>${d.nome_completo}</option>`;
             }
         });
+
+        // Opções para o 2º Condutor (Carro Compartilhado - ativo apenas se houver 1º condutor)
+        let options2 = '<option value="">-- 2º Condutor (Compartilhado) --</option>';
+        if (v.motorista_alocado_id) {
+            activeDrivers.forEach(d => {
+                const isCurrent1 = d.id === v.motorista_alocado_id;
+                const isCurrent2 = d.id === v.motorista_alocado_2_id;
+                const isOccupiedByAnother = occupiedDriverIds.includes(d.id) && !isCurrent1 && !isCurrent2;
+                
+                if (!isOccupiedByAnother && !isCurrent1) {
+                    options2 += `<option value="${d.id}" ${isCurrent2 ? 'selected' : ''}>${d.nome_completo}</option>`;
+                }
+            });
+        }
 
         const cells = activeCols.map(col => {
             switch (col.key) {
@@ -874,16 +915,22 @@ function renderVehicles() {
                         ` : '';
                         const hasEditPerm = canDo('frota_alocacoes', 'edit');
                         const disabledAttr = hasEditPerm ? '' : 'disabled';
+                        
+                        const select2Html = v.motorista_alocado_id ? `
+                            <select class="direct-select direct-select-secondary ${v.motorista_alocado_2_id ? 'status-alocado' : ''}" ${disabledAttr} onchange="updateVehicleDriver('${v.id}', this.value, true); renderAll();">${options2}</select>
+                        ` : '';
+
                         return `<td>
-                            <select class="direct-select ${sClass}" ${disabledAttr} onchange="updateVehicleDriver('${v.id}', this.value); renderAll();">${options}</select>
+                            <select class="direct-select ${sClass}" ${disabledAttr} onchange="updateVehicleDriver('${v.id}', this.value, false); renderAll();">${options}</select>
+                            ${select2Html}
                             ${maintInfo}
                         </td>`;
                     } else {
                         const statusAloc = (v.status_alocacao || '').toUpperCase();
                         const isMaint = statusAloc === 'MANUTENCAO';
                         const isMainStatus = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes(statusAloc);
-                        const driverName = v.motorista_alocado ? v.motorista_alocado.nome_completo : (isMainStatus ? statusAloc : 'DISPONÍVEL');
-                        const isClickable = !!v.motorista_alocado_id;
+                        const d1Name = v.motorista_alocado ? v.motorista_alocado.nome_completo : null;
+                        const d2Name = v.motorista_alocado_2 ? v.motorista_alocado_2.nome_completo : null;
                         const sClass = getStatusClass(v.motorista_alocado_id || statusAloc);
                         
                         const logs = v.veiculo_situacoes_log || [];
@@ -909,26 +956,47 @@ function renderVehicles() {
                             </div>
                         ` : '';
 
+                        let driverDisplay = '';
+                        if (d1Name && d2Name) {
+                            driverDisplay = `
+                                <span class="clickable-driver ${sClass}" onclick="event.stopPropagation(); openDriverDetail('${v.motorista_alocado_id}')" style="cursor: pointer; font-weight: 600; display: block;">
+                                    ${d1Name.toUpperCase()}
+                                </span>
+                                <span class="clickable-driver ${sClass}" onclick="event.stopPropagation(); openDriverDetail('${v.motorista_alocado_2_id}')" style="cursor: pointer; font-weight: 600; display: block; font-size: 0.8rem; margin-top: 2px; opacity: 0.9;">
+                                    🤝 2º: ${d2Name.toUpperCase()}
+                                </span>
+                            `;
+                        } else if (d1Name) {
+                            driverDisplay = `
+                                <span class="clickable-driver ${sClass}" onclick="event.stopPropagation(); openDriverDetail('${v.motorista_alocado_id}')" style="cursor: pointer; font-weight: 600;">
+                                    ${d1Name.toUpperCase()}
+                                </span>
+                            `;
+                        } else {
+                            const nameText = isMainStatus ? statusAloc : 'DISPONÍVEL';
+                            driverDisplay = `<span class="${sClass}" style="font-weight: 600;">${nameText}</span>`;
+                        }
+
                         return `<td>
-                            <span class="${isClickable ? 'clickable-driver' : ''} ${sClass}" 
-                                  onclick="${isClickable ? `event.stopPropagation(); openDriverDetail('${v.motorista_alocado_id}')` : ''}"
-                                  style="${isClickable ? 'cursor: pointer; font-weight: 600;' : 'font-weight: 600;'}">
-                                ${driverName.toUpperCase()}
-                            </span>
+                            ${driverDisplay}
                             ${maintDetail}
                         </td>`;
                     }
                 case 'whats':
+                    let whatsItems = [];
+                    const waIcon = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="display:inline-block; vertical-align:-2px; margin-right:4px; color:#25d366;"><path d="M12.012 2c-5.506 0-9.989 4.478-9.989 9.984 0 1.76.459 3.474 1.33 4.988l-1.413 5.163 5.281-1.385c1.455.794 3.09 1.218 4.791 1.218 5.507 0 9.99-4.478 9.99-9.984 0-5.506-4.483-9.984-9.99-9.984zm5.836 14.166c-.244.688-1.201 1.26-1.954 1.425-.516.113-1.19.205-3.456-.732-2.899-1.2-4.759-4.148-4.903-4.34-.144-.192-1.168-1.554-1.168-2.96 0-1.406.735-2.099.997-2.383.262-.284.571-.355.761-.355.19 0 .38.002.547.01.178.008.417-.067.652.496.244.587.83 2.03.902 2.176.072.146.12.316.024.507-.096.191-.144.31-.286.478-.144.168-.303.376-.433.504-.144.144-.295.302-.127.591.168.289.747 1.233 1.603 1.996 1.101.981 2.03 1.286 2.318 1.43.288.144.456.12.624-.072.168-.192.72-0.838.912-1.126.192-.288.384-.24.648-.144.264.096 1.679.791 1.967.935.288.144.48.216.552.336.072.12.072.696-.172 1.384z"/></svg>`;
                     if (v.motorista_alocado && v.motorista_alocado.contato_whatsapp) {
-                        const raw = v.motorista_alocado.contato_whatsapp;
-                        const number = raw.replace(/\D/g, '');
-                        return `
-            <td class="contact">
-                <a href="https://wa.me/${number}" target="_blank">
-                    ${raw}
-                </a>
-            </td>
-        `;
+                        const raw1 = v.motorista_alocado.contato_whatsapp;
+                        const num1 = raw1.replace(/\D/g, '');
+                        whatsItems.push(`<a href="https://wa.me/${num1}" target="_blank">${waIcon}${raw1}</a>`);
+                    }
+                    if (v.motorista_alocado_2 && v.motorista_alocado_2.contato_whatsapp) {
+                        const raw2 = v.motorista_alocado_2.contato_whatsapp;
+                        const num2 = raw2.replace(/\D/g, '');
+                        whatsItems.push(`<a href="https://wa.me/${num2}" target="_blank">${waIcon}${raw2}</a>`);
+                    }
+                    if (whatsItems.length > 0) {
+                        return `<td class="contact">${whatsItems.join('<br>')}</td>`;
                     } else {
                         return `<td class="contact">-</td>`;
                     }
@@ -1019,7 +1087,7 @@ function updateStatusCounts() {
         if (status === 'DISPONÍVEL') status = 'DISPONIVEL';
         
         // Se possuir motorista alocado, não está disponível
-        const hasDriver = !!v.motorista_alocado_id;
+        const hasDriver = !!v.motorista_alocado_id || !!v.motorista_alocado_2_id;
         if (status === 'DISPONIVEL' && hasDriver) {
             status = 'ALOCADO';
         }
@@ -1047,11 +1115,11 @@ function updateVehicleInMemory(vehicleId, partialData) {
     }
 }
 
-async function updateVehicleDriver(vehicleId, driverId) {
+async function updateVehicleDriver(vehicleId, driverId, isSecondDriver = false) {
     if (!client) return;
 
-    // Se for manutenção, abre o modal antes de salvar o status básico
-    if (driverId === "MANUTENCAO") {
+    // Se for manutenção (somente no seletor principal), abre o modal antes de salvar o status básico
+    if (!isSecondDriver && driverId === "MANUTENCAO") {
         openMaintenanceModal(vehicleId, "MANUTENCAO");
         return; // O salvamento será feito pelo modal
     }
@@ -1059,15 +1127,25 @@ async function updateVehicleDriver(vehicleId, driverId) {
     try {
         let updateData = {};
 
-        if (driverId === "GARAGEM" || driverId === "DISPONIVEL") {
-            updateData = {
-                motorista_alocado_id: null,
-                status_alocacao: driverId
-            };
+        if (!isSecondDriver) {
+            if (driverId === "GARAGEM" || driverId === "DISPONIVEL") {
+                updateData = {
+                    motorista_alocado_id: null,
+                    motorista_alocado_2_id: null,
+                    status_alocacao: driverId
+                };
+            } else {
+                updateData = {
+                    motorista_alocado_id: driverId || null,
+                    status_alocacao: null
+                };
+                if (!driverId) {
+                    updateData.motorista_alocado_2_id = null;
+                }
+            }
         } else {
             updateData = {
-                motorista_alocado_id: driverId || null,
-                status_alocacao: null
+                motorista_alocado_2_id: driverId || null
             };
         }
 
@@ -1078,7 +1156,7 @@ async function updateVehicleDriver(vehicleId, driverId) {
 
         if (error) {
             console.error(error);
-            alert('Erro ao atualizar');
+            alert('Erro ao atualizar alocação');
             return;
         }
 
@@ -1087,26 +1165,53 @@ async function updateVehicleDriver(vehicleId, driverId) {
             const v = vehicles.find(item => item.id === vehicleId);
             const placa = v ? v.placa : vehicleId;
             let descLog = '';
-            if (driverId === "GARAGEM" || driverId === "DISPONIVEL") {
-                descLog = `Alterou alocação do veículo ${placa} para ${driverId}`;
-            } else {
+            if (isSecondDriver) {
                 const d = drivers.find(item => item.id === driverId);
-                const motoristaNome = d ? d.nome_completo : driverId;
-                descLog = `Alocou motorista ${motoristaNome} no veículo ${placa}`;
+                descLog = driverId 
+                    ? `Alocou 2º motorista (${d ? d.nome_completo : driverId}) no veículo ${placa}`
+                    : `Removeu 2º motorista do veículo ${placa}`;
+            } else {
+                if (driverId === "GARAGEM" || driverId === "DISPONIVEL") {
+                    descLog = `Alterou alocação do veículo ${placa} para ${driverId}`;
+                } else {
+                    const d = drivers.find(item => item.id === driverId);
+                    const motoristaNome = d ? d.nome_completo : driverId;
+                    descLog = `Alocou motorista ${motoristaNome} no veículo ${placa}`;
+                }
             }
             window.registrarLog('frota', 'ALTERAÇÃO', descLog);
         }
 
         // Atualiza apenas o veículo afetado em memória (sem re-fetch completo)
-        const motorista = driverId && !['GARAGEM', 'DISPONIVEL'].includes(driverId)
-            ? drivers.find(d => d.id === driverId)
-            : null;
-        updateVehicleInMemory(vehicleId, {
-            ...updateData,
-            motorista_alocado: motorista
-                ? { nome_completo: motorista.nome_completo, contato_whatsapp: motorista.contato_whatsapp }
-                : null
-        });
+        const vIdx = vehicles.findIndex(v => v.id === vehicleId);
+        if (vIdx !== -1) {
+            const currentV = vehicles[vIdx];
+            let newMotorista1 = currentV.motorista_alocado;
+            let newMotorista2 = currentV.motorista_alocado_2;
+
+            if (!isSecondDriver) {
+                if (!driverId || ['GARAGEM', 'DISPONIVEL', 'MANUTENCAO'].includes(driverId)) {
+                    newMotorista1 = null;
+                    newMotorista2 = null;
+                } else {
+                    const d1 = drivers.find(d => d.id === driverId);
+                    newMotorista1 = d1 ? { nome_completo: d1.nome_completo, contato_whatsapp: d1.contato_whatsapp } : null;
+                }
+            } else {
+                if (!driverId) {
+                    newMotorista2 = null;
+                } else {
+                    const d2 = drivers.find(d => d.id === driverId);
+                    newMotorista2 = d2 ? { nome_completo: d2.nome_completo, contato_whatsapp: d2.contato_whatsapp } : null;
+                }
+            }
+
+            updateVehicleInMemory(vehicleId, {
+                ...updateData,
+                motorista_alocado: newMotorista1,
+                motorista_alocado_2: newMotorista2
+            });
+        }
 
     } catch (err) {
         console.error(err);
@@ -1437,6 +1542,7 @@ async function handleMaintenanceSubmit(e) {
             .update({
                 status_alocacao: newStatus,
                 motorista_alocado_id: newStatus === 'MANUTENCAO' ? null : (v ? v.motorista_alocado_id : null),
+                motorista_alocado_2_id: newStatus === 'MANUTENCAO' ? null : (v ? v.motorista_alocado_2_id : null),
                 manutencao_oficina_id: oficinaNome || null,
                 manutencao_motivo: motivo
             })
@@ -1455,6 +1561,7 @@ async function handleMaintenanceSubmit(e) {
         updateVehicleInMemory(vehicleId, {
             status_alocacao: newStatus,
             motorista_alocado_id: newStatus === 'MANUTENCAO' ? null : (v ? v.motorista_alocado_id : null),
+            motorista_alocado_2_id: newStatus === 'MANUTENCAO' ? null : (v ? v.motorista_alocado_2_id : null),
             manutencao_oficina_id: oficinaNome || null,
             manutencao_motivo: motivo
         });
@@ -1709,12 +1816,12 @@ function renderFullDrivers() {
         const cells = activeCols.map(col => {
             switch (col.key) {
                 case 'nome_completo': return `<td class="driver">${d.nome_completo}</td>`;
-                case 'cpf': return `<td>${d.cpf || '-'}</td>`;
-                case 'cnh_cat': return `<td>${d.registro_cnh || '-'} (${d.categoria_cnh || '-'})</td>`;
+                case 'cpf': return `<td>${maskCpfDriver(d.cpf) || '-'}</td>`;
+                case 'cnh_cat': return `<td>${maskCnhDriver(d.registro_cnh) || '-'} (${d.categoria_cnh || '-'})</td>`;
                 case 'vencimento_cnh': return `<td>${formatDate(d.vencimento_cnh)}</td>`;
                 case 'idade': return `<td>${calcAge(d.data_nascimento)}</td>`;
                 case 'vinculos_seguro': return `<td style="font-weight:700;">${vinculosCount} veícs.</td>`;
-                case 'contato_whatsapp': return `<td>${d.contato_whatsapp || '-'}</td>`;
+                case 'contato_whatsapp': return `<td>${maskTelefoneDriver(d.contato_whatsapp) || '-'}</td>`;
                 case 'data_nascimento': return `<td>${formatDate(d.data_nascimento)}</td>`;
                 case 'status': 
                     let bdClass = 'danger';
@@ -1790,6 +1897,23 @@ async function fetchVehicles() {
             vencimento_seguro, seguradora, numero_apolice, corretor_seguro,
             valor_premio, valor_franquia, parcelas_pagamento, forma_pagamento,
             proponente_seguro, endosso_proposta, ci_seguro,
+            condutor_principal_id, motorista_alocado_id, motorista_alocado_2_id, status_alocacao,
+            manutencao_oficina_id, manutencao_motivo, ignorar_media,
+            inativo_motivo, inativo_data, inativo_beneficiario, inativo_valor,
+            motoristas:condutor_principal_id(nome_completo, contato_whatsapp),
+            motorista_alocado:motorista_alocado_id(nome_completo, contato_whatsapp),
+            motorista_alocado_2:motorista_alocado_2_id(nome_completo, contato_whatsapp),
+            veiculo_situacoes_log(id, data, descricao)
+        `;
+
+        const VEICULOS_FIELDS_FALLBACK = `
+            id, placa, modelo, marca, proprietario, classificacao, status,
+            tipo_combustivel, cor, ano_fabricacao, ano_modelo, renavam,
+            chassi, numero_motor, codigo_fipe, valor_fipe_mes,
+            nome_documento, drive_folder_url, canvas_url, cpf_cnpj, data_aquisicao_nf, data_saida_nf, fornecedor_aquisicao,
+            vencimento_seguro, seguradora, numero_apolice, corretor_seguro,
+            valor_premio, valor_franquia, parcelas_pagamento, forma_pagamento,
+            proponente_seguro, endosso_proposta, ci_seguro,
             condutor_principal_id, motorista_alocado_id, status_alocacao,
             manutencao_oficina_id, manutencao_motivo, ignorar_media,
             inativo_motivo, inativo_data, inativo_beneficiario, inativo_valor,
@@ -1798,20 +1922,23 @@ async function fetchVehicles() {
             veiculo_situacoes_log(id, data, descricao)
         `;
 
-        let { data, error } = await client
+        let data;
+        let mainQuery = await client
             .from('veiculos')
             .select(VEICULOS_FIELDS)
             .order('placa', { ascending: true });
 
-        if (error) {
-            console.warn('Erro na busca principal, tentando fallback com logs...', error.message);
-            const fallback = await client
+        if (mainQuery.error) {
+            console.warn('Query principal com 2º condutor falhou (schema/relacionamento pendente). Executando fallback seguro...', mainQuery.error.message);
+            const fallbackQuery = await client
                 .from('veiculos')
-                .select(VEICULOS_FIELDS)
+                .select(VEICULOS_FIELDS_FALLBACK)
                 .order('placa', { ascending: true });
             
-            if (fallback.error) throw fallback.error;
-            data = fallback.data;
+            if (fallbackQuery.error) throw fallbackQuery.error;
+            data = fallbackQuery.data;
+        } else {
+            data = mainQuery.data;
         }
 
         vehicles = data || [];
@@ -1947,6 +2074,189 @@ function getFilteredVehicles() {
     return filtered;
 }
 
+function getFilteredAllocations() {
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    const activeVehicles = vehicles.filter(v => (v.status === 'ATIVO' || !v.status));
+
+    const searchWords = searchTerm.split(/\s+/).filter(w => w);
+    const filtered = activeVehicles.filter(v => {
+        if (currentStatusFilter) {
+            let currentStatus = (v.status_alocacao || 'DISPONIVEL').toUpperCase();
+            if (currentStatus === 'DISPONÍVEL') currentStatus = 'DISPONIVEL';
+            
+            const hasDriver = !!v.motorista_alocado_id || !!v.motorista_alocado_2_id;
+            if (currentStatus === 'DISPONIVEL' && hasDriver) {
+                currentStatus = 'ALOCADO';
+            }
+            
+            let filterVal = currentStatusFilter.toUpperCase();
+            if (filterVal === 'DISPONÍVEL') filterVal = 'DISPONIVEL';
+            if (currentStatus !== filterVal) return false;
+        }
+
+        const isMainStatus = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase());
+        const d1Name = v.motorista_alocado ? v.motorista_alocado.nome_completo : null;
+        const d2Name = v.motorista_alocado_2 ? v.motorista_alocado_2.nome_completo : null;
+        
+        let condutorAtual = '';
+        if (d1Name && d2Name) {
+            condutorAtual = `${d1Name} / ${d2Name}`;
+        } else if (d1Name) {
+            condutorAtual = d1Name;
+        } else if (d2Name) {
+            condutorAtual = d2Name;
+        } else {
+            condutorAtual = isMainStatus ? v.status_alocacao : 'DISPONÍVEL';
+        }
+        
+        const searchableText = [
+            v.placa,
+            v.modelo,
+            condutorAtual,
+            d1Name,
+            d2Name,
+            v.chassi
+        ].map(val => (val || '').toLowerCase()).join(' ');
+
+        return searchWords.every(word => searchableText.includes(word));
+    });
+
+    const sort = currentSort.dashboard;
+    filtered.sort((a, b) => {
+        let valA, valB;
+        if (sort.key === 'condutor') {
+            const getCondutorName = (veh) => {
+                const isMain = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((veh.status_alocacao || '').toUpperCase());
+                const d1 = veh.motorista_alocado ? veh.motorista_alocado.nome_completo : '';
+                const d2 = veh.motorista_alocado_2 ? veh.motorista_alocado_2.nome_completo : '';
+                if (d1 && d2) return `${d1} / ${d2}`;
+                if (d1) return d1;
+                if (d2) return d2;
+                return isMain ? veh.status_alocacao : 'DISPONÍVEL';
+            };
+            valA = (getCondutorName(a) || '').toLowerCase();
+            valB = (getCondutorName(b) || '').toLowerCase();
+        } else if (typeof a[sort.key] === 'number') {
+            valA = a[sort.key] || 0;
+            valB = b[sort.key] || 0;
+            return sort.dir === 'asc' ? valA - valB : valB - valA;
+        } else {
+            valA = (a[sort.key] || '').toString().toLowerCase();
+            valB = (b[sort.key] || '').toString().toLowerCase();
+        }
+        if (valA < valB) return sort.dir === 'asc' ? -1 : 1;
+        if (valA > valB) return sort.dir === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    return filtered;
+}
+
+function exportAllocationsToExcel() {
+    const filtered = getFilteredAllocations();
+    if (filtered.length === 0) return alert('Nenhuma alocação encontrada com os filtros atuais.');
+
+    const exportData = filtered.map(v => {
+        const isMainStatus = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase());
+        const d1Name = v.motorista_alocado ? v.motorista_alocado.nome_completo : null;
+        const d2Name = v.motorista_alocado_2 ? v.motorista_alocado_2.nome_completo : null;
+        
+        let alocacaoAtual = '';
+        if (d1Name && d2Name) {
+            alocacaoAtual = `${d1Name} / 2º: ${d2Name}`;
+        } else if (d1Name) {
+            alocacaoAtual = d1Name;
+        } else if (d2Name) {
+            alocacaoAtual = d2Name;
+        } else {
+            alocacaoAtual = isMainStatus ? v.status_alocacao : 'DISPONÍVEL';
+        }
+
+        let whatsApp = [];
+        if (v.motorista_alocado && v.motorista_alocado.contato_whatsapp) whatsApp.push(v.motorista_alocado.contato_whatsapp);
+        if (v.motorista_alocado_2 && v.motorista_alocado_2.contato_whatsapp) whatsApp.push(v.motorista_alocado_2.contato_whatsapp);
+
+        return {
+            'Placa': v.placa,
+            'Marca/Modelo': `${v.marca || ''} ${v.modelo}`.trim(),
+            'KM Atual': v.km_atual || 0,
+            'Alocação Atual': alocacaoAtual,
+            'Oficina / Motivo': (v.status_alocacao === 'MANUTENCAO') ? `${v.fornecedores?.nome || v.manutencao_oficina_id || '-'} (${v.manutencao_motivo || '-'})` : '-',
+            'WhatsApp Contato': whatsApp.join(' / ') || '-'
+        };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Alocações_Frota");
+    XLSX.writeFile(wb, `FrotaLink_Alocacoes_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+function exportAllocationsToPDF() {
+    const filtered = getFilteredAllocations();
+    if (filtered.length === 0) return alert('Nenhuma alocação encontrada com os filtros atuais.');
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('l', 'mm', 'a4');
+
+    const searchTerm = searchInput ? searchInput.value.trim() : '';
+
+    doc.setFontSize(15);
+    doc.text("Relatório de Alocações da Frota - FROTALINK", 14, 15);
+    doc.setFontSize(9);
+    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 21);
+    
+    let subTitle = `Total de veículos: ${filtered.length}`;
+    if (currentStatusFilter) subTitle += ` | Filtro Status: ${currentStatusFilter}`;
+    if (searchTerm) subTitle += ` | Busca: "${searchTerm}"`;
+    doc.text(subTitle, 14, 26);
+
+    const head = [['Placa', 'Marca / Modelo', 'KM Atual', 'Alocação Atual', 'WhatsApp Contato']];
+    const body = filtered.map(v => {
+        const isMainStatus = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase());
+        const d1Name = v.motorista_alocado ? v.motorista_alocado.nome_completo : null;
+        const d2Name = v.motorista_alocado_2 ? v.motorista_alocado_2.nome_completo : null;
+        
+        let alocacaoAtual = '';
+        if (d1Name && d2Name) {
+            alocacaoAtual = `${d1Name} (2º: ${d2Name})`;
+        } else if (d1Name) {
+            alocacaoAtual = d1Name;
+        } else if (d2Name) {
+            alocacaoAtual = d2Name;
+        } else {
+            alocacaoAtual = isMainStatus ? v.status_alocacao : 'DISPONÍVEL';
+        }
+
+        if (v.status_alocacao === 'MANUTENCAO' && v.manutencao_motivo) {
+            alocacaoAtual += ` [${v.manutencao_motivo}]`;
+        }
+
+        let whatsApp = [];
+        if (v.motorista_alocado && v.motorista_alocado.contato_whatsapp) whatsApp.push(v.motorista_alocado.contato_whatsapp);
+        if (v.motorista_alocado_2 && v.motorista_alocado_2.contato_whatsapp) whatsApp.push(v.motorista_alocado_2.contato_whatsapp);
+
+        return [
+            v.placa,
+            `${v.marca || ''} ${v.modelo}`.trim(),
+            (v.km_atual || 0).toLocaleString('pt-BR') + ' km',
+            alocacaoAtual,
+            whatsApp.join(' / ') || '-'
+        ];
+    });
+
+    doc.autoTable({
+        startY: 30,
+        head: head,
+        body: body,
+        theme: 'striped',
+        headStyles: { fillColor: [5, 150, 105] },
+        styles: { fontSize: 9, cellPadding: 3 }
+    });
+
+    doc.save(`FrotaLink_Alocacoes_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
 function exportFleetToExcel() {
     const filtered = getFilteredVehicles();
     if (filtered.length === 0) return alert('Nenhum veículo encontrado com os filtros atuais.');
@@ -1981,7 +2291,11 @@ function exportFleetToExcel() {
         'Data Aquisição': formatDate(v.data_aquisicao_nf),
         'Data Saída': formatDate(v.data_saida_nf),
         'Classificação': v.classificacao,
-        'Alocação Atual': v.motorista_alocado ? v.motorista_alocado.nome_completo : (['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase()) ? v.status_alocacao : (v.motoristas ? v.motoristas.nome_completo : 'DISPONÍVEL'))
+        'Alocação Atual': v.motorista_alocado 
+            ? (v.motorista_alocado.nome_completo + (v.motorista_alocado_2 ? ' / ' + v.motorista_alocado_2.nome_completo : ''))
+            : (['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase()) 
+                ? v.status_alocacao 
+                : (v.motoristas ? v.motoristas.nome_completo : 'DISPONÍVEL'))
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -2504,6 +2818,52 @@ function editVehicle(id) {
     addModal.style.display = 'flex';
 }
 
+// --- Máscaras Visuais para Cadastro de Motoristas ---
+function maskTelefoneDriver(val) {
+    if (!val) return '';
+    const digits = val.toString().replace(/\D/g, '').slice(0, 11);
+    if (digits.length <= 2) return digits ? `(${digits}` : '';
+    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function maskCpfDriver(val) {
+    if (!val) return '';
+    const digits = val.toString().replace(/\D/g, '').slice(0, 11);
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+    if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
+
+function maskCnhDriver(val) {
+    if (!val) return '';
+    return val.toString().replace(/\D/g, '').slice(0, 11);
+}
+
+function initDriverMasks() {
+    const whatsInput = document.getElementById('driverWhats');
+    const cpfInput = document.getElementById('driverCpf');
+    const cnhInput = document.getElementById('driverCnh');
+
+    if (whatsInput) {
+        whatsInput.addEventListener('input', (e) => {
+            e.target.value = maskTelefoneDriver(e.target.value);
+        });
+    }
+    if (cpfInput) {
+        cpfInput.addEventListener('input', (e) => {
+            e.target.value = maskCpfDriver(e.target.value);
+        });
+    }
+    if (cnhInput) {
+        cnhInput.addEventListener('input', (e) => {
+            e.target.value = maskCnhDriver(e.target.value);
+        });
+    }
+}
+
 function editDriver(id) {
     const d = drivers.find(item => item.id === id);
     if (!d) return;
@@ -2511,9 +2871,9 @@ function editDriver(id) {
     document.getElementById('driverModalTitle').innerText = 'Editar Motorista';
     document.getElementById('driverId').value = d.id;
     document.getElementById('driverNome').value = d.nome_completo;
-    document.getElementById('driverWhats').value = d.contato_whatsapp || '';
-    document.getElementById('driverCpf').value = d.cpf || '';
-    document.getElementById('driverCnh').value = d.registro_cnh || '';
+    document.getElementById('driverWhats').value = maskTelefoneDriver(d.contato_whatsapp || '');
+    document.getElementById('driverCpf').value = maskCpfDriver(d.cpf || '');
+    document.getElementById('driverCnh').value = maskCnhDriver(d.registro_cnh || '');
     document.getElementById('driverCnhVenc').value = d.vencimento_cnh || '';
     document.getElementById('driverCategoria').value = d.categoria_cnh || 'B';
     document.getElementById('driverNascimento').value = d.data_nascimento || '';
@@ -2684,6 +3044,7 @@ function subscribeToChanges() {
 document.addEventListener('DOMContentLoaded', () => {
     // Load saved column preferences first
     loadColConfig();
+    initDriverMasks();
     if (addForm) addForm.addEventListener('submit', handleAddVehicle);
     if (driverForm) driverForm.addEventListener('submit', handleAddDriver);
     if (editForm) editForm.addEventListener('submit', handleEditAllocation);

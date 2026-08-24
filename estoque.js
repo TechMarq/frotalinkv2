@@ -73,23 +73,28 @@ async function loadInventory() {
 }
 
 function applyFilters() {
-    const searchTerm = document.getElementById('inventory_search')?.value.toLowerCase() || '';
+    const searchTerm = document.getElementById('inventory_search')?.value.toLowerCase().trim() || '';
     const categoryFilter = document.getElementById('filter_category')?.value || '';
     const statusFilter = document.getElementById('filter_status')?.value || 'TODOS';
 
     filteredData = inventoryData.filter(item => {
-        // Se o status do item for INATIVO e o filtro de status não pedir explicitamente "TODOS" ou "INATIVO", oculta da lista
-        if (item.status === 'INATIVO' && statusFilter !== 'TODOS' && statusFilter !== 'INATIVO') return false;
+        const itemStatus = (item.status || 'ATIVO').toUpperCase();
 
-        const matchesSearch = (item.nome || '').toLowerCase().includes(searchTerm) || 
+        // Se o status do item for INATIVO e o filtro de status não pedir explicitamente "TODOS" ou "INATIVO", oculta da lista
+        if (itemStatus === 'INATIVO' && statusFilter !== 'TODOS' && statusFilter !== 'INATIVO') return false;
+
+        const matchesSearch = !searchTerm || 
+                             (item.nome || '').toLowerCase().includes(searchTerm) || 
                              (item.marca || '').toLowerCase().includes(searchTerm) || 
                              (item.ref || '').toLowerCase().includes(searchTerm) ||
                              (item.codigo_barras || '').toLowerCase().includes(searchTerm) ||
-                             (item.codigo_interno || '').toLowerCase().includes(searchTerm);
+                             (item.codigo_interno || '').toLowerCase().includes(searchTerm) ||
+                             (item.aplicacao || '').toLowerCase().includes(searchTerm) ||
+                             (item.categoria || '').toLowerCase().includes(searchTerm);
         
         const matchesCategory = categoryFilter === '' || item.categoria === categoryFilter;
-        const matchesStatus = statusFilter === 'TODOS' || item.status === statusFilter;
-        const matchesLowStock = !showLowStockOnly || (item.estoque_atual <= item.estoque_minimo);
+        const matchesStatus = statusFilter === 'TODOS' || itemStatus === statusFilter.toUpperCase();
+        const matchesLowStock = !showLowStockOnly || (Number(item.estoque_atual || 0) <= Number(item.estoque_minimo || 0));
 
         return matchesSearch && matchesCategory && matchesStatus && matchesLowStock;
     });
@@ -97,6 +102,31 @@ function applyFilters() {
     renderInventory(filteredData);
     updateKPIs();
 }
+
+function filterInventory() {
+    applyFilters();
+}
+
+function toggleLowStockOnly() {
+    showLowStockOnly = !showLowStockOnly;
+    const btn = document.getElementById('btn_low_stock_toggle');
+    if (btn) {
+        if (showLowStockOnly) {
+            btn.classList.add('active');
+            btn.style.background = '#f59e0b';
+            btn.style.color = '#ffffff';
+        } else {
+            btn.classList.remove('active');
+            btn.style.background = '';
+            btn.style.color = '';
+        }
+    }
+    applyFilters();
+}
+
+window.filterInventory = filterInventory;
+window.toggleLowStockOnly = toggleLowStockOnly;
+window.applyFilters = applyFilters;
 
 function renderInventory(data = filteredData) {
     const tableBody = document.getElementById('inventory_body');
@@ -118,7 +148,7 @@ function renderInventory(data = filteredData) {
             <td data-label="Aplicação"><span style="color: var(--text-muted); font-size: 0.8rem;">${item.aplicacao || 'N/A'}</span></td>
             <td data-label="Estoque">
                 <div style="display: flex; flex-direction: column;">
-                    <span style="font-weight: 700; color: ${isLowStock ? 'var(--accent)' : '#fff'}">${item.estoque_atual} ${item.unidade || ''}</span>
+                    <span style="font-weight: 700; color: ${isLowStock ? '#d97706' : '#059669'}">${item.estoque_atual} ${item.unidade || ''}</span>
                     <span style="font-size: 0.65rem; color: var(--text-muted);">MÍN: ${item.estoque_minimo}</span>
                 </div>
             </td>
@@ -126,10 +156,10 @@ function renderInventory(data = filteredData) {
             <td data-label="Vlr. Venda" style="color: #10b981; font-weight: 700;">R$ ${item.valor_venda?.toLocaleString('pt-BR', {minimumFractionDigits: 2}) || '0,00'}</td>
             <td data-label="Ações" style="text-align: right;">
                 <div class="table-actions" style="display: flex; gap: 0.4rem; justify-content: flex-end;">
-                    <button class="action-btn" onclick="editProduct('${item.id}')" title="Editar" style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); color: var(--primary-light); padding: 0.5rem; border-radius: 8px; cursor: pointer;">
+                    <button class="action-btn" onclick="event.stopPropagation(); editProduct('${item.id}')" title="Editar" style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); color: var(--primary-light); padding: 0.5rem; border-radius: 8px; cursor: pointer;">
                         <i data-lucide="edit-3" style="width: 14px;"></i>
                     </button>
-                    <button class="action-btn" onclick="deleteProduct('${item.id}')" title="Excluir" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; padding: 0.5rem; border-radius: 8px; cursor: pointer;">
+                    <button class="action-btn" onclick="event.stopPropagation(); deleteProduct('${item.id}')" title="Excluir" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; padding: 0.5rem; border-radius: 8px; cursor: pointer;">
                         <i data-lucide="trash-2" style="width: 14px;"></i>
                     </button>
                 </div>
@@ -142,7 +172,7 @@ function renderInventory(data = filteredData) {
 
 function updateKPIs() {
     // Considerar apenas produtos ATIVOS no calculo das estatísticas
-    const activeProducts = inventoryData.filter(item => item.status !== 'INATIVO');
+    const activeProducts = inventoryData.filter(item => (item.status || 'ATIVO').toUpperCase() !== 'INATIVO');
     const totalSku = activeProducts.length;
     const lowStockCount = activeProducts.filter(item => (Number(item.estoque_atual) || 0) <= (Number(item.estoque_minimo) || 0)).length;
     const totalValue = activeProducts.reduce((acc, item) => acc + ((Number(item.estoque_atual) || 0) * (Number(item.valor_custo) || 0)), 0);
@@ -305,7 +335,22 @@ function requestSecurityConfirmation() {
 
         const modal = document.getElementById('modalSecurityConfirm');
         if (modal) {
-            modal.style.display = 'flex';
+            // Mover para o body se estiver aninhado em containers com contextos de empilhamento
+            if (modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+            modal.style.setProperty('display', 'flex', 'important');
+            modal.style.setProperty('z-index', '999999', 'important');
+            modal.style.setProperty('position', 'fixed', 'important');
+            modal.style.setProperty('top', '0', 'important');
+            modal.style.setProperty('left', '0', 'important');
+            modal.style.setProperty('right', '0', 'important');
+            modal.style.setProperty('bottom', '0', 'important');
+            modal.style.setProperty('background', 'rgba(0,0,0,0.85)', 'important');
+            modal.style.setProperty('backdrop-filter', 'blur(8px)', 'important');
+            modal.style.setProperty('align-items', 'center', 'important');
+            modal.style.setProperty('justify-content', 'center', 'important');
+            modal.classList.add('active');
             // Focar o primeiro input após animação/render
             setTimeout(() => { if (inputs[0]) inputs[0].focus(); }, 100);
         }
@@ -313,9 +358,14 @@ function requestSecurityConfirmation() {
     });
 }
 
+window.requestSecurityConfirmation = requestSecurityConfirmation;
+
 window.closeSecurityConfirmModal = function() {
     const modal = document.getElementById('modalSecurityConfirm');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+        modal.style.setProperty('display', 'none', 'important');
+        modal.classList.remove('active');
+    }
     if (currentSecurityConfirmResolver) {
         currentSecurityConfirmResolver(false);
         currentSecurityConfirmResolver = null;
@@ -359,7 +409,10 @@ window.secConfirmSubmit = function() {
     if (enteredCode === currentSecurityGeneratedCode) {
         if (errorMsg) errorMsg.style.display = 'none';
         const modal = document.getElementById('modalSecurityConfirm');
-        if (modal) modal.style.display = 'none';
+        if (modal) {
+            modal.style.setProperty('display', 'none', 'important');
+            modal.classList.remove('active');
+        }
         if (currentSecurityConfirmResolver) {
             currentSecurityConfirmResolver(true);
             currentSecurityConfirmResolver = null;
@@ -387,7 +440,10 @@ async function deleteProduct(id) {
         return;
     }
 
-    // Solicitar confirmação com código de segurança no padrão do sistema
+    const item = inventoryData.find(p => p.id === id);
+    const isInactive = item && (item.status || '').toUpperCase() === 'INATIVO';
+
+    // Solicitar confirmação com código de segurança de 6 dígitos no padrão do sistema
     const confirmed = await requestSecurityConfirmation();
     if (!confirmed) return; // Cancelou ou fechou
 
@@ -398,16 +454,65 @@ async function deleteProduct(id) {
             .delete()
             .eq('id', id);
 
-        if (error) {
-            console.warn('Erro ao deletar fisicamente:', error);
-            
-            // Se houver restrição de Chave Estrangeira ou histórico, usa o modal padronizado
+        if (!error) {
+            logEstoque('EXCLUSÃO', `DETALHE: Excluiu produto permanentemente do estoque (ID: ${id})`);
+            await loadInventory();
+            if (typeof showToast === 'function') showToast('Produto excluído permanentemente!', 'success');
+            return;
+        }
+
+        console.warn('Erro ao deletar fisicamente:', error);
+
+        // Helper para apagar/desvincular registros de chave estrangeira
+        const forceDeleteWithHistory = async () => {
+            try {
+                // Remover ou desvincular registros vinculados ao produto
+                await supabaseClient.from('estoque_movimentacoes').delete().eq('item_id', id);
+                await supabaseClient.from('venda_itens').update({ produto_id: null }).eq('produto_id', id);
+                await supabaseClient.from('compra_itens').update({ produto_id: null }).eq('produto_id', id);
+
+                const { error: forceErr } = await supabaseClient
+                    .from('estoque')
+                    .delete()
+                    .eq('id', id);
+
+                if (forceErr) throw forceErr;
+
+                logEstoque('EXCLUSÃO_FORÇADA', `DETALHE: Forçou exclusão de produto com vínculos (ID: ${id})`);
+                await loadInventory();
+                if (typeof showToast === 'function') showToast('Produto e seus vínculos foram excluídos permanentemente!', 'success');
+            } catch (err) {
+                console.error('Erro ao forçar exclusão:', err);
+                showAlertModal({
+                    title: 'Erro na Exclusão Forçada',
+                    message: 'Não foi possível apagar o produto mesmo após desvincular movimentações:<br><br><code>' + (err.message || err) + '</code>',
+                    type: 'error'
+                });
+            }
+        };
+
+        if (isInactive) {
+            // Se o item JÁ ESTÁ INATIVO, dar a opção direta de forçar exclusão permanente
+            const forcarExclusao = await showConfirmModal({
+                title: 'Excluir Produto Inativo com Histórico',
+                message: 'Este produto já está <b>INATIVO</b>, porém possui movimentações registradas.<br><br>Deseja <b>FORÇAR A EXCLUSÃO DEFINITIVA</b>? Isso desvinculará seu histórico e apagará o produto permanentemente do sistema.',
+                type: 'warning',
+                confirmText: 'SIM, EXCLUIR DEFINITIVAMENTE',
+                cancelText: 'VOLTAR'
+            });
+
+            if (forcarExclusao) {
+                await forceDeleteWithHistory();
+            }
+            return;
+        } else {
+            // Se o item é ATIVO, oferecer inativar ou forçar exclusão
             const desejaInativar = await showConfirmModal({
                 title: 'Impossível Excluir Registros com Histórico',
-                message: 'Este produto possui movimentações registradas no sistema e não pode ser apagado fisicamente.<br><br>Deseja alterá-lo para <b>STATUS = INATIVO</b> para que ele não apareça no inventário?',
+                message: 'Este produto possui movimentações registradas.<br><br>Escolha uma opção:',
                 type: 'warning',
-                confirmText: 'SIM, INATIVAR',
-                cancelText: 'VOLTAR'
+                confirmText: 'SIM, INATIVAR PRODUTO',
+                cancelText: 'FORÇAR EXCLUSÃO DEFINITIVA'
             });
 
             if (desejaInativar) {
@@ -420,14 +525,20 @@ async function deleteProduct(id) {
                 logEstoque('ALTERAÇÃO', `DETALHE: Inativou produto no estoque (ID: ${id})`);
                 await loadInventory();
                 if (typeof showToast === 'function') showToast('Produto inativado com sucesso!', 'success');
-            }
-            return;
-        }
+            } else {
+                // Usuário clicou em FORÇAR EXCLUSÃO DEFINITIVA
+                const confirmaForcar = await showConfirmModal({
+                    title: 'Atenção: Exclusão Permanente',
+                    message: 'Tem certeza que deseja apagar permanentemente este produto e desvincular todo o seu histórico?',
+                    type: 'danger',
+                    confirmText: 'SIM, EXCLUIR TUDO',
+                    cancelText: 'VOLTAR'
+                });
 
-        if (!error) {
-            logEstoque('EXCLUSÃO', `DETALHE: Excluiu produto permanentemente do estoque (ID: ${id})`);
-            await loadInventory();
-            if (typeof showToast === 'function') showToast('Produto excluído permanentemente!', 'success');
+                if (confirmaForcar) {
+                    await forceDeleteWithHistory();
+                }
+            }
             return;
         }
 
@@ -516,6 +627,20 @@ async function saveProduct(event) {
 }
 
 function setupEventListeners() {
+    const invSearchInput = document.getElementById('inventory_search');
+    if (invSearchInput) {
+        invSearchInput.addEventListener('input', applyFilters);
+        invSearchInput.addEventListener('keyup', applyFilters);
+    }
+    const catFilterInput = document.getElementById('filter_category');
+    if (catFilterInput) {
+        catFilterInput.addEventListener('change', applyFilters);
+    }
+    const statusFilterInput = document.getElementById('filter_status');
+    if (statusFilterInput) {
+        statusFilterInput.addEventListener('change', applyFilters);
+    }
+
     const barrasInput = document.getElementById('mp_barras');
     if (barrasInput) {
         barrasInput.addEventListener('change', checkDuplicateBarcode);
@@ -1213,7 +1338,7 @@ function renderHistory(history) {
                 </span>
             </td>
             <td data-label="QUANTIDADE" style="text-align: center;">
-                <span style="font-weight: 900; font-size: 1rem; color: #fff; ${isCancelled ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${Math.round(h.quantidade)}</span>
+                <span style="font-weight: 900; font-size: 1rem; color: ${isCancelled ? '#9ca3af' : (isSaida ? '#dc2626' : (isAjuste ? '#2563eb' : '#059669'))}; ${isCancelled ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${Math.round(h.quantidade)}</span>
             </td>
             <td data-label="SALDO" style="text-align: center;">
                 <span style="font-weight: 900; font-size: 1.1rem; color: #10b981;">${Math.round(rowSaldo)}</span>

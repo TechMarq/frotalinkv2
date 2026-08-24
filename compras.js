@@ -2256,7 +2256,6 @@ function calculateTotal() {
     let subtotalPecas = 0;
     let subtotalServicos = 0;
     let subtotalAdicionais = 0;
-    let subtotalDescontos = 0;
 
     document.querySelectorAll('.item-row').forEach(row => {
         const typeBtn = row.querySelector('.type-btn.active');
@@ -2274,26 +2273,20 @@ function calculateTotal() {
         subtotalAdicionais += parseFloat(input.value) || 0;
     });
 
-    document.querySelectorAll('.desc-val').forEach(input => {
-        subtotalDescontos += parseFloat(input.value) || 0;
-    });
-
-    const totalGeral = Math.max(0, subtotalPecas + subtotalServicos + subtotalAdicionais - subtotalDescontos);
+    const totalGeral = Math.max(0, subtotalPecas + subtotalServicos + subtotalAdicionais);
 
     const summaryText = document.getElementById('summaryText');
     if (summaryText) {
         const countItems = document.querySelectorAll('.item-row').length;
         const countAdds = document.querySelectorAll('.add-val').length;
-        const countDescs = document.querySelectorAll('.desc-val').length;
         summaryText.innerHTML = `
             <div style="display:flex; gap:1.2rem; font-size:0.65rem; color:var(--text-muted); font-weight:800; margin-top:0.3rem; text-transform:uppercase; flex-wrap:wrap;">
                 <span>PEÇAS: R$ ${subtotalPecas.toFixed(2)}</span>
                 <span>SERVIÇOS: R$ ${subtotalServicos.toFixed(2)}</span>
                 <span>OUTROS: R$ ${subtotalAdicionais.toFixed(2)}</span>
-                ${subtotalDescontos > 0 ? `<span style="color:#ef4444;">DESCONTOS: -R$ ${subtotalDescontos.toFixed(2)}</span>` : ''}
             </div>
             <div style="margin-top:0.2rem; font-size:0.8rem; opacity:0.7;">
-                ${countItems} itens + ${countAdds} adicionais ${countDescs > 0 ? `+ ${countDescs} descontos` : ''}
+                ${countItems} itens + ${countAdds} adicionais
             </div>
         `;
     }
