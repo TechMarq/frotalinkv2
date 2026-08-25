@@ -1886,76 +1886,120 @@ async function loadVehicles() {
 }
 
 async function openVendaModal() {
-    const form = document.getElementById('vendaForm');
-    if (form && typeof form.reset === 'function') {
-        form.reset();
-    } else if (form) {
-        const inputs = form.querySelectorAll('input, select, textarea');
-        inputs.forEach(input => {
-            if (input.type === 'checkbox' || input.type === 'radio') input.checked = false;
-            else if (input.id !== 'v_selected_product_id') input.value = '';
-        });
-    }
-    
-    // Set current date
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('v_data_venda').value = today;
-    
-    vendaItems = [];
-    renderVendaItems();
-    
-    // Reset search UI
-    document.getElementById('v_btn_add_item').style.display = 'none';
-    document.getElementById('v_search_results').style.display = 'none';
-    document.getElementById('v_selected_product_id').value = '';
-    
-    currentVendaId = null; // Reset ID de edição
-    const btnConfirm = document.getElementById('btn_confirm_venda');
-    if (btnConfirm) {
-        btnConfirm.innerText = 'CONFIRMAR SAÍDA';
-        btnConfirm.style.background = '#059669';
-    }
-    
-    const btnDelete = document.getElementById('btn_delete_venda_edit');
-    if (btnDelete) btnDelete.style.display = 'none';
+    try {
+        if (typeof closeProductViewModal === 'function') {
+            closeProductViewModal();
+        }
 
-    toggleVendaTypeFields();
-    updateSelectClientes(clientesData);
-    calculateVendaTotal();
-    
-    const vModal = document.getElementById('vendaModal');
-    if (vModal) vModal.classList.add('active');
-    
-    // Foco automático no 1º campo (Tipo de Saída)
-    setTimeout(() => {
-        const firstInput = document.getElementById('v_tipo');
-        if (firstInput) firstInput.focus();
-    }, 50);
+        const form = document.getElementById('vendaForm');
+        if (form && typeof form.reset === 'function') {
+            form.reset();
+        } else if (form) {
+            const inputs = form.querySelectorAll('input, select, textarea');
+            inputs.forEach(input => {
+                if (input.type === 'checkbox' || input.type === 'radio') input.checked = false;
+                else if (input.id !== 'v_selected_product_id') input.value = '';
+            });
+        }
+        
+        // Set current date
+        const today = new Date().toISOString().split('T')[0];
+        const dateInput = document.getElementById('v_data_venda');
+        if (dateInput) dateInput.value = today;
+        
+        vendaItems = [];
+        renderVendaItems();
+        
+        // Reset search UI
+        const btnAdd = document.getElementById('v_btn_add_item');
+        if (btnAdd) btnAdd.style.display = 'none';
 
-    // Carregar veículos e retornar a promessa
-    return await loadVehicles();
+        const searchRes = document.getElementById('v_search_results');
+        if (searchRes) searchRes.style.display = 'none';
+
+        const selectedProd = document.getElementById('v_selected_product_id');
+        if (selectedProd) selectedProd.value = '';
+        
+        currentVendaId = null; // Reset ID de edição
+        const btnConfirm = document.getElementById('btn_confirm_venda');
+        if (btnConfirm) {
+            btnConfirm.innerText = 'CONFIRMAR SAÍDA';
+            btnConfirm.style.background = '#059669';
+        }
+        
+        const btnDelete = document.getElementById('btn_delete_venda_edit');
+        if (btnDelete) btnDelete.style.display = 'none';
+
+        toggleVendaTypeFields();
+        if (typeof updateSelectClientes === 'function') updateSelectClientes(clientesData);
+        if (typeof calculateVendaTotal === 'function') calculateVendaTotal();
+        
+        const vModal = document.getElementById('vendaModal');
+        if (vModal) {
+            vModal.style.display = 'block';
+            vModal.style.opacity = '1';
+            vModal.style.visibility = 'visible';
+            vModal.style.zIndex = '9999';
+            vModal.classList.add('active');
+        }
+        
+        // Foco automático no 1º campo (Tipo de Saída)
+        setTimeout(() => {
+            const firstInput = document.getElementById('v_tipo');
+            if (firstInput) firstInput.focus();
+        }, 50);
+
+        // Carregar veículos
+        if (typeof loadVehicles === 'function') {
+            await loadVehicles();
+        }
+    } catch (err) {
+        console.error('Erro ao abrir modal de saída/venda:', err);
+    }
 }
 
 function closeVendaModal() {
-    document.getElementById('vendaModal').classList.remove('active');
+    const vModal = document.getElementById('vendaModal');
+    if (vModal) {
+        vModal.classList.remove('active');
+        vModal.style.display = 'none';
+        vModal.style.opacity = '0';
+        vModal.style.visibility = 'hidden';
+    }
 }
 
+// Garantir vínculo no escopo global window
+window.openVendaModal = openVendaModal;
+window.closeVendaModal = closeVendaModal;
+
 function toggleVendaTypeFields() {
-    const tipo = document.getElementById('v_tipo').value;
+    const tipoEl = document.getElementById('v_tipo');
+    const tipo = tipoEl ? tipoEl.value : 'SIMPLES';
     
-    document.getElementById('group_v_placa').style.display = tipo === 'SIMPLES' ? 'flex' : 'none';
-    document.getElementById('group_v_os').style.display = tipo === 'OS' ? 'flex' : 'none';
-    document.getElementById('group_v_cliente').style.display = tipo === 'EXTERNA' ? 'flex' : 'none';
+    const groupPlaca = document.getElementById('group_v_placa');
+    if (groupPlaca) groupPlaca.style.display = tipo === 'SIMPLES' ? 'flex' : 'none';
+
+    const groupOS = document.getElementById('group_v_os');
+    if (groupOS) groupOS.style.display = tipo === 'OS' ? 'flex' : 'none';
+
+    const groupCliente = document.getElementById('group_v_cliente');
+    if (groupCliente) groupCliente.style.display = tipo === 'EXTERNA' ? 'flex' : 'none';
     
     const pagDiv = document.getElementById('group_v_pagamento');
     const obsWrapper = document.getElementById('wrapper_v_observacoes');
     
     if (tipo === 'EXTERNA') {
-        pagDiv.style.display = 'block';
-        obsWrapper.classList.replace('span-4', 'span-2');
+        if (pagDiv) pagDiv.style.display = 'block';
+        if (obsWrapper) {
+            obsWrapper.classList.remove('span-4');
+            obsWrapper.classList.add('span-2');
+        }
     } else {
-        pagDiv.style.display = 'none';
-        obsWrapper.classList.replace('span-2', 'span-4');
+        if (pagDiv) pagDiv.style.display = 'none';
+        if (obsWrapper) {
+            obsWrapper.classList.remove('span-2');
+            obsWrapper.classList.add('span-4');
+        }
     }
 }
 
