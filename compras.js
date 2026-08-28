@@ -3108,6 +3108,87 @@ async function rollbackMaintenance(compra) {
     return true;
 }
 
+function makeTableResizable(tableId, storageKey) {
+    const table = typeof tableId === 'string' ? document.getElementById(tableId) : tableId;
+    if (!table) return;
+
+    let thead = table.querySelector('thead');
+    if (!thead && table.previousElementSibling && table.previousElementSibling.tagName === 'THEAD') {
+        thead = table.previousElementSibling;
+    }
+    if (!thead && table.parentElement) {
+        thead = table.parentElement.querySelector('thead');
+    }
+    if (!thead) return;
+
+    const ths = thead.querySelectorAll('th');
+    if (!ths || ths.length === 0) return;
+
+    let savedWidths = {};
+    if (storageKey) {
+        try {
+            savedWidths = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        } catch (e) {}
+    }
+
+    table.style.tableLayout = 'fixed';
+
+    ths.forEach((th, idx) => {
+        th.style.position = 'relative';
+
+        const colKey = th.dataset.colKey || `col_${idx}`;
+        if (savedWidths[colKey]) {
+            th.style.width = savedWidths[colKey] + 'px';
+            th.style.minWidth = savedWidths[colKey] + 'px';
+        }
+
+        const oldResizer = th.querySelector('.th-resizer');
+        if (oldResizer) oldResizer.remove();
+
+        const resizer = document.createElement('div');
+        resizer.className = 'th-resizer';
+        th.appendChild(resizer);
+
+        resizer.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+
+            resizer.classList.add('resizing');
+            const startX = e.pageX;
+            const startWidth = th.offsetWidth;
+
+            // Reset minWidth immediately on drag start so the column can shrink freely
+            th.style.minWidth = '20px';
+            th.style.maxWidth = 'none';
+
+            const onMouseMove = (moveEvent) => {
+                moveEvent.preventDefault();
+                const diffX = moveEvent.pageX - startX;
+                const newWidth = Math.max(30, startWidth + diffX);
+                th.style.width = newWidth + 'px';
+                th.style.minWidth = newWidth + 'px';
+            };
+
+            const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+                resizer.classList.remove('resizing');
+
+                if (storageKey) {
+                    try {
+                        const currentSaved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+                        currentSaved[colKey] = th.offsetWidth;
+                        localStorage.setItem(storageKey, JSON.stringify(currentSaved));
+                    } catch (err) {}
+                }
+            };
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+    });
+}
+
 function renderThead() {
     const table = document.getElementById('comprasTable');
     if (!table) return;
@@ -3119,7 +3200,6 @@ function renderThead() {
         const isCurrent = currentSort.key === c.key;
         const canSort = c.key !== 'actions';
         
-        // Icon logic: if current, show dir. if not, show subtle up-down to indicate sortable
         let icon = '';
         if (canSort) {
             if (isCurrent) {
@@ -3131,7 +3211,7 @@ function renderThead() {
             }
         }
         
-        return `<th ${canSort ? `onclick="handleSort('${c.key}')" style="cursor:pointer; user-select:none; transition: all 0.2s;"` : ''} class="${isCurrent ? 'active-sort' : ''}">
+        return `<th data-col-key="${c.key}" ${canSort ? `onclick="handleSort('${c.key}')" style="cursor:pointer; user-select:none; transition: all 0.2s;"` : ''} class="${isCurrent ? 'active-sort' : ''}">
             <div style="display:flex; align-items:center; gap:0.5rem; justify-content: ${c.key === 'actions' ? 'flex-end' : 'flex-start'}">
                 ${c.label}
                 <span class="sort-icon-wrapper" style="display:flex; align-items:center;">${icon}</span>
@@ -3139,6 +3219,7 @@ function renderThead() {
         </th>`;
     }).join('')}</tr>`;
     if (window.lucide) lucide.createIcons();
+    makeTableResizable('comprasTable', 'compras_col_widths');
 }
 
 window.handleSort = (key) => {
@@ -4615,7 +4696,7 @@ function renderIntegracaoThead() {
         const sortAttr = c.canSort ? `onclick="handleIntegracaoSort('${c.key}')" style="cursor:pointer; user-select:none; transition: all 0.2s;"` : '';
         const classAttr = isCurrent ? 'class="active-sort"' : '';
 
-        return `<th ${c.width ? widthAttr : `${sortAttr} ${classAttr}`}>
+        return `<th data-col-key="${c.key}" ${c.width ? widthAttr : `${sortAttr} ${classAttr}`}>
             <div style="display:flex; align-items:center; gap:0.5rem; justify-content: ${c.key === 'chk' ? 'center' : 'flex-start'}">
                 ${c.label}
                 ${icon ? `<span class="sort-icon-wrapper" style="display:flex; align-items:center;">${icon}</span>` : ''}
@@ -4624,6 +4705,8 @@ function renderIntegracaoThead() {
     }).join('')}</tr>`;
 
     if (window.lucide) lucide.createIcons();
+    const tableEl = document.querySelector('#view-integracao table');
+    if (tableEl) makeTableResizable(tableEl, 'integracao_col_widths');
 }
 
 window.handleIntegracaoSort = (key) => {
@@ -5129,12 +5212,12 @@ function gerarTermoIntegracaoPDF(notas) {
         columnStyles: {
             0: { cellWidth: 50, halign: 'center' },   // Emissão
             1: { cellWidth: 68, halign: 'center' },   // Vencimento
-            2: { cellWidth: 70 },                     // Nº Nota
-            3: { cellWidth: 'auto' },                 // Fornecedor
-            4: { cellWidth: 105 },                    // Plano de Contas
+            2: { cellWidth: 65 },                     // Nº Nota
+            3: { cellWidth: 'auto', fontSize: 6.8 },  // Fornecedor (fonte reduzida)
+            4: { cellWidth: 110, fontSize: 6.8 },     // Plano de Contas (fonte reduzida)
             5: { cellWidth: 55, halign: 'left' },     // Forma Pgto
             6: { cellWidth: 35, halign: 'center' },    // Parc.
-            7: { cellWidth: 55, halign: 'right' }      // Valor Total
+            7: { cellWidth: 57, halign: 'right' }      // Valor Total
         },
         foot: [[
             { content: 'TOTAL INTEGRADO:', colSpan: 7, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8.5 } },
