@@ -1,6 +1,3 @@
-// ============================================================
-console.log("🛠️ Compras.js: INICIANDO CARREGAMENTO...");
-
 const ADMIN_PASSWORD = "M@nu2398";
 
 let compras = [];
@@ -31,8 +28,9 @@ let charts = {
     veiculos: null,
     pecas: null
 };
+
 // Global Supabase Client
-const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const supabaseClient = window.supabaseClient || (window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null);
 let currentCCBreakdown = { sortedCCs: [], ccMap: {}, grandTotalItems: 0 };
 
 const COL_DEFS = {
@@ -503,7 +501,6 @@ async function loadCompras(startDate, endDate) {
                     const pId = match[1];
                     // Skip if already in cloud or local
                     if (!purchaseIdsInCloud.has(pId) && !purchaseIdsInLocal.has(pId)) {
-                        console.log(`🩹 Recuperando compra órfã detectada em manutenção: ${pId}`);
                         
                         // Handle case where manutencoes might be an array or object
                         const m = Array.isArray(mi.manutencoes) ? mi.manutencoes[0] : mi.manutencoes;
@@ -2798,8 +2795,9 @@ async function handleSaveCompra(e) {
                                 vencimento_garantia = baseDate.toISOString().split('T')[0];
                             }
 
-                            const { error: itemError } = await client.from('manutencao_itens').insert([{
+                            const itemPayload = {
                                 manutencao_id: newMaint.id,
+                                tipo_id: m.tipo_id || null,
                                 acao_id: m.acao_id || null,
                                 descricao: `[ID:${compraData.id}] ${m.descricao}`, // Changed to unique internal ID
                                 valor_pecas: 0,
@@ -2814,7 +2812,14 @@ async function handleSaveCompra(e) {
                                 intervalo_meses: intervalMonths || null,
                                 proxima_troca_km: proxima_troca_km,
                                 proxima_troca_data: proxima_troca_data
-                            }]);
+                            };
+
+                            let { error: itemError } = await client.from('manutencao_itens').insert([itemPayload]);
+                            if (itemError && itemError.message && itemError.message.includes('tipo_id')) {
+                                delete itemPayload.tipo_id;
+                                const fbRes = await client.from('manutencao_itens').insert([itemPayload]);
+                                itemError = fbRes.error;
+                            }
 
                             if (itemError) {
                                 console.error("❌ Erro ao criar item de manutenção:", itemError);

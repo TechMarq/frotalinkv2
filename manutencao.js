@@ -15,7 +15,10 @@ const state = {
     currentSetupTab: 'fornecedores',
     charts: {},
     showRowColors: false, // 🎨 Controle de visualização de cores nas linhas
-    statusFilter: 'TODOS',
+    statusFilters: ['TODOS'],
+    showConcluidos: true, // 👁️ Controle de exibição de manutenções concluídas
+    sortField: 'data',
+    sortOrder: 'desc',
     currentPage: 1,
     pageSize: 100
 };
@@ -42,7 +45,12 @@ const showToast = (msg, type = 'success') => {
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', async () => {
     if (typeof window.showLoader === 'function') window.showLoader();
-    if (window.supabase) {
+    if (window.supabaseClient) {
+        supabaseClient = window.supabaseClient;
+        updateStatus('Conectado', 'success');
+        await loadInitialData();
+        setupFormListeners();
+    } else if (window.supabase) {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         updateStatus('Conectado', 'success');
         await loadInitialData();
@@ -68,29 +76,15 @@ async function loadInitialData() {
         const { data: a } = await supabaseClient.from('manutencao_acoes').select('*').order('descricao');
         const { data: t } = await supabaseClient.from('manutencao_tipos').select('*').order('descricao');
 
+        state.vehicles = v || [];
+        state.oficinas = o || [];
+        state.acoes = a || [];
+        state.tipos = t || [];
+
+        // Busca dados de manutenções com suporte para esquema relacional ativo no Supabase
         let mData = null;
-        let mError = null;
-
-        // Tenta buscar usando o novo esquema (tipo_id nos itens) - Limitado a 1000 registros mais recentes
-        const resNew = await supabaseClient
-            .from('manutencoes')
-            .select(`
-                *,
-                veiculos:veiculo_id (placa, modelo),
-                fornecedores:oficina_id (nome),
-                manutencao_itens (
-                    *,
-                    manutencao_acoes:acao_id (descricao),
-                    manutencao_tipos:tipo_id (descricao)
-                )
-            `)
-            .order('data', { ascending: false })
-            .limit(1000);
-
-        if (resNew.error) {
-            console.warn('[Manutenção] Falha ao buscar no novo esquema (migração pendente?):', resNew.error.message);
-            // Fallback para o esquema antigo (tipo_id no cabeçalho)
-            const resOld = await supabaseClient
+        try {
+            const { data, error } = await supabaseClient
                 .from('manutencoes')
                 .select(`
                     *,
@@ -104,42 +98,30 @@ async function loadInitialData() {
                 `)
                 .order('data', { ascending: false })
                 .limit(1000);
+            
+            if (!error && data) mData = data;
+        } catch (e) {
+            console.warn('[Manutenção] Erro ao buscar relacionamentos:', e);
+        }
 
-            if (resOld.error) {
-                mError = resOld.error;
-            } else {
-                mData = resOld.data;
-                // Mapeia o tipo do cabeçalho para os itens temporariamente para exibição
-                mData.forEach(m => {
-                    if (m.manutencao_itens) {
-                        m.manutencao_itens.forEach(i => {
-                            if (!i.manutencao_tipos && m.manutencao_tipos) {
-                                i.manutencao_tipos = { descricao: m.manutencao_tipos.descricao };
-                            }
-                            // Também popula tipo_id no item temporariamente para edição se necessário
-                            if (!i.tipo_id && m.tipo_id) {
-                                i.tipo_id = m.tipo_id;
-                            }
-                        });
+        if (!mData) {
+            const { data: fallbackData } = await supabaseClient.from('manutencoes').select('*').order('data', { ascending: false }).limit(1000);
+            mData = fallbackData || [];
+        }
+
+        state.manutencoes = mData || [];
+        state.manutencoes.forEach(m => {
+            if (m.manutencao_itens) {
+                m.manutencao_itens.forEach(i => {
+                    if (!i.manutencao_tipos && m.manutencao_tipos) {
+                        i.manutencao_tipos = { descricao: m.manutencao_tipos.descricao };
+                    }
+                    if (!i.tipo_id && m.tipo_id) {
+                        i.tipo_id = m.tipo_id;
                     }
                 });
             }
-        } else {
-            mData = resNew.data;
-        }
-
-        if (mError || !mData) {
-            console.error('Erro na busca de manutenções:', mError);
-            const { data: pureM } = await supabaseClient.from('manutencoes').select('*').order('data', { ascending: false }).limit(1000);
-            state.manutencoes = pureM || [];
-        } else {
-            state.manutencoes = mData || [];
-        }
-
-        state.vehicles = v || [];
-        state.oficinas = o || [];
-        state.acoes = a || [];
-        state.tipos = t || [];
+        });
 
         // --- Injeção do KM Atual Baseado nos Abastecimentos Recentes ---
         try {
@@ -161,11 +143,7 @@ async function loadInitialData() {
             state.vehicles.forEach(veh => {
                 veh.km_atual = kmMap[veh.id] || parseFloat(veh.km_atual) || 0;
             });
-
-            console.log('[Manutenção] KM injetado em', Object.keys(kmMap).length, 'veículos.');
         } catch (kmErr) {
-            console.error('Erro ao buscar KM para alertas:', kmErr);
-            // Fallback: usa km_atual da tabela veiculos
             state.vehicles.forEach(veh => {
                 veh.km_atual = parseFloat(veh.km_atual) || 0;
             });
@@ -175,7 +153,6 @@ async function loadInitialData() {
         renderMaintTable();
         calculateMaintStats();
         renderMaintAlerts();
-        // renderSetupTables() removido do init — só carrega ao clicar na aba Setup (lazy loading)
     } catch (err) {
         console.error('Erro crítico ao carregar dados:', err);
         showToast('Erro ao carregar dados: ' + err.message, 'error');
@@ -238,6 +215,11 @@ function populateDropdowns() {
     const filterTipo = document.getElementById('maintFilterTipo');
     const filterOficina = document.getElementById('maintFilterOficina');
 
+    // Preservar valores atualmente selecionados pelos filtros do usuário
+    const currentPlaca = filterPlaca?.value || '';
+    const currentTipo = filterTipo?.value || '';
+    const currentOficina = filterOficina?.value || '';
+
     if (tSel) {
         tSel.innerHTML = '<option value="">Selecione o tipo...</option>' +
             state.tipos.map(t => `<option value="${t.id}">${t.descricao}</option>`).join('');
@@ -245,14 +227,17 @@ function populateDropdowns() {
     if (filterPlaca) {
         filterPlaca.innerHTML = '<option value="" style="background: #1e293b; color: white;">Todas as Placas</option>' + 
             state.vehicles.map(v => `<option value="${v.placa}" style="background: #1e293b; color: white;">${v.placa}</option>`).join('');
+        if (currentPlaca) filterPlaca.value = currentPlaca;
     }
     if (filterTipo) {
         filterTipo.innerHTML = '<option value="" style="background: #1e293b; color: white;">Todas as Categorias</option>' + 
             state.tipos.map(t => `<option value="${t.id}" style="background: #1e293b; color: white;">${t.descricao}</option>`).join('');
+        if (currentTipo) filterTipo.value = currentTipo;
     }
     if (filterOficina) {
         filterOficina.innerHTML = '<option value="" style="background: #1e293b; color: white;">Todas as Oficinas</option>' + 
             state.oficinas.map(o => `<option value="${o.nome}" style="background: #1e293b; color: white;">${o.nome}</option>`).join('');
+        if (currentOficina) filterOficina.value = currentOficina;
     }
 }
 
@@ -267,13 +252,33 @@ window.clearMaintFilters = function() {
     if (filterTipo) filterTipo.value = '';
     if (filterOficina) filterOficina.value = '';
 
-    state.statusFilter = 'TODOS';
+    if (!Array.isArray(state.statusFilters)) {
+        state.statusFilters = ['TODOS'];
+    }
+    state.statusFilters = ['TODOS'];
     state.currentPage = 1;
-    document.querySelectorAll('.status-filter-btn').forEach(btn => btn.classList.remove('active'));
-    const allBtn = document.querySelector('.status-filter-btn');
-    if (allBtn) allBtn.classList.add('active');
-
+    updateStatusPillUI();
     renderMaintTable();
+};
+
+window.updateStatusPillUI = function() {
+    const filters = Array.isArray(state.statusFilters) ? state.statusFilters : ['TODOS'];
+    const isTodos = filters.includes('TODOS');
+
+    document.querySelectorAll('.status-filter-btn').forEach(btn => {
+        const btnStatus = btn.getAttribute('data-status') || 'TODOS';
+        const isActive = isTodos ? (btnStatus === 'TODOS') : filters.includes(btnStatus);
+
+        if (isActive) {
+            btn.classList.add('active');
+            btn.style.opacity = '1';
+            btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        } else {
+            btn.classList.remove('active');
+            btn.style.opacity = '0.6';
+            btn.style.boxShadow = 'none';
+        }
+    });
 };
 
 window.changeMaintPage = function(delta) {
@@ -283,14 +288,111 @@ window.changeMaintPage = function(delta) {
 
 // --- Table & Stats ---
 window.filterByStatus = (status, btnEl) => {
-    state.statusFilter = status;
+    if (!Array.isArray(state.statusFilters)) {
+        state.statusFilters = ['TODOS'];
+    }
+
+    if (status === 'TODOS') {
+        state.statusFilters = ['TODOS'];
+    } else {
+        // Remover TODOS se outro for clicado
+        state.statusFilters = state.statusFilters.filter(s => s !== 'TODOS');
+
+        // Alternar (toggle) o status clicado
+        const idx = state.statusFilters.indexOf(status);
+        if (idx !== -1) {
+            state.statusFilters.splice(idx, 1);
+        } else {
+            state.statusFilters.push(status);
+        }
+
+        // Se desmarcar todos, volta automaticamente para TODOS
+        if (state.statusFilters.length === 0) {
+            state.statusFilters = ['TODOS'];
+        }
+    }
+
     state.currentPage = 1;
-    document.querySelectorAll('.status-filter-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    if (btnEl) btnEl.classList.add('active');
+    updateStatusPillUI();
     renderMaintTable();
 };
+
+window.toggleConcluidosFilter = function(btnEl) {
+    if (state.statusFilters.includes('TODOS') || state.statusFilters.length === 0) {
+        state.showConcluidos = !state.showConcluidos;
+        if (btnEl) {
+            if (state.showConcluidos) {
+                btnEl.classList.add('active');
+                btnEl.style.opacity = '1';
+                btnEl.style.boxShadow = '0 4px 12px rgba(5,150,105,0.15)';
+            } else {
+                btnEl.classList.remove('active');
+                btnEl.style.opacity = '0.4';
+                btnEl.style.boxShadow = 'none';
+            }
+        }
+    } else {
+        filterByStatus('CONCLUIDO', btnEl);
+    }
+    renderMaintTable();
+};
+
+window.sortMaintTable = (field) => {
+    if (state.sortField === field) {
+        state.sortOrder = state.sortOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+        state.sortField = field;
+        state.sortOrder = 'asc';
+    }
+    state.currentPage = 1;
+    renderMaintTable();
+};
+
+function getMaintStatusCategory(m) {
+    if (m.status === 'AGENDADO') return 'AGENDADO';
+    const isConcluido = m.status === 'CONCLUIDO';
+    if (isConcluido) return 'CONCLUIDO';
+
+    const vehicle = state.vehicles.find(v => v.id === m.veiculo_id);
+    const currentKm = vehicle?.km_atual || 0;
+    const items = m.manutencao_itens || [];
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    let highestAlert = 0; // 0: ok/pendente, 1: warning (proximo), 2: danger (vencido)
+
+    items.forEach(i => {
+        // Alerta por KM
+        if (i.proxima_troca_km) {
+            const limit = parseFloat(i.proxima_troca_km);
+            if (currentKm >= limit) {
+                highestAlert = 2;
+            } else if (currentKm >= (limit - 2000) && highestAlert < 2) {
+                highestAlert = 1;
+            }
+        }
+        // Alerta por DATA
+        if (i.proxima_troca_data) {
+            if (i.proxima_troca_data <= todayStr) {
+                highestAlert = 2;
+            } else {
+                const dTarget = new Date(i.proxima_troca_data + 'T00:00:00');
+                const dToday = new Date(todayStr + 'T00:00:00');
+                const diffDays = Math.ceil((dTarget - dToday) / (1000 * 60 * 60 * 24));
+                if (diffDays <= 15 && highestAlert < 2) {
+                    highestAlert = 1;
+                }
+            }
+        }
+    });
+
+    if (m.status === 'VENCIDO' || highestAlert === 2) {
+        return 'VENCIDO';
+    } else if (highestAlert === 1) {
+        return 'PROXIMO';
+    } else {
+        return 'PENDENTE';
+    }
+}
 
 function renderMaintTable() {
     const tbody = document.getElementById('maintList');
@@ -301,7 +403,8 @@ function renderMaintTable() {
     const tipoFilter = document.getElementById('maintFilterTipo')?.value || '';
     const oficinaFilter = document.getElementById('maintFilterOficina')?.value.toLowerCase() || '';
 
-    const filtered = state.manutencoes.filter(m => {
+    // 1. Filtrar base pelos campos de busca (sem o filtro de pílula de status ainda)
+    const baseFiltered = state.manutencoes.filter(m => {
         const placa = (m.veiculos?.placa || '').toUpperCase();
         if (placaFilter && placa !== placaFilter) return false;
 
@@ -323,42 +426,133 @@ function renderMaintTable() {
                (m.descricao_servico || '').toLowerCase().includes(search) ||
                hasItemMatch;
 
-        if (!textMatches) return false;
+        return textMatches;
+    });
 
-        // Status Filter Logic
-        if (state.statusFilter !== 'TODOS') {
-            const isConcluido = m.status === 'CONCLUIDO';
-            const vehicle = state.vehicles.find(v => v.id === m.veiculo_id);
-            const currentKm = vehicle?.km_atual || 0;
-            const items = m.manutencao_itens || [];
+    // 2. Calcular contagens das pílulas/chips
+    let countTodos = baseFiltered.length;
+    let countVencido = 0;
+    let countPendente = 0;
+    let countProximo = 0;
+    let countAgendado = 0;
+    let countConcluido = 0;
 
-            let highestAlert = 0; // 0: ok, 1: warning, 2: danger
-            items.forEach(i => {
-                if (!isConcluido && i.proxima_troca_km) {
-                    const limit = parseFloat(i.proxima_troca_km);
-                    if (currentKm >= limit) {
-                        highestAlert = 2;
-                    } else if (currentKm >= (limit - 2000) && highestAlert < 2) {
-                        highestAlert = 1;
-                    }
-                }
-            });
+    baseFiltered.forEach(m => {
+        const cat = getMaintStatusCategory(m);
+        if (cat === 'VENCIDO') countVencido++;
+        else if (cat === 'PROXIMO') countProximo++;
+        else if (cat === 'PENDENTE') countPendente++;
+        else if (cat === 'AGENDADO') countAgendado++;
+        else if (cat === 'CONCLUIDO') countConcluido++;
+    });
 
-            const isOverdue = !isConcluido && items.some(i => {
-                if (!i.proxima_troca_km) return false;
-                return currentKm >= parseFloat(i.proxima_troca_km);
-            });
+    const chipTodos = document.getElementById('chipCountTodos');
+    if (chipTodos) chipTodos.innerText = countTodos;
 
-            if (state.statusFilter === 'VENCIDO') {
-                return isOverdue;
-            } else if (state.statusFilter === 'PROXIMO') {
-                return !isConcluido && highestAlert === 1;
-            } else if (state.statusFilter === 'PENDENTE') {
-                return !isConcluido && !isOverdue && highestAlert !== 1;
-            }
+    const chipVencido = document.getElementById('chipCountVencido');
+    if (chipVencido) chipVencido.innerText = countVencido;
+
+    const chipPendente = document.getElementById('chipCountPendente');
+    if (chipPendente) chipPendente.innerText = countPendente;
+
+    const chipProximo = document.getElementById('chipCountProximo');
+    if (chipProximo) chipProximo.innerText = countProximo;
+
+    const chipAgendado = document.getElementById('chipCountAgendado');
+    if (chipAgendado) chipAgendado.innerText = countAgendado;
+
+    const chipConcluido = document.getElementById('chipCountConcluido');
+    if (chipConcluido) chipConcluido.innerText = countConcluido;
+
+    // 3. Aplicar o filtro de status selecionado nas pílulas (suporta seleção múltipla e ocultar concluídos)
+    const activeFilters = Array.isArray(state.statusFilters) ? state.statusFilters : ['TODOS'];
+    const filtered = baseFiltered.filter(m => {
+        const cat = getMaintStatusCategory(m);
+
+        // Se a opção de exibir concluídos estiver desativada e nenhum filtro explícito de CONCLUIDO estiver ativo, oculta concluídos
+        if (!state.showConcluidos && cat === 'CONCLUIDO' && !activeFilters.includes('CONCLUIDO')) {
+            return false;
         }
 
+        if (!activeFilters.includes('TODOS') && activeFilters.length > 0) {
+            return activeFilters.includes(cat);
+        }
         return true;
+    });
+
+    // 4. Aplicar ordenação interativa pelas colunas
+    if (state.sortField) {
+        const field = state.sortField;
+        const dir = state.sortOrder === 'asc' ? 1 : -1;
+
+        filtered.sort((a, b) => {
+            let valA, valB;
+            const vehicleA = state.vehicles.find(v => v.id === a.veiculo_id);
+            const vehicleB = state.vehicles.find(v => v.id === b.veiculo_id);
+            const currentKmA = vehicleA?.km_atual || 0;
+            const currentKmB = vehicleB?.km_atual || 0;
+
+            switch (field) {
+                case 'veiculo':
+                    valA = (a.veiculos?.placa || '').toUpperCase();
+                    valB = (b.veiculos?.placa || '').toUpperCase();
+                    break;
+                case 'data':
+                case 'data_manutencao':
+                    valA = new Date(a.data_manutencao || a.created_at || 0).getTime();
+                    valB = new Date(b.data_manutencao || b.created_at || 0).getTime();
+                    break;
+                case 'fornecedor':
+                    valA = (a.fornecedores?.nome || '').toUpperCase();
+                    valB = (b.fornecedores?.nome || '').toUpperCase();
+                    break;
+                case 'servico':
+                    valA = (a.manutencao_itens?.[0]?.descricao || a.descricao_servico || '').toUpperCase();
+                    valB = (b.manutencao_itens?.[0]?.descricao || b.descricao_servico || '').toUpperCase();
+                    break;
+                case 'km_troca':
+                    valA = parseFloat(a.km_troca || a.manutencao_itens?.[0]?.proxima_troca_km || 0);
+                    valB = parseFloat(b.km_troca || b.manutencao_itens?.[0]?.proxima_troca_km || 0);
+                    break;
+                case 'proxima_troca':
+                    valA = parseFloat(a.manutencao_itens?.[0]?.proxima_troca_km || 9999999);
+                    valB = parseFloat(b.manutencao_itens?.[0]?.proxima_troca_km || 9999999);
+                    break;
+                case 'km_faltante':
+                    const proxA = a.manutencao_itens?.[0]?.proxima_troca_km;
+                    const proxB = b.manutencao_itens?.[0]?.proxima_troca_km;
+                    valA = proxA ? (parseFloat(proxA) - currentKmA) : 9999999;
+                    valB = proxB ? (parseFloat(proxB) - currentKmB) : 9999999;
+                    break;
+                case 'status':
+                    valA = (a.status || '').toUpperCase();
+                    valB = (b.status || '').toUpperCase();
+                    break;
+                case 'garantia':
+                    valA = a.manutencao_itens?.[0]?.garantia_data || a.garantia_fornecedor_data || '';
+                    valB = b.manutencao_itens?.[0]?.garantia_data || b.garantia_fornecedor_data || '';
+                    break;
+                default:
+                    valA = 0;
+                    valB = 0;
+            }
+
+            if (valA < valB) return -1 * dir;
+            if (valA > valB) return 1 * dir;
+            return 0;
+        });
+    }
+
+    // Atualizar ícones indicadores nos cabeçalhos
+    document.querySelectorAll('#maintTable th .sort-icon').forEach(icon => {
+        const field = icon.getAttribute('data-sort');
+        if (field === state.sortField) {
+            icon.innerText = state.sortOrder === 'asc' ? ' ▲' : ' ▼';
+            icon.style.color = 'var(--primary)';
+        } else {
+            icon.innerText = ' ↕';
+            icon.style.color = '#94a3b8';
+        }
     });
 
     // Calcular percentuais de Preventiva e Corretiva para os cards do topo
@@ -380,9 +574,6 @@ function renderMaintTable() {
 
     const totalCountEl = document.getElementById('totalMaintCount');
     if (totalCountEl) totalCountEl.innerText = filtered.length;
-
-    const chipTodos = document.getElementById('chipCountTodos');
-    if (chipTodos) chipTodos.innerText = state.manutencoes.length;
 
     // --- Pagination Logic ---
     const totalRecords = filtered.length;
@@ -449,7 +640,7 @@ function renderMaintTable() {
             return `
                 <div style="margin-bottom: 4px; line-height: 1.2;">
                     <span style="color: var(--primary); font-weight: 700; font-size: 0.7rem; text-transform: uppercase;">${i.manutencao_acoes?.descricao || 'S/A'}${tipoLabel}</span><br>
-                    <span style="font-size: 0.75rem; color: #cbd5e1;">${i.descricao || 'S/D'}</span>
+                    <span style="font-size: 0.75rem; color: #475569; font-weight: 600;">${i.descricao || 'S/D'}</span>
                 </div>
             `;
         }).join('');
@@ -474,7 +665,12 @@ function renderMaintTable() {
         });
 
         let statusLabel, statusBg, statusColor, statusBorder;
-        if (isConcluido) {
+        if (m.status === 'AGENDADO') {
+            statusLabel = 'Agendado';
+            statusBg = 'rgba(124, 58, 237, 0.12)';
+            statusColor = '#7c3aed';
+            statusBorder = 'rgba(124, 58, 237, 0.3)';
+        } else if (isConcluido) {
             statusLabel = 'Concluído';
             statusBg = 'rgba(16, 185, 129, 0.1)';
             statusColor = '#10b981';
@@ -497,9 +693,10 @@ function renderMaintTable() {
                      style="cursor: pointer; padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 0.65rem; font-weight: 800; text-align: center; text-transform: uppercase; 
                             background: ${statusBg}; 
                             color: ${statusColor}; 
-                            border: 1px solid ${statusBorder};"
-                     onclick="toggleMaintStatus('${m.id}', '${m.status}')">
-                    ${statusLabel}
+                            border: 1px solid ${statusBorder}; display: flex; align-items: center; gap: 4px;"
+                     onclick="openStatusMenu(event, '${m.id}', '${m.status}')"
+                     title="Clique para alterar o status">
+                    ${statusLabel} <i data-lucide="chevron-down" style="width: 10px; height: 10px; opacity: 0.7;"></i>
                 </div>
                 ${m.autorizacao_motivo ? `
                     <div style="font-size: 0.65rem; color: #ef4444; margin-top: 6px; display: flex; align-items: center; gap: 4px; cursor: help; font-weight: 700;" 
@@ -538,10 +735,16 @@ function renderMaintTable() {
 
         return `
             <tr ${rowStyle}>
-                <td data-label="Veículo" style="font-weight: 800; color: #f59e0b;">
+                <td data-label="Veículo" style="font-weight: 800;">
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                         ${alertHtml}
-                        ${m.veiculos?.placa || '---'}
+                        <span onclick="filterByPlate('${m.veiculos?.placa || ''}')" 
+                              style="cursor: pointer; color: var(--text-main, #0f172a); font-weight: 800; transition: color 0.2s;" 
+                              onmouseover="this.style.color='var(--primary)'; this.style.textDecoration='underline'" 
+                              onmouseout="this.style.color='var(--text-main, #0f172a)'; this.style.textDecoration='none'"
+                              title="Clique para filtrar apenas a placa ${m.veiculos?.placa || ''}">
+                            ${m.veiculos?.placa || '---'}
+                        </span>
                     </div>
                 </td>
                 <td data-label="Data" style="font-size: 0.8rem; font-weight: 500;">${m.data ? new Date(m.data + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
@@ -554,8 +757,18 @@ function renderMaintTable() {
                 <td data-label="Garantia">${garantiaHtml || '---'}</td>
                 <td data-label="Ações">
                     <div style="display: flex; gap: 0.5rem; justify-content: center;">
-                        <button class="btn-action edit" onclick="openMaintModal('${m.id}')" data-perm="manutencao_os:edit"><i data-lucide="edit-3" style="width: 14px;"></i></button>
-                        <button class="btn-action delete" onclick="deleteMaint('${m.id}')" data-perm="manutencao_os:delete"><i data-lucide="trash-2" style="width: 14px;"></i></button>
+                        <button class="btn-action edit" onclick="openMaintModal('${m.id}')" data-perm="manutencao_os:edit" title="Editar Manutenção"
+                            style="width: 32px; height: 32px; border-radius: 8px; background: rgba(5, 150, 105, 0.1); border: 1px solid rgba(5, 150, 105, 0.25); color: #059669; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; visibility: visible !important;"
+                            onmouseover="this.style.background='#059669'; this.style.color='#ffffff';"
+                            onmouseout="this.style.background='rgba(5, 150, 105, 0.1)'; this.style.color='#059669';">
+                            <i data-lucide="edit-3" style="width: 15px; height: 15px;"></i>
+                        </button>
+                        <button class="btn-action delete" onclick="deleteMaint('${m.id}')" data-perm="manutencao_os:delete" title="Excluir Manutenção"
+                            style="width: 32px; height: 32px; border-radius: 8px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); color: #dc2626; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; visibility: visible !important;"
+                            onmouseover="this.style.background='#dc2626'; this.style.color='#ffffff';"
+                            onmouseout="this.style.background='rgba(239, 68, 68, 0.1)'; this.style.color='#dc2626';">
+                            <i data-lucide="trash-2" style="width: 15px; height: 15px;"></i>
+                        </button>
                     </div>
                 </td>
             </tr>
@@ -724,6 +937,65 @@ function toggleNotiPanel() {
     if (panel) panel.classList.toggle('active');
 }
 
+window.openStatusMenu = function(event, id, currentStatus) {
+    event.stopPropagation();
+    
+    const existingMenu = document.getElementById('statusMenuPopover');
+    if (existingMenu) existingMenu.remove();
+
+    const rect = event.currentTarget.getBoundingClientRect();
+
+    const menu = document.createElement('div');
+    menu.id = 'statusMenuPopover';
+    menu.style.position = 'fixed';
+    menu.style.top = `${rect.bottom + 4}px`;
+    menu.style.left = `${rect.left}px`;
+    menu.style.zIndex = '10000';
+    menu.style.background = '#ffffff';
+    menu.style.border = '1px solid var(--border-card, #cbd5e1)';
+    menu.style.borderRadius = '10px';
+    menu.style.boxShadow = '0 10px 25px rgba(0,0,0,0.15)';
+    menu.style.padding = '0.4rem';
+    menu.style.display = 'flex';
+    menu.style.flexDirection = 'column';
+    menu.style.gap = '0.3rem';
+    menu.style.minWidth = '130px';
+
+    menu.innerHTML = `
+        <div style="font-size: 0.65rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; padding: 0.2rem 0.4rem;">Alterar Status</div>
+        <button onclick="selectMaintStatus('${id}', 'PENDENTE')" style="background: #fffbeb; color: #d97706; border: 1px solid #fde68a; padding: 0.4rem 0.7rem; border-radius: 6px; font-weight: 800; font-size: 0.72rem; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 0.4rem;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #d97706;"></span> Pendente
+        </button>
+        <button onclick="selectMaintStatus('${id}', 'AGENDADO')" style="background: #f5f3ff; color: #7c3aed; border: 1px solid #c4b5fd; padding: 0.4rem 0.7rem; border-radius: 6px; font-weight: 800; font-size: 0.72rem; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 0.4rem;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #7c3aed;"></span> Agendado
+        </button>
+        <button onclick="selectMaintStatus('${id}', 'CONCLUIDO')" style="background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; padding: 0.4rem 0.7rem; border-radius: 6px; font-weight: 800; font-size: 0.72rem; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 0.4rem;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #059669;"></span> Concluído
+        </button>
+    `;
+
+    document.body.appendChild(menu);
+
+    const closeHandler = (e) => {
+        if (!menu.contains(e.target)) {
+            menu.remove();
+            document.removeEventListener('click', closeHandler);
+        }
+    };
+    setTimeout(() => document.addEventListener('click', closeHandler), 10);
+};
+
+window.selectMaintStatus = async function(id, newStatus) {
+    const existingMenu = document.getElementById('statusMenuPopover');
+    if (existingMenu) existingMenu.remove();
+
+    if (newStatus === 'CONCLUIDO') {
+        return await window.toggleMaintStatus(id, 'TRIGGER_CONCLUIDO');
+    } else {
+        return await applyStatusChange(id, newStatus);
+    }
+};
+
 window.toggleMaintStatus = async (id, currentStatus) => {
     if (currentStatus === 'CONCLUIDO') {
         return await applyStatusChange(id, 'PENDENTE');
@@ -784,8 +1056,8 @@ async function applyStatusChange(id, newStatus, motivo = null) {
     try {
         const updateData = { status: newStatus };
 
-        if (newStatus === 'PENDENTE') {
-            // Se voltar para Pendente, limpamos o histórico de autorização
+        if (newStatus === 'PENDENTE' || newStatus === 'AGENDADO') {
+            // Limpamos o histórico de autorização antecipada se não for concluído
             updateData.autorizacao_motivo = null;
             updateData.autorizado_em = null;
         } else if (motivo) {
@@ -795,9 +1067,18 @@ async function applyStatusChange(id, newStatus, motivo = null) {
         }
 
         const { error } = await supabaseClient.from('manutencoes').update(updateData).eq('id', id);
-        if (error) throw error;
+        if (error) {
+            if (error.message && (error.message.includes('check constraint') || error.code === '23514')) {
+                throw new Error('A restrição (Constraint) da tabela manutencoes no Supabase não permite o status "' + newStatus + '". Atualize a restrição no Supabase.');
+            }
+            throw error;
+        }
 
-        showToast(newStatus === 'CONCLUIDO' ? 'Manutenção autorizada e concluída!' : 'Status alterado para Pendente.');
+        let statusText = 'Pendente';
+        if (newStatus === 'AGENDADO') statusText = 'Agendado';
+        else if (newStatus === 'CONCLUIDO') statusText = 'Concluído';
+
+        showToast(`Status alterado para ${statusText}!`);
         if (document.getElementById('modalAuth')) document.getElementById('modalAuth').classList.remove('active');
         await loadInitialData();
     } catch (err) {
@@ -861,20 +1142,20 @@ function renderMaintAlerts() {
     alerts.sort((a, b) => (a.type === 'danger' ? -1 : 1));
 
     list.innerHTML = alerts.map(a => `
-        <div class="noti-item" style="border-left: 4px solid ${a.type === 'danger' ? '#ef4444' : '#f59e0b'}; cursor: pointer;" 
+        <div class="noti-item" style="border-left: 4px solid ${a.type === 'danger' ? '#ef4444' : '#f59e0b'}; cursor: pointer; padding: 0.75rem; margin-bottom: 0.5rem; background: rgba(0,0,0,0.02); border-radius: 6px;" 
              onclick="filterByPlate('${a.plate}')">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
-                <span style="font-weight: 800; color: white;">${a.plate}</span>
-                <span style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; color: ${a.type === 'danger' ? '#ef4444' : '#f59e0b'};">
+                <span style="font-weight: 800; color: #0f172a; font-size: 0.88rem;">${a.plate}</span>
+                <span style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; color: ${a.type === 'danger' ? '#dc2626' : '#d97706'}; background: ${a.type === 'danger' ? '#fef2f2' : '#fffbeb'}; padding: 0.15rem 0.4rem; border-radius: 4px; border: 1px solid ${a.type === 'danger' ? '#fca5a5' : '#fde68a'};">
                     ${a.type === 'danger' ? 'Vencido' : 'Próximo'}
                 </span>
             </div>
-            <div style="font-size: 0.8rem; color: var(--text-muted);">
+            <div style="font-size: 0.8rem; color: #334155;">
                 <strong>${a.acao}</strong>: ${a.item}
             </div>
-            <div style="font-size: 0.7rem; margin-top: 5px; color: var(--text-muted);">
-                Faltam: <span style="color: ${a.type === 'danger' ? '#ef4444' : '#f59e0b'}; font-weight: bold;">
-                    ${a.type === 'danger' ? `${a.diff.toLocaleString('pt-BR')} km excedidos` : `${a.diff.toLocaleString('pt-BR')} km`}
+            <div style="font-size: 0.75rem; margin-top: 5px; color: #64748b;">
+                ${a.type === 'danger' ? 'Excedido em:' : 'Faltam:'} <span style="color: ${a.type === 'danger' ? '#dc2626' : '#d97706'}; font-weight: 800;">
+                    ${a.diff.toLocaleString('pt-BR')} km
                 </span>
             </div>
         </div>
@@ -884,10 +1165,34 @@ function renderMaintAlerts() {
 }
 
 function filterByPlate(plate) {
-    const searchInput = document.getElementById('maintSearch');
-    if (searchInput) {
-        searchInput.value = plate;
-        renderMaintTable();
+    if (!plate || plate === '---') return;
+    const targetPlate = plate.trim().toUpperCase();
+
+    const placaSelect = document.getElementById('maintFilterPlaca');
+    if (placaSelect) {
+        let matchedIndex = -1;
+        for (let i = 0; i < placaSelect.options.length; i++) {
+            if (placaSelect.options[i].value.trim().toUpperCase() === targetPlate) {
+                matchedIndex = i;
+                break;
+            }
+        }
+        if (matchedIndex !== -1) {
+            placaSelect.selectedIndex = matchedIndex;
+        } else {
+            const searchInput = document.getElementById('maintSearch');
+            if (searchInput) searchInput.value = targetPlate;
+        }
+    } else {
+        const searchInput = document.getElementById('maintSearch');
+        if (searchInput) searchInput.value = targetPlate;
+    }
+
+    state.currentPage = 1;
+    renderMaintTable();
+
+    const notiPanel = document.getElementById('notiPanel');
+    if (notiPanel && notiPanel.style.display !== 'none' && typeof toggleNotiPanel === 'function') {
         toggleNotiPanel();
     }
 }
@@ -949,10 +1254,15 @@ window.openMaintModal = async (id = null) => {
                 document.getElementById('maint_oficina_search').value = forn ? forn.nome : '';
 
                 document.getElementById('maint_km').value = m.km_atual;
-                state.editingStatus = m.status;
+                state.editingStatus = m.status || 'PENDENTE';
+                const statusFormSel = document.getElementById('maint_form_status');
+                if (statusFormSel) statusFormSel.value = m.status || 'PENDENTE';
 
                 const { data: items } = await supabaseClient.from('manutencao_itens').select('*').eq('manutencao_id', id);
-                state.currentMaintItems = items || [];
+                state.currentMaintItems = (items || []).map(i => ({
+                    ...i,
+                    tipo_id: i.tipo_id || m?.tipo_id || null
+                }));
             }
         } else {
             title.innerText = 'Registrar Manutenção';
@@ -961,6 +1271,8 @@ window.openMaintModal = async (id = null) => {
             document.getElementById('maint_oficina_search').value = '';
             document.getElementById('maint_oficina').value = '';
             document.getElementById('maint_data').value = new Date().toISOString().split('T')[0];
+            const statusFormSel = document.getElementById('maint_form_status');
+            if (statusFormSel) statusFormSel.value = 'PENDENTE';
             addMaintItem();
         }
 
@@ -1241,7 +1553,7 @@ function setupFormListeners() {
                 data: currentDate,
                 oficina_id: document.getElementById('maint_oficina').value || null,
                 km_atual: currentKm,
-                status: state.editingStatus || 'PENDENTE'
+                status: document.getElementById('maint_form_status')?.value || state.editingStatus || 'PENDENTE'
             };
 
             try {

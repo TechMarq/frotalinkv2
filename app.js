@@ -41,7 +41,7 @@ let currentSort = {
     vehicles: { key: 'placa', dir: 'asc' },
     drivers: { key: 'nome_completo', dir: 'asc' }
 };
-let currentStatusFilter = null; // MANUTENCAO, GARAGEM, DISPONIVEL
+let currentStatusFilters = []; // Multi-select: MANUTENCAO, GARAGEM, DISPONIVEL
 let currentClassificationFilters = []; // Multi-select: PROPRIO, TERCEIRO, etc.
 let whatsappConfig = { api_type: 'evolution', api_url: '', instance: '', apikey: '' };
 let whatsappDestinatarios = [];
@@ -751,8 +751,8 @@ function renderVehicles() {
 
     const searchWords = searchTerm.split(/\s+/).filter(w => w);
     const filtered = activeVehicles.filter(v => {
-        // Filtro por Status rápido (Botões)
-        if (currentStatusFilter) {
+        // Filtro por Status rápido (Botões - Seleção Múltipla)
+        if (currentStatusFilters.length > 0) {
             let currentStatus = (v.status_alocacao || 'DISPONIVEL').toUpperCase();
             if (currentStatus === 'DISPONÍVEL') currentStatus = 'DISPONIVEL';
             
@@ -762,9 +762,7 @@ function renderVehicles() {
                 currentStatus = 'ALOCADO';
             }
             
-            let filterVal = currentStatusFilter.toUpperCase();
-            if (filterVal === 'DISPONÍVEL') filterVal = 'DISPONIVEL';
-            if (currentStatus !== filterVal) return false;
+            if (!currentStatusFilters.includes(currentStatus)) return false;
         }
 
         const isMainStatus = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase());
@@ -1015,18 +1013,24 @@ function renderVehicles() {
 }
 
 function toggleStatusFilter(status) {
-    if (currentStatusFilter === status) {
-        currentStatusFilter = null;
+    const index = currentStatusFilters.indexOf(status);
+    if (index > -1) {
+        currentStatusFilters.splice(index, 1);
     } else {
-        currentStatusFilter = status;
+        currentStatusFilters.push(status);
     }
     
     // Atualiza visual dos botões
-    document.querySelectorAll('.filter-chip').forEach(btn => btn.classList.remove('active'));
-    if (currentStatusFilter) {
-        const activeBtn = document.getElementById(`filter-${currentStatusFilter}`);
-        if (activeBtn) activeBtn.classList.add('active');
-    }
+    ['MANUTENCAO', 'GARAGEM', 'DISPONIVEL'].forEach(s => {
+        const btn = document.getElementById(`filter-${s}`);
+        if (btn) {
+            if (currentStatusFilters.includes(s)) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+    });
     
     renderVehicles();
 }
@@ -2080,7 +2084,7 @@ function getFilteredAllocations() {
 
     const searchWords = searchTerm.split(/\s+/).filter(w => w);
     const filtered = activeVehicles.filter(v => {
-        if (currentStatusFilter) {
+        if (currentStatusFilters.length > 0) {
             let currentStatus = (v.status_alocacao || 'DISPONIVEL').toUpperCase();
             if (currentStatus === 'DISPONÍVEL') currentStatus = 'DISPONIVEL';
             
@@ -2089,9 +2093,7 @@ function getFilteredAllocations() {
                 currentStatus = 'ALOCADO';
             }
             
-            let filterVal = currentStatusFilter.toUpperCase();
-            if (filterVal === 'DISPONÍVEL') filterVal = 'DISPONIVEL';
-            if (currentStatus !== filterVal) return false;
+            if (!currentStatusFilters.includes(currentStatus)) return false;
         }
 
         const isMainStatus = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase());
@@ -2207,7 +2209,7 @@ function exportAllocationsToPDF() {
     doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 21);
     
     let subTitle = `Total de veículos: ${filtered.length}`;
-    if (currentStatusFilter) subTitle += ` | Filtro Status: ${currentStatusFilter}`;
+    if (currentStatusFilters.length > 0) subTitle += ` | Filtro Status: ${currentStatusFilters.join(', ')}`;
     if (searchTerm) subTitle += ` | Busca: "${searchTerm}"`;
     doc.text(subTitle, 14, 26);
 
