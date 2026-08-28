@@ -1172,55 +1172,182 @@ window.openViewModal = (id) => {
     modal.classList.add('active');
 
     document.getElementById('viewCodUnico').innerText = 'COD: ' + c.id;
-    document.getElementById('viewData').innerText = new Date(c.data + 'T12:00:00').toLocaleDateString('pt-BR');
-    document.getElementById('viewNumNota').innerText = '#' + c.numeroNota;
+    document.getElementById('viewData').innerText = formatDateBR(c.data || c.data_emissao);
+    document.getElementById('viewNumNota').innerText = '#' + (c.numeroNota || c.numero_nota || 'S/N');
     
-    const vencText = c.vencimento ? new Date(c.vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : 'N/A';
+    const vencText = (c.vencimento || c.data_vencimento) ? formatDateBR(c.vencimento || c.data_vencimento) : 'N/A';
     document.getElementById('viewVencimento').innerText = vencText;
     
-    const esp = (config.especiesNota || []).find(e => e.id == c.especieId);
+    const esp = (config.especiesNota || []).find(e => e.id == (c.especieId || c.especie_id));
     document.getElementById('viewEspecie').innerText = esp ? esp.nome : '-';
     
-    const forn = (config.fornecedores || []).find(f => f.id == c.fornecedorId);
+    const forn = (config.fornecedores || []).find(f => f.id == (c.fornecedorId || c.fornecedor_id));
     document.getElementById('viewFornecedor').innerText = forn ? forn.nome : 'NÃO IDENTIFICADO';
     
-    const pgto = (config.tiposPgto || []).find(p => p.id == c.formaPgtoId);
+    const pgto = (config.tiposPgto || []).find(p => p.id == (c.formaPgtoId || c.forma_pagamento_id));
     document.getElementById('viewFormaPgto').innerText = pgto ? pgto.nome : '-';
 
-    document.getElementById('viewTotalValue').innerText = `R$ ${parseFloat(c.valorTotal).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+    document.getElementById('viewTotalValue').innerText = `R$ ${parseFloat(c.valorTotal || c.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
 
-    // Items
+    // Parcelado status
+    const isParcelado = c.financeiro || c.financeiro_parcelado || ((c.qtdParcelas || c.qtd_parcelas) > 1) || (c.parcelasData && c.parcelasData.length > 0);
+    const qtdParc = c.qtdParcelas || c.qtd_parcelas || (c.parcelasData ? c.parcelasData.length : 1);
+    const elParcelado = document.getElementById('viewParcelado');
+    if (elParcelado) {
+        elParcelado.innerText = isParcelado ? `SIM (${qtdParc}x)` : 'NÃO (À vista)';
+        elParcelado.style.color = isParcelado ? '#059669' : '#475569';
+    }
+
+    // Plano de Contas (Registrado no Lançamento)
+    let planoContasFormatted = 'NÃO ESPECIFICADO';
+    if (c.categoriaId || c.categoria_id) {
+        const cat = (config.categorias || []).find(x => x.id == (c.categoriaId || c.categoria_id));
+        if (cat) {
+            const cod = cat.codigo || cat.cod;
+            planoContasFormatted = cod ? `${cod} - ${cat.nome}` : cat.nome;
+        }
+    } else if (c.categoria_nome || c.categoriaNome) {
+        planoContasFormatted = c.categoria_nome || c.categoriaNome;
+    }
+
+    if (planoContasFormatted === 'NÃO ESPECIFICADO') {
+        const planoSet = new Set();
+        (c.itens || c.items || []).forEach(it => {
+            if (it.categoriaId || it.categoria_id) {
+                const cat = (config.categorias || []).find(x => x.id == (it.categoriaId || it.categoria_id));
+                if (cat) {
+                    const cod = cat.codigo || cat.cod;
+                    planoSet.add(cod ? `${cod} - ${cat.nome}` : cat.nome);
+                }
+            }
+        });
+        if (planoSet.size > 0) {
+            planoContasFormatted = Array.from(planoSet).join(' | ');
+        }
+    }
+
+    const elPlano = document.getElementById('viewPlanoContas');
+    if (elPlano) elPlano.innerText = planoContasFormatted;
+
+    // Usuário que registrou e Data do Registro
+    const usuarioNome = c.usuario_registro || c.responsavel || c.created_by_name || c.usuario || 'SISTEMA / REGISTRO ANTERIOR';
+    const regDateRaw = c.created_at || c.data_registro;
+    const regDateStr = regDateRaw ? formatDateTimeBR(regDateRaw) : formatDateBR(c.data || c.data_emissao);
+    
+    // Usuário de alteração (se houver)
+    const altUsuarioNome = c.usuario_alteracao || c.updated_by_name || c.alterado_por || null;
+    const altDateRaw = c.data_alteracao || c.updated_at || c.data_atualizacao || null;
+    const altDateStr = altDateRaw ? formatDateTimeBR(altDateRaw) : '';
+
+    let alteracaoHtml = '';
+    if (altUsuarioNome) {
+        alteracaoHtml = `
+            <div style="margin-top: 4px; font-size: 0.78rem; color: #b45309; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+                <span style="display:inline-flex; align-items:center; gap:4px; font-weight:700;"><i data-lucide="edit-3" style="width:13px; height:13px; color:#d97706; vertical-align:middle;"></i> Alterado por: <strong>${altUsuarioNome}</strong></span>
+                ${altDateStr ? `<span style="color:#cbd5e1; margin:0 2px;">•</span><span style="color:#64748b; font-weight:600;"><i data-lucide="clock" style="width:12px; height:12px; vertical-align:middle;"></i> ${altDateStr}</span>` : ''}
+            </div>
+        `;
+    }
+
+    const elUsuario = document.getElementById('viewUsuario');
+    if (elUsuario) {
+        elUsuario.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:2px;">
+                <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+                    <span style="display:inline-flex; align-items:center; gap:4px;"><i data-lucide="user-check" style="width:14px; height:14px; color:#059669; vertical-align:middle;"></i> <strong>${usuarioNome}</strong></span>
+                    <span style="color:#cbd5e1; margin:0 4px;">•</span>
+                    <span style="color:#475569; font-size:0.82rem; font-weight:600; display:inline-flex; align-items:center; gap:4px;"><i data-lucide="calendar" style="width:13px; height:13px; color:#d97706; vertical-align:middle;"></i> ${regDateStr}</span>
+                </div>
+                ${alteracaoHtml}
+            </div>
+        `;
+    }
+
+    // Items List
     const itemsList = document.getElementById('viewItemsList');
     itemsList.innerHTML = (c.itens || c.items || []).map(it => {
         const isS = it.tipo === 'servico';
         const label = isS ? 'S' : 'P';
-        const color = isS ? '#f59e0b' : '#10b981';
+        const color = isS ? '#d97706' : '#059669';
         
-        const cc = config.centrosCusto.find(x => x.id == it.centroCustoId);
-        const ccName = cc ? cc.nome : 'SEM CC';
+        const cc = (config.centrosCusto || []).find(x => x.id == (it.centroCustoId || it.centro_custo_id));
+        const ccName = cc ? cc.nome : 'SEM CENTRO DE CUSTO';
 
         let linkInfo = '';
-        if (it.veiculoId) {
-            const v = vehicles.find(veh => veh.id == it.veiculoId);
-            if (v) linkInfo = `<span class="placa-badge" style="font-size:0.6rem;">🚗 ${v.placa}</span>`;
-        } else if (it.pessoa) {
-            linkInfo = `<span class="placa-badge" style="font-size:0.6rem;">👤 ${it.pessoa}</span>`;
+        if (it.veiculoId || it.vinculo_veiculo_id) {
+            const v = (vehicles || []).find(veh => veh.id == (it.veiculoId || it.vinculo_veiculo_id));
+            if (v) linkInfo = `<span class="placa-badge" style="font-size:0.65rem; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 6px; border-radius:4px; font-weight:700;">🚗 ${v.placa}</span>`;
+        } else if (it.pessoa || it.vinculo_pessoa) {
+            linkInfo = `<span class="placa-badge" style="font-size:0.65rem; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 6px; border-radius:4px; font-weight:700;">👤 ${it.pessoa || it.vinculo_pessoa}</span>`;
         }
 
+        // Maintenance Linkage Details
+        const hasMaint = it.maintControl || it.maint_control;
+        const tId = it.maintTipoId || it.maint_tipo_id;
+        const aId = it.maintAcaoId || it.maint_acao_id;
+        
+        const typeObj = (maintTypes || []).find(t => t.id == tId);
+        const actionObj = (maintActions || []).find(a => a.id == aId);
+        
+        const tipoDesc = typeObj ? typeObj.descricao : null;
+        const acaoDesc = actionObj ? actionObj.descricao : null;
+        const kmVal = (it.maintKm || it.maint_km) ? (window.formatKM ? window.formatKM(it.maintKm || it.maint_km) : (it.maintKm || it.maint_km) + ' KM') : null;
+        
+        let controleInfo = null;
+        const ctrlType = it.maintControle || it.maint_controle;
+        if (ctrlType === 'KM' && (it.maintIntervaloKm || it.maint_intervalo_km)) {
+            controleInfo = `A cada ${window.formatKM ? window.formatKM(it.maintIntervaloKm || it.maint_intervalo_km) : (it.maintIntervaloKm || it.maint_intervalo_km)} KM`;
+        } else if (ctrlType === 'DATA' && (it.maintIntervaloMeses || it.maint_intervalo_meses)) {
+            controleInfo = `A cada ${it.maintIntervaloMeses || it.maint_intervalo_meses} Meses`;
+        }
+        
+        let garantiaInfo = null;
+        if (it.maintGarantia || it.maint_garantia) {
+            const gMeses = it.maintMesesGarantia || it.maint_meses_garantia;
+            garantiaInfo = gMeses ? `${gMeses} Meses` : 'Sim';
+        }
+
+        const qtd = parseFloat(it.quantidade || 0);
+        const unit = parseFloat(it.valorUnitario || it.valor_unitario || 0);
+        const totalItem = (qtd * unit).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+
         return `
-            <div class="view-item-card">
-                <div style="display:flex; align-items:center; gap:12px;">
-                    <span style="color:${color}; font-weight:900; font-size:0.65rem; border:1px solid ${color}44; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:5px; background:${color}11;">${label}</span>
-                    <div>
-                        <p style="font-weight:700; font-size:0.85rem; color:#fff;">${it.produto}</p>
-                        <div style="display:flex; gap:8px; align-items:center; margin-top:2px;">
-                            <p style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase;">QTD: ${it.quantidade} | Unit: R$ ${parseFloat(it.valorUnitario).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
-                            <span style="color:var(--primary); font-size:0.6rem; font-weight:800;">[${ccName}]</span>
-                            ${linkInfo}
+            <div class="view-item-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 0.6rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                <!-- Cabeçalho do Item: Título + Valor -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+                    <div style="display: flex; align-items: flex-start; gap: 10px; flex: 1;">
+                        <span style="color:${color}; font-weight:900; font-size:0.75rem; border:1px solid ${color}33; width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; border-radius:6px; background:${color}12; flex-shrink: 0; margin-top: 2px;">${label}</span>
+                        <div>
+                            <h4 style="font-weight: 800; font-size: 0.95rem; color: #0f172a; margin: 0 0 0.4rem 0; line-height: 1.3;">${it.produto}</h4>
+                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                <span style="font-size: 0.72rem; color: #475569; font-weight: 700; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; border: 1px solid #e2e8f0;">QTD: ${qtd}</span>
+                                <span style="font-size: 0.72rem; color: #475569; font-weight: 700; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; border: 1px solid #e2e8f0;">Unit: R$ ${unit.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                                <span style="color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 4px;">${ccName}</span>
+                                ${linkInfo}
+                            </div>
                         </div>
                     </div>
+                    <div style="text-align: right; flex-shrink: 0;">
+                        <span style="font-size: 0.65rem; color: #64748b; font-weight: 800; text-transform: uppercase; display: block; margin-bottom: 2px;">Valor Subtotal</span>
+                        <span style="font-weight: 900; color: #047857; font-size: 1.15rem; line-height: 1;">R$ ${totalItem}</span>
+                    </div>
                 </div>
-                <p style="font-weight:800; color:#fff;">R$ ${(it.quantidade * it.valorUnitario).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+
+                <!-- Sub-Card de Manutenção Vinculada (se houver) -->
+                ${hasMaint ? `
+                    <div style="margin-top: 0.8rem; padding: 0.75rem 1rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px;">
+                        <div style="display:flex; align-items:center; gap:6px; font-weight:800; font-size:0.75rem; color:#047857; margin-bottom: 0.5rem; text-transform: uppercase;">
+                            <i data-lucide="wrench" style="width:14px; height:14px; color:#047857;"></i> Manutenção Vinculada
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                            ${tipoDesc ? `<span style="font-size:0.72rem; background:#ffffff; border:1px solid #a7f3d0; padding:3px 10px; border-radius:6px; color:#0f172a; font-weight:700;"><span style="color:#64748b; font-weight:600;">Tipo:</span> ${tipoDesc}</span>` : ''}
+                            ${acaoDesc ? `<span style="font-size:0.72rem; background:#ffffff; border:1px solid #a7f3d0; padding:3px 10px; border-radius:6px; color:#0f172a; font-weight:700;"><span style="color:#64748b; font-weight:600;">Ação:</span> ${acaoDesc}</span>` : ''}
+                            ${kmVal ? `<span style="font-size:0.72rem; background:#ffffff; border:1px solid #a7f3d0; padding:3px 10px; border-radius:6px; color:#0f172a; font-weight:700;"><span style="color:#64748b; font-weight:600;">KM Execução:</span> ${kmVal}</span>` : ''}
+                            ${controleInfo ? `<span style="font-size:0.72rem; background:#fffbeb; border:1px solid #fde68a; padding:3px 10px; border-radius:6px; color:#d97706; font-weight:800;"><span style="color:#b45309; font-weight:600;">Próx. Troca:</span> ${controleInfo}</span>` : ''}
+                            ${garantiaInfo ? `<span style="font-size:0.72rem; background:#eff6ff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; color:#1d4ed8; font-weight:800;"><span style="color:#2563eb; font-weight:600;">Garantia:</span> ${garantiaInfo}</span>` : ''}
+                        </div>
+                    </div>
+                ` : ''}
             </div>
         `;
     }).join('');
@@ -1233,38 +1360,38 @@ window.openViewModal = (id) => {
         if (valesVinculados.length > 0) {
             valesVinculadosSection.style.display = 'block';
             valesVinculadosList.innerHTML = valesVinculados.map(v => {
-                const dateStr = v.data ? new Date(v.data + 'T12:00:00').toLocaleDateString('pt-BR') : '-';
-                const valStr = parseFloat(v.valorTotal).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+                const dateStr = v.data ? formatDateBR(v.data) : '-';
+                const valStr = parseFloat(v.valorTotal || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
                 
                 let linkInfo = '';
                 const firstItem = v.itens?.[0] || v.items?.[0];
                 if (firstItem) {
                     if (firstItem.veiculoId) {
                         const veh = (vehicles || []).find(veh => veh.id == firstItem.veiculoId);
-                        if (veh) linkInfo += `<span class="placa-badge" style="font-size:0.6rem;">🚗 ${veh.placa}</span>`;
+                        if (veh) linkInfo += `<span class="placa-badge" style="font-size:0.65rem; background:#ecfdf5; color:#047857; padding:2px 6px; border-radius:4px; font-weight:700;">🚗 ${veh.placa}</span>`;
                     }
                     if (firstItem.pessoa) {
-                        linkInfo += `<span class="placa-badge" style="font-size:0.6rem; margin-left: 4px;">👤 ${firstItem.pessoa}</span>`;
+                        linkInfo += `<span class="placa-badge" style="font-size:0.65rem; background:#ecfdf5; color:#047857; padding:2px 6px; border-radius:4px; font-weight:700; margin-left: 4px;">👤 ${firstItem.pessoa}</span>`;
                     }
                     if (firstItem.produto) {
-                        linkInfo += `<span style="background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; font-size:0.6rem; color: #a78bfa; margin-left: 4px;">📦 ${firstItem.produto}</span>`;
+                        linkInfo += `<span style="background:#f1f5f9; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px; font-size:0.65rem; color: #475569; font-weight:700; margin-left: 4px;">📦 ${firstItem.produto}</span>`;
                     }
                 }
 
                 return `
-                    <div class="view-item-card" style="cursor: pointer;" onclick="openViewModal('${v.id}')" title="Clique para ver detalhes do vale">
+                    <div class="view-item-card" style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 0.8rem 1.2rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="openViewModal('${v.id}')" title="Clique para ver detalhes do vale">
                         <div style="display:flex; align-items:center; gap:12px;">
-                            <span style="color:#fbbf24; font-weight:900; font-size:0.65rem; border:1px solid #fbbf2444; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:5px; background:#fbbf2411;">V</span>
+                            <span style="color:#d97706; font-weight:900; font-size:0.7rem; border:1px solid #f59e0b44; width:22px; height:22px; display:flex; align-items:center; justify-content:center; border-radius:6px; background:#fef3c7;">V</span>
                             <div>
-                                <p style="font-weight:700; font-size:0.85rem; color:#fff;">Vale #${v.numeroNota || 'S/N'}</p>
-                                <div style="display:flex; gap:8px; align-items:center; margin-top:2px;">
-                                    <p style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase;">📅 ${dateStr}</p>
+                                <p style="font-weight:700; font-size:0.88rem; color:#0f172a; margin:0;">Vale #${v.numeroNota || 'S/N'}</p>
+                                <div style="display:flex; gap:8px; align-items:center; margin-top:3px;">
+                                    <p style="font-size:0.7rem; color:#64748b; text-transform:uppercase; margin:0; font-weight:600;">📅 ${dateStr}</p>
                                     ${linkInfo}
                                 </div>
                             </div>
                         </div>
                         <div style="text-align: right;">
-                            <p style="font-weight:800; color:#fbbf24;">R$ ${valStr}</p>
+                            <p style="font-weight:800; color:#d97706; font-size:0.95rem; margin:0;">R$ ${valStr}</p>
                         </div>
                     </div>
                 `;
@@ -1294,14 +1421,14 @@ window.openViewModal = (id) => {
             const isDisc = val < 0 || (ad.descricao && ad.descricao.startsWith('[DESCONTO]'));
             const absVal = Math.abs(val);
             const descText = (ad.descricao || '').replace(/^\[DESCONTO\]\s*/, '');
-            const color = isDisc ? '#ef4444' : '#818cf8';
-            const bg = isDisc ? 'rgba(239,68,68,0.05)' : 'rgba(99,102,241,0.05)';
-            const border = isDisc ? 'rgba(239,68,68,0.15)' : 'rgba(99,102,241,0.1)';
+            const color = isDisc ? '#dc2626' : '#2563eb';
+            const bg = isDisc ? '#fef2f2' : '#eff6ff';
+            const border = isDisc ? '#fecaca' : '#bfdbfe';
             const prefix = isDisc ? '- R$' : '+ R$';
             return `
                 <div style="display:flex; justify-content:space-between; background:${bg}; padding:0.6rem 1rem; border-radius:8px; border:1px solid ${border};">
-                    <span style="font-size:0.8rem; font-weight:600; color:${color};">${isDisc ? '[DESCONTO] ' : ''}${descText}</span>
-                    <span style="font-size:0.8rem; font-weight:800; color:${color};">${prefix} ${absVal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                    <span style="font-size:0.82rem; font-weight:600; color:${color};">${isDisc ? '[DESCONTO] ' : ''}${descText}</span>
+                    <span style="font-size:0.82rem; font-weight:800; color:${color};">${prefix} ${absVal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
                 </div>
             `;
         }).join('');
@@ -1312,15 +1439,39 @@ window.openViewModal = (id) => {
     // Parcelas
     const parcSection = document.getElementById('viewParcelasSection');
     const parclist = document.getElementById('viewParcelasList');
-    if (c.parcelasData && c.parcelasData.length > 0) {
+    
+    let parcsToDisplay = c.parcelasData || [];
+    if (isParcelado && parcsToDisplay.length === 0 && qtdParc > 1) {
+        const totalVal = parseFloat(c.valorTotal || c.valor_total || 0);
+        const baseVal = Number((totalVal / qtdParc).toFixed(2));
+        let diff = totalVal - (baseVal * qtdParc);
+        const originDate = parseDateRobust(c.vencimento || c.data_vencimento || c.data || c.data_emissao) || new Date();
+        
+        parcsToDisplay = [];
+        for (let i = 1; i <= qtdParc; i++) {
+            const dueDate = new Date(originDate);
+            dueDate.setMonth(dueDate.getMonth() + (i - 1));
+            const val = (i === qtdParc) ? Number((baseVal + diff).toFixed(2)) : baseVal;
+            parcsToDisplay.push({
+                data: dueDate.toISOString().split('T')[0],
+                valor: val
+            });
+        }
+    }
+
+    if (parcsToDisplay && parcsToDisplay.length > 0) {
         parcSection.style.display = 'block';
-        parclist.innerHTML = c.parcelasData.map((p, idx) => `
-            <div class="view-parc-badge">
-                <p style="font-size:0.6rem; opacity:0.7; margin-bottom:2px;">PARCELA ${idx + 1}</p>
-                <p style="font-weight:800;">R$ ${parseFloat(p.valor).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
-                <p style="font-size:0.65rem; margin-top:2px;">📅 ${new Date(p.data + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
-            </div>
-        `).join('');
+        parclist.innerHTML = parcsToDisplay.map((p, idx) => {
+            const dateStr = p.data ? formatDateBR(p.data) : 'N/A';
+            const valStr = parseFloat(p.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+            return `
+                <div class="view-parc-badge" style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 0.75rem 0.6rem; border-radius: 10px; text-align: center;">
+                    <p style="font-size:0.65rem; font-weight: 800; color: #047857; text-transform: uppercase; margin: 0 0 2px 0;">PARCELA ${idx + 1}/${parcsToDisplay.length}</p>
+                    <p style="font-weight: 800; font-size: 0.95rem; color: #0f172a; margin: 2px 0;">R$ ${valStr}</p>
+                    <p style="font-size: 0.72rem; font-weight: 700; color: #d97706; margin: 2px 0 0 0;">📅 ${dateStr}</p>
+                </div>
+            `;
+        }).join('');
     } else {
         parcSection.style.display = 'none';
     }
@@ -2528,6 +2679,9 @@ async function handleSaveCompra(e) {
 
         const categoriaId = document.getElementById('categoriaId').value;
 
+        const activeUserName = getCurrentUserDisplayName();
+        const existingCompra = editId ? compras.find(x => x.id == editId) : null;
+
         const compraData = {
             id: editId || codUnico, 
             codUnico,
@@ -2552,7 +2706,11 @@ async function handleSaveCompra(e) {
                 descricao: row.querySelector('.desc-desc')?.value?.trim() || 'Desconto',
                 valor: parseBr(row.querySelector('.desc-val')?.value)
             })).filter(d => d.valor > 0 || (d.descricao && d.descricao !== 'Desconto')),
-            observacoes: document.getElementById('obsCompra')?.value || ''
+            observacoes: document.getElementById('obsCompra')?.value || '',
+            usuario_registro: (existingCompra && (existingCompra.usuario_registro || existingCompra.responsavel)) ? (existingCompra.usuario_registro || existingCompra.responsavel) : activeUserName,
+            created_at: (existingCompra && existingCompra.created_at) ? existingCompra.created_at : new Date().toISOString(),
+            usuario_alteracao: editId ? activeUserName : (existingCompra ? existingCompra.usuario_alteracao : null),
+            data_alteracao: editId ? new Date().toISOString() : (existingCompra ? existingCompra.data_alteracao : null)
         };
 
         // Extract maintenance data from items
@@ -2616,11 +2774,21 @@ async function handleSaveCompra(e) {
                     financeiro_parcelado: compraData.financeiro,
                     qtd_parcelas: compraData.qtdParcelas,
                     observacoes: compraData.observacoes,
-                    empresa_id: window.currentEmpresaId || null
+                    empresa_id: window.currentEmpresaId || null,
+                    usuario_registro: compraData.usuario_registro,
+                    usuario_alteracao: compraData.usuario_alteracao || null,
+                    data_alteracao: compraData.data_alteracao || null
                 };
 
                 console.log("📤 Enviando para Supabase:", dbCompra);
-                const { error: compError } = await client.from('compras').upsert([dbCompra]);
+                let { error: compError } = await client.from('compras').upsert([dbCompra]);
+                if (compError && compError.message && (compError.message.includes('usuario_registro') || compError.message.includes('usuario_alteracao') || compError.message.includes('data_alteracao'))) {
+                    delete dbCompra.usuario_registro;
+                    delete dbCompra.usuario_alteracao;
+                    delete dbCompra.data_alteracao;
+                    const retryRes = await client.from('compras').upsert([dbCompra]);
+                    compError = retryRes.error;
+                }
                 if (compError) {
                     console.error("❌ Erro ao salvar compra:", compError);
                     alert("Erro ao salvar compra no banco de dados: " + compError.message);
@@ -4341,6 +4509,22 @@ function toStandardYYYYMMDD(dateStr) {
     }
 }
 
+function getCurrentUserDisplayName() {
+    if (window.currentUserAccess && window.currentUserAccess.nome_completo) {
+        return window.currentUserAccess.nome_completo;
+    }
+    if (window.currentUser && window.currentUser.user_metadata && window.currentUser.user_metadata.nome_completo) {
+        return window.currentUser.user_metadata.nome_completo;
+    }
+    if (window.currentUserAccess && window.currentUserAccess.email) {
+        return window.currentUserAccess.email;
+    }
+    if (window.currentUser && window.currentUser.email) {
+        return window.currentUser.email;
+    }
+    return 'ADMINISTRADOR';
+}
+
 function formatDateBR(dateStr) {
     if (!dateStr) return '';
     const d = parseDateRobust(dateStr);
@@ -4348,15 +4532,223 @@ function formatDateBR(dateStr) {
     return d.toLocaleDateString('pt-BR');
 }
 
+function formatDateTimeBR(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return String(dateStr);
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} às ${hours}:${minutes}`;
+    } catch (e) {
+        return String(dateStr);
+    }
+}
+
 function formatCurrency(value) {
     return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 let comprasParaIntegracao = [];
+let integracaoSort = { key: 'data_emissao', dir: 'desc' };
+
+function getVencimentoCompra(comp) {
+    if (!comp) return null;
+    const isParcelado = comp.financeiro_parcelado || (comp.qtd_parcelas && comp.qtd_parcelas > 1);
+    if (isParcelado) {
+        if (comp.parcelasData && comp.parcelasData.length > 0) {
+            const sortedParcs = [...comp.parcelasData].sort((a, b) => {
+                const dA = parseDateRobust(a.data || a.data_vencimento);
+                const dB = parseDateRobust(b.data || b.data_vencimento);
+                return (dA ? dA.getTime() : 0) - (dB ? dB.getTime() : 0);
+            });
+            const firstDate = sortedParcs[0].data || sortedParcs[0].data_vencimento;
+            if (firstDate) return firstDate;
+        }
+        if (comp.data_vencimento || comp.vencimento) {
+            return comp.data_vencimento || comp.vencimento;
+        }
+        if (comp.data_emissao) {
+            const d = parseDateRobust(comp.data_emissao);
+            if (d) {
+                const p1 = new Date(d);
+                p1.setMonth(p1.getMonth() + 1);
+                return p1.toISOString().split('T')[0];
+            }
+        }
+    }
+    return comp.data_vencimento || comp.vencimento || comp.data_emissao;
+}
+
+function renderIntegracaoThead() {
+    const thead = document.querySelector('#view-integracao table thead');
+    if (!thead) return;
+
+    const cols = [
+        { key: 'chk', label: `<input type="checkbox" id="chkAllIntegracao" onclick="toggleSelectAllIntegracao(this)">`, canSort: false, width: '40px' },
+        { key: 'data_emissao', label: 'Data Emissão', canSort: true },
+        { key: 'data_vencimento', label: 'Vencimento', canSort: true },
+        { key: 'numero_nota', label: 'Nº Nota', canSort: true },
+        { key: 'fornecedor', label: 'Fornecedor', canSort: true },
+        { key: 'forma_pagamento', label: 'Forma Pgto', canSort: true },
+        { key: 'parcelado', label: 'Parcelado?', canSort: true },
+        { key: 'valor_total', label: 'Valor Total', canSort: true }
+    ];
+
+    thead.innerHTML = `<tr>${cols.map(c => {
+        const isCurrent = integracaoSort.key === c.key || (integracaoSort.key === 'data' && c.key === 'data_emissao');
+        let icon = '';
+        if (c.canSort) {
+            if (isCurrent) {
+                icon = integracaoSort.dir === 'asc'
+                    ? '<i data-lucide="chevron-up" style="width:14px; color:var(--primary);"></i>'
+                    : '<i data-lucide="chevron-down" style="width:14px; color:var(--primary);"></i>';
+            } else {
+                icon = '<i data-lucide="chevrons-up-down" style="width:12px; opacity:0.2;"></i>';
+            }
+        }
+
+        const widthAttr = c.width ? `style="width:${c.width}; text-align:center;"` : '';
+        const sortAttr = c.canSort ? `onclick="handleIntegracaoSort('${c.key}')" style="cursor:pointer; user-select:none; transition: all 0.2s;"` : '';
+        const classAttr = isCurrent ? 'class="active-sort"' : '';
+
+        return `<th ${c.width ? widthAttr : `${sortAttr} ${classAttr}`}>
+            <div style="display:flex; align-items:center; gap:0.5rem; justify-content: ${c.key === 'chk' ? 'center' : 'flex-start'}">
+                ${c.label}
+                ${icon ? `<span class="sort-icon-wrapper" style="display:flex; align-items:center;">${icon}</span>` : ''}
+            </div>
+        </th>`;
+    }).join('')}</tr>`;
+
+    if (window.lucide) lucide.createIcons();
+}
+
+window.handleIntegracaoSort = (key) => {
+    if (integracaoSort.key === key || (integracaoSort.key === 'data' && key === 'data_emissao')) {
+        integracaoSort.dir = integracaoSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        integracaoSort.key = key;
+        integracaoSort.dir = 'asc';
+    }
+    renderIntegracaoTableOnly();
+};
+
+function renderIntegracaoTableOnly() {
+    renderIntegracaoThead();
+
+    const tbody = document.getElementById('tbodyIntegracao');
+    if (!tbody) return;
+
+    if (comprasParaIntegracao.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">Nenhuma nota pendente de integração.</td></tr>';
+        return;
+    }
+
+    // Ordenar cópia do array conforme integracaoSort
+    const sorted = [...comprasParaIntegracao].sort((a, b) => {
+        let valA, valB;
+        switch (integracaoSort.key) {
+            case 'data_emissao':
+            case 'data': {
+                const dA = parseDateRobust(a.data_emissao);
+                const dB = parseDateRobust(b.data_emissao);
+                valA = dA ? dA.getTime() : 0;
+                valB = dB ? dB.getTime() : 0;
+                break;
+            }
+            case 'data_vencimento':
+            case 'vencimento': {
+                const dA = parseDateRobust(getVencimentoCompra(a));
+                const dB = parseDateRobust(getVencimentoCompra(b));
+                valA = dA ? dA.getTime() : 0;
+                valB = dB ? dB.getTime() : 0;
+                break;
+            }
+            case 'numero_nota': {
+                valA = (a.numero_nota || '').toString().toLowerCase();
+                valB = (b.numero_nota || '').toString().toLowerCase();
+                return integracaoSort.dir === 'asc'
+                    ? valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
+                    : valB.localeCompare(valA, undefined, { numeric: true, sensitivity: 'base' });
+            }
+            case 'fornecedor': {
+                const fornA = config.fornecedores.find(f => f.id === a.fornecedor_id);
+                const fornB = config.fornecedores.find(f => f.id === b.fornecedor_id);
+                valA = (fornA ? fornA.nome : 'Sem Fornecedor').toLowerCase();
+                valB = (fornB ? fornB.nome : 'Sem Fornecedor').toLowerCase();
+                return integracaoSort.dir === 'asc'
+                    ? valA.localeCompare(valB, 'pt-BR')
+                    : valB.localeCompare(valA, 'pt-BR');
+            }
+            case 'forma_pagamento': {
+                const pgtoA = config.tiposPgto.find(p => p.id === a.forma_pagamento_id);
+                const pgtoB = config.tiposPgto.find(p => p.id === b.forma_pagamento_id);
+                valA = (pgtoA ? pgtoA.nome : 'N/A').toLowerCase();
+                valB = (pgtoB ? pgtoB.nome : 'N/A').toLowerCase();
+                return integracaoSort.dir === 'asc'
+                    ? valA.localeCompare(valB, 'pt-BR')
+                    : valB.localeCompare(valA, 'pt-BR');
+            }
+            case 'parcelado': {
+                valA = a.financeiro_parcelado ? (a.qtd_parcelas || 1) : 0;
+                valB = b.financeiro_parcelado ? (b.qtd_parcelas || 1) : 0;
+                break;
+            }
+            case 'valor_total': {
+                valA = Number(a.valor_total || 0);
+                valB = Number(b.valor_total || 0);
+                break;
+            }
+            default:
+                valA = a[integracaoSort.key];
+                valB = b[integracaoSort.key];
+        }
+
+        const mult = integracaoSort.dir === 'asc' ? 1 : -1;
+        if (valA < valB) return -1 * mult;
+        if (valA > valB) return 1 * mult;
+        return 0;
+    });
+
+    tbody.innerHTML = '';
+    sorted.forEach(comp => {
+        const forn = config.fornecedores.find(f => f.id === comp.fornecedor_id);
+        const fornecedorNome = forn ? forn.nome : 'Sem Fornecedor';
+        
+        const pgto = config.tiposPgto.find(p => p.id === comp.forma_pagamento_id);
+        const formaNome = pgto ? pgto.nome : 'N/A';
+        
+        const vencDate = getVencimentoCompra(comp);
+        const displayVenc = vencDate ? formatDateBR(vencDate) : '---';
+        const isParcelado = comp.financeiro_parcelado || (comp.qtd_parcelas && comp.qtd_parcelas > 1);
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="checkbox" class="chk-integracao" value="${comp.id}"></td>
+            <td>${formatDateBR(comp.data_emissao)}</td>
+            <td style="font-weight: 600; color: #f59e0b;">
+                ${displayVenc}
+                ${isParcelado ? `<span style="display:block; font-size:0.65rem; color:#f59e0b; font-weight:700;">(1ª Parcela)</span>` : ''}
+            </td>
+            <td style="font-weight: 700;">${comp.numero_nota || 'S/N'}</td>
+            <td>${fornecedorNome}</td>
+            <td><span class="badge" style="background: rgba(255,255,255,0.1);">${formaNome}</span></td>
+            <td>${comp.financeiro_parcelado ? `Sim (${comp.qtd_parcelas}x)` : 'Não'}</td>
+            <td style="font-weight: 700; color: #10b981;">${formatCurrency(comp.valor_total)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
 
 async function renderIntegracao() {
     const tbody = document.getElementById('tbodyIntegracao');
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem;">Carregando notas pendentes...</td></tr>';
+    if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">Carregando notas pendentes...</td></tr>';
+    }
+    renderIntegracaoThead();
     
     try {
         console.log("🔍 Buscando notas não integradas diretamente do banco...");
@@ -4370,9 +4762,21 @@ async function renderIntegracao() {
         
         console.log(`🔍 Notas não integradas carregadas: ${data ? data.length : 0} registros`);
         
+        const rawCompras = data || [];
+        const compraIds = rawCompras.map(c => c.id);
+        let cloudParcs = [];
+        if (compraIds.length > 0) {
+            const { data: parcsData } = await supabaseClient
+                .from('compra_parcelas')
+                .select('*')
+                .in('compra_id', compraIds)
+                .order('data_vencimento', { ascending: true });
+            cloudParcs = parcsData || [];
+        }
+
         // Filter out individual Vales because they are integrated via the consolidated NF
         // and filter out purchases paid with Cartão de Crédito (not integrated with financeiro)
-        comprasParaIntegracao = (data || []).filter(comp => {
+        comprasParaIntegracao = rawCompras.filter(comp => {
             const esp = config.especiesNota.find(e => e.id === comp.especie_id);
             const especieNome = esp ? esp.nome.toUpperCase() : '';
             if (especieNome === 'VALE') return false;
@@ -4386,39 +4790,24 @@ async function renderIntegracao() {
             }
 
             return true;
+        }).map(comp => {
+            const parcs = cloudParcs.filter(p => p.compra_id === comp.id).map(p => ({
+                data: p.data_vencimento,
+                valor: parseFloat(p.valor)
+            }));
+            return {
+                ...comp,
+                parcelasData: parcs
+            };
         });
-        
-        if (comprasParaIntegracao.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">Nenhuma nota pendente de integração.</td></tr>';
-            return;
-        }
-        
-        tbody.innerHTML = '';
-        comprasParaIntegracao.forEach(comp => {
-            // Resolver nome do fornecedor localmente
-            const forn = config.fornecedores.find(f => f.id === comp.fornecedor_id);
-            const fornecedorNome = forn ? forn.nome : 'Sem Fornecedor';
-            
-            // Resolver forma de pagamento localmente
-            const pgto = config.tiposPgto.find(p => p.id === comp.forma_pagamento_id);
-            const formaNome = pgto ? pgto.nome : 'N/A';
-            
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td><input type="checkbox" class="chk-integracao" value="${comp.id}"></td>
-                <td>${formatDateBR(comp.data_emissao)}</td>
-                <td style="font-weight: 700;">${comp.numero_nota || 'S/N'}</td>
-                <td>${fornecedorNome}</td>
-                <td><span class="badge" style="background: rgba(255,255,255,0.1);">${formaNome}</span></td>
-                <td>${comp.financeiro_parcelado ? `Sim (${comp.qtd_parcelas}x)` : 'Não'}</td>
-                <td style="font-weight: 700; color: #10b981;">${formatCurrency(comp.valor_total)}</td>
-            `;
-            tbody.appendChild(tr);
-        });
+
+        renderIntegracaoTableOnly();
         
     } catch (err) {
         console.error('Erro ao buscar notas pendentes:', err);
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #ef4444;">Erro ao carregar dados: ${err.message || err}</td></tr>`;
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #ef4444;">Erro ao carregar dados: ${err.message || err}</td></tr>`;
+        }
     }
 }
 window.renderIntegracao = renderIntegracao;
@@ -4575,19 +4964,37 @@ window.integrarAoFinanceiro = async () => {
             const pgto = config.tiposPgto.find(p => p.id === comp.forma_pagamento_id);
             const formaPagamentoNome = pgto ? pgto.nome : '-';
             
-            let vencimento = comp.data_vencimento || comp.data_emissao;
+            const isParcelado = comp.financeiro_parcelado || (comp.qtd_parcelas && comp.qtd_parcelas > 1);
+            let vencimentoRaw = getVencimentoCompra(comp) || comp.data_vencimento || comp.data_emissao;
             if (lancamentos && lancamentos.length > 0 && lancamentos[0].data_vencimento) {
-                vencimento = lancamentos[0].data_vencimento;
+                vencimentoRaw = lancamentos[0].data_vencimento;
             }
-            
+            const vencimentoText = formatDateBR(vencimentoRaw) + (isParcelado ? ' (1ª Parcela)' : '');
+
+            // Plano de Contas
+            let planoContas = 'NÃO ESPECIFICADO';
+            const catId = comp.categoria_id || comp.categoriaId;
+            if (catId) {
+                const cat = (config.categorias || []).find(x => x.id == catId);
+                if (cat) {
+                    const cod = cat.codigo || cat.cod;
+                    planoContas = cod ? `${cod} - ${cat.nome}` : cat.nome;
+                }
+            }
+
+            const responsavel = comp.usuario_registro || comp.responsavel || comp.created_by_name || comp.usuario || 'ADMINISTRADOR';
+
             notasIntegradasFull.push({
                 nota: comp.numero_nota || 'S/N',
                 fornecedor: fornecedorNome,
                 data: comp.data_emissao,
-                dataVencimento: vencimento,
+                dataVencimento: vencimentoRaw,
+                dataVencimentoText: vencimentoText,
                 valor: comp.valor_total,
-                parcelamento: comp.financeiro_parcelado ? `Sim (${comp.qtd_parcelas}x)` : 'Não',
-                formaPagamento: formaPagamentoNome
+                parcelamento: isParcelado ? `Sim (${comp.qtd_parcelas || 1}x)` : 'Não',
+                formaPagamento: formaPagamentoNome,
+                planoContas: planoContas,
+                responsavel: responsavel
             });
         }
         
@@ -4677,30 +5084,35 @@ function gerarTermoIntegracaoPDF(notas) {
     });
 
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('l', 'pt', 'a4');
+    const doc = new jsPDF('p', 'pt', 'a4'); // Retrato ('p')
 
     const pageWidth = doc.internal.pageSize.getWidth();
-    let cursorY = 40;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let cursorY = 30;
 
+    // Cabeçalho
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
+    doc.setFontSize(13);
     doc.text('TERMO DE INTEGRAÇÃO - COMPRAS > FINANCEIRO', pageWidth / 2, cursorY, { align: 'center' });
     
-    cursorY += 20;
+    cursorY += 16;
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
+    doc.setFontSize(8.5);
+    doc.setTextColor(100, 116, 139);
     const dataHora = new Date().toLocaleString('pt-BR');
     doc.text(`Data e Hora da Integração: ${dataHora}`, pageWidth / 2, cursorY, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
     
-    cursorY += 30;
+    cursorY += 20;
     
     const tableData = notas.map(n => [
         formatDateBR(n.data),
+        n.dataVencimentoText || formatDateBR(n.dataVencimento || n.data),
         n.nota,
         n.fornecedor,
+        n.planoContas || 'NÃO ESPECIFICADO',
         n.formaPagamento || '-',
         n.parcelamento,
-        formatDateBR(n.dataVencimento || n.data),
         formatCurrency(n.valor)
     ]);
     
@@ -4708,46 +5120,50 @@ function gerarTermoIntegracaoPDF(notas) {
     
     doc.autoTable({
         startY: cursorY,
-        head: [['Data Emissão', 'Nº Nota', 'Fornecedor', 'Forma Pagamento', 'Parcelamento', 'Data Vencimento', 'Valor Total']],
+        margin: { left: 25, right: 25, top: 25, bottom: 35 },
+        head: [['Emissão', 'Vencimento', 'Nº Nota', 'Fornecedor', 'Plano de Contas', 'Forma Pgto', 'Parc.', 'Valor Total']],
         body: tableData,
         theme: 'grid',
-        styles: { fontSize: 9, cellPadding: 6, overflow: 'linebreak' },
-        headStyles: { fillColor: [92, 96, 245], fontSize: 9.5, fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 7.5, cellPadding: 3, overflow: 'linebreak', textColor: [15, 23, 42] },
+        headStyles: { fillColor: [5, 150, 105], fontSize: 8, fontStyle: 'bold', halign: 'left', textColor: [255, 255, 255] },
         columnStyles: {
-            0: { cellWidth: 80, halign: 'center' },  // Data Emissão
-            1: { cellWidth: 120 },                   // Nº Nota
-            2: { cellWidth: 'auto' },                // Fornecedor
-            3: { cellWidth: 100, halign: 'left' },   // Forma Pagamento
-            4: { cellWidth: 80, halign: 'center' },  // Parcelamento
-            5: { cellWidth: 85, halign: 'center' },  // Data Vencimento
-            6: { cellWidth: 90, halign: 'right' }    // Valor Total
+            0: { cellWidth: 50, halign: 'center' },   // Emissão
+            1: { cellWidth: 68, halign: 'center' },   // Vencimento
+            2: { cellWidth: 70 },                     // Nº Nota
+            3: { cellWidth: 'auto' },                 // Fornecedor
+            4: { cellWidth: 105 },                    // Plano de Contas
+            5: { cellWidth: 55, halign: 'left' },     // Forma Pgto
+            6: { cellWidth: 35, halign: 'center' },    // Parc.
+            7: { cellWidth: 55, halign: 'right' }      // Valor Total
         },
-        foot: [['', '', '', '', '', 'TOTAL INTEGRADO:', formatCurrency(totalSoma)]],
-        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 10 },
-        didParseCell: function (data) {
-            if (data.section === 'foot' && data.column.index === 5) {
-                data.cell.styles.halign = 'right';
-            }
-            if (data.section === 'foot' && data.column.index === 6) {
-                data.cell.styles.halign = 'right';
-            }
-        }
+        foot: [[
+            { content: 'TOTAL INTEGRADO:', colSpan: 7, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8.5 } },
+            { content: formatCurrency(totalSoma), styles: { halign: 'right', fontStyle: 'bold', fontSize: 8.5 } }
+        ]],
+        footStyles: { fillColor: [240, 253, 244], textColor: [4, 120, 87] }
     });
     
-    cursorY = doc.lastAutoTable.finalY + 80;
+    // Posicionamento dinâmico das assinaturas para evitar quebra de página
+    let sigY = doc.lastAutoTable.finalY + 35;
+    if (sigY + 40 > pageHeight - 25) {
+        sigY = pageHeight - 45;
+    }
     
     doc.setLineWidth(0.5);
+    doc.setDrawColor(148, 163, 184);
     
     // Assinatura Compras
-    const xCompras = 80;
-    doc.line(xCompras, cursorY, xCompras + 150, cursorY);
+    const xCompras = 50;
+    doc.line(xCompras, sigY, xCompras + 160, sigY);
     doc.setFont('helvetica', 'bold');
-    doc.text('Setor de Compras', xCompras + 75, cursorY + 15, { align: 'center' });
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Setor de Compras', xCompras + 80, sigY + 12, { align: 'center' });
     
     // Assinatura Financeiro
-    const xFin = pageWidth - 80 - 150;
-    doc.line(xFin, cursorY, xFin + 150, cursorY);
-    doc.text('Setor Financeiro', xFin + 75, cursorY + 15, { align: 'center' });
+    const xFin = pageWidth - 50 - 160;
+    doc.line(xFin, sigY, xFin + 160, sigY);
+    doc.text('Setor Financeiro', xFin + 80, sigY + 12, { align: 'center' });
     
     doc.save(`Termo_Integracao_Financeiro_${new Date().getTime()}.pdf`);
 }
