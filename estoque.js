@@ -133,6 +133,14 @@ function renderInventory(data = filteredData) {
     if (!tableBody) return;
     tableBody.innerHTML = '';
 
+    const canEdit = typeof canDo === 'function' ? canDo('estoque_inventario', 'edit') : true;
+    const canDel = typeof canDo === 'function' ? canDo('estoque_inventario', 'delete') : true;
+
+    const thAcoes = document.getElementById('th_acoes_inventario');
+    if (thAcoes) {
+        thAcoes.style.display = (!canEdit && !canDel) ? 'none' : '';
+    }
+
     data.forEach(item => {
         const isLowStock = item.estoque_atual <= item.estoque_minimo;
         const row = document.createElement('tr');
@@ -154,16 +162,19 @@ function renderInventory(data = filteredData) {
             </td>
             <td data-label="Vlr. Custo"><span style="font-size: 0.85rem;">R$ ${item.valor_custo?.toLocaleString('pt-BR', {minimumFractionDigits: 2}) || '0,00'}</span></td>
             <td data-label="Vlr. Venda" style="color: #10b981; font-weight: 700;">R$ ${item.valor_venda?.toLocaleString('pt-BR', {minimumFractionDigits: 2}) || '0,00'}</td>
+            ${(!canEdit && !canDel) ? '' : `
             <td data-label="Ações" style="text-align: right;">
                 <div class="table-actions" style="display: flex; gap: 0.4rem; justify-content: flex-end;">
+                    ${canEdit ? `
                     <button class="action-btn" onclick="event.stopPropagation(); editProduct('${item.id}')" title="Editar" style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); color: var(--primary-light); padding: 0.5rem; border-radius: 8px; cursor: pointer;">
                         <i data-lucide="edit-3" style="width: 14px;"></i>
-                    </button>
+                    </button>` : ''}
+                    ${canDel ? `
                     <button class="action-btn" onclick="event.stopPropagation(); deleteProduct('${item.id}')" title="Excluir" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; padding: 0.5rem; border-radius: 8px; cursor: pointer;">
                         <i data-lucide="trash-2" style="width: 14px;"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
-            </td>
+            </td>`}
         `;
         tableBody.appendChild(row);
     });
@@ -212,6 +223,10 @@ function closeProductModal() {
 }
 
 function editProduct(id) {
+    if (typeof canDo === 'function' && !canDo('estoque_inventario', 'edit')) {
+        alert('Sem permissão para editar produtos.');
+        return;
+    }
     const item = inventoryData.find(p => p.id === id);
     if (!item) return;
 
@@ -846,9 +861,24 @@ async function openProductViewModal(id) {
     document.getElementById('adjust_new_qty').value = item.estoque_atual;
     document.getElementById('adjust_reason').value = '';
 
-    // Configura botões de ação
-    document.getElementById('btn_view_edit_trigger').onclick = () => { closeProductViewModal(); editProduct(id); };
-    document.getElementById('btn_view_delete_trigger').onclick = () => { deleteProduct(id).then(() => closeProductViewModal()); };
+    // Configura botões de ação e permissões
+    const canEdit = typeof canDo === 'function' ? canDo('estoque_inventario', 'edit') : true;
+    const canDelete = typeof canDo === 'function' ? canDo('estoque_inventario', 'delete') : true;
+
+    const adjustForm = document.querySelector('#productViewModal .adjust-form');
+    if (adjustForm) adjustForm.style.display = canEdit ? 'block' : 'none';
+
+    const btnEdit = document.getElementById('btn_view_edit_trigger');
+    if (btnEdit) {
+        btnEdit.style.display = canEdit ? '' : 'none';
+        btnEdit.onclick = () => { closeProductViewModal(); editProduct(id); };
+    }
+
+    const btnDelete = document.getElementById('btn_view_delete_trigger');
+    if (btnDelete) {
+        btnDelete.style.display = canDelete ? '' : 'none';
+        btnDelete.onclick = () => { deleteProduct(id).then(() => closeProductViewModal()); };
+    }
 
     // Abre Modal
     document.getElementById('productViewModal').classList.add('active');
@@ -1886,6 +1916,10 @@ async function loadVehicles() {
 }
 
 async function openVendaModal() {
+    if (typeof canDo === 'function' && !canDo('estoque_vendas', 'add')) {
+        alert('Sem permissão para registrar vendas / saída de estoque.');
+        return;
+    }
     try {
         if (typeof closeProductViewModal === 'function') {
             closeProductViewModal();
