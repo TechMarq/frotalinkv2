@@ -4591,20 +4591,26 @@ function toStandardYYYYMMDD(dateStr) {
 }
 
 function getCurrentUserDisplayName() {
-    if (window.currentUserAccess && window.currentUserAccess.nome_completo) {
-        return window.currentUserAccess.nome_completo;
-    }
-    if (window.currentUser && window.currentUser.user_metadata && window.currentUser.user_metadata.nome_completo) {
-        return window.currentUser.user_metadata.nome_completo;
-    }
     if (window.currentUserAccess && window.currentUserAccess.email) {
         return window.currentUserAccess.email;
     }
     if (window.currentUser && window.currentUser.email) {
         return window.currentUser.email;
     }
+    const cachedEmail = localStorage.getItem('user_email');
+    if (cachedEmail) return cachedEmail;
+    if (window.currentUserAccess && window.currentUserAccess.nome_completo) {
+        return window.currentUserAccess.nome_completo;
+    }
+    if (window.currentUser && window.currentUser.user_metadata && window.currentUser.user_metadata.nome_completo) {
+        return window.currentUser.user_metadata.nome_completo;
+    }
+    const cachedName = localStorage.getItem('user_name');
+    if (cachedName) return cachedName;
     return 'ADMINISTRADOR';
 }
+
+
 
 function formatDateBR(dateStr) {
     if (!dateStr) return '';
@@ -6157,7 +6163,8 @@ window.handleConfirmarFaturamentoVales = async (e) => {
             qtd_parcelas: qtdParcelas,
             observacoes: (observacoes ? observacoes + ' | ' : '') + `[CONSOLIDADO FECHAMENTO VALES]${adicionaisDesc}${descontosDesc}`,
             consolidado_vales: true,
-            integrado_financeiro: false
+            integrado_financeiro: false,
+            usuario_registro: getCurrentUserDisplayName()
         };
 
         const { error: insertErr } = await client.from('compras').insert([payloadFat]);
@@ -6288,7 +6295,8 @@ window.handleMarcarValesComoFaturados = async () => {
                 consolidado_vales: true,
                 especie_id: defaultEsp,
                 fornecedor_id: supplierId,
-                observacoes: 'Registro para fechamentos manuais ou legados.'
+                observacoes: 'Registro para fechamentos manuais ou legados.',
+                usuario_registro: getCurrentUserDisplayName()
             }]);
         }
 

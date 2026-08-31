@@ -178,6 +178,9 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
         }
         window.currentEmpresaId   = accessData.empresa_id || null;
 
+        if (session?.user?.email) localStorage.setItem('user_email', session.user.email);
+        if (accessData?.nome_completo) localStorage.setItem('user_name', accessData.nome_completo);
+
         // ── NOVO: Carregar dados da empresa ──────────────────────────────
         if (window.currentEmpresaId) {
             const { data: empresaData } = await window.authClient
