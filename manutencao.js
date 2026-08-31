@@ -123,6 +123,64 @@ async function loadInitialData() {
             }
         });
 
+        // --- Auto-Desagrupamento de Manutenções Múltiplas ---
+        const grouped = state.manutencoes.filter(m => m.manutencao_itens && m.manutencao_itens.length > 1);
+        if (grouped.length > 0) {
+            console.log(`🛠️ Desagrupando ${grouped.length} manutenção(ões) com múltiplos itens...`);
+            let splitDone = false;
+            for (const parentMaint of grouped) {
+                const extraItems = parentMaint.manutencao_itens.slice(1);
+                for (const item of extraItems) {
+                    try {
+                        const { data: newH, error: newHErr } = await supabaseClient.from('manutencoes').insert([{
+                            veiculo_id: parentMaint.veiculo_id,
+                            oficina_id: parentMaint.oficina_id,
+                            tipo_id: item.tipo_id || parentMaint.tipo_id || null,
+                            data: parentMaint.data,
+                            km_atual: parentMaint.km_atual || 0,
+                            status: parentMaint.status || 'PENDENTE',
+                            empresa_id: parentMaint.empresa_id || window.currentEmpresaId || null
+                        }]).select().single();
+
+                        if (!newHErr && newH) {
+                            await supabaseClient.from('manutencao_itens').update({ manutencao_id: newH.id }).eq('id', item.id);
+                            splitDone = true;
+                        }
+                    } catch (splitErr) {
+                        console.error('Erro ao desagrupar item de manutenção:', splitErr);
+                    }
+                }
+            }
+            if (splitDone) {
+                const { data: refreshed } = await supabaseClient.from('manutencoes').select(`
+                    *,
+                    veiculos:veiculo_id (placa, modelo),
+                    fornecedores:oficina_id (nome),
+                    manutencao_tipos:tipo_id (descricao),
+                    manutencao_itens (
+                        *,
+                        manutencao_acoes:acao_id (descricao)
+                    )
+                `).order('data', { ascending: false }).limit(1000);
+                if (refreshed) {
+                    state.manutencoes = refreshed;
+                    state.manutencoes.forEach(m => {
+                        if (m.manutencao_itens) {
+                            m.manutencao_itens.forEach(i => {
+                                if (!i.manutencao_tipos && m.manutencao_tipos) {
+                                    i.manutencao_tipos = { descricao: m.manutencao_tipos.descricao };
+                                }
+                                if (!i.tipo_id && m.tipo_id) {
+                                    i.tipo_id = m.tipo_id;
+                                }
+                            });
+                        }
+                    });
+                }
+            }
+        }
+
+
         // --- Injeção do KM Atual Baseado nos Abastecimentos Recentes ---
         try {
             const { data: pageData } = await supabaseClient
@@ -1557,84 +1615,135 @@ function setupFormListeners() {
             };
 
             try {
-                const { data: savedHeader, error: hError } = state.editingId
-                    ? await supabaseClient.from('manutencoes').update(header).eq('id', state.editingId).select().single()
-                    : await supabaseClient.from('manutencoes').insert([header]).select().single();
-
-                if (hError) throw hError;
-
                 if (state.editingId) {
+                    const { data: savedHeader, error: hError } = await supabaseClient.from('manutencoes').update(header).eq('id', state.editingId).select().single();
+                    if (hError) throw hError;
+
                     await supabaseClient.from('manutencao_itens').delete().eq('manutencao_id', state.editingId);
-                }
 
-                const itemsToSave = state.currentMaintItems.map(item => {
-                    let proxima_troca_km = null;
-                    let proxima_troca_data = null;
-                    let vencimento_garantia = null;
+                    for (let idx = 0; idx < state.currentMaintItems.length; idx++) {
+                        const item = state.currentMaintItems[idx];
+                        let targetHeaderId = savedHeader.id;
 
-                    if (item.controle_proxima_troca === 'KM') {
-                        const interval = parseFloat(item.intervalo_km) || 0;
-                        if (interval > 0) proxima_troca_km = currentKm + interval;
-                    } else if (item.controle_proxima_troca === 'DATA') {
-                        const months = parseInt(item.intervalo_meses) || 0;
-                        if (months > 0) {
-                            const d = new Date(currentDate + 'T12:00:00');
-                            d.setMonth(d.getMonth() + months);
-                            proxima_troca_data = d.toISOString().split('T')[0];
+                        if (idx > 0) {
+                            const { data: newH } = await supabaseClient.from('manutencoes').insert([{
+                                ...header,
+                                tipo_id: item.tipo_id && item.tipo_id !== '' ? item.tipo_id : null,
+                                empresa_id: window.currentEmpresaId || null
+                            }]).select().single();
+                            if (newH) targetHeaderId = newH.id;
+                        }
+
+                        let proxima_troca_km = null;
+                        let proxima_troca_data = null;
+                        let vencimento_garantia = null;
+
+                        if (item.controle_proxima_troca === 'KM') {
+                            const interval = parseFloat(item.intervalo_km) || 0;
+                            if (interval > 0) proxima_troca_km = currentKm + interval;
+                        } else if (item.controle_proxima_troca === 'DATA') {
+                            const months = parseInt(item.intervalo_meses) || 0;
+                            if (months > 0) {
+                                const d = new Date(currentDate + 'T12:00:00');
+                                d.setMonth(d.getMonth() + months);
+                                proxima_troca_data = d.toISOString().split('T')[0];
+                            }
+                        }
+
+                        if (item.possui_garantia) {
+                            const months = parseInt(item.meses_garantia) || 0;
+                            if (months > 0) {
+                                const d = new Date(currentDate + 'T12:00:00');
+                                d.setMonth(d.getMonth() + months);
+                                vencimento_garantia = d.toISOString().split('T')[0];
+                            }
+                        }
+
+                        const itemPayload = {
+                            manutencao_id: targetHeaderId,
+                            descricao: item.descricao,
+                            tipo_id: item.tipo_id && item.tipo_id !== '' ? item.tipo_id : null,
+                            acao_id: item.acao_id && item.acao_id !== '' ? item.acao_id : null,
+                            valor_pecas: 0,
+                            valor_servicos: 0,
+                            controle_proxima_troca: item.controle_proxima_troca,
+                            intervalo_km: parseFloat(item.intervalo_km) || null,
+                            intervalo_meses: parseInt(item.intervalo_meses) || null,
+                            proxima_troca_km,
+                            proxima_troca_data,
+                            possui_garantia: item.possui_garantia,
+                            meses_garantia: parseInt(item.meses_garantia) || null,
+                            vencimento_garantia,
+                            origem_garantia: item.origem_garantia,
+                            origem_garantia_fornecedor_id: item.origem_garantia_fornecedor_id
+                        };
+
+                        let { error: iError } = await supabaseClient.from('manutencao_itens').insert([itemPayload]);
+                        if (iError && (iError.message.includes('tipo_id') || iError.message.includes('schema cache'))) {
+                            delete itemPayload.tipo_id;
+                            await supabaseClient.from('manutencao_itens').insert([itemPayload]);
                         }
                     }
+                } else {
+                    for (const item of state.currentMaintItems) {
+                        const hPayload = {
+                            ...header,
+                            tipo_id: item.tipo_id && item.tipo_id !== '' ? item.tipo_id : null,
+                            empresa_id: window.currentEmpresaId || null
+                        };
+                        const { data: newH, error: hErr } = await supabaseClient.from('manutencoes').insert([hPayload]).select().single();
+                        if (hErr) throw hErr;
 
-                    if (item.possui_garantia) {
-                        const months = parseInt(item.meses_garantia) || 0;
-                        if (months > 0) {
-                            const d = new Date(currentDate + 'T12:00:00');
-                            d.setMonth(d.getMonth() + months);
-                            vencimento_garantia = d.toISOString().split('T')[0];
+                        let proxima_troca_km = null;
+                        let proxima_troca_data = null;
+                        let vencimento_garantia = null;
+
+                        if (item.controle_proxima_troca === 'KM') {
+                            const interval = parseFloat(item.intervalo_km) || 0;
+                            if (interval > 0) proxima_troca_km = currentKm + interval;
+                        } else if (item.controle_proxima_troca === 'DATA') {
+                            const months = parseInt(item.intervalo_meses) || 0;
+                            if (months > 0) {
+                                const d = new Date(currentDate + 'T12:00:00');
+                                d.setMonth(d.getMonth() + months);
+                                proxima_troca_data = d.toISOString().split('T')[0];
+                            }
+                        }
+
+                        if (item.possui_garantia) {
+                            const months = parseInt(item.meses_garantia) || 0;
+                            if (months > 0) {
+                                const d = new Date(currentDate + 'T12:00:00');
+                                d.setMonth(d.getMonth() + months);
+                                vencimento_garantia = d.toISOString().split('T')[0];
+                            }
+                        }
+
+                        const itemPayload = {
+                            manutencao_id: newH.id,
+                            descricao: item.descricao,
+                            tipo_id: item.tipo_id && item.tipo_id !== '' ? item.tipo_id : null,
+                            acao_id: item.acao_id && item.acao_id !== '' ? item.acao_id : null,
+                            valor_pecas: 0,
+                            valor_servicos: 0,
+                            controle_proxima_troca: item.controle_proxima_troca,
+                            intervalo_km: parseFloat(item.intervalo_km) || null,
+                            intervalo_meses: parseInt(item.intervalo_meses) || null,
+                            proxima_troca_km,
+                            proxima_troca_data,
+                            possui_garantia: item.possui_garantia,
+                            meses_garantia: parseInt(item.meses_garantia) || null,
+                            vencimento_garantia,
+                            origem_garantia: item.origem_garantia,
+                            origem_garantia_fornecedor_id: item.origem_garantia_fornecedor_id
+                        };
+
+                        let { error: iError } = await supabaseClient.from('manutencao_itens').insert([itemPayload]);
+                        if (iError && (iError.message.includes('tipo_id') || iError.message.includes('schema cache'))) {
+                            delete itemPayload.tipo_id;
+                            await supabaseClient.from('manutencao_itens').insert([itemPayload]);
                         }
                     }
-
-                    return {
-                        manutencao_id: savedHeader.id,
-                        descricao: item.descricao,
-                        tipo_id: item.tipo_id && item.tipo_id !== '' ? item.tipo_id : null,
-                        acao_id: item.acao_id && item.acao_id !== '' ? item.acao_id : null,
-                        valor_pecas: 0,
-                        valor_servicos: 0,
-                        controle_proxima_troca: item.controle_proxima_troca,
-                        intervalo_km: parseFloat(item.intervalo_km) || null,
-                        intervalo_meses: parseInt(item.intervalo_meses) || null,
-                        proxima_troca_km,
-                        proxima_troca_data,
-                        possui_garantia: item.possui_garantia,
-                        meses_garantia: parseInt(item.meses_garantia) || null,
-                        vencimento_garantia,
-                        origem_garantia: item.origem_garantia,
-                        origem_garantia_fornecedor_id: item.origem_garantia_fornecedor_id
-                    };
-                });
-
-                let { error: iError } = await supabaseClient.from('manutencao_itens').insert(itemsToSave);
-                
-                // Se falhar porque a coluna tipo_id não existe na tabela do banco ainda (migração pendente)
-                if (iError && (iError.message.includes('tipo_id') || iError.message.includes('schema cache'))) {
-                    console.warn('[Manutenção] Novo esquema de itens falhou no insert (coluna tipo_id ausente). Tentando fallback para esquema antigo...');
-                    
-                    const itemsFallback = itemsToSave.map(item => {
-                        const copy = { ...item };
-                        delete copy.tipo_id;
-                        return copy;
-                    });
-                    
-                    const fallbackRes = await supabaseClient.from('manutencao_itens').insert(itemsFallback);
-                    if (fallbackRes.error) throw fallbackRes.error;
-                    
-                    // Salva o tipo do primeiro item no cabeçalho antigo
-                    const firstItemTipoId = state.currentMaintItems.find(item => item.tipo_id && item.tipo_id !== '')?.tipo_id || null;
-                    if (firstItemTipoId) {
-                        await supabaseClient.from('manutencoes').update({ tipo_id: firstItemTipoId }).eq('id', savedHeader.id);
-                    }
-                } else if (iError) {
-                    throw iError;
                 }
 
                 showToast('Manutenção salva com sucesso!');
@@ -1643,6 +1752,7 @@ function setupFormListeners() {
             } catch (err) {
                 showToast('Erro ao salvar: ' + err.message, 'error');
             }
+
         };
     }
 
