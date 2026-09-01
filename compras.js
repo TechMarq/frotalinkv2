@@ -4935,6 +4935,21 @@ window.integrarAoFinanceiro = async () => {
             const forn = config.fornecedores.find(f => f.id === comp.fornecedor_id);
             const fornecedorNome = forn ? forn.nome : 'Fornecedor não especificado';
             
+            const esp = (config.especiesNota || []).find(e => e.id === comp.especie_id || e.id === comp.especieId);
+            const especieNome = esp ? esp.nome : (comp.especie_nota || comp.tipo_nota || '');
+
+            const pgto = (config.tiposPgto || []).find(p => p.id === comp.forma_pagamento_id || p.id === comp.formaPagamentoId);
+            const formaPagamentoNome = pgto ? pgto.nome : (comp.forma_pagamento && comp.forma_pagamento.length < 36 ? comp.forma_pagamento : '');
+
+            let prazoDias = comp.prazo_pagamento;
+            if (!prazoDias && comp.data_emissao && comp.data_vencimento) {
+                const dEmissao = new Date(comp.data_emissao + 'T00:00:00');
+                const dVenc = new Date(comp.data_vencimento + 'T00:00:00');
+                if (!isNaN(dEmissao.getTime()) && !isNaN(dVenc.getTime())) {
+                    prazoDias = Math.max(0, Math.round((dVenc - dEmissao) / (1000 * 60 * 60 * 24)));
+                }
+            }
+
             if (comp.financeiro_parcelado) {
                 // Buscar parcelas
                 const { data: parcelas, error: parcError } = await supabaseClient
@@ -4960,9 +4975,15 @@ window.integrarAoFinanceiro = async () => {
                             compra_id: comp.id,
                             origem_modulo: 'COMPRAS',
                             setor_origem: comp.setor_origem || 'Setor de Compras',
-                            forma_pagamento: comp.forma_pagamento_id,
+                            forma_pagamento: formaPagamentoNome || comp.forma_pagamento_id,
                             centro_custo_id: comp.centro_custo_id,
-                            categoria_id: comp.categoria_id
+                            categoria_id: comp.categoria_id,
+                            num_nf: comp.numero_nota || null,
+                            tipo_nota: especieNome || null,
+                            especie_id: comp.especie_id || null,
+                            data_emissao: comp.data_emissao || null,
+                            data_competencia: comp.data_competencia || comp.data_emissao || null,
+                            prazo_pagamento: prazoDias || null
                         });
                         idx++;
                     }
@@ -4992,9 +5013,15 @@ window.integrarAoFinanceiro = async () => {
                             compra_id: comp.id,
                             origem_modulo: 'COMPRAS',
                             setor_origem: comp.setor_origem || 'Setor de Compras',
-                            forma_pagamento: comp.forma_pagamento_id,
+                            forma_pagamento: formaPagamentoNome || comp.forma_pagamento_id,
                             centro_custo_id: comp.centro_custo_id,
-                            categoria_id: comp.categoria_id
+                            categoria_id: comp.categoria_id,
+                            num_nf: comp.numero_nota || null,
+                            tipo_nota: especieNome || null,
+                            especie_id: comp.especie_id || null,
+                            data_emissao: comp.data_emissao || null,
+                            data_competencia: comp.data_competencia || comp.data_emissao || null,
+                            prazo_pagamento: prazoDias || null
                         });
                     }
                 } else {
@@ -5009,9 +5036,15 @@ window.integrarAoFinanceiro = async () => {
                         compra_id: comp.id,
                         origem_modulo: 'COMPRAS',
                         setor_origem: comp.setor_origem || 'Setor de Compras',
-                        forma_pagamento: comp.forma_pagamento_id,
+                        forma_pagamento: formaPagamentoNome || comp.forma_pagamento_id,
                         centro_custo_id: comp.centro_custo_id,
-                        categoria_id: comp.categoria_id
+                        categoria_id: comp.categoria_id,
+                        num_nf: comp.numero_nota || null,
+                        tipo_nota: especieNome || null,
+                        especie_id: comp.especie_id || null,
+                        data_emissao: comp.data_emissao || null,
+                        data_competencia: comp.data_competencia || comp.data_emissao || null,
+                        prazo_pagamento: prazoDias || null
                      });
                 }
             } else {
@@ -5027,14 +5060,44 @@ window.integrarAoFinanceiro = async () => {
                     compra_id: comp.id,
                     origem_modulo: 'COMPRAS',
                     setor_origem: comp.setor_origem || 'Setor de Compras',
-                    forma_pagamento: comp.forma_pagamento_id,
+                    forma_pagamento: formaPagamentoNome || comp.forma_pagamento_id,
                     centro_custo_id: comp.centro_custo_id,
-                    categoria_id: comp.categoria_id
+                    categoria_id: comp.categoria_id,
+                    num_nf: comp.numero_nota || null,
+                    tipo_nota: especieNome || null,
+                    especie_id: comp.especie_id || null,
+                    data_emissao: comp.data_emissao || null,
+                    data_competencia: comp.data_competencia || comp.data_emissao || null,
+                    prazo_pagamento: prazoDias || null
                 });
             }
             
-            const { error: finError } = await supabaseClient.from('fin_lancamentos').insert(lancamentos);
+            const { data: insertedLancamentos, error: finError } = await supabaseClient.from('fin_lancamentos').insert(lancamentos).select();
             if (finError) throw finError;
+
+            // Tentar vincular itens da compra no fin_lancamento_itens
+            try {
+                const { data: compraItens } = await supabaseClient.from('compra_itens').select('*').eq('compra_id', comp.id);
+                if (compraItens && compraItens.length > 0 && insertedLancamentos && insertedLancamentos.length > 0) {
+                    let finItens = [];
+                    for (const lanc of insertedLancamentos) {
+                        for (const ci of compraItens) {
+                            finItens.push({
+                                lancamento_id: lanc.id,
+                                descricao: ci.produto || ci.descricao || ci.nome || 'Item da Compra',
+                                quantidade: ci.quantidade || 1,
+                                valor_unitario: ci.valor_unitario || ci.valor_total || 0,
+                                tipo: (ci.tipo === 'servico' || ci.tipo === 'SERVICO') ? 'SERVICO' : 'PRODUTO'
+                            });
+                        }
+                    }
+                    if (finItens.length > 0) {
+                        await supabaseClient.from('fin_lancamento_itens').insert(finItens);
+                    }
+                }
+            } catch (eItens) {
+                console.warn("Aviso ao vincular itens no fin_lancamento_itens:", eItens);
+            }
             
             const { error: updError } = await supabaseClient.from('compras')
                 .update({ integrado_financeiro: true, data_integracao: new Date().toISOString() })

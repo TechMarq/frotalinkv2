@@ -914,54 +914,55 @@ async function renderFluxo() {
         console.warn('[FluxoView] Não foi possível consultar a view SQL, utilizando agregação local:', e);
     }
 
-    // 2. Agregação local de alta precisão a partir do state.lancamentos (Garante Previsão e Realizado em tempo real)
-    (state.lancamentos || []).forEach(l => {
-        if (l.status === 'CANCELADO' || !l.categoria_id) return;
-        if (bancoId && l.conta_bancaria_id !== bancoId) return;
+    // 2. Agregação local de alta precisão a partir do state.lancamentos (executada caso a view SQL não tenha retornado dados)
+    if (!viewSuccess) {
+        (state.lancamentos || []).forEach(l => {
+            if (l.status === 'CANCELADO' || !l.categoria_id) return;
+            if (bancoId && l.conta_bancaria_id !== bancoId) return;
 
-        const isPago = (l.status === 'PAGO' || l.status === 'RECEBIDO');
-        // Regime de Caixa: Para contas PAGAS, utiliza a Data de Pagamento (l.data_pagamento) em 1º lugar!
-        const dateStr = isPago
-            ? (l.data_pagamento || l.data_vencimento || l.data_competencia)
-            : (l.data_vencimento || l.data_competencia || l.data_pagamento);
-        if (!dateStr) return;
+            const isPago = (l.status === 'PAGO' || l.status === 'RECEBIDO');
+            // Regime de Caixa: Para contas PAGAS, utiliza a Data de Pagamento (l.data_pagamento) em 1º lugar!
+            const dateStr = isPago
+                ? (l.data_pagamento || l.data_vencimento || l.data_competencia)
+                : (l.data_vencimento || l.data_competencia || l.data_pagamento);
+            if (!dateStr) return;
 
-        const anoMes = dateStr.substring(0, 7);
-        if (anoMes !== keyAnt && anoMes !== keyAtual && anoMes !== keyPost) return;
+            const anoMes = dateStr.substring(0, 7);
+            if (anoMes !== keyAnt && anoMes !== keyAtual && anoMes !== keyPost) return;
 
-        const catId = l.categoria_id;
-        if (!totalsByCat[catId]) {
-            totalsByCat[catId] = {
-                ant:   { pago: 0, prev: 0 },
-                atual: { pago: 0, prev: 0 },
-                post:  { pago: 0, prev: 0 }
-            };
-        }
+            const catId = l.categoria_id;
+            if (!totalsByCat[catId]) {
+                totalsByCat[catId] = {
+                    ant:   { pago: 0, prev: 0 },
+                    atual: { pago: 0, prev: 0 },
+                    post:  { pago: 0, prev: 0 }
+                };
+            }
 
-        // Cálculo do valor a considerar para RECEBER (Valor Líquido = Bruto - Tributos) vs PAGAR
-        let valValido = 0;
-        let valPrevisao = 0;
+            // Cálculo do valor a considerar para RECEBER (Valor Líquido = Bruto - Tributos) vs PAGAR
+            let valValido = 0;
+            let valPrevisao = 0;
 
-        if (l.tipo === 'RECEBER') {
-            const bruto = parseFloat(l.valor_total) || 0;
-            const trib = parseFloat(l.valor_tributo_total) || ( (parseFloat(l.valor_inss)||0) + (parseFloat(l.valor_iss)||0) + (parseFloat(l.valor_ir)||0) );
-            const liquido = Math.max(0, bruto - trib);
-            valValido = parseFloat(l.valor_pago) || liquido;
-            valPrevisao = liquido;
-        } else {
-            valValido = parseFloat(l.valor_pago) || parseFloat(l.valor_total) || 0;
-            valPrevisao = parseFloat(l.valor_total) || parseFloat(l.valor_pago) || 0;
-        }
+            if (l.tipo === 'RECEBER') {
+                const bruto = parseFloat(l.valor_total) || 0;
+                const trib = parseFloat(l.valor_tributo_total) || ( (parseFloat(l.valor_inss)||0) + (parseFloat(l.valor_iss)||0) + (parseFloat(l.valor_ir)||0) );
+                const liquido = Math.max(0, bruto - trib);
+                valValido = parseFloat(l.valor_pago) || liquido;
+                valPrevisao = liquido;
+            } else {
+                valValido = parseFloat(l.valor_pago) || parseFloat(l.valor_total) || 0;
+                valPrevisao = parseFloat(l.valor_total) || parseFloat(l.valor_pago) || 0;
+            }
 
-        const targetMonth = (anoMes === keyAnt) ? totalsByCat[catId].ant : ((anoMes === keyAtual) ? totalsByCat[catId].atual : totalsByCat[catId].post);
+            const targetMonth = (anoMes === keyAnt) ? totalsByCat[catId].ant : ((anoMes === keyAtual) ? totalsByCat[catId].atual : totalsByCat[catId].post);
 
-        if (isPago) {
-            if (!viewSuccess) targetMonth.pago += valValido;
-        } else {
-            // Contas em aberto entram SEMPRE na Previsão (Laranja) utilizando Valor Líquido para Recebimentos
-            targetMonth.prev += valPrevisao;
-        }
-    });
+            if (isPago) {
+                targetMonth.pago += valValido;
+            } else {
+                targetMonth.prev += valPrevisao;
+            }
+        });
+    }
 
     // 3. Rollup Hierárquico dos Valores por Código de Plano de Contas
     const categorias = [...(state.categorias || [])].sort((a,b) => a.codigo.localeCompare(b.codigo, undefined, { numeric: true }));
@@ -3062,7 +3063,7 @@ function setupEventListeners() {
     // Auto-calculo de total ao abrir/alterar campos? 
 }
 
-     async function viewEntry(id) {
+    async function viewEntry(id) {
     console.log("Visualizando lançamento ID:", id);
     try {
         const l = state.lancamentos.find(item => item.id === id);
@@ -3074,8 +3075,48 @@ function setupEventListeners() {
         const modal = document.getElementById('viewModal');
         if (!modal) return;
 
+        // Se o lançamento for de COMPRAS ou tiver compra_id, podemos recuperar dados originais da nota se estiverem ausentes
+        let compraData = null;
+        let especieNomeComp = null;
+        let formaPgtoNomeComp = null;
+
+        if (l.compra_id || l.origem_modulo === 'COMPRAS') {
+            try {
+                if (l.compra_id) {
+                    const { data: compRes } = await supabaseClient
+                        .from('compras')
+                        .select('*')
+                        .eq('id', l.compra_id)
+                        .maybeSingle();
+                    if (compRes) {
+                        compraData = compRes;
+
+                        if (compRes.especie_id) {
+                            const { data: espRes } = await supabaseClient
+                                .from('especies_nota')
+                                .select('nome')
+                                .eq('id', compRes.especie_id)
+                                .maybeSingle();
+                            if (espRes && espRes.nome) especieNomeComp = espRes.nome;
+                        }
+
+                        if (compRes.forma_pagamento_id) {
+                            const { data: pgtoRes } = await supabaseClient
+                                .from('formas_pagamento')
+                                .select('nome')
+                                .eq('id', compRes.forma_pagamento_id)
+                                .maybeSingle();
+                            if (pgtoRes && pgtoRes.nome) formaPgtoNomeComp = pgtoRes.nome;
+                        }
+                    }
+                }
+            } catch (cErr) {
+                console.warn("Aviso ao carregar dados da compra vinculada:", cErr);
+            }
+        }
+
         // 1. Código e Valores
-        document.getElementById('viewCod').innerText = l.codigo_sequencial || '-';
+        document.getElementById('viewCod').innerText = l.codigo_sequencial || (compraData ? `NC-${compraData.numero_nota || compraData.id.slice(0,6)}` : '-');
         document.getElementById('viewValor').innerText = formatCurrency(l.valor_total);
         document.getElementById('viewVenc').innerText = formatDate(l.data_vencimento || l.previsao_pagamento);
         
@@ -3095,7 +3136,7 @@ function setupEventListeners() {
         }
 
         // Cliente / Entidade & CNPJ
-        document.getElementById('viewEntidade').innerText = l.entidade_nome || '-';
+        document.getElementById('viewEntidade').innerText = l.entidade_nome || (compraData ? compraData.fornecedor_nome : '-');
         
         let docCliente = l.cnpj_cpf || '';
         if (!docCliente && state.clientes) {
@@ -3108,19 +3149,62 @@ function setupEventListeners() {
         }
         document.getElementById('viewCNPJ').innerText = docCliente ? `CNPJ/CPF: ${maskCnpjCpf(docCliente)}` : 'CNPJ/CPF: Não informado';
 
-        // Categoria
-        const cat = state.categorias.find(c => c.id === l.categoria_id);
-        document.getElementById('viewCategoria').innerText = `Categoria: ${cat ? `${cat.codigo} - ${cat.nome}` : '-'}`;
+        // Categoria / Plano de Contas
+        const catId = l.categoria_id || (compraData ? compraData.categoria_id : null);
+        let cat = (state.categorias || []).find(c => c.id === catId);
+        let planoText = '-';
+        if (cat) {
+            planoText = `${cat.codigo ? cat.codigo + ' - ' : ''}${cat.nome}`;
+        } else if (catId) {
+            try {
+                const { data: dbCat } = await supabaseClient.from('fin_plano_contas').select('codigo, nome').eq('id', catId).maybeSingle();
+                if (dbCat) {
+                    planoText = `${dbCat.codigo ? dbCat.codigo + ' - ' : ''}${dbCat.nome}`;
+                }
+            } catch (eCat) {
+                console.warn("Aviso ao buscar plano de contas:", eCat);
+            }
+        }
+        document.getElementById('viewCategoria').innerText = `Plano de Contas: ${planoText}`;
 
         // Documentos & Tipos
-        document.getElementById('viewDoc').innerText = `NF: ${l.num_nf || '-'}${l.serie_nf ? ' (Série ' + l.serie_nf + ')' : ''}`;
-        document.getElementById('viewTipoNotaVal').innerText = l.tipo_nota || '-';
-        document.getElementById('viewFormaPagamentoVal').innerText = l.forma_pagamento || '-';
+        const numNfVal = l.num_nf || (compraData ? compraData.numero_nota : null);
+        document.getElementById('viewDoc').innerText = `NF: ${numNfVal || '-'}${l.serie_nf ? ' (Série ' + l.serie_nf + ')' : ''}`;
+
+        const tipoNotaVal = l.tipo_nota || especieNomeComp || (compraData ? compraData.especie_nota : null);
+        document.getElementById('viewTipoNotaVal').innerText = tipoNotaVal || '-';
+
+        // Resolução da Forma de Pagamento (tratando UUIDs)
+        let formaPgtoVal = l.forma_pagamento || formaPgtoNomeComp;
+        if (!formaPgtoVal || (formaPgtoVal.length === 36 && formaPgtoVal.includes('-'))) {
+            const targetUuid = (formaPgtoVal && formaPgtoVal.length === 36) ? formaPgtoVal : (compraData ? compraData.forma_pagamento_id : null);
+            if (targetUuid) {
+                const foundPgto = (state.formasPagamento || []).find(p => p.id === targetUuid) || (state.tiposPgto || []).find(p => p.id === targetUuid);
+                if (foundPgto && foundPgto.nome) {
+                    formaPgtoVal = foundPgto.nome;
+                } else if (formaPgtoNomeComp) {
+                    formaPgtoVal = formaPgtoNomeComp;
+                }
+            }
+        }
+        document.getElementById('viewFormaPagamentoVal').innerText = formaPgtoVal || '-';
 
         // Datas e Prazos
-        document.getElementById('viewEmissaoVal').innerText = formatDate(l.data_emissao);
-        document.getElementById('viewCompetenciaVal').innerText = l.data_competencia ? l.data_competencia.substring(0, 7) : '-';
-        document.getElementById('viewPrazoVal').innerText = l.prazo_pagamento ? `${l.prazo_pagamento} dias` : '-';
+        const dataEmissaoVal = l.data_emissao || (compraData ? compraData.data_emissao : null);
+        document.getElementById('viewEmissaoVal').innerText = formatDate(dataEmissaoVal);
+        
+        const dataCompVal = l.data_competencia || (compraData ? (compraData.data_competencia || compraData.data_emissao) : null);
+        document.getElementById('viewCompetenciaVal').innerText = dataCompVal ? dataCompVal.substring(0, 7) : '-';
+
+        let prazoVal = l.prazo_pagamento || (compraData ? compraData.prazo_pagamento : null);
+        if (!prazoVal && dataEmissaoVal && (l.data_vencimento || l.previsao_pagamento)) {
+            const d1 = new Date(dataEmissaoVal + 'T00:00:00');
+            const d2 = new Date((l.data_vencimento || l.previsao_pagamento) + 'T00:00:00');
+            if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+                prazoVal = Math.max(0, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)));
+            }
+        }
+        document.getElementById('viewPrazoVal').innerText = prazoVal ? `${prazoVal} dias` : '-';
         
         const dataPgtoWrapper = document.getElementById('viewDataPagamentoWrapper');
         if (l.data_pagamento || l.status === 'PAGO') {
@@ -3169,7 +3253,7 @@ function setupEventListeners() {
                 itemsList.innerHTML = itens.map(i => `
                     <tr>
                         <td style="padding: 0.8rem;">
-                            <div style="font-weight:700;">${i.descricao || 'Item sem descrição'}</div>
+                            <div style="font-weight:700;">${i.descricao || i.produto || i.nome || 'Item sem descrição'}</div>
                             <div style="font-size:0.75rem; opacity:0.7;">${i.tipo || 'SERVICO'}</div>
                         </td>
                         <td style="padding: 0.8rem; text-align:center;">${i.quantidade}</td>
@@ -3177,6 +3261,34 @@ function setupEventListeners() {
                         <td style="padding: 0.8rem; text-align:right; font-weight:800;">${formatCurrency(i.quantidade * i.valor_unitario)}</td>
                     </tr>
                 `).join('');
+            } else if (l.compra_id) {
+                // Fallback: carregar itens de compra_itens se fin_lancamento_itens estiver vazio
+                const { data: compItens } = await supabaseClient.from('compra_itens').select('*').eq('compra_id', l.compra_id);
+                if (compItens && compItens.length > 0) {
+                    itemsList.innerHTML = compItens.map(i => `
+                        <tr>
+                            <td style="padding: 0.8rem;">
+                                <div style="font-weight:700;">${i.produto || i.descricao || i.nome || 'Item da Compra'}</div>
+                                <div style="font-size:0.75rem; opacity:0.7;">${(i.tipo || 'PRODUTO').toUpperCase()}</div>
+                            </td>
+                            <td style="padding: 0.8rem; text-align:center;">${i.quantidade || 1}</td>
+                            <td style="padding: 0.8rem; text-align:right;">${formatCurrency(i.valor_unitario || i.valor_total || 0)}</td>
+                            <td style="padding: 0.8rem; text-align:right; font-weight:800;">${formatCurrency((i.quantidade || 1) * (i.valor_unitario || i.valor_total || 0))}</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    itemsList.innerHTML = `
+                        <tr>
+                            <td style="padding: 0.8rem;">
+                                <div style="font-weight:700;">${l.descricao || 'Lançamento Geral'}</div>
+                                <div style="font-size:0.75rem; opacity:0.7;">SINTÉTICO</div>
+                            </td>
+                            <td style="padding: 0.8rem; text-align:center;">1</td>
+                            <td style="padding: 0.8rem; text-align:right;">${formatCurrency(l.valor_total)}</td>
+                            <td style="padding: 0.8rem; text-align:right; font-weight:800;">${formatCurrency(l.valor_total)}</td>
+                        </tr>
+                    `;
+                }
             } else {
                 itemsList.innerHTML = `
                     <tr>
