@@ -2865,13 +2865,13 @@ async function handleSaveCompra(e) {
     
             for (const it of compraData.itens) {
                 if (it.estoque && it.produtoId) {
-                    try {
+                        const activeUser = (window.currentUserAccess?.nome_completo || window.currentUserAccess?.nome || window.currentUser?.email || localStorage.getItem('user_email') || 'SISTEMA COMPRAS').toUpperCase();
                         await client.from('estoque_movimentacoes').insert([{
                             item_id: it.produtoId,
                             tipo: 'ENTRADA',
                             quantidade: it.quantidade,
                             motivo: `COMPRA: Nota #${compraData.numeroNota} | ${fornNome}`,
-                            responsavel: 'SISTEMA COMPRAS',
+                            responsavel: activeUser,
                             valor_unitario: it.valorUnitario,
                             data: new Date().toISOString(),
                             empresa_id: window.currentEmpresaId || null

@@ -892,9 +892,22 @@ function closeProductViewModal() {
     currentViewingId = null;
 }
 
+function getCurrentUserEmail() {
+    if (window.currentUser && window.currentUser.email) {
+        return window.currentUser.email.toLowerCase();
+    }
+    if (window.currentUserAccess && window.currentUserAccess.email) {
+        return window.currentUserAccess.email.toLowerCase();
+    }
+    const localEmail = localStorage.getItem('user_email');
+    if (localEmail) return localEmail.toLowerCase();
+    return '';
+}
+
 async function loadProductHistory(productId) {
     const tbody = document.getElementById('view_prod_history_body');
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 2rem;">Carregando histórico...</td></tr>';
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 2rem;">Carregando histórico...</td></tr>';
 
     try {
         const { data, error } = await supabaseClient
@@ -903,7 +916,7 @@ async function loadProductHistory(productId) {
             .eq('item_id', productId)
             .order('created_at', { ascending: false })
             .order('data', { ascending: false })
-            .limit(20);
+            .limit(25);
 
         if (error) throw error;
 
@@ -955,7 +968,19 @@ async function loadProductHistory(productId) {
                 }
                 
                 const isCancelled = h.motivo && h.motivo.includes('[CANCELADA]');
-                
+
+                let cellContent = '';
+                if (isAjuste) {
+                    const reasonClean = h.motivo.replace('[AJUSTE] ', '');
+                    const userEmail = (h.responsavel && h.responsavel.includes('@')) ? h.responsavel : '';
+                    cellContent = `
+                        <div style="font-size: 0.75rem; color: #334155; font-weight: 600;">${reasonClean}</div>
+                        ${userEmail ? `<div style="font-size: 0.68rem; color: #94a3b8; font-weight: 500; margin-top: 2px;">por ${userEmail}</div>` : ''}
+                    `;
+                } else {
+                    cellContent = (h.motivo || '---').replace(' | ', '<br><span style="color:#059669; font-weight:700;">');
+                }
+
                 row.innerHTML = `
                     <td style="color: #334155; font-size: 0.75rem; font-weight: 600; padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9;">${date}</td>
                     <td style="padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9;"><span style="color: ${isCancelled ? '#9ca3af' : color}; font-weight: 800; font-size: 0.72rem; ${isCancelled ? 'text-decoration: line-through;' : ''}">${displayTipo}</span></td>
@@ -963,7 +988,7 @@ async function loadProductHistory(productId) {
                     <td style="font-weight: 900; color: #059669; text-align: center; font-size: 0.85rem; padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9;">${Math.round(rowSaldo)}</td>
                     <td style="color: #0f172a; font-weight: 700; padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9; ${isCancelled ? 'text-decoration: line-through;' : ''}">R$ ${parseFloat(h.valor_unitario || 0).toFixed(2)}</td>
                     <td style="font-size: 0.75rem; color: ${isCancelled ? '#ef4444' : '#475569'}; font-weight: ${isCancelled ? '700' : '500'}; padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9;">
-                        ${isAjuste ? h.motivo.replace('[AJUSTE] ', '') : (h.motivo || '---').replace(' | ', '<br><span style="color:#059669; font-weight:700;">')}</span>
+                        ${cellContent}
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -973,7 +998,7 @@ async function loadProductHistory(productId) {
         }
     } catch (err) {
         console.error('Erro ao carregar histórico do produto:', err);
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 2rem; color: #ef4444;">Erro ao carregar histórico.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 2rem; color: #ef4444;">Erro ao carregar histórico.</td></tr>';
     }
 }
 
@@ -1008,7 +1033,8 @@ async function saveQuickAdjustment() {
     }
 
     const absoluteDiff = Math.abs(diff);
-    const dbTipo = diff > 0 ? 'ENTRADA' : 'SAIDA'; // Use compatible types for DB check constraint
+    const dbTipo = diff > 0 ? 'ENTRADA' : 'SAIDA';
+    const userEmail = getCurrentUserEmail();
 
     try {
         const movementObj = {
@@ -1016,9 +1042,10 @@ async function saveQuickAdjustment() {
             tipo: dbTipo,
             quantidade: absoluteDiff,
             motivo: `[AJUSTE] ${reason}`,
-            responsavel: 'SISTEMA (AJUSTE)',
+            responsavel: userEmail || 'operador@frotalink.com',
             valor_unitario: item.valor_custo,
             data: new Date().toISOString(),
+            empresa_id: window.currentEmpresaId || null,
             ...(dbTipo === 'SAIDA' ? { plano_contas_codigo: '04.018.0091', plano_contas_nome: 'SAIDAS DE ESTOQUE' } : {})
         };
 
