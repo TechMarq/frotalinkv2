@@ -65,10 +65,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadMaintenanceConfigs(); 
         await loadConfigFromSupabase(); 
         
-        // Initialize "month" filter by default BEFORE loading compras so start/end inputs are ready
+        // Initialize "all" filter by default BEFORE loading compras so all purchases are visible on load
         const datePreset = document.getElementById('filterDatePreset');
         if (datePreset) {
-            datePreset.value = 'month';
+            datePreset.value = 'all';
             handleDatePresetChange(datePreset, false);
         }
 
@@ -379,20 +379,7 @@ async function loadCompras(startDate, endDate) {
         const sDate = startDate !== undefined ? startDate : (startInput ? startInput.value : '');
         const eDate = endDate !== undefined ? endDate : (endInput ? endInput.value : '');
 
-        let query = client.from('compras').select('*').order('data_emissao', { ascending: false });
-
-        if (sDate) {
-            query = query.gte('data_emissao', sDate);
-        }
-        if (eDate) {
-            query = query.lte('data_emissao', eDate);
-        }
-
-        if (!sDate && !eDate) {
-            query = query.limit(500);
-        } else {
-            query = query.limit(2000);
-        }
+        let query = client.from('compras').select('*').order('data_emissao', { ascending: false }).limit(2000);
 
         let { data: cloudCompras, error: cErr } = await query;
         if (cErr) throw cErr;
@@ -487,44 +474,44 @@ async function loadCompras(startDate, endDate) {
         });
 
         // 4. RECOVERY LOGIC: Check for "orphaned" maintenance records that have a Purchase ID
-        const { data: maintItems, error: mErr } = await client.from('manutencao_itens').select('*, manutencoes(*)').filter('descricao', 'ilike', '%[ID:%');
-        
-        if (mErr) console.warn("⚠️ Erro ao buscar manutenções para recuperação:", mErr);
-
-        if (maintItems && maintItems.length > 0) {
-            const purchaseIdsInCloud = new Set(mappedCompras.map(c => c.id));
-            const purchaseIdsInLocal = new Set(compras.map(c => c.id));
+        try {
+            const { data: maintItems, error: mErr } = await client.from('manutencao_itens').select('*, manutencoes(*)').filter('descricao', 'ilike', '%[ID:%');
             
-            maintItems.forEach(mi => {
-                const match = mi.descricao.match(/\[ID:([^\]]+)\]/);
-                if (match) {
-                    const pId = match[1];
-                    // Skip if already in cloud or local
-                    if (!purchaseIdsInCloud.has(pId) && !purchaseIdsInLocal.has(pId)) {
-                        
-                        // Handle case where manutencoes might be an array or object
-                        const m = Array.isArray(mi.manutencoes) ? mi.manutencoes[0] : mi.manutencoes;
-                        
-                        if (m) {
-                            mappedCompras.push({
-                                id: pId,
-                                data: m.data,
-                                numeroNota: 'RECUPERADA',
-                                fornecedorId: m.oficina_id || m.fornecedor_id, // Try both
-                                valorTotal: parseFloat(mi.valor_servicos || 0) + parseFloat(mi.valor_pecas || 0),
-                                itens: [{
-                                    produto: mi.descricao.replace(/\[ID:[^\]]+\]/, '').trim(),
-                                    quantidade: 1,
-                                    valorUnitario: parseFloat(mi.valor_servicos || 0) + parseFloat(mi.valor_pecas || 0),
-                                    tipo: 'servico'
-                                }],
-                                recuperada: true
-                            });
-                            purchaseIdsInCloud.add(pId); // Avoid duplicates for same ID
+            if (mErr) console.warn("⚠️ Erro ao buscar manutenções para recuperação:", mErr);
+
+            if (maintItems && maintItems.length > 0) {
+                const purchaseIdsInCloud = new Set(mappedCompras.map(c => c.id));
+                const purchaseIdsInLocal = new Set(compras.map(c => c.id));
+                
+                maintItems.forEach(mi => {
+                    const match = mi.descricao.match(/\[ID:([^\]]+)\]/);
+                    if (match) {
+                        const pId = match[1];
+                        if (!purchaseIdsInCloud.has(pId) && !purchaseIdsInLocal.has(pId)) {
+                            const m = Array.isArray(mi.manutencoes) ? mi.manutencoes[0] : mi.manutencoes;
+                            if (m) {
+                                mappedCompras.push({
+                                    id: pId,
+                                    data: m.data,
+                                    numeroNota: 'RECUPERADA',
+                                    fornecedorId: m.oficina_id || m.fornecedor_id,
+                                    valorTotal: parseFloat(mi.valor_servicos || 0) + parseFloat(mi.valor_pecas || 0),
+                                    itens: [{
+                                        produto: mi.descricao.replace(/\[ID:[^\]]+\]/, '').trim(),
+                                        quantidade: 1,
+                                        valorUnitario: parseFloat(mi.valor_servicos || 0) + parseFloat(mi.valor_pecas || 0),
+                                        tipo: 'servico'
+                                    }],
+                                    recuperada: true
+                                });
+                                purchaseIdsInCloud.add(pId);
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
+        } catch (recErr) {
+            console.warn("⚠️ Aviso na rotina de recuperação de manutenções:", recErr);
         }
 
         // 5. Update local state
@@ -3242,7 +3229,7 @@ function renderCompras() {
     const search = norm(searchInput?.value);
     
     let filtered = compras.filter(c => {
-        const fornecedorObj = config.fornecedores.find(f => f.id == c.fornecedorId) || {};
+        const fornecedorObj = (config.fornecedores || []).find(f => f.id == c.fornecedorId) || {};
         
         // Coletar placas vinculadas aos itens para busca
         const itemPlacas = (c.itens || c.items || []).map(it => {
@@ -3267,14 +3254,14 @@ function renderCompras() {
     });
 
     // --- APLICAR FILTROS RÁPIDOS ---
-    const filterStart = document.getElementById('filterDateStart').value;
-    const filterEnd = document.getElementById('filterDateEnd').value;
-    const filterEsp = document.getElementById('filterEspecie').value;
-    const filterForn = document.getElementById('filterFornecedor').value;
-    const filterPlaca = document.getElementById('filterPlaca').value;
-    const filterPai = document.getElementById('filterCentroPai').value;
-    const filterCusto = document.getElementById('filterCusto').value;
-    const filterPgto = document.getElementById('filterPagamento').value;
+    const filterStart = document.getElementById('filterDateStart')?.value || '';
+    const filterEnd = document.getElementById('filterDateEnd')?.value || '';
+    const filterEsp = document.getElementById('filterEspecie')?.value || '';
+    const filterForn = document.getElementById('filterFornecedor')?.value || '';
+    const filterPlaca = document.getElementById('filterPlaca')?.value || '';
+    const filterPai = document.getElementById('filterCentroPai')?.value || '';
+    const filterCusto = document.getElementById('filterCusto')?.value || '';
+    const filterPgto = document.getElementById('filterPagamento')?.value || '';
 
     filtered = filtered.filter(c => {
         const cDate = toStandardYYYYMMDD(c.data || c.data_emissao);
@@ -3291,7 +3278,7 @@ function renderCompras() {
 
         if (filterPai) {
             const hasPai = (c.itens || []).some(it => {
-                const cc = config.centrosCusto.find(x => x.id == it.centroCustoId);
+                const cc = (config.centrosCusto || []).find(x => x.id == it.centroCustoId);
                 return cc && cc.parentId == filterPai;
             });
             if (!hasPai) return false;
@@ -3318,8 +3305,8 @@ function renderCompras() {
                 valB = (b.numeroNota || '').toString();
                 return currentSort.dir === 'asc' ? valA.localeCompare(valB, undefined, {numeric: true}) : valB.localeCompare(valA, undefined, {numeric: true});
             case 'fornecedor':
-                valA = (config.fornecedores.find(f => f.id == a.fornecedorId)?.nome || '').toLowerCase();
-                valB = (config.fornecedores.find(f => f.id == b.fornecedorId)?.nome || '').toLowerCase();
+                valA = ((config.fornecedores || []).find(f => f.id == a.fornecedorId)?.nome || '').toLowerCase();
+                valB = ((config.fornecedores || []).find(f => f.id == b.fornecedorId)?.nome || '').toLowerCase();
                 break;
             case 'especie':
                 valA = ((config.especiesNota || []).find(e => e.id == a.especieId)?.nome || '').toLowerCase();
@@ -4125,9 +4112,9 @@ function updateFilterOptionsDynamically(originId = null) {
         filterEspecie: { key: 'especieId', list: config.especiesNota || [], label: 'Todas as Espécies' },
         filterFornecedor: { key: 'fornecedorId', list: config.fornecedores || [], label: 'Todos os Fornecedores' },
         filterPlaca: { key: 'veiculoId', list: vehicles || [], label: 'Todas as Placas', isVehicle: true },
-        filterCentroPai: { key: 'parentId', list: config.centrosCusto.filter(c => !c.parentId) || [], label: 'Todos os Centros', isParent: true },
+        filterCentroPai: { key: 'parentId', list: (config.centrosCusto || []).filter(c => !c.parentId) || [], label: 'Todos os Centros', isParent: true },
         filterPagamento: { key: 'formaPgtoId', list: config.tiposPgto || [], label: 'Todas as Formas' },
-        filterCusto: { key: 'centroCustoId', list: config.centrosCusto.filter(c => !!c.parentId) || [], label: 'Todos os Subcentros', isItem: true }
+        filterCusto: { key: 'centroCustoId', list: (config.centrosCusto || []).filter(c => !!c.parentId) || [], label: 'Todos os Subcentros', isItem: true }
     };
 
     Object.keys(selects).forEach(id => {
@@ -4154,7 +4141,7 @@ function updateFilterOptionsDynamically(originId = null) {
             // Filtro Pai
             if (id !== 'filterCentroPai' && filters.pai) {
                 const hasPai = (c.itens || []).some(it => {
-                    const cc = config.centrosCusto.find(x => x.id == it.centroCustoId);
+                    const cc = (config.centrosCusto || []).find(x => x.id == it.centroCustoId);
                     return cc && cc.parentId == filters.pai;
                 });
                 if (!hasPai) return false;
@@ -4177,7 +4164,7 @@ function updateFilterOptionsDynamically(originId = null) {
         } else if (item.isParent) {
              availableRecords.forEach(r => {
                  (r.itens || []).forEach(it => {
-                     const cc = config.centrosCusto.find(x => x.id == it.centroCustoId);
+                     const cc = (config.centrosCusto || []).find(x => x.id == it.centroCustoId);
                      if (cc && cc.parentId) availableIds.push(cc.parentId);
                  });
              });
@@ -5112,9 +5099,6 @@ window.integrarAoFinanceiro = async () => {
                 localComp.data_integracao = new Date().toISOString();
                 localComp.dataIntegracao = localComp.data_integracao;
             }
-            
-            const pgto = config.tiposPgto.find(p => p.id === comp.forma_pagamento_id);
-            const formaPagamentoNome = pgto ? pgto.nome : '-';
             
             const isParcelado = comp.financeiro_parcelado || (comp.qtd_parcelas && comp.qtd_parcelas > 1);
             let vencimentoRaw = getVencimentoCompra(comp) || comp.data_vencimento || comp.data_emissao;
