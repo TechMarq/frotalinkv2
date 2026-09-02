@@ -1762,15 +1762,19 @@ th.active-sort i {
 }
 
 .autocomplete-results {
-    position: fixed;
-    background: #1e293b;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    width: 100%;
+    background: #ffffff;
+    border: 1px solid rgba(45, 158, 107, 0.25);
     border-radius: 12px;
-    z-index: 99999;
+    z-index: 100000;
     max-height: 250px;
     overflow-y: auto;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
     display: none;
+    box-sizing: border-box;
 }
 
 .autocomplete-item {
@@ -2166,4 +2170,395 @@ th.active-sort i {
 .clickable-view-link:hover {
     text-decoration: underline !important;
     color: #10b981 !important;
+}
+
+/* Chips de Seleção de Tipo de Favorecido no Modal de Entrada */
+.fav-type-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-bottom: 0.35rem;
+}
+
+.fav-chip {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-muted, #94a3b8);
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.2rem 0.55rem;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    user-select: none;
+}
+
+.fav-chip:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.fav-chip.active {
+    background: rgba(92, 96, 245, 0.18);
+    border-color: rgba(92, 96, 245, 0.5);
+    color: #818cf8;
+    font-weight: 700;
+}
+
+[data-theme="green_pastel"] .fav-chip {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    color: #64748b;
+}
+
+[data-theme="green_pastel"] .fav-chip:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+[data-theme="green_pastel"] .fav-chip.active {
+    background: rgba(45, 158, 107, 0.12) !important;
+    border-color: #2d9e6b !important;
+    color: #1a7a50 !important;
+    font-weight: 700;
+}
+
+/* Item de Autocomplete de Favorecido (Linha Única & Discreta) */
+.fav-autocomplete-item {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 0.55rem 0.85rem !important;
+    gap: 0.75rem;
+}
+
+.fav-item-main {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.fav-item-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #f8fafc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+[data-theme="green_pastel"] .fav-item-name {
+    color: #1e293b;
+}
+
+.fav-item-doc {
+    font-size: 0.7rem;
+    color: #64748b;
+    font-family: 'JetBrains Mono', monospace, sans-serif;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Micro Badges Sutis */
+.fav-badge {
+    font-size: 0.58rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    letter-spacing: 0.02rem;
+    flex-shrink: 0;
+}
+
+.fav-badge-fornecedor {
+    background: rgba(2, 132, 199, 0.12);
+    color: #38bdf8;
+    border: 1px solid rgba(2, 132, 199, 0.25);
+}
+
+.fav-badge-frota {
+    background: rgba(16, 185, 129, 0.12);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.fav-badge-dp {
+    background: rgba(139, 92, 246, 0.12);
+    color: #a78bfa;
+    border: 1px solid rgba(139, 92, 246, 0.25);
+}
+
+.fav-badge-comercial {
+    background: rgba(245, 158, 11, 0.12);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.fav-badge-cliente {
+    background: rgba(236, 72, 153, 0.12);
+    color: #f472b6;
+    border: 1px solid rgba(236, 72, 153, 0.25);
+}
+
+[data-theme="green_pastel"] .fav-badge-fornecedor {
+    background: #e0f2fe;
+    color: #0284c7;
+    border-color: #bae6fd;
+}
+
+[data-theme="green_pastel"] .fav-badge-frota {
+    background: #d1fae5;
+    color: #059669;
+    border-color: #a7f3d0;
+}
+
+[data-theme="green_pastel"] .fav-badge-dp {
+    background: #ede9fe;
+    color: #7c3aed;
+    border-color: #ddd6fe;
+}
+
+[data-theme="green_pastel"] .fav-badge-comercial {
+    background: #fef3c7;
+    color: #d97706;
+    border-color: #fde68a;
+}
+
+[data-theme="green_pastel"] .fav-badge-cliente {
+    background: #fce7f3;
+    color: #db2777;
+    border-color: #fbcfe8;
+}
+
+/* ── Estilos Compactos e Alinhados para Custos Adicionais e Descontos ── */
+.compact-subrow {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.8rem;
+    background: #ffffff;
+    border: 1px solid rgba(45, 158, 107, 0.2);
+    border-radius: 10px;
+    margin-bottom: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    transition: all 0.2s ease;
+}
+
+.compact-subrow.discount-row {
+    border-color: rgba(239, 68, 68, 0.25);
+    background: rgba(254, 242, 242, 0.6);
+}
+
+.compact-subrow:hover {
+    border-color: rgba(45, 158, 107, 0.4);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.compact-subrow.discount-row:hover {
+    border-color: rgba(239, 68, 68, 0.45);
+}
+
+.compact-subrow .compact-input-desc {
+    flex: 1;
+    min-width: 0;
+    height: 38px;
+    padding: 0 0.8rem;
+    font-size: 0.85rem;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #0f172a;
+    box-sizing: border-box;
+}
+
+.compact-subrow .compact-input-desc:focus {
+    border-color: #2d9e6b;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(45, 158, 107, 0.15);
+}
+
+.compact-subrow.discount-row .compact-input-desc:focus {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+}
+
+.compact-subrow .compact-input-val {
+    width: 130px;
+    height: 38px;
+    padding: 0 0.8rem;
+    font-size: 0.88rem;
+    font-weight: 700;
+    text-align: right;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #0f172a;
+    box-sizing: border-box;
+}
+
+.compact-subrow .compact-input-val:focus {
+    border-color: #2d9e6b;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(45, 158, 107, 0.15);
+}
+
+.compact-subrow.discount-row .compact-input-val {
+    color: #dc2626;
+    font-weight: 800;
+}
+
+.compact-subrow.discount-row .compact-input-val:focus {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+}
+
+.compact-subrow .btn-remove-subrow {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    color: #dc2626;
+    border-radius: 8px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+
+.compact-subrow .btn-remove-subrow:hover {
+    background: #fecaca;
+    color: #b91c1c;
+    transform: scale(1.05);
+}
+
+.btn-add-subrow-block {
+    width: 100%;
+    padding: 0.6rem;
+    margin-top: 0.3rem;
+    margin-bottom: 1rem;
+    border-radius: 8px;
+    border: 1px dashed rgba(45, 158, 107, 0.4);
+    background: rgba(45, 158, 107, 0.04);
+    color: #2d9e6b;
+    font-weight: 700;
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    transition: all 0.2s;
+}
+
+.btn-add-subrow-block:hover {
+    background: rgba(45, 158, 107, 0.1);
+    border-color: #2d9e6b;
+    transform: translateY(-1px);
+}
+
+.btn-add-subrow-block.discount-btn {
+    border-color: rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.04);
+    color: #ef4444;
+}
+
+/* ==========================================================================
+   🌿 MULTI-SELECT PILLS / TAGS PARA FILTROS DE RELATÓRIO
+   ========================================================================== */
+.fhist-multi-container {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 42px;
+    padding: 0.35rem 0.5rem;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.6);
+    cursor: text;
+    transition: all 0.2s;
+    box-sizing: border-box;
+}
+
+[data-theme="green_pastel"] .fhist-multi-container {
+    background: #ffffff !important;
+    border-color: rgba(45, 158, 107, 0.25) !important;
+}
+
+.fhist-multi-container:focus-within {
+    border-color: #10b981 !important;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
+}
+
+.fhist-multi-input {
+    flex: 1;
+    min-width: 120px;
+    border: none !important;
+    outline: none !important;
+    background: transparent !important;
+    color: inherit;
+    font-size: 0.82rem;
+    padding: 0.2rem 0.3rem !important;
+    box-shadow: none !important;
+}
+
+.fhist-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.55rem;
+    background: rgba(16, 185, 129, 0.15);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 50px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    max-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    animation: fadeInTag 0.15s ease-out;
+}
+
+[data-theme="green_pastel"] .fhist-tag {
+    background: rgba(45, 158, 107, 0.12) !important;
+    color: #1a6b47 !important;
+    border-color: rgba(45, 158, 107, 0.3) !important;
+}
+
+.fhist-tag-remove {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.1);
+    color: inherit;
+    font-size: 10px;
+    line-height: 1;
+    transition: background 0.2s;
+}
+
+.fhist-tag-remove:hover {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+@keyframes fadeInTag {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.btn-add-subrow-block.discount-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: #ef4444;
 }

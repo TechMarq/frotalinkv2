@@ -65,10 +65,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadMaintenanceConfigs(); 
         await loadConfigFromSupabase(); 
         
-        // Initialize "all" filter by default BEFORE loading compras so all purchases are visible on load
+        // Initialize "month" filter by default BEFORE loading compras so only the current month is loaded & filtered
         const datePreset = document.getElementById('filterDatePreset');
         if (datePreset) {
-            datePreset.value = 'all';
+            datePreset.value = 'month';
             handleDatePresetChange(datePreset, false);
         }
 
@@ -379,7 +379,16 @@ async function loadCompras(startDate, endDate) {
         const sDate = startDate !== undefined ? startDate : (startInput ? startInput.value : '');
         const eDate = endDate !== undefined ? endDate : (endInput ? endInput.value : '');
 
-        let query = client.from('compras').select('*').order('data_emissao', { ascending: false }).limit(2000);
+        let query = client.from('compras').select('*').order('data_emissao', { ascending: false });
+
+        if (sDate) {
+            query = query.gte('data_emissao', sDate);
+        }
+        if (eDate) {
+            query = query.lte('data_emissao', eDate);
+        }
+
+        query = query.limit(2000);
 
         let { data: cloudCompras, error: cErr } = await query;
         if (cErr) throw cErr;
@@ -2865,6 +2874,7 @@ async function handleSaveCompra(e) {
     
             for (const it of compraData.itens) {
                 if (it.estoque && it.produtoId) {
+                    try {
                         const activeUser = (window.currentUserAccess?.nome_completo || window.currentUserAccess?.nome || window.currentUser?.email || localStorage.getItem('user_email') || 'SISTEMA COMPRAS').toUpperCase();
                         await client.from('estoque_movimentacoes').insert([{
                             item_id: it.produtoId,
@@ -3440,6 +3450,9 @@ function renderCompras() {
                 const isIntegrado = c.integradoFinanceiro || c.integrado_financeiro;
                 const dtInteg = c.dataIntegracao || c.data_integracao;
                 const isBaixadoDireto = c.baixado_sem_integrar || c.baixadoSemIntegrar;
+                const isRetornoFinanceiro = c.retorno_integracao || (c.observacoes && c.observacoes.includes('[RETORNO FINANCEIRO:'));
+                const motivoRetorno = c.motivo_retorno_integracao || 'Excluído no Financeiro';
+
                 if (isIntegrado) {
                     const dtFormat = dtInteg ? new Date(dtInteg).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
                     if (isBaixadoDireto) {
@@ -3447,6 +3460,8 @@ function renderCompras() {
                     } else {
                         integPgtoTag = `<div style="font-size:0.6rem; color:#10b981; font-weight:800; margin-top:4px; display:flex; align-items:center; gap:3px;"><i data-lucide="check-circle-2" style="width:10px; height:10px;"></i> Integrado ${dtFormat ? `(${dtFormat})` : ''}</div>`;
                     }
+                } else if (isRetornoFinanceiro) {
+                    integPgtoTag = `<div style="font-size:0.6rem; color:#ef4444; font-weight:800; margin-top:4px; display:flex; align-items:center; gap:3px;" title="${motivoRetorno}"><i data-lucide="alert-circle" style="width:10px; height:10px;"></i> Retornou da Integração (Excluída no Fin.)</div>`;
                 }
 
                 return `<td data-label="Pagamento">
@@ -4669,7 +4684,8 @@ function renderIntegracaoThead() {
         { key: 'fornecedor', label: 'Fornecedor', canSort: true },
         { key: 'forma_pagamento', label: 'Forma Pgto', canSort: true },
         { key: 'parcelado', label: 'Parcelado?', canSort: true },
-        { key: 'valor_total', label: 'Valor Total', canSort: true }
+        { key: 'valor_total', label: 'Valor Total', canSort: true },
+        { key: 'situacao', label: 'Situação / Origem', canSort: false }
     ];
 
     thead.innerHTML = `<tr>${cols.map(c => {
@@ -4719,7 +4735,7 @@ function renderIntegracaoTableOnly() {
     if (!tbody) return;
 
     if (comprasParaIntegracao.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">Nenhuma nota pendente de integração.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">Nenhuma nota pendente de integração.</td></tr>';
         return;
     }
 
@@ -4801,7 +4817,14 @@ function renderIntegracaoTableOnly() {
         const displayVenc = vencDate ? formatDateBR(vencDate) : '---';
         const isParcelado = comp.financeiro_parcelado || (comp.qtd_parcelas && comp.qtd_parcelas > 1);
 
+        const isRetornoFinanceiro = comp.retorno_integracao || (comp.observacoes && comp.observacoes.includes('[RETORNO FINANCEIRO:'));
+        const motivoRetorno = comp.motivo_retorno_integracao || (comp.observacoes && comp.observacoes.includes('[RETORNO FINANCEIRO:') ? 'Excluído no Setor Financeiro' : '');
+
         const tr = document.createElement('tr');
+        if (isRetornoFinanceiro) {
+            tr.style.background = 'rgba(239, 68, 68, 0.04)';
+        }
+
         tr.innerHTML = `
             <td><input type="checkbox" class="chk-integracao" value="${comp.id}"></td>
             <td>${formatDateBR(comp.data_emissao)}</td>
@@ -4814,9 +4837,20 @@ function renderIntegracaoTableOnly() {
             <td><span class="badge" style="background: rgba(255,255,255,0.1);">${formaNome}</span></td>
             <td>${comp.financeiro_parcelado ? `Sim (${comp.qtd_parcelas}x)` : 'Não'}</td>
             <td style="font-weight: 700; color: #10b981;">${formatCurrency(comp.valor_total)}</td>
+            <td>
+                ${isRetornoFinanceiro ? `
+                    <span style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:800; padding:3px 8px; border-radius:6px; background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3);" title="${motivoRetorno}">
+                        <i data-lucide="alert-circle" style="width:12px; height:12px;"></i> RETORNO (EXCLUÍDA NO FIN.)
+                    </span>
+                ` : `
+                    <span style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">Pendente de Envio</span>
+                `}
+            </td>
         `;
         tbody.appendChild(tr);
     });
+
+    if (window.lucide) lucide.createIcons();
 }
 
 async function renderIntegracao() {
@@ -5086,9 +5120,27 @@ window.integrarAoFinanceiro = async () => {
                 console.warn("Aviso ao vincular itens no fin_lancamento_itens:", eItens);
             }
             
-            const { error: updError } = await supabaseClient.from('compras')
-                .update({ integrado_financeiro: true, data_integracao: new Date().toISOString() })
+            const cleanObs = (comp.observacoes || '').replace(/\[RETORNO FINANCEIRO:[^\]]*\]\s*/g, '');
+            const updatePayload = { 
+                integrado_financeiro: true, 
+                data_integracao: new Date().toISOString(),
+                retorno_integracao: false,
+                motivo_retorno_integracao: null
+            };
+
+            let { error: updError } = await supabaseClient.from('compras')
+                .update(updatePayload)
                 .eq('id', comp.id);
+
+            if (updError && (updError.message.includes('retorno_integracao') || updError.message.includes('motivo_retorno_integracao'))) {
+                updError = (await supabaseClient.from('compras')
+                    .update({ 
+                        integrado_financeiro: true, 
+                        data_integracao: new Date().toISOString(),
+                        observacoes: cleanObs
+                    })
+                    .eq('id', comp.id)).error;
+            }
             if (updError) throw updError;
             
             // Atualizar estado local para refletir na aba imediatamente
@@ -5098,6 +5150,9 @@ window.integrarAoFinanceiro = async () => {
                 localComp.integradoFinanceiro = true;
                 localComp.data_integracao = new Date().toISOString();
                 localComp.dataIntegracao = localComp.data_integracao;
+                localComp.retorno_integracao = false;
+                localComp.retornoIntegracao = false;
+                localComp.motivo_retorno_integracao = null;
             }
             
             const isParcelado = comp.financeiro_parcelado || (comp.qtd_parcelas && comp.qtd_parcelas > 1);

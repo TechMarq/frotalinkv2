@@ -21,9 +21,9 @@
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
 
-    <link rel="stylesheet" href="style.css?v=20260729_05">
-    <link rel="stylesheet" href="orb_menu.css?v=20260729_05">
-    <link rel="stylesheet" href="financeiro.css?v=20260729_05">
+    <link rel="stylesheet" href="style.css?v=20260901_01">
+    <link rel="stylesheet" href="orb_menu.css?v=20260901_01">
+    <link rel="stylesheet" href="financeiro.css?v=20260901_01">
     <script src="config.js"></script>
 </head>
 
@@ -104,7 +104,7 @@
                     <div class="search-box">
                         <i data-lucide="search"></i>
                         <input type="text" id="pagarSearch"
-                            placeholder="Buscar por fornecedor, descrição, nota, placa..."
+                            placeholder="Buscar por fornecedor/favorecido, NF/Doc ou valor..."
                             oninput="filterFinancial('PAGAR', this.value)">
                     </div>
                     <div class="admin-actions" style="display:flex; gap:1rem; align-items:center;">
@@ -516,6 +516,10 @@
                             <button class="fhist-btn-gerar" onclick="openFornecedorModal()" style="height: 40px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; padding: 0 1.3rem;"><i
                                     data-lucide="plus"></i> Novo Fornecedor</button>
                         </div>
+                        <div class="search-box" style="margin: 0 0 1rem 0; max-width: 480px; position: relative;">
+                            <input type="text" id="fornecedorSearch" class="fhist-input" placeholder="Pesquisar por Razão Social, Nome Fantasia ou CNPJ/CPF..." oninput="renderConfig()" style="padding-left: 2.3rem; width: 100%; height: 40px; background: #ffffff; border: 1px solid rgba(45, 158, 107, 0.3); border-radius: 10px; color: #0f172a; font-size: 0.88rem; font-weight: 600;">
+                            <i data-lucide="search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: #059669;"></i>
+                        </div>
                         <div class="table-container">
                             <table>
                                 <thead>
@@ -619,9 +623,10 @@
                         border-radius: 16px;
                         padding: 1.5rem;
                         margin-bottom: 1.5rem;
-                        backdrop-filter: blur(12px);
                         box-shadow: 0 10px 30px rgba(0,0,0,0.2);
                         transition: background 0.3s, border-color 0.3s;
+                        position: relative;
+                        overflow: visible !important;
                     }
                     [data-theme="green_pastel"] .fhist-panel {
                         background: rgba(236, 253, 245, 0.85) !important;
@@ -689,24 +694,56 @@
                     }
                     .fhist-period-shortcuts {
                         display: flex;
-                        gap: 0.4rem;
-                        margin-top: 0.4rem;
+                        gap: 0.5rem;
+                        flex-wrap: wrap;
+                        align-items: center;
                     }
                     .btn-shortcut {
-                        background: rgba(255,255,255,0.05);
-                        border: 1px solid rgba(255,255,255,0.1);
-                        border-radius: 6px;
-                        color: var(--text-muted);
-                        padding: 0.2rem 0.5rem;
-                        font-size: 0.7rem;
-                        font-weight: 600;
+                        background: rgba(255, 255, 255, 0.08);
+                        border: 1px solid rgba(255, 255, 255, 0.15);
+                        border-radius: 8px;
+                        color: #f1f5f9;
+                        padding: 0.4rem 0.85rem;
+                        font-size: 0.78rem;
+                        font-weight: 700;
                         cursor: pointer;
-                        transition: all 0.2s;
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 0.35rem;
+                        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
                     }
                     .btn-shortcut:hover {
-                        background: rgba(99,102,241,0.2);
-                        color: #818cf8;
-                        border-color: #6366f1;
+                        background: rgba(16, 185, 129, 0.2);
+                        color: #34d399;
+                        border-color: #10b981;
+                        transform: translateY(-1px);
+                        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+                    }
+                    .btn-shortcut.active {
+                        background: linear-gradient(135deg, #10b981, #059669) !important;
+                        color: #ffffff !important;
+                        border-color: #10b981 !important;
+                        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4) !important;
+                    }
+                    [data-theme="green_pastel"] .btn-shortcut {
+                        background: #ffffff !important;
+                        border: 1.5px solid rgba(45, 158, 107, 0.35) !important;
+                        color: #1a6b47 !important;
+                        box-shadow: 0 2px 8px rgba(45, 158, 107, 0.12) !important;
+                    }
+                    [data-theme="green_pastel"] .btn-shortcut:hover {
+                        background: rgba(45, 158, 107, 0.12) !important;
+                        border-color: #2d9e6b !important;
+                        color: #0f4c30 !important;
+                        transform: translateY(-1px);
+                        box-shadow: 0 4px 14px rgba(45, 158, 107, 0.2) !important;
+                    }
+                    [data-theme="green_pastel"] .btn-shortcut.active {
+                        background: linear-gradient(135deg, #2d9e6b, #1e754d) !important;
+                        color: #ffffff !important;
+                        border-color: #2d9e6b !important;
+                        box-shadow: 0 4px 14px rgba(45, 158, 107, 0.35) !important;
                     }
                     .fhist-row2 {
                         display: flex;
@@ -785,16 +822,26 @@
                     .fhist-empty-icon svg { width: 30px; height: 30px; color: #10b981; opacity: 0.8; }
                     .fhist-empty-title { font-size: 1.05rem; font-weight: 700; color: #f1f5f9; }
                     .fhist-empty-sub { font-size: 0.85rem; color: #64748b; max-width: 420px; line-height: 1.5; }
-                    .fhist-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+                    .fhist-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
                     .fhist-chip {
                         display: inline-flex; align-items: center; gap: 0.35rem;
                         background: rgba(16,185,129,0.12);
                         border: 1px solid rgba(16,185,129,0.25);
                         border-radius: 50px;
-                        padding: 0.25rem 0.75rem;
-                        font-size: 0.73rem;
+                        padding: 0.3rem 0.85rem;
+                        font-size: 0.75rem;
                         font-weight: 600;
                         color: #34d399;
+                    }
+                    [data-theme="green_pastel"] .fhist-chip {
+                        background: #ffffff !important;
+                        border: 1.5px solid rgba(45, 158, 107, 0.3) !important;
+                        color: #1a6b47 !important;
+                        box-shadow: 0 2px 6px rgba(45, 158, 107, 0.08) !important;
+                    }
+                    [data-theme="green_pastel"] .fhist-chip strong {
+                        color: #0f4c30 !important;
+                        font-weight: 800 !important;
                     }
                     .fhist-result-header {
                         display: flex;
@@ -804,31 +851,43 @@
                         flex-wrap: wrap;
                         gap: 0.75rem;
                     }
-                    .fhist-result-count { font-size: 0.85rem; color: #94a3b8; }
-                    .fhist-result-count strong { color: #f1f5f9; }
+                    .fhist-result-count { font-size: 0.88rem; color: #64748b; font-weight: 600; }
+                    .fhist-result-count strong { color: #1e293b; font-weight: 800; }
+                    [data-theme="green_pastel"] .fhist-result-count { color: #5a7a6a !important; }
+                    [data-theme="green_pastel"] .fhist-result-count strong { color: #1a2e25 !important; }
                     .fhist-kpi-strip {
-                        display: flex;
+                        display: grid;
+                        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
                         gap: 1rem;
-                        flex-wrap: wrap;
-                        margin-bottom: 1.25rem;
+                        margin-bottom: 1.5rem;
                     }
                     .fhist-kpi {
-                        flex: 1;
-                        min-width: 150px;
-                        background: rgba(30,41,59,0.5);
-                        border: 1px solid rgba(255,255,255,0.07);
+                        background: #ffffff;
+                        border: 1px solid rgba(45, 158, 107, 0.18);
                         border-radius: 14px;
-                        padding: 1rem 1.25rem;
+                        padding: 1.1rem 1.25rem;
                         display: flex;
                         flex-direction: column;
-                        gap: 0.3rem;
+                        gap: 0.35rem;
+                        box-shadow: 0 4px 14px rgba(45, 158, 107, 0.06);
+                        transition: transform 0.2s, box-shadow 0.2s;
                     }
-                    .fhist-kpi-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05rem; color: #94a3b8; }
-                    .fhist-kpi-value { font-size: 1.4rem; font-weight: 800; }
-                    .fhist-kpi.pagar .fhist-kpi-value { color: #ef4444; }
-                    .fhist-kpi.receber .fhist-kpi-value { color: #10b981; }
-                    .fhist-kpi.saldo .fhist-kpi-value { color: #6366f1; }
-                    .fhist-kpi.qtd .fhist-kpi-value { color: #f59e0b; }
+                    .fhist-kpi:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 6px 20px rgba(45, 158, 107, 0.12);
+                    }
+                    [data-theme="green_pastel"] .fhist-kpi {
+                        background: #ffffff !important;
+                        border: 1px solid rgba(45, 158, 107, 0.2) !important;
+                        box-shadow: 0 4px 16px rgba(45, 158, 107, 0.06) !important;
+                    }
+                    .fhist-kpi-label { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05rem; color: #5a7a6a; }
+                    .fhist-kpi-value { font-size: 1.45rem; font-weight: 800; font-family: 'Inter', sans-serif; letter-spacing: -0.02rem; }
+                    .fhist-kpi.pagar .fhist-kpi-value { color: #dc2626 !important; }
+                    .fhist-kpi.receber .fhist-kpi-value { color: #16a34a !important; }
+                    .fhist-kpi.saldo .fhist-kpi-value { color: #2d9e6b !important; }
+                    .fhist-kpi.qtd .fhist-kpi-value { color: #d97706 !important; }
+                    .fhist-kpi.pago .fhist-kpi-value { color: #0284c7 !important; }
                 </style>
 
                 <!-- Painel de Filtros de Relatórios -->
@@ -876,42 +935,91 @@
                         </div>
                     </div>
 
-                    <!-- Atalhos rápidos de período -->
-                    <div style="display:flex; align-items:center; gap:0.6rem; margin-top:0.8rem;">
-                        <span style="font-size:0.7rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Atalhos de Período:</span>
+                    <!-- Atalhos rápidos de período com alto destaque -->
+                    <div style="display:flex; align-items:center; gap:0.8rem; margin-top:1rem; padding:0.6rem 0.9rem; background:rgba(45,158,107,0.06); border:1px solid rgba(45,158,107,0.18); border-radius:10px; flex-wrap:wrap;">
+                        <span style="font-size:0.75rem; font-weight:800; color:#2d9e6b; text-transform:uppercase; letter-spacing:0.04rem; display:inline-flex; align-items:center; gap:0.35rem;">
+                            <i data-lucide="calendar" style="width:15px; height:15px;"></i> Atalhos Rápidos:
+                        </span>
                         <div class="fhist-period-shortcuts">
-                            <button type="button" class="btn-shortcut" onclick="fhistSetPeriod('mes_atual')">Este Mês</button>
-                            <button type="button" class="btn-shortcut" onclick="fhistSetPeriod('mes_anterior')">Mês Passado</button>
-                            <button type="button" class="btn-shortcut" onclick="fhistSetPeriod('ano_atual')">Ano Atual</button>
-                            <button type="button" class="btn-shortcut" onclick="fhistSetPeriod('limpar')">Todo o Período</button>
+                            <button type="button" class="btn-shortcut active" id="btn-period-personalizado" onclick="fhistSetPeriod('personalizado', this)">
+                                <i data-lucide="sliders-horizontal" style="width:13px; height:13px;"></i> Personalizado
+                            </button>
+                            <button type="button" class="btn-shortcut" id="btn-period-mes_atual" onclick="fhistSetPeriod('mes_atual', this)">
+                                <i data-lucide="calendar-check" style="width:13px; height:13px;"></i> Este Mês
+                            </button>
+                            <button type="button" class="btn-shortcut" id="btn-period-mes_anterior" onclick="fhistSetPeriod('mes_anterior', this)">
+                                <i data-lucide="calendar-days" style="width:13px; height:13px;"></i> Mês Passado
+                            </button>
+                            <button type="button" class="btn-shortcut" id="btn-period-ano_atual" onclick="fhistSetPeriod('ano_atual', this)">
+                                <i data-lucide="calendar-range" style="width:13px; height:13px;"></i> Ano Atual
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Linha 2: Filtros complementares -->
+                    <!-- Linha 2: Filtros complementares com Multi-Seleção / Pílulas (Pills) -->
                     <div class="fhist-row2">
+                        <!-- 1. Favorecido -->
                         <div class="fhist-row2-group">
-                            <label class="fhist-label">Favorecido (Fornecedor / Cliente)</label>
-                            <select id="fhist-entidade" class="fhist-select">
-                                <option value="">Todos os Favorecidos (Clientes e Fornecedores)</option>
-                            </select>
+                            <label class="fhist-label">Favorecido (Fornecedor / Cliente / DP)</label>
+                            <div class="autocomplete-wrapper" style="position:relative; width:100%;">
+                                <div class="fhist-multi-container" id="fhist-entidade-container" onclick="document.getElementById('fhist-entidade-search').focus()">
+                                    <div id="fhist-entidade-tags" style="display:inline-flex; flex-wrap:wrap; gap:0.35rem;"></div>
+                                    <input type="text" id="fhist-entidade-search" class="fhist-multi-input"
+                                        placeholder="Digitar para buscar e adicionar..." autocomplete="off"
+                                        oninput="handleFhistEntidadeSearch(this)" onfocus="handleFhistEntidadeSearch(this)"
+                                        onkeydown="handleFhistInputKeydown(event, 'entidade', this)">
+                                </div>
+                                <input type="hidden" id="fhist-entidade">
+                                <div class="autocomplete-results"></div>
+                            </div>
                         </div>
+
+                        <!-- 2. Plano de Contas / Categoria -->
                         <div class="fhist-row2-group">
                             <label class="fhist-label">Plano de Contas / Categoria</label>
-                            <select id="fhist-categoria" class="fhist-select">
-                                <option value="">Todas as Categorias</option>
-                            </select>
+                            <div class="autocomplete-wrapper" style="position:relative; width:100%;">
+                                <div class="fhist-multi-container" id="fhist-categoria-container" onclick="document.getElementById('fhist-categoria-search').focus()">
+                                    <div id="fhist-categoria-tags" style="display:inline-flex; flex-wrap:wrap; gap:0.35rem;"></div>
+                                    <input type="text" id="fhist-categoria-search" class="fhist-multi-input"
+                                        placeholder="Digitar conta e adicionar..." autocomplete="off"
+                                        oninput="handleFhistCategoriaSearch(this)" onfocus="handleFhistCategoriaSearch(this)"
+                                        onkeydown="handleFhistInputKeydown(event, 'categoria', this)">
+                                </div>
+                                <input type="hidden" id="fhist-categoria">
+                                <div class="autocomplete-results"></div>
+                            </div>
                         </div>
+
+                        <!-- 3. Centro de Custo -->
                         <div class="fhist-row2-group">
                             <label class="fhist-label">Centro de Custo</label>
-                            <select id="fhist-cc" class="fhist-select">
-                                <option value="">Todos os Centros</option>
-                            </select>
+                            <div class="autocomplete-wrapper" style="position:relative; width:100%;">
+                                <div class="fhist-multi-container" id="fhist-cc-container" onclick="document.getElementById('fhist-cc-search').focus()">
+                                    <div id="fhist-cc-tags" style="display:inline-flex; flex-wrap:wrap; gap:0.35rem;"></div>
+                                    <input type="text" id="fhist-cc-search" class="fhist-multi-input"
+                                        placeholder="Digitar centro e adicionar..." autocomplete="off"
+                                        oninput="handleFhistCCSearch(this)" onfocus="handleFhistCCSearch(this)"
+                                        onkeydown="handleFhistInputKeydown(event, 'cc', this)">
+                                </div>
+                                <input type="hidden" id="fhist-cc">
+                                <div class="autocomplete-results"></div>
+                            </div>
                         </div>
+
+                        <!-- 4. Conta Bancária -->
                         <div class="fhist-row2-group">
                             <label class="fhist-label">Conta Bancária</label>
-                            <select id="fhist-conta" class="fhist-select">
-                                <option value="">Todas as Contas</option>
-                            </select>
+                            <div class="autocomplete-wrapper" style="position:relative; width:100%;">
+                                <div class="fhist-multi-container" id="fhist-conta-container" onclick="document.getElementById('fhist-conta-search').focus()">
+                                    <div id="fhist-conta-tags" style="display:inline-flex; flex-wrap:wrap; gap:0.35rem;"></div>
+                                    <input type="text" id="fhist-conta-search" class="fhist-multi-input"
+                                        placeholder="Digitar banco/conta e adicionar..." autocomplete="off"
+                                        oninput="handleFhistContaSearch(this)" onfocus="handleFhistContaSearch(this)"
+                                        onkeydown="handleFhistInputKeydown(event, 'conta', this)">
+                                </div>
+                                <input type="hidden" id="fhist-conta">
+                                <div class="autocomplete-results"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -1118,13 +1226,13 @@
                     <!-- CABEÇALHO DA NOTA -->
                     <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 80px; gap: 1rem;">
                         <div class="input-group">
-                            <label>Data Emissão</label>
+                            <label>Data Emissão <span style="color:#ef4444; font-weight:800;">*</span></label>
                             <input type="date" id="entryEmissao" name="data_emissao" class="financeiro-input" required>
                         </div>
                         <div class="input-group">
-                            <label>Número Nota / Documento</label>
+                            <label>Número Nota / Documento <span style="color:#ef4444; font-weight:800;">*</span></label>
                             <input type="text" id="entryNumNF" name="num_nf" class="financeiro-input"
-                                placeholder="000.000">
+                                placeholder="000.000" required>
                         </div>
                         <div class="input-group">
                             <label>Série</label>
@@ -1135,11 +1243,21 @@
 
                     <div class="form-row grid-2">
                         <div class="input-group">
-                            <label>Favorecido (Fornecedor/Cliente)</label>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.2rem;">
+                                <label style="margin-bottom:0;">Favorecido <span style="color:#ef4444; font-weight:800;">*</span></label>
+                            </div>
+                            <!-- Chips de Seleção Rápida de Origem -->
+                            <div class="fav-type-chips" id="entryFavChips">
+                                <span class="fav-chip active" data-tipo="ALL" onclick="setFinFavorecidoTipo('ALL', this)">Todos</span>
+                                <span class="fav-chip" data-tipo="FORNECEDOR" onclick="setFinFavorecidoTipo('FORNECEDOR', this)">Fornecedores</span>
+                                <span class="fav-chip" data-tipo="FROTA" onclick="setFinFavorecidoTipo('FROTA', this)">Motoristas (Frota)</span>
+                                <span class="fav-chip" data-tipo="DP" onclick="setFinFavorecidoTipo('DP', this)">Funcionários (DP)</span>
+                                <span class="fav-chip" data-tipo="COMERCIAL" onclick="setFinFavorecidoTipo('COMERCIAL', this)">Comercial</span>
+                            </div>
                             <div class="input-with-btn" style="display:flex; gap:0.5rem; align-items:center;">
                                 <div class="autocomplete-wrapper" style="flex: 1;">
                                     <input type="text" id="entryEntidadeSearch" class="financeiro-input"
-                                        placeholder="Buscar favorecedor..." required autocomplete="off"
+                                        placeholder="Buscar por nome ou CPF/CNPJ..." required autocomplete="off"
                                         oninput="handleFinEntidadeSearch(this)" onfocus="handleFinEntidadeSearch(this)"
                                         onkeydown="handleFinAutocompleteKeydown(event, this)"
                                         style="width: 100%; box-sizing: border-box;">
@@ -1153,7 +1271,7 @@
                             </div>
                         </div>
                         <div class="input-group">
-                            <label>Tipo Despesa (Plano de Contas)</label>
+                            <label>Tipo Despesa (Plano de Contas) <span style="color:#ef4444; font-weight:800;">*</span></label>
                             <div class="input-with-btn" style="display:flex; gap:0.5rem; align-items:center;">
                                 <div class="autocomplete-wrapper" style="flex: 1;">
                                     <input type="text" id="entryCategoriaSearch" class="financeiro-input"
@@ -1180,6 +1298,15 @@
                         </div>
                     </div>
 
+                    <!-- Cabeçalho das Colunas dos Itens -->
+                    <div class="items-header-labels" style="display: grid; grid-template-columns: 1fr 80px 110px 90px 36px; gap: 0.6rem; padding: 0 1rem 0.3rem; margin-bottom: 0.2rem;">
+                        <span style="font-size: 0.65rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05rem;">Descrição do Item <strong style="color:#ef4444">*</strong></span>
+                        <span style="font-size: 0.65rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05rem; text-align: center;">Qtd <strong style="color:#ef4444">*</strong></span>
+                        <span style="font-size: 0.65rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05rem; text-align: right;">Vlr. Unitário <strong style="color:#ef4444">*</strong></span>
+                        <span style="font-size: 0.65rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05rem; text-align: right;">Total</span>
+                        <span></span>
+                    </div>
+
                     <div id="itemsContainer" class="items-container">
                         <!-- Linhas de itens geradas via JS -->
                     </div>
@@ -1189,18 +1316,32 @@
                     </button>
 
                     <!-- CUSTOS ADICIONAIS -->
-                    <div class="section-header">
+                    <div class="section-header" style="margin-top: 1.2rem; margin-bottom: 0.4rem;">
                         <div class="section-title-wrap">
-                            <i data-lucide="plus-circle" style="color:#64748b; width: 18px;"></i>
-                            <span class="section-title">Custos Adicionais (Frete, Impostos, etc)</span>
+                            <i data-lucide="plus-circle" style="color:#059669; width: 18px;"></i>
+                            <span class="section-title" style="color:#059669;">Custos Adicionais (Frete, Impostos, etc)</span>
                         </div>
-                        <button type="button" class="btn-link" onclick="addFinAdditionalRow()"
-                            style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-weight: 700; font-size: 0.75rem;">+
-                            Novo Adicional</button>
                     </div>
-                    <div id="additionalContainer" class="items-container">
+                    <div id="additionalContainer" class="items-container" style="gap: 0.4rem;">
                         <!-- Custos adicionais via JS -->
                     </div>
+                    <button type="button" class="btn-add-subrow-block" onclick="addFinAdditionalRow()">
+                        <i data-lucide="plus" style="width:15px; height:15px;"></i> Adicionar Outro Custo Adicional
+                    </button>
+
+                    <!-- DESCONTOS E DEDUÇÕES -->
+                    <div class="section-header" style="margin-top: 1.2rem; margin-bottom: 0.4rem;">
+                        <div class="section-title-wrap">
+                            <i data-lucide="minus-circle" style="color:#ef4444; width: 18px;"></i>
+                            <span class="section-title" style="color:#ef4444;">Descontos / Deduções (Vales, Adiantamentos, etc)</span>
+                        </div>
+                    </div>
+                    <div id="discountContainer" class="items-container" style="gap: 0.4rem;">
+                        <!-- Descontos via JS -->
+                    </div>
+                    <button type="button" class="btn-add-subrow-block discount-btn" onclick="addFinDiscountRow()">
+                        <i data-lucide="plus" style="width:15px; height:15px;"></i> Adicionar Outro Desconto / Vale
+                    </button>
 
                     <!-- PAGAMENTO E PARCELAMENTO -->
                     <div class="payment-details">
@@ -1211,9 +1352,9 @@
 
                         <div class="form-row grid-4" style="display:grid; grid-template-columns: 1fr 1.2fr 1fr 1.2fr; gap:0.8rem;">
                             <div class="input-group">
-                                <label>Parcelas</label>
+                                <label>Parcelas <span style="color:#ef4444; font-weight:800;">*</span></label>
                                 <input type="number" id="qtdParcelas" name="numero_parcelas" class="financeiro-input"
-                                    value="1" min="1" oninput="generateInstallmentFields()">
+                                    value="1" min="1" required oninput="generateInstallmentFields()">
                             </div>
                             <div class="input-group" id="prazoDiasGroup" style="display:none;">
                                 <label>Intervalo Prazo (Dias)</label>
@@ -1221,8 +1362,8 @@
                                     value="30" min="1" placeholder="Ex: 30" oninput="generateInstallmentFields()">
                             </div>
                             <div class="input-group">
-                                <label>Forma de Pagamento</label>
-                                <select name="forma_pagamento" id="entryForma" class="financeiro-input">
+                                <label>Forma de Pagamento <span style="color:#ef4444; font-weight:800;">*</span></label>
+                                <select name="forma_pagamento" id="entryForma" class="financeiro-input" required>
                                     <option value="BOLETO">Boleto</option>
                                     <option value="PIX">PIX</option>
                                     <option value="CARTAO">Cartão de Crédito</option>
@@ -1231,7 +1372,7 @@
                                 </select>
                             </div>
                             <div class="input-group" id="firstVencWrapper">
-                                <label>Vencimento (Primeira)</label>
+                                <label>Vencimento (Primeira) <span style="color:#ef4444; font-weight:800;">*</span></label>
                                 <input type="date" name="data_vencimento" id="entryVencimento" class="financeiro-input"
                                     required oninput="generateInstallmentFields()">
                             </div>
@@ -1607,9 +1748,9 @@
                     </div>
                     <div class="form-row" style="grid-template-columns: 1fr 1fr;">
                         <div class="input-group">
-                            <label>Banco</label>
+                            <label>Cód. Banco</label>
                             <input type="text" id="bankBanco" name="banco" class="compra-input"
-                                placeholder="Ex: Sicredi">
+                                placeholder="Ex: 748 (Sicredi), 001...">
                         </div>
                         <div class="input-group">
                             <label>Agência</label>
@@ -1900,8 +2041,8 @@
                 </div>
             </form>
         </div>
-    <script src="financeiro.js?v=20260729_23"></script>
-    <script src="orb_menu.js?v=20260729_23"></script>
+    <script src="financeiro.js?v=20260901_25"></script>
+    <script src="orb_menu.js?v=20260901_25"></script>
 </body>
 
 </html>

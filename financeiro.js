@@ -14,6 +14,10 @@ const state = {
     centrosCusto: [],
     fornecedores: [],
     clientes: [],
+    motoristasFrota: [],
+    funcionariosDP: [],
+    prestadoresComercial: [],
+    favorecidoFiltroTipo: 'ALL',
     formasPagamento: [],
     especiesNota: [],
     periodoFluxo: new Date(),
@@ -118,6 +122,39 @@ async function loadInitialData() {
             return { data: listaClientes.sort((a,b) => (a.nome||'').localeCompare(b.nome||'')) };
         };
 
+        const fetchMotoristasSafely = async () => {
+            try {
+                const { data, error } = await supabaseClient.from('motoristas').select('id, nome_completo, cpf, status, registro_cnh').order('nome_completo');
+                if (error) throw error;
+                return data || [];
+            } catch (e) {
+                console.warn('Financeiro: Não foi possível carregar motoristas da frota:', e.message);
+                return [];
+            }
+        };
+
+        const fetchFuncionariosDPSafely = async () => {
+            try {
+                const { data, error } = await supabaseClient.from('dp_funcionarios').select('id, nome_completo, cpf, status').order('nome_completo');
+                if (error) throw error;
+                return data || [];
+            } catch (e) {
+                console.warn('Financeiro: Não foi possível carregar funcionários do DP:', e.message);
+                return [];
+            }
+        };
+
+        const fetchPrestadoresSafely = async () => {
+            try {
+                const { data, error } = await supabaseClient.from('com_prestadores').select('id, nome_prestador, cpf, cnpj, status, tipo_contrato').order('nome_prestador');
+                if (error) throw error;
+                return data || [];
+            } catch (e) {
+                console.warn('Financeiro: Não foi possível carregar prestadores do comercial:', e.message);
+                return [];
+            }
+        };
+
         // Otimização de Performance: Por padrão, carrega apenas contas não totalmente pagas (ABERTO / PARCIAL / PENDENTE)
         // para minimizar a carga no banco de dados e acelerar o tempo de resposta
         let lancQuery = supabaseClient.from('fin_lancamentos')
@@ -125,7 +162,7 @@ async function loadInitialData() {
             .order('data_vencimento', { ascending: false })
             .limit(1000);
 
-        const [l, c, cat, cc, forn, cl, formas, especies] = await Promise.all([
+        const [l, c, cat, cc, forn, cl, formas, especies, motFrota, funcDP, prestCom] = await Promise.all([
             lancQuery,
             supabaseClient.from('fin_contas_bancarias').select('*'),
             supabaseClient.from('fin_plano_contas').select('*').order('codigo'),
@@ -133,7 +170,10 @@ async function loadInitialData() {
             supabaseClient.from('fornecedores').select('*').order('nome'),
             fetchClientesSafely(),
             supabaseClient.from('formas_pagamento').select('*').order('nome'),
-            supabaseClient.from('especies_nota').select('*').order('nome')
+            supabaseClient.from('especies_nota').select('*').order('nome'),
+            fetchMotoristasSafely(),
+            fetchFuncionariosDPSafely(),
+            fetchPrestadoresSafely()
         ]);
 
         state.lancamentos = l.data || [];
@@ -150,6 +190,9 @@ async function loadInitialData() {
         }));
         state.formasPagamento = formas.data || [];
         state.especiesNota = especies.data || [];
+        state.motoristasFrota = motFrota || [];
+        state.funcionariosDP = funcDP || [];
+        state.prestadoresComercial = prestCom || [];
 
         updateDropdowns();
         renderAll();
@@ -349,13 +392,43 @@ function renderLancamentos(tipo) {
         }
     }
     if (filter.busca) {
-        const b = filter.busca.toLowerCase();
-        filtered = filtered.filter(l =>
-            (l.descricao || '').toLowerCase().includes(b) ||
-            (l.entidade_nome || '').toLowerCase().includes(b) ||
-            (l.codigo_sequencial || '').toLowerCase().includes(b) ||
-            (l.num_nf || '').toLowerCase().includes(b)
-        );
+        const rawSearch = filter.busca.trim();
+        const b = rawSearch.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const numSearch = rawSearch.replace('R$', '').replace(/\s/g, '').replace('.', '').replace(',', '.');
+        const numVal = parseFloat(numSearch);
+
+        if (tipo === 'PAGAR') {
+            // Busca restrita a: Fornecedor/Favorecido, Número NF/Doc, Valor Total ou Valor Pago
+            filtered = filtered.filter(l => {
+                const entidade = (l.entidade_nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const numNf = (l.num_nf || '').toLowerCase().trim();
+                const vTotalStr = (l.valor_total != null ? String(l.valor_total) : '').replace('.', ',');
+                const vPagoStr = (l.valor_pago != null ? String(l.valor_pago) : '').replace('.', ',');
+                
+                const matchTexto = entidade.includes(b) || (numNf && numNf.includes(b));
+                
+                let matchValor = false;
+                if (!isNaN(numVal) && numSearch !== '') {
+                    const vt = parseFloat(l.valor_total) || 0;
+                    const vp = parseFloat(l.valor_pago) || 0;
+                    matchValor = Math.abs(vt - numVal) < 0.009 || Math.abs(vp - numVal) < 0.009 ||
+                                 String(l.valor_total || '').includes(numSearch) ||
+                                 String(l.valor_pago || '').includes(numSearch) ||
+                                 vTotalStr.includes(rawSearch) ||
+                                 vPagoStr.includes(rawSearch);
+                }
+
+                return matchTexto || matchValor;
+            });
+        } else {
+            // Contas a Receber / Outros
+            filtered = filtered.filter(l =>
+                (l.descricao || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(b) ||
+                (l.entidade_nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(b) ||
+                (l.codigo_sequencial || '').toLowerCase().includes(b) ||
+                (l.num_nf || '').toLowerCase().includes(b)
+            );
+        }
     }
 
     filtered.sort((a, b) => {
@@ -481,7 +554,13 @@ function renderLancamentos(tipo) {
                                    <button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar Baixa Parcial" style="background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#f59e0b;"><i data-lucide="rotate-ccw"></i></button>`
                                 : `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar / Receber"><i data-lucide="check-square"></i></button>`
                             }
-                            <button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>
+                            ${(() => {
+                                const isIntegrado = l.origem_modulo && l.origem_modulo !== 'MANUAL' && l.origem_modulo !== 'FINANCEIRO';
+                                if (isIntegrado) {
+                                    return `<button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Edição bloqueada: Integrado via ${l.origem_modulo}. Clique para instruções." style="opacity: 0.35; filter: grayscale(1);"><i data-lucide="edit-2"></i></button>`;
+                                }
+                                return `<button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>`;
+                            })()}
                             <button class="btn-action delete" onclick="deleteEntry('${l.id}')" title="Excluir"><i data-lucide="trash-2"></i></button>
                         </div>
                     </td>
@@ -543,8 +622,15 @@ function renderLancamentos(tipo) {
                                <button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar Baixa Parcial" style="background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#f59e0b;"><i data-lucide="rotate-ccw"></i></button>`
                             : `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar / Pagar"><i data-lucide="check-square"></i></button>`
                         }
-                        <button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>
-                        <button class="btn-action duplicate" onclick="duplicateEntry('${l.id}')" title="Duplicar"><i data-lucide="copy"></i></button>
+                        ${(() => {
+                            const isIntegrado = l.origem_modulo && l.origem_modulo !== 'MANUAL' && l.origem_modulo !== 'FINANCEIRO';
+                            const isCompraOuManut = l.compra_id || l.manutencao_id;
+                            if (isIntegrado || isCompraOuManut) {
+                                const mod = l.origem_modulo === 'COMPRAS' || l.compra_id ? 'Compras' : l.origem_modulo === 'MANUTENCAO' || l.manutencao_id ? 'Manutenção' : (l.origem_modulo || 'outro setor');
+                                return `<button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Edição bloqueada: Integrado via ${mod}. Clique para instruções." style="opacity: 0.35; filter: grayscale(1);"><i data-lucide="edit-2"></i></button>`;
+                            }
+                            return `<button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>`;
+                        })()}
                         <button class="btn-action delete" onclick="deleteEntry('${l.id}')" title="Excluir"><i data-lucide="trash-2"></i></button>
                     </div>
                 </td>
@@ -1228,9 +1314,19 @@ async function openEntryModal(tipo, id = null) {
     // UI Reset
     document.getElementById('itemsContainer').innerHTML = '';
     document.getElementById('additionalContainer').innerHTML = '';
+    const discountCont = document.getElementById('discountContainer');
+    if (discountCont) discountCont.innerHTML = '';
     document.getElementById('installmentsContainer').innerHTML = '';
     document.getElementById('installmentsWrapper').style.display = 'none';
-    document.getElementById('qtdParcelas').value = 1;
+    // Reset dos chips de favorecido
+    state.favorecidoFiltroTipo = 'ALL';
+    const chipsContainer = document.getElementById('entryFavChips');
+    if (chipsContainer) {
+        chipsContainer.querySelectorAll('.fav-chip').forEach(c => {
+            if (c.getAttribute('data-tipo') === 'ALL') c.classList.add('active');
+            else c.classList.remove('active');
+        });
+    }
 
     if (id) {
         const item = state.lancamentos.find(l => l.id === id);
@@ -1252,6 +1348,17 @@ async function openEntryModal(tipo, id = null) {
                 if (ad && ad.length > 0) {
                     ad.forEach(row => addFinAdditionalRow(row));
                     setTimeout(calculateFinTotal, 250);
+                }
+
+                // Carregar descontos do banco
+                try {
+                    const { data: ds } = await supabaseClient.from('fin_lancamento_descontos').select('*').eq('lancamento_id', id);
+                    if (ds && ds.length > 0) {
+                        ds.forEach(row => addFinDiscountRow(row));
+                        setTimeout(calculateFinTotal, 250);
+                    }
+                } catch (eDs) {
+                    console.warn("Aviso ao carregar descontos:", eDs);
                 }
 
                 // Carregar parcelas
@@ -1306,23 +1413,57 @@ async function editEntry(id, tipo) {
     const item = state.lancamentos.find(l => l.id === id);
     if (!item) return;
 
+    // Bloqueio de segurança: Lançamentos integrados de outros módulos (Compras, Manutenção, etc.)
+    const isIntegrado = item.origem_modulo && item.origem_modulo !== 'MANUAL' && item.origem_modulo !== 'FINANCEIRO';
+    const isCompraOuManut = item.compra_id || item.manutencao_id;
+
+    if (isIntegrado || isCompraOuManut) {
+        const moduloNome = item.origem_modulo === 'COMPRAS' || item.compra_id ? 'Módulo de Compras' 
+                         : item.origem_modulo === 'MANUTENCAO' || item.manutencao_id ? 'Módulo de Manutenção'
+                         : `Módulo ${item.origem_modulo || 'de Origem'}`;
+
+        const msgHtml = `
+            <div style="text-align: left; font-size: 0.88rem; line-height: 1.5; color: #cbd5e1;">
+                <p style="margin-bottom: 0.8rem;">Este lançamento financeiro foi <strong>integrado automaticamente pelo ${moduloNome}</strong>.</p>
+                <div style="background: rgba(239, 68, 68, 0.1); border-left: 3px solid #ef4444; padding: 0.75rem 0.9rem; border-radius: 6px; margin-bottom: 0.8rem; font-size: 0.82rem; color: #fca5a5;">
+                    <strong>Regra de Integridade:</strong> Não é permitido alterar dados fiscais ou itens diretamente pelo Financeiro.
+                </div>
+                <p style="font-size: 0.82rem; color: #94a3b8;">
+                    <strong>Como proceder:</strong> Se for necessário alterar valores, fornecedor ou itens, você deve <strong>excluir este lançamento no Financeiro</strong> e solicitar a alteração/reintegração diretamente ao setor responsável (<strong>${moduloNome}</strong>).
+                </p>
+            </div>
+        `;
+
+        if (typeof showAlertModal === 'function') {
+            await showAlertModal({
+                title: 'Alteração Bloqueada',
+                message: msgHtml,
+                type: 'warning',
+                confirmText: 'ENTENDIDO'
+            });
+        } else {
+            alert(`⚠️ Alteração Bloqueada: Este lançamento foi integrado pelo ${moduloNome}.\n\nPara alterar, exclua a nota no Financeiro e comunique o setor responsável (${moduloNome}) para que faça o ajuste.`);
+        }
+        return;
+    }
+
     await openEntryModal(tipo, id);
 }
 
 function populateForm(form, item) {
-    document.getElementById('entryId').value = item.id;
-    document.getElementById('entryEntidade').value = item.entidade_nome || '';
-    document.getElementById('entryEntidadeSearch').value = item.entidade_nome || '';
+    if (document.getElementById('entryId')) document.getElementById('entryId').value = item.id;
+    if (document.getElementById('entryEntidade')) document.getElementById('entryEntidade').value = item.entidade_nome || '';
+    if (document.getElementById('entryEntidadeSearch')) document.getElementById('entryEntidadeSearch').value = item.entidade_nome || '';
 
     // Configura Categoria (Nome e ID)
     const cat = state.categorias.find(c => c.id === item.categoria_id);
-    document.getElementById('entryCategoriaId').value = item.categoria_id || '';
-    document.getElementById('entryCategoriaSearch').value = cat ? `${cat.codigo} - ${cat.nome}` : '';
+    if (document.getElementById('entryCategoriaId')) document.getElementById('entryCategoriaId').value = item.categoria_id || '';
+    if (document.getElementById('entryCategoriaSearch')) document.getElementById('entryCategoriaSearch').value = cat ? `${cat.codigo} - ${cat.nome}` : '';
 
-    document.getElementById('entryVencimento').value = item.data_vencimento;
-    document.getElementById('entryConta').value = item.conta_bancaria_id || '';
-    document.getElementById('entryForma').value = item.forma_pagamento || 'BOLETO';
-    document.getElementById('entryObs').value = item.observacoes || '';
+    if (document.getElementById('entryVencimento')) document.getElementById('entryVencimento').value = item.data_vencimento || '';
+    if (document.getElementById('entryConta')) document.getElementById('entryConta').value = item.conta_bancaria_id || '';
+    if (document.getElementById('entryForma')) document.getElementById('entryForma').value = item.forma_pagamento || 'BOLETO';
+    if (document.getElementById('entryObs')) document.getElementById('entryObs').value = item.observacoes || '';
 
     if (document.getElementById('entryLoja')) document.getElementById('entryLoja').value = item.loja_unidade || '';
     if (document.getElementById('entryNumNF')) document.getElementById('entryNumNF').value = item.num_nf || '';
@@ -1421,10 +1562,29 @@ async function deleteEntry(id) {
                     .eq('compra_id', l.compra_id);
                 
                 if (!outros || outros.length === 0) {
-                    await supabaseClient
+                    const updatePayload = { 
+                        integrado_financeiro: false, 
+                        data_integracao: null,
+                        retorno_integracao: true,
+                        motivo_retorno_integracao: `Excluído no Financeiro em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                    };
+
+                    let { error: updErr } = await supabaseClient
                         .from('compras')
-                        .update({ integrado_financeiro: false, data_integracao: null })
+                        .update(updatePayload)
                         .eq('id', l.compra_id);
+
+                    if (updErr && (updErr.message.includes('retorno_integracao') || updErr.message.includes('motivo_retorno_integracao'))) {
+                        // Fallback se a coluna não existir no schema
+                        await supabaseClient
+                            .from('compras')
+                            .update({ 
+                                integrado_financeiro: false, 
+                                data_integracao: null,
+                                observacoes: `[RETORNO FINANCEIRO: Lançamento excluído no setor financeiro em ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}] ` + (l.observacoes || '')
+                            })
+                            .eq('id', l.compra_id);
+                    }
                 }
             }
 
@@ -2061,12 +2221,129 @@ function generateNF() {
 
 async function handleEntrySubmit(e) {
     e.preventDefault();
+
+    // 1. Limpar bordas vermelhas anteriores do modal
+    const clearFieldErrors = () => {
+        const modal = document.getElementById('entryModal');
+        if (!modal) return;
+        modal.querySelectorAll('.financeiro-input, select, input').forEach(el => {
+            el.style.borderColor = '';
+        });
+    };
+    clearFieldErrors();
+
+    const missingFields = [];
+    let firstErrorEl = null;
+
+    const markError = (el, name) => {
+        if (!el) return;
+        el.style.borderColor = '#ef4444';
+        el.style.boxShadow = '0 0 0 2px rgba(239, 68, 68, 0.2)';
+        missingFields.push(name);
+        if (!firstErrorEl) firstErrorEl = el;
+    };
+
+    // Campos Principais do Cabeçalho
+    const elEmissao = document.getElementById('entryEmissao');
+    const elNumNF = document.getElementById('entryNumNF');
+    const elEntidadeSearch = document.getElementById('entryEntidadeSearch');
+    const elEntidadeHidden = document.getElementById('entryEntidade');
+    const elCatSearch = document.getElementById('entryCategoriaSearch');
+    const elCatHidden = document.getElementById('entryCategoriaId');
+
+    // Auto-resolução da Categoria caso digitada sem clicar
+    let catId = elCatHidden?.value || null;
+    if (!catId && elCatSearch && elCatSearch.value.trim()) {
+        const searchText = elCatSearch.value.toLowerCase().trim();
+        const matched = (state.categorias || []).find(c => {
+            const label = `${c.codigo || ''} - ${c.nome || ''}`.toLowerCase().trim();
+            return label === searchText || (c.codigo && searchText.startsWith(c.codigo.toLowerCase())) || label.includes(searchText) || (c.nome && c.nome.toLowerCase().includes(searchText));
+        });
+        if (matched) {
+            catId = matched.id;
+            elCatHidden.value = matched.id;
+        }
+    }
+
+    // Auto-resolução da Entidade caso digitada sem clicar
+    let entidadeNome = (elEntidadeHidden?.value || elEntidadeSearch?.value || '').trim();
+    if (elEntidadeHidden && !elEntidadeHidden.value && elEntidadeSearch && elEntidadeSearch.value.trim()) {
+        elEntidadeHidden.value = elEntidadeSearch.value.trim();
+        entidadeNome = elEntidadeSearch.value.trim();
+    }
+
+    if (!elEmissao || !elEmissao.value) markError(elEmissao, 'Data de Emissão');
+    if (!elNumNF || !elNumNF.value.trim()) markError(elNumNF, 'Número da Nota / Documento');
+    if (!entidadeNome) markError(elEntidadeSearch, 'Favorecido');
+    if (!catId) markError(elCatSearch, 'Tipo Despesa (Plano de Contas)');
+
+    // Validação de Itens / Detalhamento
+    const itemRows = document.querySelectorAll('#itemsContainer .item-row-v2');
+    if (!itemRows || itemRows.length === 0) {
+        missingFields.push('Pelo menos 1 Item Detalhado');
+        const btnAddItem = document.querySelector('.btn-add-item');
+        if (btnAddItem && !firstErrorEl) firstErrorEl = btnAddItem;
+    } else {
+        itemRows.forEach((row, idx) => {
+            const descEl = row.querySelector('.item-desc');
+            const qtdEl = row.querySelector('.item-qtd');
+            const unitEl = row.querySelector('.item-unit');
+            const ccEl = row.querySelector('.item-cc');
+
+            const descVal = (descEl?.value || '').trim();
+            const qtdVal = parseFloat(qtdEl?.value) || 0;
+            const unitVal = parseFloat(unitEl?.value) || 0;
+            const ccVal = (ccEl?.value || '').trim();
+
+            if (!descVal) markError(descEl, `Item #${idx + 1}: Descrição`);
+            if (qtdVal <= 0) markError(qtdEl, `Item #${idx + 1}: Quantidade`);
+            if (unitVal <= 0) markError(unitEl, `Item #${idx + 1}: Valor Unitário`);
+            if (!ccVal) markError(ccEl, `Item #${idx + 1}: Centro de Custo`);
+        });
+    }
+
+    // Informações de Pagamento
+    const elQtdParcelas = document.getElementById('qtdParcelas');
+    const elForma = document.getElementById('entryForma');
+    const elVencimento = document.getElementById('entryVencimento');
+
+    const qtdParcVal = parseInt(elQtdParcelas?.value) || 0;
+    if (!elQtdParcelas || qtdParcVal < 1) markError(elQtdParcelas, 'Parcelas');
+    if (!elForma || !elForma.value) markError(elForma, 'Forma de Pagamento');
+    if (!elVencimento || !elVencimento.value) markError(elVencimento, 'Data de Vencimento');
+
+    // Validação das Parcelas Individuais (quando parcelado)
+    if (qtdParcVal > 1) {
+        const parcRows = document.querySelectorAll('#installmentsContainer .installment-row');
+        parcRows.forEach((row, idx) => {
+            const parcDateEl = row.querySelector('.parc-date');
+            const parcValEl = row.querySelector('.parc-val');
+            if (!parcDateEl || !parcDateEl.value) markError(parcDateEl, `Parcela #${idx + 1}: Vencimento`);
+            if (!parcValEl || parseFloat(parcValEl.value) <= 0) markError(parcValEl, `Parcela #${idx + 1}: Valor`);
+        });
+    }
+
+    // Se houver qualquer campo faltante, interrompe o salvamento e informa o usuário
+    if (missingFields.length > 0) {
+        const errorMsg = `Preenchimento obrigatório:\n• ` + missingFields.join('\n• ');
+        showToast('Campos obrigatórios não preenchidos. Verifique os campos destacados em vermelho.', 'error');
+        alert(`Não foi possível salvar o lançamento.\n\nPor favor, preencha todos os campos obrigatórios destacados em vermelho:\n\n${errorMsg}`);
+        if (firstErrorEl) {
+            firstErrorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (typeof firstErrorEl.focus === 'function') firstErrorEl.focus();
+        }
+        return;
+    }
+
     const finalTotal = calculateFinTotal();
-    if (finalTotal <= 0) return alert('O valor total deve ser maior que zero.');
+    if (finalTotal <= 0) {
+        showToast('O valor total do lançamento deve ser maior que zero.', 'error');
+        return alert('O valor total deve ser maior que zero.');
+    }
 
     const formData = new FormData(e.target);
     const id = document.getElementById('entryId').value;
-    const tipo = document.getElementById('entryTipo').value;
+    const tipo = document.getElementById('entryTipo').value || 'PAGAR';
     const qtdParcelas = parseInt(document.getElementById('qtdParcelas').value) || 1;
     const isParcelado = qtdParcelas > 1;
 
@@ -2075,12 +2352,12 @@ async function handleEntrySubmit(e) {
         data_emissao: formData.get('data_emissao'),
         num_nf: formData.get('num_nf'),
         serie_nf: formData.get('serie_nf'),
-        entidade_nome: formData.get('entidade_nome'),
-        categoria_id: formData.get('categoria_id'),
+        entidade_nome: entidadeNome,
+        categoria_id: catId,
         forma_pagamento: formData.get('forma_pagamento'),
         data_vencimento: formData.get('data_vencimento'),
-        conta_bancaria_id: formData.get('conta_bancaria_id'),
-        observacoes: formData.get('observacoes'),
+        conta_bancaria_id: formData.get('conta_bancaria_id') || null,
+        observacoes: formData.get('observacoes') || '',
         valor_total: finalTotal,
         descricao: firstItemDesc,
         tipo: tipo,
@@ -2099,6 +2376,7 @@ async function handleEntrySubmit(e) {
             if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Editou lançamento (${mainRecord.tipo}): ${mainRecord.descricao} - Fornecedor/Entidade: ${mainRecord.entidade_nome} (Valor: R$ ${mainRecord.valor_total})`);
             await supabaseClient.from('fin_lancamento_itens').delete().eq('lancamento_id', id);
             await supabaseClient.from('fin_lancamento_adicionais').delete().eq('lancamento_id', id);
+            await supabaseClient.from('fin_lancamento_descontos').delete().eq('lancamento_id', id);
             await supabaseClient.from('fin_lancamento_parcelas').delete().eq('lancamento_id', id);
         } else if (isParcelado) {
             // Novo lançamento parcelado: cria 1 registro individual em fin_lancamentos para cada parcela
@@ -2183,6 +2461,27 @@ async function handleEntrySubmit(e) {
                 .from('fin_lancamento_adicionais')
                 .insert(adds);
             if (addErr) console.error("Erro Adicionais:", addErr);
+        }
+
+        // 5. Salvar Descontos / Deduções
+        const discounts = [];
+        document.querySelectorAll('#discountContainer .item-row-v2').forEach(row => {
+            const discDesc = row.querySelector('.discount-desc').value.trim();
+            const discVal = parseFloat(row.querySelector('.discount-val').value) || 0;
+            if (discDesc || discVal > 0) {
+                discounts.push({
+                    lancamento_id: lancamentoId,
+                    descricao: discDesc,
+                    valor: discVal
+                });
+            }
+        });
+
+        if (discounts.length > 0) {
+            const { error: discErr } = await supabaseClient
+                .from('fin_lancamento_descontos')
+                .insert(discounts);
+            if (discErr) console.error("Erro Descontos:", discErr);
         }
 
         // Salvar Parcelas se houver
@@ -2727,7 +3026,20 @@ function updateDropdowns() {
     }
 }
 
-function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.add('active');
+        if (window.lucide) lucide.createIcons();
+    }
+}
+window.openModal = openModal;
+
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active');
+}
+window.closeModal = closeModal;
 
 function showToast(msg, type) {
     const t = document.createElement('div');
@@ -2807,7 +3119,7 @@ function clearFilters(tipo) {
 
 // --- LÓGICA DE ITENS DINÂMICOS (Inspirado no módulo Compras) ---
 
-function addFinItemRow(data = null) {
+window.addFinItemRow = function(data = null) {
     const container = document.getElementById('itemsContainer');
     const rowId = 'row-' + Date.now() + Math.random().toString(36).substr(2, 5);
 
@@ -2827,12 +3139,12 @@ function addFinItemRow(data = null) {
         <div class="item-main-row">
             <div class="item-desc-wrap">
                 <i data-lucide="search" class="item-search-icon"></i>
-                <input type="text" class="financeiro-input item-desc" value="${data ? data.descricao : ''}" placeholder="Descrição do item..." required>
+                <input type="text" class="financeiro-input item-desc" value="${data ? (data.descricao || '') : ''}" placeholder="Descrição do item..." required>
             </div>
-            <input type="number" class="financeiro-input item-qtd" value="${data ? data.quantidade : 1}" step="0.001" oninput="calculateFinTotal()" placeholder="QTD">
-            <input type="number" class="financeiro-input item-unit" value="${data ? data.valor_unitario : 0}" step="0.01" oninput="calculateFinTotal()" placeholder="VALOR">
-            <input type="text" class="financeiro-input item-total item-total-display" value="0,00" readonly>
-            <button type="button" class="btn-remove" onclick="removeFinRow('${rowId}')">
+            <input type="number" class="financeiro-input item-qtd" value="${data && data.quantidade !== undefined && data.quantidade !== null ? data.quantidade : ''}" step="any" oninput="calculateFinTotal()" onchange="calculateFinTotal()" placeholder="Qtd" title="Quantidade">
+            <input type="number" class="financeiro-input item-unit" value="${data && data.valor_unitario !== undefined && data.valor_unitario !== null ? data.valor_unitario : ''}" step="any" oninput="calculateFinTotal()" onchange="calculateFinTotal()" placeholder="Vlr. Unitário" title="Valor Unitário">
+            <input type="text" class="financeiro-input item-total item-total-display" value="R$ 0,00" readonly title="Total do Item">
+            <button type="button" class="btn-remove" onclick="removeFinRow('${rowId}')" title="Excluir Item">
                 <i data-lucide="trash-2"></i>
             </button>
         </div>
@@ -2840,7 +3152,7 @@ function addFinItemRow(data = null) {
         <!-- Linha secundária: Centro de Custo -->
         <div class="item-secondary-row" style="display:flex; align-items:center; gap:0.5rem;">
             <div style="flex:1; display:flex; flex-direction:column; gap:4px;">
-                <span class="item-secondary-label">Centro de Custo</span>
+                <span class="item-secondary-label">Centro de Custo <strong style="color:#ef4444">*</strong></span>
                 <div style="display:flex; gap:0.5rem; align-items:center;">
                     <select class="financeiro-input item-cc" style="flex:1;">
                         <option value="">Selecione...</option>
@@ -2857,7 +3169,7 @@ function addFinItemRow(data = null) {
     container.appendChild(row);
     if (window.lucide) lucide.createIcons();
     calculateFinTotal();
-}
+};
 
 function setItemTipo(rowId, tipo, btn) {
     // Mantido por compatibilidade
@@ -2866,7 +3178,7 @@ function setItemTipo(rowId, tipo, btn) {
 /**
  * 📦 GERAÇÃO DINÂMICA DE PARCELAS
  */
-function generateInstallmentFields(forcedTotal = null) {
+window.generateInstallmentFields = function(forcedTotal = null) {
     const qtdInput = document.getElementById('qtdParcelas');
     const qtd = parseInt(qtdInput ? qtdInput.value : 1) || 1;
     const wrapper = document.getElementById('installmentsWrapper');
@@ -2910,79 +3222,121 @@ function generateInstallmentFields(forcedTotal = null) {
         `;
         container.appendChild(row);
     }
-}
+};
 
-function addFinAdditionalRow(data = null) {
+window.addFinAdditionalRow = function(data = null) {
     const container = document.getElementById('additionalContainer');
     const rowId = 'add-' + Date.now();
 
     const div = document.createElement('div');
-    div.className = 'item-row-v2';
+    div.className = 'compact-subrow';
     div.id = rowId;
-    div.style.gridTemplateColumns = "2fr 1fr 40px";
 
     div.innerHTML = `
-        <div class="input-group">
-            <label>Descrição do Custo</label>
-            <input type="text" class="financeiro-input add-desc" value="${data ? data.descricao : ''}" placeholder="Ex: Frete ou Taxa">
-        </div>
-        <div class="input-group">
-            <label>Valor</label>
-            <input type="number" class="financeiro-input add-val" value="${data ? data.valor : '0'}" step="0.01" oninput="calculateFinTotal()">
-        </div>
-        <button type="button" class="btn-remove" onclick="removeFinRow('${rowId}')">
-            <i data-lucide="trash-2" style="width: 16px;"></i>
+        <input type="text" class="compact-input-desc add-desc" value="${data ? data.descricao : ''}" placeholder="Descrição do Custo Adicional (ex: Frete, Taxa, Seguro...)">
+        <input type="number" class="compact-input-val add-val" value="${data ? data.valor : ''}" step="any" oninput="calculateFinTotal()" onchange="calculateFinTotal()" placeholder="0,00" title="Valor do Adicional (+)">
+        <button type="button" class="btn-remove-subrow" onclick="removeFinRow('${rowId}')" title="Excluir adicional">
+            <i data-lucide="trash-2" style="width: 15px; height: 15px;"></i>
         </button>
     `;
     container.appendChild(div);
     if (window.lucide) lucide.createIcons();
     calculateFinTotal();
-}
+};
 
-function removeFinRow(id) {
+window.addFinDiscountRow = function(data = null) {
+    const container = document.getElementById('discountContainer');
+    const rowId = 'desc-' + Date.now() + Math.random().toString(36).substr(2, 4);
+
+    const div = document.createElement('div');
+    div.className = 'compact-subrow discount-row';
+    div.id = rowId;
+
+    div.innerHTML = `
+        <input type="text" class="compact-input-desc discount-desc" value="${data ? data.descricao : ''}" placeholder="Descrição do Desconto (ex: Vale, Adiantamento, Abatimento...)">
+        <input type="number" class="compact-input-val discount-val" value="${data ? data.valor : ''}" step="any" oninput="calculateFinTotal()" onchange="calculateFinTotal()" placeholder="0,00" title="Valor do Desconto (-)">
+        <button type="button" class="btn-remove-subrow" onclick="removeFinRow('${rowId}')" title="Excluir desconto">
+            <i data-lucide="trash-2" style="width: 15px; height: 15px;"></i>
+        </button>
+    `;
+    container.appendChild(div);
+    if (window.lucide) lucide.createIcons();
+    calculateFinTotal();
+};
+
+window.removeFinRow = function(id) {
     const row = document.getElementById(id);
     if (row) row.remove();
     calculateFinTotal();
-}
+};
 
-function calculateFinTotal() {
+window.calculateFinTotal = function() {
     let totalItems = 0;
     let countItems = 0;
 
+    const parseNum = (val) => {
+        if (!val) return 0;
+        const cleaned = String(val).replace(',', '.');
+        const num = parseFloat(cleaned);
+        return isNaN(num) ? 0 : num;
+    };
+
     // Itens
-    document.querySelectorAll('.item-row-v2:not([id^="add-"])').forEach(row => {
+    document.querySelectorAll('.item-row-v2:not([id^="add-"]):not([id^="desc-"])').forEach(row => {
         const qtdInput = row.querySelector('.item-qtd');
         const unitInput = row.querySelector('.item-unit');
+        const totalDisplay = row.querySelector('.item-total');
         if (!qtdInput || !unitInput) return;
 
-        const qtd = parseFloat(qtdInput.value) || 0;
-        const unit = parseFloat(unitInput.value) || 0;
+        const qtd = parseNum(qtdInput.value);
+        const unit = parseNum(unitInput.value);
         const sub = qtd * unit;
         totalItems += sub;
         countItems++;
-        row.querySelector('.item-total').value = sub.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        if (totalDisplay) {
+            totalDisplay.value = sub.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
     });
 
     // Adicionais
     let totalAdds = 0;
     let countAdds = 0;
     document.querySelectorAll('.add-val').forEach(input => {
-        totalAdds += parseFloat(input.value) || 0;
+        totalAdds += parseNum(input.value);
         countAdds++;
     });
 
-    const finalTotal = totalItems + totalAdds;
+    // Descontos
+    let totalDiscounts = 0;
+    let countDiscounts = 0;
+    document.querySelectorAll('.discount-val').forEach(input => {
+        totalDiscounts += parseNum(input.value);
+        countDiscounts++;
+    });
 
-    document.getElementById('totalVisual').innerText = finalTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    document.getElementById('summaryText').innerText = `${countItems} itens + ${countAdds} adicionais`;
+    const finalTotal = Math.max(0, totalItems + totalAdds - totalDiscounts);
+
+    const totalEl = document.getElementById('totalVisual');
+    if (totalEl) {
+        totalEl.innerText = finalTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+    const summaryEl = document.getElementById('summaryText');
+    if (summaryEl) {
+        let summaryParts = [`${countItems} itens`, `${countAdds} adicionais`];
+        if (countDiscounts > 0) {
+            summaryParts.push(`<span style="color:#ef4444;">${countDiscounts} descontos (- ${totalDiscounts.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})</span>`);
+        }
+        summaryEl.innerHTML = summaryParts.join(' + ');
+    }
 
     // Atualiza parcelas se estiverem visíveis
-    if (document.getElementById('installmentsWrapper').style.display !== 'none') {
+    const instWrapper = document.getElementById('installmentsWrapper');
+    if (instWrapper && instWrapper.style.display !== 'none') {
         generateInstallmentFields(finalTotal);
     }
 
     return finalTotal;
-}
+};
 
 // A inicialização e os event listeners agora estão unificados no topo do arquivo.
 
@@ -3243,14 +3597,25 @@ function setupEventListeners() {
         modal.classList.add('active');
         if (window.lucide) lucide.createIcons();
 
-        // 2. Carregar Itens e Parcelas (Assíncrono)
+        // 2. Carregar Itens, Adicionais, Descontos e Parcelas (Assíncrono)
         try {
-            const { data: itens } = await supabaseClient.from('fin_lancamento_itens').select('*').eq('lancamento_id', id);
-            const { data: parcelas } = await supabaseClient.from('fin_lancamento_parcelas').select('*').eq('lancamento_id', id).order('numero_parcela');
+            const [itensRes, addsRes, discsRes, parcsRes] = await Promise.all([
+                supabaseClient.from('fin_lancamento_itens').select('*').eq('lancamento_id', id),
+                supabaseClient.from('fin_lancamento_adicionais').select('*').eq('lancamento_id', id),
+                supabaseClient.from('fin_lancamento_descontos').select('*').eq('lancamento_id', id),
+                supabaseClient.from('fin_lancamento_parcelas').select('*').eq('lancamento_id', id).order('numero_parcela')
+            ]);
+
+            const itens = itensRes.data || [];
+            const adicionais = addsRes.data || [];
+            const descontos = discsRes.data || [];
+            const parcelas = parcsRes.data || [];
 
             const itemsList = document.getElementById('viewItemsList');
-            if (itens && itens.length > 0) {
-                itemsList.innerHTML = itens.map(i => `
+            let rowsHtml = '';
+
+            if (itens.length > 0) {
+                rowsHtml += itens.map(i => `
                     <tr>
                         <td style="padding: 0.8rem;">
                             <div style="font-weight:700;">${i.descricao || i.produto || i.nome || 'Item sem descrição'}</div>
@@ -3265,7 +3630,7 @@ function setupEventListeners() {
                 // Fallback: carregar itens de compra_itens se fin_lancamento_itens estiver vazio
                 const { data: compItens } = await supabaseClient.from('compra_itens').select('*').eq('compra_id', l.compra_id);
                 if (compItens && compItens.length > 0) {
-                    itemsList.innerHTML = compItens.map(i => `
+                    rowsHtml += compItens.map(i => `
                         <tr>
                             <td style="padding: 0.8rem;">
                                 <div style="font-weight:700;">${i.produto || i.descricao || i.nome || 'Item da Compra'}</div>
@@ -3276,21 +3641,41 @@ function setupEventListeners() {
                             <td style="padding: 0.8rem; text-align:right; font-weight:800;">${formatCurrency((i.quantidade || 1) * (i.valor_unitario || i.valor_total || 0))}</td>
                         </tr>
                     `).join('');
-                } else {
-                    itemsList.innerHTML = `
-                        <tr>
-                            <td style="padding: 0.8rem;">
-                                <div style="font-weight:700;">${l.descricao || 'Lançamento Geral'}</div>
-                                <div style="font-size:0.75rem; opacity:0.7;">SINTÉTICO</div>
-                            </td>
-                            <td style="padding: 0.8rem; text-align:center;">1</td>
-                            <td style="padding: 0.8rem; text-align:right;">${formatCurrency(l.valor_total)}</td>
-                            <td style="padding: 0.8rem; text-align:right; font-weight:800;">${formatCurrency(l.valor_total)}</td>
-                        </tr>
-                    `;
                 }
-            } else {
-                itemsList.innerHTML = `
+            }
+
+            // Exibir Adicionais na tabela de detalhes
+            if (adicionais.length > 0) {
+                rowsHtml += adicionais.map(ad => `
+                    <tr style="background: rgba(99,102,241,0.03);">
+                        <td style="padding: 0.8rem;">
+                            <div style="font-weight:700; color:#818cf8;">${ad.descricao || 'Custo Adicional'}</div>
+                            <div style="font-size:0.75rem; color:#818cf8; opacity:0.8;">ACRÉSCIMO / ADICIONAL</div>
+                        </td>
+                        <td style="padding: 0.8rem; text-align:center;">-</td>
+                        <td style="padding: 0.8rem; text-align:right;">+ ${formatCurrency(ad.valor)}</td>
+                        <td style="padding: 0.8rem; text-align:right; font-weight:800; color:#818cf8;">+ ${formatCurrency(ad.valor)}</td>
+                    </tr>
+                `).join('');
+            }
+
+            // Exibir Descontos na tabela de detalhes
+            if (descontos.length > 0) {
+                rowsHtml += descontos.map(ds => `
+                    <tr style="background: rgba(239,68,68,0.04);">
+                        <td style="padding: 0.8rem;">
+                            <div style="font-weight:700; color:#ef4444;">${ds.descricao || 'Desconto / Vale'}</div>
+                            <div style="font-size:0.75rem; color:#ef4444; opacity:0.8;">DEDUÇÃO / DESCONTO</div>
+                        </td>
+                        <td style="padding: 0.8rem; text-align:center;">-</td>
+                        <td style="padding: 0.8rem; text-align:right; color:#ef4444;">- ${formatCurrency(ds.valor)}</td>
+                        <td style="padding: 0.8rem; text-align:right; font-weight:800; color:#ef4444;">- ${formatCurrency(ds.valor)}</td>
+                    </tr>
+                `).join('');
+            }
+
+            if (!rowsHtml) {
+                rowsHtml = `
                     <tr>
                         <td style="padding: 0.8rem;">
                             <div style="font-weight:700;">${l.descricao || 'Lançamento Geral'}</div>
@@ -3302,6 +3687,8 @@ function setupEventListeners() {
                     </tr>
                 `;
             }
+
+            itemsList.innerHTML = rowsHtml;
 
             const parcWrapper = document.getElementById('viewParcelasWrapper');
             const parcList = document.getElementById('viewParcelasList');
@@ -3345,20 +3732,44 @@ function renderConfig() {
     // 1. Fornecedores
     const fornList = document.getElementById('fornecedoresList');
     if (fornList) {
-        fornList.innerHTML = state.fornecedores.map(f => `
-            <tr>
-                <td style="font-weight:700">${f.nome}</td>
-                <td>${f.cnpj_cpf || '-'}</td>
-                <td><span class="badge secondary">${f.categoria || 'Geral'}</span></td>
-                <td style="font-size:0.8rem">${f.contato || f.email || '-'}</td>
-                <td>
-                    <div class="table-actions">
-                        <button class="btn-edit" onclick="openFornecedorModal('${f.id}')"><i data-lucide="edit"></i></button>
-                        <button class="btn-delete" onclick="deleteFornecedor('${f.id}')"><i data-lucide="trash"></i></button>
-                    </div>
-                </td>
-            </tr>
-        `).join('');
+        const query = (document.getElementById('fornecedorSearch')?.value || '').toLowerCase().trim();
+        const cleanQueryDoc = query.replace(/\D/g, '');
+
+        const filteredFornecedores = (state.fornecedores || []).filter(f => {
+            if (!query) return true;
+            const nome = (f.nome || '').toLowerCase();
+            const fantasia = (f.nome_fantasia || '').toLowerCase();
+            const doc = (f.cnpj_cpf || f.cnpj || f.doc || '').toString().toLowerCase();
+            const docClean = doc.replace(/\D/g, '');
+
+            const matchNome = nome.includes(query);
+            const matchFantasia = fantasia.includes(query);
+            const matchDoc = doc.includes(query) || (cleanQueryDoc && docClean.includes(cleanQueryDoc));
+
+            return matchNome || matchFantasia || matchDoc;
+        });
+
+        if (filteredFornecedores.length === 0) {
+            fornList.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:2rem; color:var(--text-muted); font-size:0.85rem;">Nenhum fornecedor encontrado para a pesquisa.</td></tr>`;
+        } else {
+            fornList.innerHTML = filteredFornecedores.map(f => `
+                <tr>
+                    <td style="font-weight:700">
+                        ${f.nome}
+                        ${f.nome_fantasia && f.nome_fantasia !== f.nome ? `<div style="font-size:0.75rem; color:var(--text-muted); font-weight:500;">${f.nome_fantasia}</div>` : ''}
+                    </td>
+                    <td>${f.cnpj_cpf || f.cnpj || f.doc || '-'}</td>
+                    <td><span class="badge secondary">${f.categoria || 'Geral'}</span></td>
+                    <td style="font-size:0.8rem">${f.contato || f.email || f.tel || '-'}</td>
+                    <td>
+                        <div class="table-actions">
+                            <button class="btn-edit" onclick="openFornecedorModal('${f.id}')"><i data-lucide="edit"></i></button>
+                            <button class="btn-delete" onclick="deleteFornecedor('${f.id}')"><i data-lucide="trash"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
     }
 
     // 2. Contas Bancárias
@@ -3372,7 +3783,7 @@ function renderConfig() {
                     </div>
                     <div>
                         <div style="font-weight:700; font-size:1rem; color:#0f172a;">${c.nome}</div>
-                        <div style="font-size:0.75rem; color:#64748b">${c.banco || 'BANCO'} | Ag: ${c.agencia} | CC: ${c.numero_conta}</div>
+                        <div style="font-size:0.75rem; color:#64748b">${c.banco ? `Cód. Banco: ${c.banco}` : 'Cód. Banco: -'} | Ag: ${c.agencia || '-'} | CC: ${c.numero_conta || '-'}</div>
                         ${c.pix ? `<div style="font-size:0.65rem; color:#059669; font-weight:700; margin-top:4px;">PIX: ${c.pix}</div>` : ''}
                     </div>
                 </div>
@@ -4640,16 +5051,23 @@ window.exportPlano = function(format) {
 let currentFinAutocompleteIndex = -1;
 
 function positionFinDropdown(inputEl, resultsDiv) {
+    const wrapper = inputEl.closest('.autocomplete-wrapper');
+    if (!wrapper) return;
+    
+    // Se o wrapper tem position relative e o dropdown é absolute, ele se posiciona nativamente via CSS.
+    // Mas garantimos que o width seja 100% ou coincida com o input.
     const rect = inputEl.getBoundingClientRect();
     const stylePos = window.getComputedStyle(resultsDiv).position;
+
     if (stylePos === 'fixed') {
         resultsDiv.style.top   = (rect.bottom + 4) + 'px';
         resultsDiv.style.left  = rect.left + 'px';
+        resultsDiv.style.width = rect.width + 'px';
     } else {
-        resultsDiv.style.top   = (rect.bottom + window.scrollY + 4) + 'px';
-        resultsDiv.style.left  = (rect.left + window.scrollX) + 'px';
+        resultsDiv.style.top   = (inputEl.offsetTop + inputEl.offsetHeight + 4) + 'px';
+        resultsDiv.style.left  = inputEl.offsetLeft + 'px';
+        resultsDiv.style.width = inputEl.offsetWidth + 'px';
     }
-    resultsDiv.style.width = rect.width + 'px';
 }
 
 window.addEventListener('scroll', () => {
@@ -4703,6 +5121,24 @@ function updateFinAutocompleteHighlight(items) {
     });
 }
 
+window.setFinFavorecidoTipo = (tipo, el) => {
+    state.favorecidoFiltroTipo = tipo;
+    
+    // Atualiza classe active nos chips
+    const chipsContainer = document.getElementById('entryFavChips');
+    if (chipsContainer) {
+        chipsContainer.querySelectorAll('.fav-chip').forEach(c => c.classList.remove('active'));
+    }
+    if (el) el.classList.add('active');
+
+    // Reexecuta a busca no input
+    const input = document.getElementById('entryEntidadeSearch');
+    if (input) {
+        handleFinEntidadeSearch(input);
+        input.focus();
+    }
+};
+
 window.handleFinEntidadeSearch = (el) => {
     currentFinAutocompleteIndex = -1;
     const query = el.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -4713,30 +5149,113 @@ window.handleFinEntidadeSearch = (el) => {
         if (hiddenId) hiddenId.value = '';
     }
 
-    // Busca unificada de fornecedores e clientes
-    const allPartners = [
-        ...(state.fornecedores || []).map(f => ({ id: f.nome, nome: f.nome, doc: f.cnpj_cpf, desc: 'Fornecedor' })),
-        ...(state.clientes || []).map(c => ({ id: c.nome, nome: c.nome, doc: c.cnpj_cpf, desc: 'Cliente' }))
-    ];
+    const filtroAtivo = state.favorecidoFiltroTipo || 'ALL';
 
+    // 1. Fornecedores
+    const fornecedoresList = (state.fornecedores || []).map(f => ({
+        id: f.nome,
+        nome: f.nome,
+        fantasia: f.nome_fantasia || '',
+        doc: f.cnpj_cpf || f.cnpj || f.cpf || '',
+        tipo: 'FORNECEDOR',
+        badgeClass: 'fav-badge-fornecedor',
+        badgeLabel: 'Fornecedor'
+    }));
+
+    // 2. Motoristas (Frota)
+    const motoristasList = (state.motoristasFrota || []).map(m => ({
+        id: m.nome_completo,
+        nome: m.nome_completo,
+        fantasia: '',
+        doc: m.cpf || (m.registro_cnh ? `CNH: ${m.registro_cnh}` : ''),
+        tipo: 'FROTA',
+        badgeClass: 'fav-badge-frota',
+        badgeLabel: 'Motorista'
+    }));
+
+    // 3. Funcionários (DP)
+    const funcionariosList = (state.funcionariosDP || []).map(dp => ({
+        id: dp.nome_completo,
+        nome: dp.nome_completo,
+        fantasia: '',
+        doc: dp.cpf || '',
+        tipo: 'DP',
+        badgeClass: 'fav-badge-dp',
+        badgeLabel: 'DP'
+    }));
+
+    // 4. Motoristas / Prestadores (Comercial)
+    const prestadoresList = (state.prestadoresComercial || []).map(p => ({
+        id: p.nome_prestador,
+        nome: p.nome_prestador,
+        fantasia: '',
+        doc: p.cpf || p.cnpj || '',
+        tipo: 'COMERCIAL',
+        badgeClass: 'fav-badge-comercial',
+        badgeLabel: 'Comercial'
+    }));
+
+    // 5. Clientes (quando em busca geral 'ALL')
+    const clientesList = (state.clientes || []).map(c => ({
+        id: c.nome,
+        nome: c.nome,
+        fantasia: c.nome_fantasia || '',
+        doc: c.cnpj_cpf || '',
+        tipo: 'CLIENTE',
+        badgeClass: 'fav-badge-cliente',
+        badgeLabel: 'Cliente'
+    }));
+
+    // Concatena conforme o filtro selecionado
+    let baseList = [];
+    if (filtroAtivo === 'FORNECEDOR') {
+        baseList = fornecedoresList;
+    } else if (filtroAtivo === 'FROTA') {
+        baseList = motoristasList;
+    } else if (filtroAtivo === 'DP') {
+        baseList = funcionariosList;
+    } else if (filtroAtivo === 'COMERCIAL') {
+        baseList = prestadoresList;
+    } else {
+        // ALL: Todos unificados
+        baseList = [
+            ...fornecedoresList,
+            ...motoristasList,
+            ...funcionariosList,
+            ...prestadoresList,
+            ...clientesList
+        ];
+    }
+
+    // Filtragem por texto/documento/nome fantasia
     const matches = query.length === 0
-        ? allPartners.slice(0, 30)
-        : allPartners.filter(p => {
+        ? baseList.slice(0, 40)
+        : baseList.filter(p => {
             const nameNorm = (p.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const fantasiaNorm = (p.fantasia || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             const doc = (p.doc || '').replace(/\D/g, '');
             const cleanQuery = query.replace(/\D/g, '');
-            return nameNorm.includes(query) || (cleanQuery.length > 0 && doc.includes(cleanQuery));
-          }).slice(0, 30);
+            return nameNorm.includes(query) || fantasiaNorm.includes(query) || (cleanQuery.length > 0 && doc.includes(cleanQuery));
+          }).slice(0, 40);
 
     if (matches.length === 0) {
         resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.75rem;">Nenhum favorecido encontrado...</div>';
     } else {
-        resultsDiv.innerHTML = matches.map(p => `
-            <div class="autocomplete-item" onclick="selectFinEntidade('${p.nome.replace(/'/g, "\\'")}', this)">
-                <span class="prod-name">${p.nome}</span>
-                <span class="prod-meta">${p.desc} ${p.doc ? `• Doc: ${p.doc}` : ''}</span>
-            </div>
-        `).join('');
+        resultsDiv.innerHTML = matches.map(p => {
+            const displayName = p.fantasia && p.fantasia !== p.nome
+                ? `${p.nome} | ${p.fantasia}`
+                : p.nome;
+
+            return `
+                <div class="autocomplete-item" onclick="selectFinEntidade('${p.nome.replace(/'/g, "\\'")}', this)" style="padding: 0.6rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;">
+                    <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom: 2px;">
+                        <span class="fav-badge ${p.badgeClass}">${p.badgeLabel}</span>
+                        <span class="prod-name" style="font-weight:700; font-size:0.83rem; color: #0f172a;">${displayName}</span>
+                    </div>
+                    ${p.doc ? `<span class="prod-meta" style="font-size:0.68rem; color:#64748b; font-weight:600;">DOC: ${p.doc}</span>` : ''}
+                </div>
+            `;
+        }).join('');
     }
     
     positionFinDropdown(el, resultsDiv);
@@ -4807,17 +5326,120 @@ window.selectFinEntidade = (nome, itemEl) => {
     }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 🌿 MULTI-SELECT PILLS STATE & LOGIC PARA FILTROS DE RELATÓRIO
+// ─────────────────────────────────────────────────────────────────────────────
+window.fhistSelectedFilters = {
+    entidade: [],  // Array de nomes: ['Posto Ipiranga', 'Oficina Real']
+    categoria: [], // Array de { id, label }: [{ id: '...', label: '04.004 - Manutenção' }]
+    cc: [],        // Array de { id, label }: [{ id: '...', label: '01 - Matriz' }]
+    conta: []      // Array de { id, label }: [{ id: '...', label: 'Sicredi' }]
+};
+
+function renderFhistTags(type) {
+    const container = document.getElementById(`fhist-${type}-tags`);
+    const hidden = document.getElementById(`fhist-${type}`);
+    const input = document.getElementById(`fhist-${type}-search`);
+    if (!container) return;
+
+    const list = window.fhistSelectedFilters[type] || [];
+    container.innerHTML = list.map((item, idx) => {
+        const text = typeof item === 'object' ? (item.label || item.nome) : item;
+        const escText = (text || '').replace(/"/g, '&quot;');
+        return `
+            <span class="fhist-tag" title="${escText}">
+                <span>${escText}</span>
+                <span class="fhist-tag-remove" onclick="removeFhistTag('${type}', ${idx}, event)">&times;</span>
+            </span>
+        `;
+    }).join('');
+
+    // Atualiza o hidden value
+    if (hidden) {
+        if (type === 'entidade') {
+            hidden.value = JSON.stringify(list);
+        } else {
+            hidden.value = JSON.stringify(list.map(i => i.id));
+        }
+    }
+
+    if (input) {
+        if (list.length > 0) {
+            input.placeholder = "+ adicionar mais...";
+        } else {
+            const placeholders = {
+                entidade: "Digitar para buscar e adicionar...",
+                categoria: "Digitar conta e adicionar...",
+                cc: "Digitar centro e adicionar...",
+                conta: "Digitar banco/conta e adicionar..."
+            };
+            input.placeholder = placeholders[type] || "Digitar para adicionar...";
+        }
+    }
+}
+
+window.addFhistTag = (type, item) => {
+    if (!window.fhistSelectedFilters[type]) window.fhistSelectedFilters[type] = [];
+    
+    // Evita duplicatas
+    const list = window.fhistSelectedFilters[type];
+    if (type === 'entidade') {
+        if (item && !list.includes(item)) list.push(item);
+    } else {
+        if (item && item.id && !list.some(i => i.id === item.id)) list.push(item);
+    }
+
+    renderFhistTags(type);
+
+    const input = document.getElementById(`fhist-${type}-search`);
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+    const wrapper = input ? input.closest('.autocomplete-wrapper') : null;
+    const resultsDiv = wrapper ? wrapper.querySelector('.autocomplete-results') : null;
+    if (resultsDiv) resultsDiv.style.display = 'none';
+};
+
+window.removeFhistTag = (type, index, event) => {
+    if (event) event.stopPropagation();
+    if (!window.fhistSelectedFilters[type]) return;
+    window.fhistSelectedFilters[type].splice(index, 1);
+    renderFhistTags(type);
+};
+
+window.clearFhistAllTags = () => {
+    window.fhistSelectedFilters = { entidade: [], categoria: [], cc: [], conta: [] };
+    ['entidade', 'categoria', 'cc', 'conta'].forEach(type => {
+        renderFhistTags(type);
+        const searchInput = document.getElementById(`fhist-${type}-search`);
+        if (searchInput) searchInput.value = '';
+    });
+};
+
+window.handleFhistInputKeydown = (e, type, inputEl) => {
+    if (e.key === 'Backspace' && inputEl.value === '') {
+        const list = window.fhistSelectedFilters[type] || [];
+        if (list.length > 0) {
+            list.pop();
+            renderFhistTags(type);
+        }
+    } else {
+        handleFinAutocompleteKeydown(e, inputEl);
+    }
+};
+
 window.handleFhistEntidadeSearch = (el) => {
     currentFinAutocompleteIndex = -1;
     const query = el.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     const wrapper = el.closest('.autocomplete-wrapper');
     if (!wrapper) return;
-    let resultsDiv = wrapper.querySelector('.autocomplete-results');
-    if (!resultsDiv) return;
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
 
     const allPartners = [
-        ...(state.fornecedores || []).map(f => ({ nome: f.nome, doc: f.cnpj_cpf || f.cpf || f.cnpj || '', type: 'FORNECEDOR' })),
-        ...(state.clientes || []).map(c => ({ nome: c.nome, doc: c.cnpj_cpf || c.cpf || c.cnpj || '', type: 'CLIENTE' }))
+        ...(state.fornecedores || []).map(f => ({ nome: f.nome, fantasia: f.nome_fantasia || '', doc: f.cnpj_cpf || f.cpf || f.cnpj || '', type: 'FORNECEDOR' })),
+        ...(state.clientes || []).map(c => ({ nome: c.nome, fantasia: c.nome_fantasia || '', doc: c.cnpj_cpf || c.cpf || c.cnpj || '', type: 'CLIENTE' })),
+        ...(state.funcionariosDP || []).map(d => ({ nome: d.nome_completo, fantasia: '', doc: d.cpf || '', type: 'DP' }))
     ];
 
     const partnerMap = new Map();
@@ -4830,44 +5452,158 @@ window.handleFhistEntidadeSearch = (el) => {
     });
     const uniquePartners = Array.from(partnerMap.values()).sort((a,b) => a.nome.localeCompare(b.nome));
 
+    const selectedNomes = window.fhistSelectedFilters.entidade || [];
+    const availablePartners = uniquePartners.filter(p => !selectedNomes.includes(p.nome));
+
     const matches = query.length === 0
-        ? uniquePartners.slice(0, 35)
-        : uniquePartners.filter(p => {
+        ? availablePartners.slice(0, 40)
+        : availablePartners.filter(p => {
             const nameNorm = p.nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const fanNorm = (p.fantasia || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             const docClean = (p.doc || '').replace(/\D/g, '');
             const queryClean = query.replace(/\D/g, '');
-            return nameNorm.includes(query) || (queryClean.length > 0 && docClean.includes(queryClean));
-          }).slice(0, 35);
+            return nameNorm.includes(query) || fanNorm.includes(query) || (queryClean.length > 0 && docClean.includes(queryClean));
+          }).slice(0, 40);
 
+    let html = '';
     if (matches.length === 0) {
-        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.78rem; padding:0.8rem 1rem;">Nenhum favorecido encontrado...</div>';
+        html += '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.78rem; padding:0.8rem 1rem;">Nenhum favorecido encontrado...</div>';
     } else {
-        resultsDiv.innerHTML = matches.map(p => {
+        html += matches.map(p => {
             const escName = p.nome.replace(/'/g, "\\'");
+            const displayName = p.fantasia && p.fantasia !== p.nome ? `${p.nome} | ${p.fantasia}` : p.nome;
             const docStr = p.doc ? ` • DOC: ${p.doc}` : '';
             return `
-                <div class="autocomplete-item" onclick="selectFhistEntidade('${escName}', this)">
-                    <span class="prod-name" style="font-weight:800; font-size:0.85rem;">${p.nome}</span>
-                    <span class="prod-meta" style="font-size:0.7rem; font-weight:700; text-transform:uppercase; margin-top:3px;">${p.type}${docStr}</span>
+                <div class="autocomplete-item" onclick="addFhistTag('entidade', '${escName}')" style="padding: 0.6rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;">
+                    <span class="prod-name" style="font-weight:700; font-size:0.84rem; color: #0f172a;">${displayName}</span>
+                    <span class="prod-meta" style="font-size:0.68rem; color:#64748b; font-weight:600; text-transform:uppercase; margin-top:2px;">${p.type}${docStr}</span>
                 </div>
             `;
         }).join('');
     }
 
+    resultsDiv.innerHTML = html;
     positionFinDropdown(el, resultsDiv);
     resultsDiv.style.display = 'block';
 };
 
-window.selectFhistEntidade = (nome, itemEl) => {
-    const wrapper = itemEl.closest('.autocomplete-wrapper');
-    const input = wrapper ? wrapper.querySelector('input') : null;
-    const resultsDiv = wrapper ? wrapper.querySelector('.autocomplete-results') : null;
+window.handleFhistCategoriaSearch = (el) => {
+    currentFinAutocompleteIndex = -1;
+    const query = el.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const wrapper = el.closest('.autocomplete-wrapper');
+    if (!wrapper) return;
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
 
-    if (input) input.value = nome;
-    if (resultsDiv) {
-        resultsDiv.style.display = 'none';
-        resultsDiv.innerHTML = '';
+    const selectedIds = (window.fhistSelectedFilters.categoria || []).map(i => i.id);
+    const categorias = (state.categorias || [])
+        .filter(c => !selectedIds.includes(c.id))
+        .sort((a,b) => (a.codigo||'').localeCompare(b.codigo||'', undefined, { numeric:true }));
+
+    const matches = query.length === 0
+        ? categorias
+        : categorias.filter(c => {
+            const nameNorm = (c.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const cod = (c.codigo || '').toLowerCase();
+            return nameNorm.includes(query) || cod.includes(query);
+          });
+
+    let html = '';
+    if (matches.length === 0) {
+        html += '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.78rem; padding:0.8rem 1rem;">Nenhuma categoria encontrada...</div>';
+    } else {
+        html += matches.map(c => {
+            const label = (c.codigo ? `${c.codigo} - ` : '') + c.nome;
+            const level = c.codigo ? c.codigo.split('.').length - 1 : 0;
+            const indentStyle = `padding-left: ${0.8 + level * 1.1}rem;`;
+            return `
+                <div class="autocomplete-item" style="${indentStyle}; padding-top:0.5rem; padding-bottom:0.5rem; border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer;" onclick="addFhistTag('categoria', { id: '${c.id}', label: '${label.replace(/'/g, "\\'")}' })">
+                    <span class="prod-name" style="font-weight:700; font-size:0.83rem; color:#0f172a;">${label}</span>
+                </div>
+            `;
+        }).join('');
     }
+
+    resultsDiv.innerHTML = html;
+    positionFinDropdown(el, resultsDiv);
+    resultsDiv.style.display = 'block';
+};
+
+window.handleFhistCCSearch = (el) => {
+    currentFinAutocompleteIndex = -1;
+    const query = el.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const wrapper = el.closest('.autocomplete-wrapper');
+    if (!wrapper) return;
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
+
+    const selectedIds = (window.fhistSelectedFilters.cc || []).map(i => i.id);
+    const centros = (state.centrosCusto || [])
+        .filter(c => !selectedIds.includes(c.id))
+        .sort((a,b) => (a.codigo||'').localeCompare(b.codigo||'', undefined, { numeric:true }));
+
+    const matches = query.length === 0
+        ? centros
+        : centros.filter(c => {
+            const nameNorm = (c.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const cod = (c.codigo || '').toLowerCase();
+            return nameNorm.includes(query) || cod.includes(query);
+          });
+
+    let html = '';
+    if (matches.length === 0) {
+        html += '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.78rem; padding:0.8rem 1rem;">Nenhum centro de custo encontrado...</div>';
+    } else {
+        html += matches.map(c => {
+            const label = (c.codigo ? `${c.codigo} - ` : '') + c.nome;
+            return `
+                <div class="autocomplete-item" style="padding:0.6rem 0.8rem; border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer;" onclick="addFhistTag('cc', { id: '${c.id}', label: '${label.replace(/'/g, "\\'")}' })">
+                    <span class="prod-name" style="font-weight:700; font-size:0.83rem; color:#0f172a;">${label}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    resultsDiv.innerHTML = html;
+    positionFinDropdown(el, resultsDiv);
+    resultsDiv.style.display = 'block';
+};
+
+window.handleFhistContaSearch = (el) => {
+    currentFinAutocompleteIndex = -1;
+    const query = el.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const wrapper = el.closest('.autocomplete-wrapper');
+    if (!wrapper) return;
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
+
+    const selectedIds = (window.fhistSelectedFilters.conta || []).map(i => i.id);
+    const contas = (state.contas || []).filter(c => !selectedIds.includes(c.id));
+
+    const matches = query.length === 0
+        ? contas
+        : contas.filter(c => {
+            const nameNorm = (c.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const banco = (c.banco || '').toLowerCase();
+            const cc = (c.numero_conta || '').toLowerCase();
+            return nameNorm.includes(query) || banco.includes(query) || cc.includes(query);
+          });
+
+    let html = '';
+    if (matches.length === 0) {
+        html += '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.78rem; padding:0.8rem 1rem;">Nenhuma conta bancária encontrada...</div>';
+    } else {
+        html += matches.map(c => {
+            const label = c.nome + (c.banco ? ` (${c.banco})` : '');
+            return `
+                <div class="autocomplete-item" style="padding:0.6rem 0.8rem; border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer;" onclick="addFhistTag('conta', { id: '${c.id}', label: '${label.replace(/'/g, "\\'")}' })">
+                    <span class="prod-name" style="font-weight:700; font-size:0.83rem; color:#0f172a;">${label}</span>
+                    <span class="prod-meta" style="font-size:0.68rem; color:#64748b; font-weight:600;">Ag: ${c.agencia || '-'} | CC: ${c.numero_conta || '-'}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    resultsDiv.innerHTML = html;
+    positionFinDropdown(el, resultsDiv);
+    resultsDiv.style.display = 'block';
 };
 
 window.handleFinCategoriaSearch = (el) => {
@@ -5083,11 +5819,20 @@ let fhistData = [];
 let fhistFiltros = {};
 let _fhistSortKey = null, _fhistSortDir = 'asc';
 
-/** Atalhos de período rápido (Este Mês, Mês Passado, Ano Atual) */
-function fhistSetPeriod(modo) {
+/** Atalhos de período rápido (Personalizado, Este Mês, Mês Passado, Ano Atual) */
+function fhistSetPeriod(modo, btnEl) {
     const dataIni = document.getElementById('fhist-data-ini');
     const dataFim = document.getElementById('fhist-data-fim');
     if (!dataIni || !dataFim) return;
+
+    // Atualiza estado ativo visual dos botões
+    document.querySelectorAll('.fhist-period-shortcuts .btn-shortcut').forEach(b => b.classList.remove('active'));
+    if (btnEl) {
+        btnEl.classList.add('active');
+    } else {
+        const targetBtn = document.getElementById(`btn-period-${modo}`);
+        if (targetBtn) targetBtn.classList.add('active');
+    }
 
     const hoje = new Date();
     if (modo === 'mes_atual') {
@@ -5103,10 +5848,15 @@ function fhistSetPeriod(modo) {
     } else if (modo === 'ano_atual') {
         dataIni.value = `${hoje.getFullYear()}-01-01`;
         dataFim.value = `${hoje.getFullYear()}-12-31`;
-    } else if (modo === 'limpar') {
+    } else if (modo === 'personalizado' || modo === 'limpar') {
         dataIni.value = '';
         dataFim.value = '';
+        dataIni.focus();
     }
+
+    // Remove alerta de borda vermelha se houver
+    dataIni.style.borderColor = '';
+    dataFim.style.borderColor = '';
 }
 
 /** Popula os selects de categoria, CC e conta ao entrar na aba */
@@ -5179,13 +5929,20 @@ function populateFhistEntidadesSelect() {
 
 /** Limpa todos os filtros e reset da área de resultado */
 function fhistLimpar() {
-    ['fhist-tipo','fhist-date-field','fhist-status','fhist-entidade','fhist-data-ini','fhist-data-fim','fhist-categoria','fhist-cc','fhist-conta'].forEach(id => {
+    ['fhist-tipo','fhist-date-field','fhist-status','fhist-data-ini','fhist-data-fim'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         el.style.borderColor = '';
         if (el.tagName === 'SELECT') el.selectedIndex = 0;
         else el.value = '';
     });
+
+    if (typeof clearFhistAllTags === 'function') {
+        clearFhistAllTags();
+    }
+
+    fhistSetPeriod('personalizado');
+
     fhistData = [];
     fhistFiltros = {};
     const area = document.getElementById('fhist-result-area');
@@ -5216,14 +5973,14 @@ function fhistFmtCurrency(val) {
 /** Status badge para financeiro */
 function fhistBadge(status) {
     const map = {
-        PAGO:      { cls: 'background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.25)', label: 'PAGO' },
-        ABERTO:    { cls: 'background:rgba(245,158,11,0.15);color:#fcd34d;border:1px solid rgba(245,158,11,0.25)', label: 'ABERTO' },
-        CANCELADO: { cls: 'background:rgba(100,116,139,0.15);color:#94a3b8;border:1px solid rgba(100,116,139,0.25)', label: 'CANCELADO' },
-        PARCIAL:   { cls: 'background:rgba(14,165,233,0.15);color:#38bdf8;border:1px solid rgba(14,165,233,0.25)', label: 'PARCIAL' },
-        ATRASADO:  { cls: 'background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.25)', label: 'ATRASADO' },
+        PAGO:      { cls: 'background:rgba(22,163,74,0.12);color:#15803d;border:1px solid rgba(22,163,74,0.3)', label: 'PAGO' },
+        ABERTO:    { cls: 'background:rgba(217,119,6,0.12);color:#b45309;border:1px solid rgba(217,119,6,0.3)', label: 'ABERTO' },
+        CANCELADO: { cls: 'background:rgba(100,116,139,0.12);color:#475569;border:1px solid rgba(100,116,139,0.25)', label: 'CANCELADO' },
+        PARCIAL:   { cls: 'background:rgba(2,132,199,0.12);color:#0369a1;border:1px solid rgba(2,132,199,0.3)', label: 'PARCIAL' },
+        ATRASADO:  { cls: 'background:rgba(220,38,38,0.12);color:#b91c1c;border:1px solid rgba(220,38,38,0.3)', label: 'ATRASADO' },
     };
-    const d = map[status] || { cls: 'background:rgba(99,102,241,0.15);color:#818cf8;border:1px solid rgba(99,102,241,0.25)', label: status || '—' };
-    return `<span style="display:inline-flex;align-items:center;padding:0.2rem 0.65rem;border-radius:50px;font-size:0.68rem;font-weight:700;letter-spacing:0.04rem;${d.cls}">${d.label}</span>`;
+    const d = map[status] || { cls: 'background:rgba(45,158,107,0.12);color:#1a6b47;border:1px solid rgba(45,158,107,0.25)', label: status || '—' };
+    return `<span style="display:inline-flex;align-items:center;padding:0.25rem 0.65rem;border-radius:50px;font-size:0.68rem;font-weight:700;letter-spacing:0.04rem;${d.cls}">${d.label}</span>`;
 }
 
 /** Executa a query on-demand no Supabase */
@@ -5235,10 +5992,12 @@ async function fhistGerar() {
     const dataIni   = document.getElementById('fhist-data-ini')?.value     || '';
     const dataFim   = document.getElementById('fhist-data-fim')?.value     || '';
     const status    = document.getElementById('fhist-status')?.value       || '';
-    const entidade  = document.getElementById('fhist-entidade')?.value     || '';
-    const catId     = document.getElementById('fhist-categoria')?.value    || '';
-    const ccId      = document.getElementById('fhist-cc')?.value           || '';
-    const contaId   = document.getElementById('fhist-conta')?.value        || '';
+
+    // Recupera seleções múltiplas (Pills)
+    const entidades = window.fhistSelectedFilters?.entidade || [];
+    const catIds    = (window.fhistSelectedFilters?.categoria || []).map(i => i.id);
+    const ccIds     = (window.fhistSelectedFilters?.cc || []).map(i => i.id);
+    const contaIds  = (window.fhistSelectedFilters?.conta || []).map(i => i.id);
 
     // Validação de Período Obrigatório
     if (!dataIni || !dataFim) {
@@ -5262,7 +6021,13 @@ async function fhistGerar() {
         return;
     }
 
-    fhistFiltros = { tipo, dateField, dataIni, dataFim, status, entidade, catId, ccId, contaId };
+    fhistFiltros = {
+        tipo, dateField, dataIni, dataFim, status,
+        entidades: [...entidades],
+        catIds: [...catIds],
+        ccIds: [...ccIds],
+        contaIds: [...contaIds]
+    };
 
     const btn = document.getElementById('btn-fhist-gerar');
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="fhist-spinner"></span> Consultando...'; }
@@ -5276,10 +6041,31 @@ async function fhistGerar() {
         if (status)  query = query.eq('status', status);
         if (dataIni) query = query.gte(dateField, dataIni);
         if (dataFim) query = query.lte(dateField, dataFim);
-        if (entidade) query = query.ilike('entidade_nome', `%${entidade}%`);
-        if (catId)   query = query.eq('categoria_id', catId);
-        if (ccId)    query = query.eq('centro_custo_id', ccId);
-        if (contaId) query = query.eq('conta_id', contaId);
+
+        // Filtros Múltiplos
+        if (entidades.length === 1) {
+            query = query.ilike('entidade_nome', `%${entidades[0]}%`);
+        } else if (entidades.length > 1) {
+            query = query.in('entidade_nome', entidades);
+        }
+
+        if (catIds.length === 1) {
+            query = query.eq('categoria_id', catIds[0]);
+        } else if (catIds.length > 1) {
+            query = query.in('categoria_id', catIds);
+        }
+
+        if (ccIds.length === 1) {
+            query = query.eq('centro_custo_id', ccIds[0]);
+        } else if (ccIds.length > 1) {
+            query = query.in('centro_custo_id', ccIds);
+        }
+
+        if (contaIds.length === 1) {
+            query = query.eq('conta_bancaria_id', contaIds[0]);
+        } else if (contaIds.length > 1) {
+            query = query.in('conta_bancaria_id', contaIds);
+        }
 
         const { data, error } = await query.order(dateField, { ascending: false }).limit(2000);
         if (error) throw error;
@@ -5332,22 +6118,42 @@ function fhistRenderTabela() {
             <div class="fhist-kpi qtd"><div class="fhist-kpi-label">Lançamentos</div><div class="fhist-kpi-value">${fhistData.length}</div></div>
             <div class="fhist-kpi pagar"><div class="fhist-kpi-label">Total a Pagar</div><div class="fhist-kpi-value">${fhistFmtCurrency(totalPagar)}</div></div>
             <div class="fhist-kpi receber"><div class="fhist-kpi-label">Total a Receber</div><div class="fhist-kpi-value">${fhistFmtCurrency(totalReceber)}</div></div>
-            <div class="fhist-kpi"><div class="fhist-kpi-label">Total Pago/Recebido</div><div class="fhist-kpi-value" style="color:#94a3b8">${fhistFmtCurrency(totalPago)}</div></div>
-            <div class="fhist-kpi saldo"><div class="fhist-kpi-label">Saldo Resultado</div><div class="fhist-kpi-value" style="color:${saldo>=0?'#10b981':'#ef4444'}">${fhistFmtCurrency(saldo)}</div></div>
+            <div class="fhist-kpi pago"><div class="fhist-kpi-label">Total Pago/Recebido</div><div class="fhist-kpi-value">${fhistFmtCurrency(totalPago)}</div></div>
+            <div class="fhist-kpi saldo"><div class="fhist-kpi-label">Saldo Resultado</div><div class="fhist-kpi-value" style="color:${saldo>=0?'#16a34a':'#dc2626'}">${fhistFmtCurrency(saldo)}</div></div>
         </div>`;
 
     // Chips de filtros ativos
     const dateFieldLabels = { data_vencimento:'Vencimento', data_pagamento:'Pagamento', data_emissao:'Emissão', data_competencia:'Competência' };
-    const chips = Object.entries(fhistFiltros).filter(([,v])=>v).map(([k,v]) => {
-        const labelMap = { tipo:'Tipo', dateField:'Campo Data', dataIni:'De', dataFim:'Até', status:'Status', entidade:'Entidade', catId:'Categoria', ccId:'C. Custo', contaId:'Conta' };
-        let display = v;
-        if (k === 'tipo') display = v === 'PAGAR' ? 'Contas a Pagar' : 'Contas a Receber';
-        if (k === 'dateField') display = dateFieldLabels[v] || v;
-        if (k === 'catId') { const c = (state.categorias||[]).find(x=>x.id===v); display = c ? `${c.codigo||''} ${c.nome}`.trim() : v; }
-        if (k === 'ccId')  { const c = (state.centrosCusto||[]).find(x=>x.id===v); display = c ? c.nome : v; }
-        if (k === 'contaId') { const c = (state.contas||[]).find(x=>x.id===v); display = c ? c.nome : v; }
-        return `<span class="fhist-chip">● ${labelMap[k]||k}: <strong>${display}</strong></span>`;
-    }).join('');
+    const chipsArr = [];
+    if (fhistFiltros.tipo) chipsArr.push(`● Tipo: <strong>${fhistFiltros.tipo==='PAGAR'?'Contas a Pagar':'Contas a Receber'}</strong>`);
+    if (fhistFiltros.dateField) chipsArr.push(`● Campo Data: <strong>${dateFieldLabels[fhistFiltros.dateField]||fhistFiltros.dateField}</strong>`);
+    if (fhistFiltros.dataIni) chipsArr.push(`● De: <strong>${fhistFmtDate(fhistFiltros.dataIni)}</strong>`);
+    if (fhistFiltros.dataFim) chipsArr.push(`● Até: <strong>${fhistFmtDate(fhistFiltros.dataFim)}</strong>`);
+    if (fhistFiltros.status) chipsArr.push(`● Status: <strong>${fhistFiltros.status}</strong>`);
+    if (fhistFiltros.entidades?.length) chipsArr.push(`● Favorecidos (${fhistFiltros.entidades.length}): <strong>${fhistFiltros.entidades.join(', ')}</strong>`);
+    if (fhistFiltros.catIds?.length) {
+        const names = fhistFiltros.catIds.map(id => {
+            const c = (state.categorias||[]).find(x=>x.id===id);
+            return c ? `${c.codigo?c.codigo+' ':''}${c.nome}` : id;
+        });
+        chipsArr.push(`● Categorias (${names.length}): <strong>${names.join('; ')}</strong>`);
+    }
+    if (fhistFiltros.ccIds?.length) {
+        const names = fhistFiltros.ccIds.map(id => {
+            const c = (state.centrosCusto||[]).find(x=>x.id===id);
+            return c ? c.nome : id;
+        });
+        chipsArr.push(`● Centros de Custo (${names.length}): <strong>${names.join(', ')}</strong>`);
+    }
+    if (fhistFiltros.contaIds?.length) {
+        const names = fhistFiltros.contaIds.map(id => {
+            const c = (state.contas||[]).find(x=>x.id===id);
+            return c ? c.nome : id;
+        });
+        chipsArr.push(`● Contas (${names.length}): <strong>${names.join(', ')}</strong>`);
+    }
+
+    const chips = chipsArr.map(c => `<span class="fhist-chip">${c}</span>`).join('');
 
     const sortIco = `<i data-lucide="chevrons-up-down" style="width:11px;opacity:0.25;vertical-align:middle;margin-left:3px;"></i>`;
     const thead = `<thead><tr>
@@ -5357,7 +6163,6 @@ function fhistRenderTabela() {
         <th onclick="fhistSort('data_pagamento')" style="cursor:pointer">Pagamento${sortIco}</th>
         <th onclick="fhistSort('entidade_nome')" style="cursor:pointer">Favorecido${sortIco}</th>
         <th onclick="fhistSort('descricao')" style="cursor:pointer">Descrição${sortIco}</th>
-        <th onclick="fhistSort('valor_total')" style="cursor:pointer;text-align:right">Valor Total${sortIco}</th>
         <th onclick="fhistSort('valor_pago')" style="cursor:pointer;text-align:right">Valor Pago${sortIco}</th>
         <th onclick="fhistSort('status')" style="cursor:pointer">Status${sortIco}</th>
     </tr></thead>`;
@@ -5378,17 +6183,16 @@ function fhistRenderTabela() {
         const isAtrasado = venc && venc < hoje && l.status === 'ABERTO';
         const statusDisplay = isAtrasado ? 'ATRASADO' : l.status;
         const tipoIcon = l.tipo === 'PAGAR'
-            ? '<i data-lucide="arrow-up-circle" style="width:13px;color:#ef4444;vertical-align:middle"></i>'
-            : '<i data-lucide="arrow-down-circle" style="width:13px;color:#10b981;vertical-align:middle"></i>';
+            ? '<i data-lucide="arrow-up-circle" style="width:14px;color:#dc2626;vertical-align:middle"></i>'
+            : '<i data-lucide="arrow-down-circle" style="width:14px;color:#16a34a;vertical-align:middle"></i>';
         return `<tr>
-            <td style="font-weight:800;color:#6366f1;font-family:'JetBrains Mono',monospace;font-size:0.78rem">${l.codigo_sequencial||'—'}</td>
-            <td>${tipoIcon} <span style="font-size:0.78rem;font-weight:600">${l.tipo==='PAGAR'?'Pagar':'Receber'}</span></td>
-            <td>${fhistFmtDate(l.data_vencimento)}</td>
-            <td style="color:${l.data_pagamento?'#10b981':'#94a3b8'}">${fhistFmtDate(l.data_pagamento)}</td>
-            <td style="font-weight:600">${l.entidade_nome||'—'}</td>
-            <td style="font-size:0.83rem;color:#94a3b8;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(l.descricao||'').replace(/"/g,'&quot;')}">${l.descricao||'—'}</td>
-            <td style="text-align:right;font-weight:700;color:${l.tipo==='PAGAR'?'#ef4444':'#10b981'}">${fhistFmtCurrency(l.valor_total)}</td>
-            <td style="text-align:right;color:#94a3b8">${fhistFmtCurrency(l.valor_pago)}</td>
+            <td style="font-weight:800;color:#2d9e6b;font-family:'JetBrains Mono',monospace;font-size:0.8rem">${l.codigo_sequencial||'—'}</td>
+            <td>${tipoIcon} <span style="font-size:0.8rem;font-weight:700;color:${l.tipo==='PAGAR'?'#dc2626':'#16a34a'}">${l.tipo==='PAGAR'?'Pagar':'Receber'}</span></td>
+            <td style="font-weight:600;color:#1e293b">${fhistFmtDate(l.data_vencimento)}</td>
+            <td style="color:${l.data_pagamento?'#16a34a':'#64748b'};font-weight:600">${fhistFmtDate(l.data_pagamento)}</td>
+            <td style="font-weight:700;color:#1e293b">${l.entidade_nome||'—'}</td>
+            <td style="font-size:0.82rem;color:#475569;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(l.descricao||'').replace(/"/g,'&quot;')}">${l.descricao||'—'}</td>
+            <td style="text-align:right;color:#0284c7;font-weight:800;font-size:0.88rem">${fhistFmtCurrency(l.valor_pago)}</td>
             <td>${fhistBadge(statusDisplay)}</td>
         </tr>`;
     }).join('')}</tbody>`;
@@ -5467,7 +6271,7 @@ function fhistExcelExport() {
         Código: l.codigo_sequencial, Tipo: l.tipo,
         Vencimento: fhistFmtDate(l.data_vencimento), Pagamento: fhistFmtDate(l.data_pagamento),
         Favorecido: l.entidade_nome, Descrição: l.descricao,
-        'Valor Total': parseFloat(l.valor_total)||0, 'Valor Pago': parseFloat(l.valor_pago)||0,
+        'Valor Pago': parseFloat(l.valor_pago)||0,
         Status: l.status, 'NF/Doc': l.num_nf
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -5476,32 +6280,181 @@ function fhistExcelExport() {
     XLSX.writeFile(wb, `historico_financeiro_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
-/** Exporta para PDF */
+/** Exporta para PDF no formato A4 Retrato idêntico à tela */
 function fhistPdfExport() {
     if (!fhistData.length) return;
     if (typeof window.jspdf === 'undefined') { alert('Biblioteca PDF não carregada.'); return; }
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'landscape' });
+    const doc = new jsPDF('p', 'mm', 'a4'); // Formato A4 Retrato (210mm x 297mm)
+
+    const pageWidth = 210;
+    const margin = 12;
+    const contentWidth = pageWidth - (margin * 2); // 186mm
+
+    // 1. Cabeçalho Corporativo
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, 10, contentWidth, 16, 2, 2, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(margin, 10, contentWidth, 16, 2, 2, 'D');
+
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
-    doc.text('Histórico Financeiro — FrotaLink', 14, 15);
-    doc.setFontSize(9);
-    doc.setTextColor(150);
-    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')} • ${fhistData.length} registros`, 14, 21);
-    doc.autoTable({
-        head: [['Cód.','Tipo','Vencimento','Pagamento','Favorecido','Descrição','Valor Total','Valor Pago','Status']],
-        body: fhistData.map(l => [
-            l.codigo_sequencial||'', l.tipo,
-            fhistFmtDate(l.data_vencimento), fhistFmtDate(l.data_pagamento),
-            l.entidade_nome||'', l.descricao||'',
-            fhistFmtCurrency(l.valor_total), fhistFmtCurrency(l.valor_pago), l.status
-        ]),
-        startY: 26,
-        styles: { fontSize: 7, cellPadding: 2 },
-        headStyles: { fillColor: [99,102,241], textColor: 255, fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: [15,23,42] },
-        theme: 'striped'
+    doc.setTextColor(15, 23, 42); // Slate 900
+    doc.text('Relatório Financeiro', margin + 4, 17);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(45, 158, 107); // Verde FrotaLink
+    doc.text('FrotaLink Gestão', pageWidth - margin - 4, 17, { align: 'right' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139); // Slate 500
+    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}  •  Total de Registros: ${fhistData.length}`, margin + 4, 22.5);
+
+    // 2. Cálculo dos Indicadores (KPIs)
+    const totalPagar   = fhistData.filter(l=>l.tipo==='PAGAR').reduce((s,l)=>s+(parseFloat(l.valor_total)||0),0);
+    const totalReceber = fhistData.filter(l=>l.tipo==='RECEBER').reduce((s,l)=>s+(parseFloat(l.valor_total)||0),0);
+    const totalPago    = fhistData.reduce((s,l)=>s+(parseFloat(l.valor_pago)||0),0);
+    const saldo        = totalReceber - totalPagar;
+
+    const kpisData = [
+        { label: 'LANÇAMENTOS', val: `${fhistData.length}`, color: [217, 119, 6] },
+        { label: 'TOTAL A PAGAR', val: fhistFmtCurrency(totalPagar), color: [220, 38, 38] },
+        { label: 'TOTAL A RECEBER', val: fhistFmtCurrency(totalReceber), color: [22, 163, 74] },
+        { label: 'TOTAL PAGO/RECEBIDO', val: fhistFmtCurrency(totalPago), color: [2, 132, 199] },
+        { label: 'SALDO RESULTADO', val: fhistFmtCurrency(saldo), color: saldo >= 0 ? [22, 163, 74] : [220, 38, 38] }
+    ];
+
+    // Desenhar os 5 Cards de KPI
+    const cardGap = 2.5;
+    const cardWidth = (contentWidth - (cardGap * 4)) / 5;
+    const cardHeight = 15;
+    const kpiY = 29;
+
+    kpisData.forEach((kpi, idx) => {
+        const x = margin + idx * (cardWidth + cardGap);
+        // Fundo do card
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(x, kpiY, cardWidth, cardHeight, 1.5, 1.5, 'F');
+        // Borda suave
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(x, kpiY, cardWidth, cardHeight, 1.5, 1.5, 'D');
+
+        // Label
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(5.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(kpi.label, x + 2.5, kpiY + 4.5);
+
+        // Valor
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(kpi.color[0], kpi.color[1], kpi.color[2]);
+        doc.text(kpi.val, x + 2.5, kpiY + 11.5);
     });
-    doc.save(`historico_financeiro_${new Date().toISOString().slice(0,10)}.pdf`);
+
+    // 3. Chips de Filtros Ativos
+    const dateFieldLabels = { data_vencimento:'Vencimento', data_pagamento:'Pagamento', data_emissao:'Emissão', data_competencia:'Competência' };
+    const chipsArr = [];
+    if (fhistFiltros.tipo) chipsArr.push(`Tipo: ${fhistFiltros.tipo==='PAGAR'?'Contas a Pagar':'Contas a Receber'}`);
+    if (fhistFiltros.dateField) chipsArr.push(`Data: ${dateFieldLabels[fhistFiltros.dateField]||fhistFiltros.dateField}`);
+    if (fhistFiltros.dataIni) chipsArr.push(`De: ${fhistFmtDate(fhistFiltros.dataIni)}`);
+    if (fhistFiltros.dataFim) chipsArr.push(`Até: ${fhistFmtDate(fhistFiltros.dataFim)}`);
+    if (fhistFiltros.status) chipsArr.push(`Status: ${fhistFiltros.status}`);
+    if (fhistFiltros.entidades?.length) chipsArr.push(`Favorecidos: ${fhistFiltros.entidades.join(', ')}`);
+    if (fhistFiltros.catIds?.length) {
+        const names = fhistFiltros.catIds.map(id => {
+            const c = (state.categorias||[]).find(x=>x.id===id);
+            return c ? `${c.codigo?c.codigo+' ':''}${c.nome}` : id;
+        });
+        chipsArr.push(`Categorias: ${names.join('; ')}`);
+    }
+
+    let startTableY = 48;
+    if (chipsArr.length > 0) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.8);
+        doc.setTextColor(71, 85, 105);
+        const filterStr = "Filtros Aplicados:  " + chipsArr.join("  |  ");
+        const splitText = doc.splitTextToSize(filterStr, contentWidth);
+        doc.text(splitText, margin, 48);
+        startTableY = 48 + (splitText.length * 3.5) + 2;
+    }
+
+    // 4. Tabela de Lançamentos em A4 Retrato
+    doc.autoTable({
+        head: [['CÓD.', 'TIPO', 'VENCIMENTO', 'PAGAMENTO', 'FAVORECIDO', 'DESCRIÇÃO', 'VALOR PAGO', 'STATUS']],
+        body: fhistData.map(l => {
+            const hoje = new Date(); hoje.setHours(0,0,0,0);
+            const venc = l.data_vencimento ? new Date(l.data_vencimento+'T00:00:00') : null;
+            const isAtrasado = venc && venc < hoje && l.status === 'ABERTO';
+            const statusDisplay = isAtrasado ? 'ATRASADO' : (l.status || '—');
+
+            return [
+                l.codigo_sequencial || '—',
+                l.tipo === 'PAGAR' ? 'Pagar' : 'Receber',
+                fhistFmtDate(l.data_vencimento),
+                fhistFmtDate(l.data_pagamento),
+                l.entidade_nome || '—',
+                l.descricao || '—',
+                fhistFmtCurrency(l.valor_pago),
+                statusDisplay
+            ];
+        }),
+        startY: startTableY,
+        margin: { left: margin, right: margin, bottom: 14 },
+        styles: {
+            fontSize: 6.8,
+            cellPadding: 2,
+            textColor: [30, 41, 59],
+            lineColor: [241, 245, 249],
+            lineWidth: 0.2,
+            overflow: 'linebreak',
+            valign: 'middle'
+        },
+        headStyles: {
+            fillColor: [45, 158, 107], // Verde Clean FrotaLink
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 6.8,
+            halign: 'left',
+            valign: 'middle'
+        },
+        alternateRowStyles: {
+            fillColor: [248, 250, 252] // Fundo zebrado bem sutil
+        },
+        columnStyles: {
+            0: { cellWidth: 16, fontStyle: 'bold', textColor: [45, 158, 107] }, // Cód
+            1: { cellWidth: 13, fontStyle: 'bold' },                          // Tipo
+            2: { cellWidth: 20, halign: 'center' },                           // Vencimento (espaço perfeito p/ 'VENCIMENTO' e datas)
+            3: { cellWidth: 20, halign: 'center' },                           // Pagamento (espaço perfeito p/ 'PAGAMENTO' e datas)
+            4: { cellWidth: 42, fontStyle: 'bold' },                          // Favorecido
+            5: { cellWidth: 38 },                                             // Descrição
+            6: { cellWidth: 22, halign: 'right', fontStyle: 'bold', textColor: [2, 132, 199] }, // Valor Pago
+            7: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }          // Status
+        },
+        didDrawPage: function (data) {
+            // Rodapé com numeração de páginas em formato Retrato
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.setTextColor(148, 163, 184);
+            doc.text(
+                `Página ${doc.internal.getNumberOfPages()}`,
+                pageWidth - margin,
+                290,
+                { align: 'right' }
+            );
+            doc.text(
+                'FrotaLink • Gestão Financeira Inteligente',
+                margin,
+                290
+            );
+        }
+    });
+
+    doc.save(`relatorio_financeiro_${new Date().toISOString().slice(0,10)}.pdf`);
+    showToast('PDF A4 Retrato gerado com sucesso!', 'success');
 }
 
 /** Exibe o modal de histórico de alterações da nota */
