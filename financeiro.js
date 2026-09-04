@@ -262,7 +262,6 @@ const COL_DEFS = {
         { key: 'valor_total', label: 'Valor Total', sortable: true, align: 'right' },
         { key: 'valor_pago', label: 'Valor Pago', sortable: true, align: 'right' },
         { key: 'status', label: 'Status', sortable: true },
-        { key: 'centro_custo_id', label: 'Centro Custo', sortable: true },
         { key: 'actions', label: 'Ações', sortable: false, align: 'center' }
     ],
     RECEBER: [
@@ -611,7 +610,6 @@ function renderLancamentos(tipo) {
                 <td data-label="Status">
                     <span class="status-badge ${statusClass}">${displayStatus}</span>
                 </td>
-                <td data-label="C. Custo">${cc ? cc.nome : '-'}</td>
                 <td class="actions-cell">
                     <div style="display:flex; justify-content:center; gap:0.4rem">
                         <button class="btn-action history" onclick="showRecordHistory('${l.id}')" title="Histórico de Alterações" style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); color:#6366f1;"><i data-lucide="history"></i></button>
@@ -2288,17 +2286,14 @@ async function handleEntrySubmit(e) {
             const descEl = row.querySelector('.item-desc');
             const qtdEl = row.querySelector('.item-qtd');
             const unitEl = row.querySelector('.item-unit');
-            const ccEl = row.querySelector('.item-cc');
 
             const descVal = (descEl?.value || '').trim();
             const qtdVal = parseFloat(qtdEl?.value) || 0;
             const unitVal = parseFloat(unitEl?.value) || 0;
-            const ccVal = (ccEl?.value || '').trim();
 
             if (!descVal) markError(descEl, `Item #${idx + 1}: Descrição`);
             if (qtdVal <= 0) markError(qtdEl, `Item #${idx + 1}: Quantidade`);
             if (unitVal <= 0) markError(unitEl, `Item #${idx + 1}: Valor Unitário`);
-            if (!ccVal) markError(ccEl, `Item #${idx + 1}: Centro de Custo`);
         });
     }
 
@@ -2418,15 +2413,16 @@ async function handleEntrySubmit(e) {
             const desc = row.querySelector('.item-desc').value.trim();
             const qtd = parseFloat(row.querySelector('.item-qtd').value) || 0;
             const unit = parseFloat(row.querySelector('.item-unit').value) || 0;
+            const ccEl = row.querySelector('.item-cc');
             
             if (desc || unit > 0) {
                 itens.push({
                     lancamento_id: lancamentoId,
                     descricao: desc,
-                    tipo: row.querySelector('.item-tipo').value || 'SERVICO',
+                    tipo: row.querySelector('.item-tipo')?.value || 'SERVICO',
                     quantidade: qtd || 1,
                     valor_unitario: unit,
-                    centro_custo_id: row.querySelector('.item-cc').value || null
+                    centro_custo_id: ccEl ? (ccEl.value || null) : null
                 });
             }
         });
@@ -3127,11 +3123,6 @@ window.addFinItemRow = function(data = null) {
     row.className = 'item-row-v2';
     row.id = rowId;
 
-    const leaves = state.centrosCusto.filter(c => !state.centrosCusto.some(other => other.parent_id === c.id));
-    const ccOptions = leaves.map(c =>
-        `<option value="${c.id}" ${data?.centro_custo_id === c.id ? 'selected' : ''}>${c.codigo} - ${c.nome}</option>`
-    ).join('');
-
     row.innerHTML = `
         <input type="hidden" class="item-tipo" value="SERVICO">
 
@@ -3147,22 +3138,6 @@ window.addFinItemRow = function(data = null) {
             <button type="button" class="btn-remove" onclick="removeFinRow('${rowId}')" title="Excluir Item">
                 <i data-lucide="trash-2"></i>
             </button>
-        </div>
-
-        <!-- Linha secundária: Centro de Custo -->
-        <div class="item-secondary-row" style="display:flex; align-items:center; gap:0.5rem;">
-            <div style="flex:1; display:flex; flex-direction:column; gap:4px;">
-                <span class="item-secondary-label">Centro de Custo <strong style="color:#ef4444">*</strong></span>
-                <div style="display:flex; gap:0.5rem; align-items:center;">
-                    <select class="financeiro-input item-cc" style="flex:1;">
-                        <option value="">Selecione...</option>
-                        ${ccOptions}
-                    </select>
-                    <button type="button" class="btn-quick-add" onclick="openModal('custoModal')" style="width:32px; height:32px; flex-shrink:0;">
-                        <i data-lucide="plus"></i>
-                    </button>
-                </div>
-            </div>
         </div>
     `;
 
@@ -6609,9 +6584,188 @@ window.showRecordHistory = showRecordHistory;
 window.renderBancoSubTab = async function() {
     _renderBancoSaldoCards();
     _populateTransfSelects();
+    _populateAvulsoFields();
     _populatePgBancoFilter();
     renderPagamentosPorBanco();
     await renderHistoricoTransferencias();
+};
+
+/** Popula os selects do formulário de lançamento avulso */
+function _populateAvulsoFields() {
+    const contas = state.contas || [];
+    const optsConta = contas.map(c => `<option value="${c.id}">${c.nome} (${c.banco || ''} | Saldo: ${formatCurrency(c.saldo_atual)})</option>`).join('');
+    const contaSel = document.getElementById('avulso-conta');
+    if (contaSel) contaSel.innerHTML = `<option value="">Selecione o banco...</option>${optsConta}`;
+
+    const dataInput = document.getElementById('avulso-data');
+    if (dataInput && !dataInput.value) {
+        dataInput.value = new Date().toISOString().slice(0, 10);
+    }
+
+    _updateAvulsoCategorias();
+}
+
+/** Limpa ou reseta o campo de categoria avulso ao trocar o tipo */
+window._updateAvulsoCategorias = function() {
+    const hidden = document.getElementById('avulso-categoria');
+    const search = document.getElementById('avulso-categoria-search');
+    if (hidden) hidden.value = '';
+    if (search) {
+        search.value = '';
+        const tipo = document.getElementById('avulso-tipo')?.value || 'PAGAR';
+        search.placeholder = tipo === 'PAGAR' ? 'Buscar conta de despesa/taxa...' : 'Buscar conta de receita/rendimento...';
+    }
+};
+
+/** Busca Inteligente com Hierarquia no Plano de Contas do Lançamento Avulso */
+window.handleAvulsoCategoriaSearch = function(el) {
+    const query = el.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const wrapper = el.closest('.autocomplete-wrapper');
+    if (!wrapper) return;
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
+    if (!resultsDiv) return;
+
+    const tipo = document.getElementById('avulso-tipo')?.value || 'PAGAR';
+    const targetTipo = tipo === 'PAGAR' ? 'DESPESA' : 'RECEITA';
+
+    // Filtra categorias compatíveis com o tipo de operação
+    const categorias = (state.categorias || [])
+        .filter(c => !c.tipo || c.tipo === targetTipo)
+        .sort((a, b) => (a.codigo || '').localeCompare(b.codigo || '', undefined, { numeric: true }));
+
+    const matches = query.length === 0
+        ? categorias
+        : categorias.filter(c => {
+            const nameNorm = (c.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const cod = (c.codigo || '').toLowerCase();
+            return nameNorm.includes(query) || cod.includes(query);
+        });
+
+    if (matches.length === 0) {
+        resultsDiv.innerHTML = '<div style="color:#64748b; font-size:0.78rem; padding:0.8rem 1rem; text-align:center;">Nenhuma conta encontrada...</div>';
+    } else {
+        resultsDiv.innerHTML = matches.map(c => {
+            const label = (c.codigo ? `${c.codigo} - ` : '') + c.nome;
+            const level = c.codigo ? c.codigo.split('.').length - 1 : 0;
+            const indentStyle = `padding-left: ${0.8 + level * 1.1}rem;`;
+            const escLabel = label.replace(/'/g, "\\'");
+
+            return `
+                <div class="autocomplete-item" style="${indentStyle} padding-top: 0.55rem; padding-bottom: 0.55rem; padding-right: 0.8rem; border-bottom: 1px solid #f1f5f9; cursor: pointer; display: flex; align-items: center; justify-content: space-between;"
+                     onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='transparent'"
+                     onclick="selectAvulsoCategoria('${c.id}', '${escLabel}')">
+                    <span style="font-weight: 700; font-size: 0.82rem; color: #0f172a; text-transform: uppercase;">${label}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    resultsDiv.style.display = 'block';
+};
+
+/** Seleciona uma categoria no autocomplete do Lançamento Avulso */
+window.selectAvulsoCategoria = function(id, label) {
+    const hidden = document.getElementById('avulso-categoria');
+    const search = document.getElementById('avulso-categoria-search');
+    if (hidden) hidden.value = id;
+    if (search) search.value = label;
+
+    const wrapper = search ? search.closest('.autocomplete-wrapper') : null;
+    const resultsDiv = wrapper ? wrapper.querySelector('.autocomplete-results') : null;
+    if (resultsDiv) resultsDiv.style.display = 'none';
+};
+
+/**
+ * Salva um Lançamento Avulso (Taxa bancária, tarifa, rendimento ou ajuste)
+ * - Insere registro em fin_lancamentos com status 'PAGO' e origem_modulo = 'AVULSO'
+ * - Atualiza imediatamente o saldo da conta bancária
+ * - Registra em logs e atualiza o estado geral
+ */
+window.saveLancamentoAvulso = async function() {
+    const tipo      = document.getElementById('avulso-tipo')?.value || 'PAGAR';
+    const contaId   = document.getElementById('avulso-conta')?.value;
+    const catId     = document.getElementById('avulso-categoria')?.value;
+    const valor     = parseFloat(document.getElementById('avulso-valor')?.value);
+    const data      = document.getElementById('avulso-data')?.value;
+    const descricao = document.getElementById('avulso-descricao')?.value?.trim();
+
+    if (!contaId)   { showToast('Selecione a conta bancária.', 'error'); return; }
+    if (!catId)     { showToast('Selecione a categoria / plano de contas.', 'error'); return; }
+    if (!valor || valor <= 0) { showToast('Informe um valor válido maior que zero.', 'error'); return; }
+    if (!data)      { showToast('Informe a data do lançamento.', 'error'); return; }
+    if (!descricao) { showToast('Informe uma descrição / histórico.', 'error'); return; }
+
+    const conta = (state.contas || []).find(c => c.id === contaId);
+    if (!conta)     { showToast('Conta bancária não encontrada.', 'error'); return; }
+
+    try {
+        const loggedUser = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
+
+        // 1. Inserir em fin_lancamentos como já liquidado (PAGO)
+        const record = {
+            tipo: tipo,
+            descricao: descricao,
+            entidade_nome: conta.nome,
+            valor_total: valor,
+            valor_pago: valor,
+            data_vencimento: data,
+            data_competencia: data,
+            data_pagamento: data,
+            data_emissao: data,
+            categoria_id: catId,
+            conta_bancaria_id: contaId,
+            status: 'PAGO',
+            origem_modulo: 'AVULSO',
+            forma_pagamento: 'DEBITO_CONTA',
+            observacoes: `Lançamento avulso registrado em ${formatDate(data)} por ${loggedUser}`
+        };
+
+        const { data: inserted, error: errInsert } = await supabaseClient
+            .from('fin_lancamentos')
+            .insert([record])
+            .select()
+            .single();
+
+        if (errInsert) throw errInsert;
+
+        // 2. Atualizar saldo da conta bancária
+        const fator = tipo === 'PAGAR' ? -1 : 1;
+        const novoSaldo = (parseFloat(conta.saldo_atual) || 0) + (valor * fator);
+
+        const { error: errConta } = await supabaseClient
+            .from('fin_contas_bancarias')
+            .update({ saldo_atual: novoSaldo })
+            .eq('id', contaId);
+
+        if (errConta) throw errConta;
+
+        // 3. Atualizar state local
+        conta.saldo_atual = novoSaldo;
+        if (inserted) {
+            state.lancamentos = [inserted, ...(state.lancamentos || [])];
+        }
+
+        // 4. Limpar formulário
+        document.getElementById('avulso-valor').value = '';
+        document.getElementById('avulso-descricao').value = '';
+
+        showToast(`${tipo === 'PAGAR' ? 'Saída/Tarifa' : 'Entrada/Rendimento'} de ${formatCurrency(valor)} lançada com sucesso!`, 'success');
+
+        if (typeof registrarLog === 'function') {
+            registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Lançamento avulso (${tipo}): ${descricao} - Valor: R$ ${valor} na conta ${conta.nome}`);
+        }
+
+        // 5. Atualizar UI
+        _renderBancoSaldoCards();
+        _populateTransfSelects();
+        _populateAvulsoFields();
+        renderPagamentosPorBanco();
+        if (typeof renderFluxo === 'function') renderFluxo();
+
+    } catch (err) {
+        console.error('[saveLancamentoAvulso] Erro:', err);
+        showToast('Erro ao salvar lançamento avulso: ' + (err.message || err), 'error');
+    }
 };
 
 /** Renderiza cards de saldo por banco */
@@ -6786,6 +6940,19 @@ window.deleteTransferencia = async function(id) {
     }
 };
 
+/** Manipula mudança no filtro de período do Pagamentos por Banco */
+window.handlePgbancoPeriodoChange = function(selectEl) {
+    const customContainer = document.getElementById('pgbanco-custom-dates');
+    if (customContainer) {
+        if (selectEl.value === 'custom') {
+            customContainer.style.display = 'flex';
+        } else {
+            customContainer.style.display = 'none';
+        }
+    }
+    renderPagamentosPorBanco();
+};
+
 /**
  * Renderiza a tabela "Pagamentos por Banco" filtrando os lançamentos
  * do state pelo banco, tipo e período selecionados.
@@ -6795,17 +6962,32 @@ window.renderPagamentosPorBanco = function() {
     const footer  = document.getElementById('pgbanco-footer');
     if (!tbody) return;
 
-    const bancoId  = document.getElementById('pgbanco-filter-banco')?.value  || '';
-    const tipoFil  = document.getElementById('pgbanco-filter-tipo')?.value   || '';
-    const periodo  = document.getElementById('pgbanco-filter-periodo')?.value || 'current_month';
+    const bancoId   = document.getElementById('pgbanco-filter-banco')?.value   || '';
+    const tipoFil   = document.getElementById('pgbanco-filter-tipo')?.value    || '';
+    const statusFil = document.getElementById('pgbanco-filter-status')?.value  || '';
+    const periodo   = document.getElementById('pgbanco-filter-periodo')?.value || 'current_month';
+    const dataIni   = document.getElementById('pgbanco-data-ini')?.value       || '';
+    const dataFim   = document.getElementById('pgbanco-data-fim')?.value       || '';
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     function inPeriod(dateStr) {
         if (!dateStr) return false;
-        const d = new Date(dateStr + 'T00:00:00');
-        if (periodo === 'all') return true;
+        // Pega data YYYY-MM-DD
+        const dStr = dateStr.slice(0, 10);
+        const d = new Date(dStr + 'T00:00:00');
+
+        if (periodo === 'today') {
+            const todayStr = today.toISOString().slice(0, 10);
+            return dStr === todayStr;
+        }
+        if (periodo === 'yesterday') {
+            const yest = new Date(today);
+            yest.setDate(yest.getDate() - 1);
+            const yestStr = yest.toISOString().slice(0, 10);
+            return dStr === yestStr;
+        }
         if (periodo === 'current_month') {
             return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth();
         }
@@ -6813,11 +6995,10 @@ window.renderPagamentosPorBanco = function() {
             const lm = new Date(today.getFullYear(), today.getMonth() - 1, 1);
             return d.getFullYear() === lm.getFullYear() && d.getMonth() === lm.getMonth();
         }
-        const days = parseInt(periodo);
-        if (!isNaN(days)) {
-            const cutoff = new Date(today);
-            cutoff.setDate(cutoff.getDate() - days);
-            return d >= cutoff && d <= today;
+        if (periodo === 'custom') {
+            if (dataIni && dStr < dataIni) return false;
+            if (dataFim && dStr > dataFim) return false;
+            return true;
         }
         return true;
     }
@@ -6825,6 +7006,10 @@ window.renderPagamentosPorBanco = function() {
     let items = (state.lancamentos || []).filter(l => {
         if (bancoId && l.conta_bancaria_id !== bancoId) return false;
         if (tipoFil && l.tipo !== tipoFil) return false;
+        if (statusFil) {
+            if (statusFil === 'PAGO' && l.status !== 'PAGO') return false;
+            if (statusFil === 'ABERTO' && l.status === 'PAGO') return false; // Abertas inclui ABERTO, ATRASADO, PARCIAL
+        }
         const dateRef = l.data_vencimento || l.previsao_pagamento;
         return inPeriod(dateRef);
     });
@@ -6930,5 +7115,290 @@ window.renderHistoricoTransferencias = async function() {
     } catch (err) {
         console.error('[renderHistoricoTransferencias] Erro:', err);
         tbody.innerHTML = `<tr><td colspan="6" class="table-empty" style="color: #dc2626;">Erro ao carregar: ${err.message || err}</td></tr>`;
+    }
+};
+
+/** Alterna visibilidade do dropdown de exportação de Pagamentos por Banco */
+window.toggleExportPgBancoDropdown = function() {
+    const dropdown = document.getElementById('exportPgBancoDropdown');
+    if (!dropdown) return;
+    if (dropdown.style.display === 'none' || !dropdown.style.display) {
+        dropdown.style.display = 'block';
+        if (window.lucide) lucide.createIcons();
+    } else {
+        dropdown.style.display = 'none';
+    }
+};
+
+// Fechar dropdown de exportação de Pagamentos por Banco ao clicar fora
+document.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('exportPgBancoDropdown');
+    const btn = document.getElementById('btn-export-pgbanco');
+    if (dropdown && btn && !btn.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
+});
+
+/**
+ * Exporta a tabela "Pagamentos por Banco" exatamente com os filtros e dados ativos na tela.
+ */
+window.exportPgBanco = function(format) {
+    const dropdown = document.getElementById('exportPgBancoDropdown');
+    if (dropdown) dropdown.style.display = 'none';
+
+    const bancoId   = document.getElementById('pgbanco-filter-banco')?.value   || '';
+    const tipoFil   = document.getElementById('pgbanco-filter-tipo')?.value    || '';
+    const statusFil = document.getElementById('pgbanco-filter-status')?.value  || '';
+    const periodo   = document.getElementById('pgbanco-filter-periodo')?.value || 'current_month';
+    const dataIni   = document.getElementById('pgbanco-data-ini')?.value       || '';
+    const dataFim   = document.getElementById('pgbanco-data-fim')?.value       || '';
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    function inPeriod(dateStr) {
+        if (!dateStr) return false;
+        const dStr = dateStr.slice(0, 10);
+        const d = new Date(dStr + 'T00:00:00');
+
+        if (periodo === 'today') {
+            const todayStr = today.toISOString().slice(0, 10);
+            return dStr === todayStr;
+        }
+        if (periodo === 'yesterday') {
+            const yest = new Date(today);
+            yest.setDate(yest.getDate() - 1);
+            const yestStr = yest.toISOString().slice(0, 10);
+            return dStr === yestStr;
+        }
+        if (periodo === 'current_month') {
+            return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth();
+        }
+        if (periodo === 'last_month') {
+            const lm = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            return d.getFullYear() === lm.getFullYear() && d.getMonth() === lm.getMonth();
+        }
+        if (periodo === 'custom') {
+            if (dataIni && dStr < dataIni) return false;
+            if (dataFim && dStr > dataFim) return false;
+            return true;
+        }
+        return true;
+    }
+
+    let items = (state.lancamentos || []).filter(l => {
+        if (bancoId && l.conta_bancaria_id !== bancoId) return false;
+        if (tipoFil && l.tipo !== tipoFil) return false;
+        if (statusFil) {
+            if (statusFil === 'PAGO' && l.status !== 'PAGO') return false;
+            if (statusFil === 'ABERTO' && l.status === 'PAGO') return false;
+        }
+        const dateRef = l.data_vencimento || l.previsao_pagamento;
+        return inPeriod(dateRef);
+    });
+
+    items = items.sort((a, b) => {
+        const da = new Date(a.data_vencimento || a.previsao_pagamento || 0);
+        const db = new Date(b.data_vencimento || b.previsao_pagamento || 0);
+        return db - da;
+    });
+
+    if (!items.length) {
+        showToast('Nenhum dado encontrado para os filtros selecionados.', 'warning');
+        return;
+    }
+
+    const STATUS_MAP = { ABERTO: 'Aberto', PAGO: 'Pago', PARCIAL: 'Parcial', CANCELADO: 'Cancelado', ATRASADO: 'Atrasado' };
+    let totalPagar = 0, totalReceber = 0;
+
+    items.forEach(l => {
+        const valor = parseFloat(l.valor_total) || 0;
+        if (l.tipo === 'PAGAR')   totalPagar   += valor;
+        if (l.tipo === 'RECEBER') totalReceber += valor;
+    });
+    const saldoTotal = totalReceber - totalPagar;
+
+    // Obter rótulos dos filtros aplicados para o cabeçalho
+    const bancoObj = (state.contas || []).find(c => c.id === bancoId);
+    const bancoLabel = bancoObj ? bancoObj.nome : 'Todos os Bancos';
+    const tipoLabel = tipoFil === 'PAGAR' ? 'Somente a Pagar' : (tipoFil === 'RECEBER' ? 'Somente a Receber' : 'Pagar + Receber');
+    const statusLabel = statusFil === 'PAGO' ? 'Pagas' : (statusFil === 'ABERTO' ? 'Abertas' : 'Todos os Status');
+    
+    let periodoLabel = 'Mês Atual';
+    if (periodo === 'today') periodoLabel = 'Hoje';
+    else if (periodo === 'yesterday') periodoLabel = 'Ontem';
+    else if (periodo === 'last_month') periodoLabel = 'Mês Anterior';
+    else if (periodo === 'custom') periodoLabel = `Personalizado (${formatDate(dataIni)} até ${formatDate(dataFim)})`;
+
+    if (format === 'excel') {
+        const rows = [
+            ['FROTALINK - RELATÓRIO DE PAGAMENTOS POR BANCO'],
+            [`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`],
+            [`Filtros: Banco: ${bancoLabel} | Tipo: ${tipoLabel} | Status: ${statusLabel} | Período: ${periodoLabel}`],
+            [],
+            ['Banco', 'Vencimento', 'Favorecido / Cliente', 'Descrição', 'Tipo', 'Valor (R$)', 'Status']
+        ];
+
+        items.forEach(l => {
+            const conta = (state.contas || []).find(c => c.id === l.conta_bancaria_id);
+            const bancoNome = conta ? conta.nome : '—';
+            const dateStr = l.data_vencimento || l.previsao_pagamento || '';
+            const valor = parseFloat(l.valor_total) || 0;
+            rows.push([
+                bancoNome,
+                dateStr ? formatDate(dateStr) : '—',
+                l.entidade_nome || '—',
+                l.descricao || '—',
+                l.tipo,
+                valor,
+                STATUS_MAP[l.status] || l.status
+            ]);
+        });
+
+        rows.push([]);
+        rows.push(['TOTAIS:', '', '', '', '', '', '']);
+        rows.push(['A Pagar:', totalPagar]);
+        rows.push(['A Receber:', totalReceber]);
+        rows.push(['Saldo do Período:', saldoTotal]);
+
+        try {
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Pagamentos por Banco");
+            XLSX.writeFile(wb, `Pagamentos_Por_Banco_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            showToast("Relatório exportado em Excel com sucesso!", "success");
+        } catch (e) {
+            showToast("Falha ao exportar excel: " + e.message, "error");
+        }
+    } else if (format === 'pdf') {
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const margin = 12;
+
+            // 1. Header do PDF
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(14);
+            doc.setTextColor(5, 150, 105); // Verde FrotaLink
+            doc.text("FROTALINK • GESTÃO FINANCEIRA", margin, 16);
+
+            doc.setFontSize(11);
+            doc.setTextColor(15, 23, 42);
+            doc.text("Relatório de Movimentações e Pagamentos por Banco", margin, 23);
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth - margin, 16, { align: 'right' });
+
+            // Linha divisória
+            doc.setDrawColor(226, 232, 240);
+            doc.setLineWidth(0.4);
+            doc.line(margin, 26, pageWidth - margin, 26);
+
+            // 2. Filtros Aplicados
+            doc.setFontSize(7.2);
+            doc.setTextColor(51, 65, 85);
+            const filtroTexto = `Filtros: Banco: ${bancoLabel}   |   Tipo: ${tipoLabel}   |   Status: ${statusLabel}   |   Período: ${periodoLabel}`;
+            doc.text(filtroTexto, margin, 31);
+
+            // 3. Tabela com jsPDF-AutoTable
+            const body = items.map(l => {
+                const conta = (state.contas || []).find(c => c.id === l.conta_bancaria_id);
+                const bancoNome = conta ? conta.nome : '—';
+                const dateStr = l.data_vencimento || l.previsao_pagamento || '';
+                const valor = parseFloat(l.valor_total) || 0;
+                return [
+                    bancoNome,
+                    dateStr ? formatDate(dateStr) : '—',
+                    l.entidade_nome || '—',
+                    l.descricao || '—',
+                    l.tipo,
+                    formatCurrency(valor),
+                    STATUS_MAP[l.status] || l.status
+                ];
+            });
+
+            doc.autoTable({
+                startY: 34,
+                margin: { left: margin, right: margin, bottom: 18 },
+                head: [['BANCO', 'VENCIMENTO', 'FAVORECIDO / CLIENTE', 'DESCRIÇÃO', 'TIPO', 'VALOR', 'STATUS']],
+                body: body,
+                theme: 'plain',
+                headStyles: {
+                    fillColor: [240, 253, 244], // Fundo verde sutil como na tela
+                    textColor: [5, 150, 105],
+                    fontStyle: 'bold',
+                    fontSize: 7.2,
+                    halign: 'left',
+                    cellPadding: 3
+                },
+                styles: {
+                    fontSize: 7,
+                    cellPadding: 2.5,
+                    textColor: [15, 23, 42],
+                    lineColor: [241, 245, 249],
+                    lineWidth: 0.2,
+                    valign: 'middle'
+                },
+                columnStyles: {
+                    0: { cellWidth: 26, fontStyle: 'bold' },
+                    1: { cellWidth: 19, halign: 'center' },
+                    2: { cellWidth: 42 },
+                    3: { cellWidth: 44 },
+                    4: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
+                    5: { cellWidth: 22, halign: 'right', fontStyle: 'bold' },
+                    6: { cellWidth: 18, halign: 'center' }
+                },
+                didParseCell: function(data) {
+                    if (data.section === 'body') {
+                        if (data.column.index === 4) {
+                            data.cell.styles.textColor = data.cell.raw === 'PAGAR' ? [220, 38, 38] : [5, 150, 105];
+                        }
+                        if (data.column.index === 6) {
+                            if (data.cell.raw === 'Pago') data.cell.styles.textColor = [5, 150, 105];
+                            else if (data.cell.raw === 'Aberto') data.cell.styles.textColor = [217, 119, 6];
+                            else if (data.cell.raw === 'Atrasado') data.cell.styles.textColor = [220, 38, 38];
+                        }
+                    }
+                },
+                didDrawPage: function(data) {
+                    doc.setFontSize(7);
+                    doc.setTextColor(148, 163, 184);
+                    doc.text(`Página ${doc.internal.getNumberOfPages()}`, pageWidth - margin, 290, { align: 'right' });
+                    doc.text('FrotaLink • Movimentações Financeiras', margin, 290);
+                }
+            });
+
+            // 4. Totais no Rodapé da última página
+            const finalY = doc.lastAutoTable.finalY + 6;
+            doc.setDrawColor(226, 232, 240);
+            doc.setLineWidth(0.3);
+            doc.line(margin, finalY, pageWidth - margin, finalY);
+
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(71, 85, 105);
+
+            const pagarStr = `A Pagar: ${formatCurrency(totalPagar)}`;
+            const receberStr = `A Receber: ${formatCurrency(totalReceber)}`;
+            const saldoStr = `Saldo: ${formatCurrency(saldoTotal)}`;
+
+            doc.setTextColor(220, 38, 38);
+            doc.text(pagarStr, pageWidth - margin - 100, finalY + 5);
+
+            doc.setTextColor(5, 150, 105);
+            doc.text(receberStr, pageWidth - margin - 50, finalY + 5);
+
+            doc.setTextColor(saldoTotal >= 0 ? 5 : 220, saldoTotal >= 0 ? 150 : 38, saldoTotal >= 0 ? 105 : 38);
+            doc.text(saldoStr, pageWidth - margin, finalY + 5, { align: 'right' });
+
+            doc.save(`Pagamentos_Por_Banco_${new Date().toISOString().slice(0, 10)}.pdf`);
+            showToast("Relatório exportado em PDF com sucesso!", "success");
+        } catch (e) {
+            console.error(e);
+            showToast("Falha ao exportar PDF: " + e.message, "error");
+        }
     }
 };

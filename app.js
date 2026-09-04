@@ -567,6 +567,7 @@ function openVehicleDetail(id) {
         ` : ''}
         
         <div class="form-section-header">Seguro</div>
+        <div class="detail-item"><strong>Condutor Principal (Seguro):</strong> ${v.motoristas?.nome_completo ? `<span style="color:#059669; font-weight:700;">${v.motoristas.nome_completo}</span>` : '-'}</div>
         <div class="detail-item"><strong>Seguradora:</strong> ${v.seguradora || '-'}</div>
         <div class="detail-item"><strong>Vencimento:</strong> ${formatDate(v.vencimento_seguro)}</div>
         <div class="detail-item"><strong>Apólice:</strong> ${v.numero_apolice || '-'}</div>
@@ -581,15 +582,17 @@ function openVehicleDetail(id) {
         <div class="detail-item"><strong>Endosso/Proposta:</strong> ${v.endosso_proposta || '-'}</div>
         <div class="detail-item"><strong>CI Seguro:</strong> ${v.ci_seguro || '-'}</div>
         
-        <div class="form-section-header">Técnico</div>
+        <div class="form-section-header">Técnico & Documentação</div>
         <div class="detail-item"><strong>Chassi:</strong> ${v.chassi || '-'}</div>
         <div class="detail-item"><strong>Motor:</strong> ${v.numero_motor || '-'}</div>
         <div class="detail-item"><strong>FIPE:</strong> ${v.codigo_fipe || '-'} / R$ ${Number(v.valor_fipe_mes || 0).toLocaleString('pt-BR')}</div>
-        <div class="detail-item"><strong>Canvas Avarias:</strong> ${v.canvas_url ? `<a href="${v.canvas_url}" target="_blank" style="color: #f59e0b; text-decoration: underline;">Abrir Canvas Avarias <i data-lucide="external-link" style="width:12px; display:inline;"></i></a>` : '-'}</div>
+        <div class="detail-item"><strong>Pasta de Documentos:</strong> ${v.drive_folder_url ? `<a href="${v.drive_folder_url}" target="_blank" style="color: #3b82f6; text-decoration: underline; font-weight: 600;">Abrir Google Drive <i data-lucide="external-link" style="width:12px; display:inline;"></i></a>` : '-'}</div>
+        <div class="detail-item"><strong>Canvas Avarias:</strong> ${v.canvas_url ? `<a href="${v.canvas_url}" target="_blank" style="color: #f59e0b; text-decoration: underline; font-weight: 600;">Abrir Canvas Avarias <i data-lucide="external-link" style="width:12px; display:inline;"></i></a>` : '-'}</div>
         <div class="detail-item"><strong>Controle de Média:</strong> ${v.ignorar_media ? '<span class="badge danger">IGNORADO</span>' : '<span class="badge success">ATIVO</span>'}</div>
     `;
 
     modal.style.display = 'flex';
+    if (window.lucide) lucide.createIcons();
 }
 
 function closeVehicleDetail() {
