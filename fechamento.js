@@ -15,7 +15,9 @@ const state = {
     selectedPosto: null,
     periodLabel: '',
     currentModuleTab: 'veiculos',
-    supplierSort: { col: 'data_emissao', dir: 'asc' } // Sort state for supplier detail table
+    supplierSort: { col: 'data_emissao', dir: 'asc' }, // Sort state for supplier detail table
+    especiesNota: [],
+    centrosCusto: []
 };
 
 // --- Period Toggle ---
@@ -215,6 +217,32 @@ async function loadInitialData() {
             productsData = local ? JSON.parse(local) : [];
         }
         state.products = productsData;
+
+        // Load Espécies de Nota with fallback
+        let especiesData = [];
+        try {
+            const { data, error } = await supabaseClient.from('especies_nota').select('id, nome').order('nome');
+            if (!error && data) especiesData = data;
+        } catch (e) {
+            console.warn("Tabela especies_nota não acessível no fechamento:", e);
+        }
+        state.especiesNota = especiesData;
+
+        // Load Centros de Custo with fallback
+        let centrosData = [];
+        try {
+            const { data, error } = await supabaseClient.from('centros_custo').select('id, codigo, nome').order('codigo');
+            if (!error && data && data.length > 0) {
+                centrosData = data;
+            } else {
+                // Tenta fin_centros_custo se centros_custo estiver vazia ou com erro
+                const { data: finData, error: finErr } = await supabaseClient.from('fin_centros_custo').select('id, codigo, nome').order('codigo');
+                if (!finErr && finData) centrosData = finData;
+            }
+        } catch (e) {
+            console.warn("Tabela centros_custo não acessível no fechamento:", e);
+        }
+        state.centrosCusto = centrosData;
 
         populateFilters();
     } catch (err) {
@@ -927,9 +955,30 @@ function processData(fuel, maint, vehicles, purchases, sales) {
                     saldoAVencer: saldoAVencer,
                     parcelaInfo: `Parc. ${numParcela}/${rule.total_parcelas} (R$ ${valParc.toLocaleString('pt-BR', {minimumFractionDigits: 2})})`
                 };
+            } else if (diffMonths < 0) {
+                // Parcela com início em período futuro
+                const valParc = parseFloat(rule.valor_parcela) || (valorOriginal / rule.total_parcelas);
+                const firstMonthStr = String(firstInstallmentMonth).padStart(2, '0');
+                return {
+                    valorVigente: 0,
+                    isParcelado: true,
+                    numParcela: 0,
+                    totalParcelas: rule.total_parcelas,
+                    parcelasRestantes: rule.total_parcelas,
+                    saldoAVencer: valorOriginal,
+                    parcelaInfo: `Parcelado (${rule.total_parcelas}x) - Inicia em ${firstMonthStr}/${firstInstallmentYear}`
+                };
             } else {
-                // Fora do intervalo de parcelas para o periodo do fechamento
-                return { valorVigente: 0, isParcelado: true, numParcela: 0, totalParcelas: rule.total_parcelas, parcelasRestantes: 0, saldoAVencer: 0, parcelaInfo: `Parcelado (${rule.total_parcelas}x) - fora do período` };
+                // Parcelamento já finalizado em períodos anteriores
+                return {
+                    valorVigente: 0,
+                    isParcelado: false,
+                    numParcela: rule.total_parcelas,
+                    totalParcelas: rule.total_parcelas,
+                    parcelasRestantes: 0,
+                    saldoAVencer: 0,
+                    parcelaInfo: `Parcelamento finalizado (${rule.total_parcelas}x)`
+                };
             }
         };
 
@@ -1120,6 +1169,41 @@ function processSupplierData(purchases) {
                 total: 0
             };
         }
+
+        // Resolução inteligente da Espécie
+        let especieNome = p.especie || p.especie_nome || p.tipo_nota || '';
+        if (!especieNome && (p.especie_id || p.especieId)) {
+            const espId = p.especie_id || p.especieId;
+            const foundEsp = (state.especiesNota || []).find(e => String(e.id) === String(espId));
+            if (foundEsp) especieNome = foundEsp.nome;
+        }
+        p.especie = especieNome || '-';
+
+        // Resolução inteligente do Centro de Custo
+        let centroCustoNome = p.centro || p.centro_custo || p.centro_custo_nome || '';
+        if (!centroCustoNome && (p.centro_custo_id || p.centroCustoId)) {
+            const ccId = p.centro_custo_id || p.centroCustoId;
+            const foundCC = (state.centrosCusto || []).find(c => String(c.id) === String(ccId));
+            if (foundCC) centroCustoNome = foundCC.codigo ? `${foundCC.codigo} - ${foundCC.nome}` : foundCC.nome;
+        }
+        // Se ainda não achou no cabeçalho da compra, busca nos itens da nota
+        if (!centroCustoNome && p.compra_itens && p.compra_itens.length > 0) {
+            const ccSet = new Set();
+            p.compra_itens.forEach(it => {
+                const itCcId = it.centro_custo_id || it.centroCustoId;
+                if (itCcId) {
+                    const foundCC = (state.centrosCusto || []).find(c => String(c.id) === String(itCcId));
+                    if (foundCC) {
+                        ccSet.add(foundCC.codigo ? `${foundCC.codigo} - ${foundCC.nome}` : foundCC.nome);
+                    }
+                }
+            });
+            if (ccSet.size > 0) {
+                centroCustoNome = Array.from(ccSet).join(', ');
+            }
+        }
+        p.centro_custo = centroCustoNome || '-';
+        p.centro = p.centro_custo;
         
         const totalNota = parseFloat(p.valorTotal || p.valor_total || 0);
         grouped[supplier].purchases.push(p);
@@ -2096,6 +2180,8 @@ function exportToPDF() {
             { content: owner.toUpperCase(), colSpan: 7, styles: { fillColor: [230, 230, 230], fontStyle: 'bold' } }
         ]);
 
+        let ownerFutureTotal = 0;
+
         Object.keys(plates).sort().forEach(plate => {
             const data = plates[plate];
             const dis = state.disabledGroups[plate] || {};
@@ -2110,6 +2196,7 @@ function exportToPDF() {
                 });
             }
             grandFutureTotal += plateFutureBalance;
+            ownerFutureTotal += plateFutureBalance;
 
             const futureStr = plateFutureBalance > 0 ? plateFutureBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-';
 
@@ -2131,8 +2218,8 @@ function exportToPDF() {
 
         summaryRows.push([
             { content: 'SUBTOTAL', colSpan: 5, styles: { fontStyle: 'bold', halign: 'right' } },
-            { content: ownerTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold' } },
-            { content: '', styles: { fontStyle: 'bold' } }
+            { content: ownerTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold', halign: 'right' } },
+            { content: ownerFutureTotal > 0 ? ownerFutureTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-', styles: { fontStyle: 'bold', halign: 'right', textColor: [220, 38, 38] } }
         ]);
     });
 
@@ -2305,18 +2392,19 @@ function exportSupplierConsolidatedPDF() {
                 new Date(p.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR'),
                 p.numeroNota || p.numero_nota || '-',
                 p.especie || '-',
+                p.centro_custo || p.centro || '-',
                 parseFloat(p.valorTotal || p.valor_total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
             ];
         });
 
         doc.autoTable({
             startY: y,
-            head: [['DATA', 'Nº NOTA', 'ESPÉCIE', 'VALOR TOTAL (R$)']],
+            head: [['DATA', 'Nº NOTA', 'ESPÉCIE', 'CENTRO DE CUSTO', 'VALOR TOTAL (R$)']],
             body: noteRows,
             theme: 'grid',
             headStyles: { fillColor: [71, 85, 105], fontSize: 7, cellPadding: 1 },
             styles: { fontSize: 7, cellPadding: 1 },
-            columnStyles: { 3: { halign: 'right' } },
+            columnStyles: { 4: { halign: 'right' } },
             margin: { left: margin },
             tableWidth: pageWidth - (margin * 2)
         });
@@ -2690,7 +2778,9 @@ function exportSupplierDetailedPDF() {
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(7.5);
             doc.setTextColor(79, 70, 229);
-            doc.text(`NOTA #${p.numeroNota || p.numero_nota || '-'} | DATA: ${new Date(p.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR')} | VALOR: R$ ${parseFloat(p.valorTotal || p.valor_total).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, margin, y);
+            const espStr = p.especie && p.especie !== '-' ? ` | ESPÉCIE: ${p.especie}` : '';
+            const ccStr = (p.centro_custo || p.centro) && (p.centro_custo || p.centro) !== '-' ? ` | CC: ${p.centro_custo || p.centro}` : '';
+            doc.text(`NOTA #${p.numeroNota || p.numero_nota || '-'} | DATA: ${new Date(p.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR')}${espStr}${ccStr} | VALOR: R$ ${parseFloat(p.valorTotal || p.valor_total).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, margin, y);
             y += 2.5;
 
             const itemRows = (p.compra_itens || []).map(it => {

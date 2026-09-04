@@ -29,6 +29,7 @@ let state = {
         categoria: '',
         posto: '',
         veiculo: '',
+        motorista: '',
         combustivel: '',
         importacao_id: '',
         periodo: 'current_month',
@@ -1707,6 +1708,13 @@ function populateDropdowns() {
             sortedVeh.map(v => `<option value="${v.id}">${v.placa}</option>`).join('');
     }
 
+    const fDriverFilter = document.getElementById('fuel_filter_motorista');
+    if (fDriverFilter) {
+        const sortedDrivers = [...state.drivers].sort((a, b) => a.nome_completo.localeCompare(b.nome_completo));
+        fDriverFilter.innerHTML = '<option value="">Todos os Condutores</option>' +
+            sortedDrivers.map(d => `<option value="${d.id}">${d.nome_completo}</option>`).join('');
+    }
+
     const fFuelFilter = document.getElementById('fuel_filter_combustivel');
     if (fFuelFilter) {
         fFuelFilter.innerHTML = '<option value="">Todos os Tipos</option>' +
@@ -1843,6 +1851,9 @@ function getFilteredRecords() {
     if (ff.veiculo) {
         filteredRecords = filteredRecords.filter(f => f.veiculo_id === ff.veiculo);
     }
+    if (ff.motorista) {
+        filteredRecords = filteredRecords.filter(f => f.motorista_id === ff.motorista);
+    }
     if (ff.combustivel) {
         filteredRecords = filteredRecords.filter(f => (f.tipo_combustivel || '').toLowerCase() === ff.combustivel.toLowerCase());
     }
@@ -1871,85 +1882,113 @@ window.handleIntelligentFilter = (origin) => {
     const catEl = document.getElementById('fuel_filter_categoria');
     const postEl = document.getElementById('fuel_filter_posto');
     const vehEl = document.getElementById('fuel_filter_veiculo');
+    const driverEl = document.getElementById('fuel_filter_motorista');
 
     if (!catEl || !postEl || !vehEl) return;
 
     state.fuelFilters.categoria = catEl.value;
     state.fuelFilters.posto = postEl.value;
     state.fuelFilters.veiculo = vehEl.value;
+    state.fuelFilters.motorista = driverEl ? driverEl.value : '';
     state.fuelFilters.combustivel = document.getElementById('fuel_filter_combustivel')?.value || '';
 
     const ff = state.fuelFilters;
     console.log('Filtro inteligente acionado:', { origin, filters: ff });
-
-    // 2. Dynamic Update of other dropdowns based on logic
-    // If Category changed, we MUST restrict Posto options
-    if (origin === 'categoria') {
-        const ff = state.fuelFilters;
-        
-        // Logica mais robusta:
-        // 1. Postos que tem essa categoria_id explicitamente no cadastro
-        const postsByMetadata = ff.categoria 
-            ? state.posts.filter(p => String(p.categoria_id || '') === String(ff.categoria))
-            : state.posts;
-
-        // 2. Postos que ja foram usados com essa categoria no historico de abastecimentos
-        const postIdsFromHistory = ff.categoria
-            ? [...new Set(state.fuelingRecords
-                .filter(r => String(r.categoria_id || '') === String(ff.categoria))
-                .map(r => r.posto_id))]
-            : [];
-        
-        const postsByHistory = state.posts.filter(p => postIdsFromHistory.includes(p.id));
-
-        // Unir as duas listas e remover duplicados
-        const combined = [...new Set([...postsByMetadata, ...postsByHistory])];
-        const filteredPosts = combined.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
-        
-        const currentPosto = postEl.value;
-        postEl.innerHTML = '<option value="">Todos os Postos</option>' + 
-            '<option value="NULL_POSTO" ' + (currentPosto === 'NULL_POSTO' ? 'selected' : '') + '>NÃO INFORMADO</option>' +
-            filteredPosts.map(p => `<option value="${p.id}" ${String(p.id) === String(currentPosto) ? 'selected' : ''}>${p.nome}</option>`).join('');
-        
-        // Se o posto que estava selecionado não existe na nova lista, reseta ele no state
-        if (ff.posto && !filteredPosts.find(p => String(p.id) === String(ff.posto))) {
-            state.fuelFilters.posto = '';
-        }
-    }
 
     // Limpar filtro de importação ao interagir com outros filtros manuais
     if (origin !== 'importacao') {
         state.fuelFilters.importacao_id = '';
     }
 
-    // Dynamic Update of Vehicle dropdown (Always update when Category or Posto changes)
-    if (origin === 'categoria' || origin === 'posto') {
-        const ff = state.fuelFilters;
-        
-        // Filtrar veículos com base no histórico que batem com Categoria e Posto
-        let filteredVehicles = state.vehicles;
-        
-        if (ff.categoria || ff.posto) {
-            const matchingRecords = state.fuelingRecords.filter(r => {
-                if (ff.categoria && String(r.categoria_id || '') !== String(ff.categoria)) return false;
-                if (ff.posto && String(r.posto_id || '') !== String(ff.posto)) return false;
-                return true;
-            });
-            
-            const vehicleIdsFromRecords = [...new Set(matchingRecords.map(r => r.veiculo_id))];
-            filteredVehicles = state.vehicles.filter(v => vehicleIdsFromRecords.includes(v.id));
+    // 2. Dynamic Update of other dropdowns based on active filters (Cross-filtering)
+    const baseRecords = state.fuelingRecords;
+
+    // --- Atualizar Categorias (se a origem não foi categoria) ---
+    if (origin !== 'categoria') {
+        let matchingForCat = baseRecords;
+        if (ff.posto && ff.posto !== 'NULL_POSTO') matchingForCat = matchingForCat.filter(r => r.posto_id === ff.posto);
+        if (ff.veiculo) matchingForCat = matchingForCat.filter(r => r.veiculo_id === ff.veiculo);
+        if (ff.motorista) matchingForCat = matchingForCat.filter(r => r.motorista_id === ff.motorista);
+
+        const availableCatIds = [...new Set(matchingForCat.map(r => r.categoria_id).filter(Boolean))];
+        const filteredCats = (availableCatIds.length > 0 && (ff.posto || ff.veiculo || ff.motorista))
+            ? state.postCategories.filter(c => availableCatIds.includes(c.id))
+            : state.postCategories;
+
+        const currentCat = catEl.value;
+        catEl.innerHTML = '<option value="">Todas as Categorias</option>' +
+            filteredCats.map(c => `<option value="${c.id}" ${String(c.id) === String(currentCat) ? 'selected' : ''}>${c.descricao}</option>`).join('');
+
+        if (ff.categoria && !filteredCats.find(c => String(c.id) === String(ff.categoria))) {
+            state.fuelFilters.categoria = '';
         }
+    }
+
+    // --- Atualizar Postos (se a origem não foi posto) ---
+    if (origin !== 'posto') {
+        let matchingForPost = baseRecords;
+        if (ff.categoria) matchingForPost = matchingForPost.filter(r => r.categoria_id === ff.categoria);
+        if (ff.veiculo) matchingForPost = matchingForPost.filter(r => r.veiculo_id === ff.veiculo);
+        if (ff.motorista) matchingForPost = matchingForPost.filter(r => r.motorista_id === ff.motorista);
+
+        const availablePostIds = [...new Set(matchingForPost.map(r => r.posto_id).filter(Boolean))];
+        
+        let filteredPosts = state.posts;
+        if (ff.categoria || ff.veiculo || ff.motorista) {
+            filteredPosts = state.posts.filter(p => availablePostIds.includes(p.id) || (ff.categoria && String(p.categoria_id || '') === String(ff.categoria)));
+        }
+
+        const currentPosto = postEl.value;
+        postEl.innerHTML = '<option value="">Todos os Postos</option>' +
+            '<option value="NULL_POSTO" ' + (currentPosto === 'NULL_POSTO' ? 'selected' : '') + '>NÃO INFORMADO</option>' +
+            filteredPosts.sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).map(p => `<option value="${p.id}" ${String(p.id) === String(currentPosto) ? 'selected' : ''}>${p.nome}</option>`).join('');
+
+        if (ff.posto && ff.posto !== 'NULL_POSTO' && !filteredPosts.find(p => String(p.id) === String(ff.posto))) {
+            state.fuelFilters.posto = '';
+        }
+    }
+
+    // --- Atualizar Veículos (se a origem não foi veiculo) ---
+    if (origin !== 'veiculo') {
+        let matchingForVeh = baseRecords;
+        if (ff.categoria) matchingForVeh = matchingForVeh.filter(r => r.categoria_id === ff.categoria);
+        if (ff.posto && ff.posto !== 'NULL_POSTO') matchingForVeh = matchingForVeh.filter(r => r.posto_id === ff.posto);
+        if (ff.motorista) matchingForVeh = matchingForVeh.filter(r => r.motorista_id === ff.motorista);
+
+        const availableVehIds = [...new Set(matchingForVeh.map(r => r.veiculo_id).filter(Boolean))];
+        const filteredVehicles = (availableVehIds.length > 0 && (ff.categoria || ff.posto || ff.motorista))
+            ? state.vehicles.filter(v => availableVehIds.includes(v.id))
+            : state.vehicles;
 
         const sortedVehicles = filteredVehicles.sort((a, b) => (a.placa || '').localeCompare(b.placa || ''));
         const currentVeh = vehEl.value;
-        
-        vehEl.innerHTML = '<option value="">Todas as Placas</option>' + 
+        vehEl.innerHTML = '<option value="">Todas as Placas</option>' +
             sortedVehicles.map(v => `<option value="${v.id}" ${String(v.id) === String(currentVeh) ? 'selected' : ''}>${v.placa}</option>`).join('');
-        
-        // Se o veículo que estava selecionado não existe na nova lista, reseta ele no state
+
         if (ff.veiculo && !sortedVehicles.find(v => String(v.id) === String(ff.veiculo))) {
-            console.log('Veículo selecionado anteriormente não possui registros para os novos filtros. Resetando.');
             state.fuelFilters.veiculo = '';
+        }
+    }
+
+    // --- Atualizar Condutores (se a origem não foi motorista) ---
+    if (origin !== 'motorista' && driverEl) {
+        let matchingForDriver = baseRecords;
+        if (ff.categoria) matchingForDriver = matchingForDriver.filter(r => r.categoria_id === ff.categoria);
+        if (ff.posto && ff.posto !== 'NULL_POSTO') matchingForDriver = matchingForDriver.filter(r => r.posto_id === ff.posto);
+        if (ff.veiculo) matchingForDriver = matchingForDriver.filter(r => r.veiculo_id === ff.veiculo);
+
+        const availableDriverIds = [...new Set(matchingForDriver.map(r => r.motorista_id).filter(Boolean))];
+        const filteredDrivers = (availableDriverIds.length > 0 && (ff.categoria || ff.posto || ff.veiculo))
+            ? state.drivers.filter(d => availableDriverIds.includes(d.id))
+            : state.drivers;
+
+        const sortedDrivers = filteredDrivers.sort((a, b) => (a.nome_completo || '').localeCompare(b.nome_completo || ''));
+        const currentDriver = driverEl.value;
+        driverEl.innerHTML = '<option value="">Todos os Condutores</option>' +
+            sortedDrivers.map(d => `<option value="${d.id}" ${String(d.id) === String(currentDriver) ? 'selected' : ''}>${d.nome_completo}</option>`).join('');
+
+        if (ff.motorista && !sortedDrivers.find(d => String(d.id) === String(ff.motorista))) {
+            state.fuelFilters.motorista = '';
         }
     }
 
@@ -1963,6 +2002,7 @@ window.clearFuelFilters = () => {
         categoria: '', 
         posto: '', 
         veiculo: '', 
+        motorista: '',
         combustivel: '', 
         importacao_id: '',
         periodo: 'current_month',
@@ -1978,6 +2018,7 @@ window.clearFuelFilters = () => {
     if (document.getElementById('fuel_filter_categoria')) document.getElementById('fuel_filter_categoria').value = '';
     if (document.getElementById('fuel_filter_posto')) document.getElementById('fuel_filter_posto').value = '';
     if (document.getElementById('fuel_filter_veiculo')) document.getElementById('fuel_filter_veiculo').value = '';
+    if (document.getElementById('fuel_filter_motorista')) document.getElementById('fuel_filter_motorista').value = '';
     if (document.getElementById('fuel_filter_combustivel')) document.getElementById('fuel_filter_combustivel').value = '';
     if (document.getElementById('fuel_filter_periodo')) document.getElementById('fuel_filter_periodo').value = 'current_month';
     
@@ -1998,6 +2039,13 @@ window.clearFuelFilters = () => {
         const sortedVeh = [...state.vehicles].sort((a, b) => (a.placa || '').localeCompare(b.placa || ''));
         vehSel.innerHTML = '<option value="">Todas as Placas</option>' + 
             sortedVeh.map(v => `<option value="${v.id}">${v.placa}</option>`).join('');
+    }
+
+    const driverSel = document.getElementById('fuel_filter_motorista');
+    if (driverSel) {
+        const sortedDrivers = [...state.drivers].sort((a, b) => (a.nome_completo || '').localeCompare(b.nome_completo || ''));
+        driverSel.innerHTML = '<option value="">Todos os Condutores</option>' + 
+            sortedDrivers.map(d => `<option value="${d.id}">${d.nome_completo}</option>`).join('');
     }
     
     state.currentPage = 1;
@@ -3621,10 +3669,10 @@ window.clearFuelSearch = () => {
         searchInput.value = '';
         
         // Also clear intelligent filters to ensure "consequentemente limpar o filtro"
-        state.fuelFilters = { categoria: '', posto: '', veiculo: '', combustivel: '', importacao_id: '' };
+        state.fuelFilters = { categoria: '', posto: '', veiculo: '', motorista: '', combustivel: '', importacao_id: '' };
         
         // Reset dropdowns in UI
-        ['categoria', 'posto', 'veiculo', 'combustivel'].forEach(id => {
+        ['categoria', 'posto', 'veiculo', 'motorista', 'combustivel'].forEach(id => {
             const el = document.getElementById('fuel_filter_' + id);
             if (el) el.value = '';
         });
