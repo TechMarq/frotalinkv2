@@ -901,8 +901,9 @@
                         <i data-lucide="search"
                             style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); width: 18px;"></i>
                         <input type="text" id="maintSearch" placeholder="Pesquise por placa, modelo, oficina..."
-                            style="padding: 0.75rem 1rem 0.75rem 3rem; width: 100%; background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 12px; color: var(--text-main);"
+                            style="padding: 0.75rem 2.5rem 0.75rem 3rem; width: 100%; background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 12px; color: var(--text-main);"
                             oninput="renderMaintTable()">
+                        <button id="clearMaintSearch" class="clear-btn" onclick="clearMaintSearch()" title="Limpar busca">&times;</button>
                     </div>
 
                     <!-- Notificações e Ações Rápidas -->

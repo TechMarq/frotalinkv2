@@ -22,7 +22,7 @@ const state = {
     especiesNota: [],
     periodoFluxo: new Date(),
     filtros: {
-        PAGAR: { status: 'UNPAID', busca: '', categoria: '', origem: '' },
+        PAGAR: { status: 'UNPAID', busca: '', categoria: '', origem: '', periodoTipo: 'VENCIMENTO', periodo: '', dataIni: '', dataFim: '' },
         RECEBER: { status: 'UNPAID', busca: '', categoria: '', origem: '' }
     },
     sort: {
@@ -378,6 +378,55 @@ function renderLancamentos(tipo) {
             filtered = filtered.filter(l => l.status === filter.status);
         }
     }
+
+    // Filtro de Período (Vencimento ou Pagamento)
+    if (filter.periodo) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        function matchPeriodDate(dateStr) {
+            if (!dateStr) return false;
+            const dStr = dateStr.slice(0, 10);
+            const d = new Date(dStr + 'T00:00:00');
+
+            if (filter.periodo === 'today') {
+                const todayStr = today.toISOString().slice(0, 10);
+                return dStr === todayStr;
+            }
+            if (filter.periodo === 'yesterday') {
+                const yest = new Date(today);
+                yest.setDate(yest.getDate() - 1);
+                const yestStr = yest.toISOString().slice(0, 10);
+                return dStr === yestStr;
+            }
+            if (filter.periodo === 'current_month') {
+                return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth();
+            }
+            if (filter.periodo === 'last_month') {
+                const lm = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                return d.getFullYear() === lm.getFullYear() && d.getMonth() === lm.getMonth();
+            }
+            if (filter.periodo === 'custom') {
+                if (filter.dataIni && dStr < filter.dataIni) return false;
+                if (filter.dataFim && dStr > filter.dataFim) return false;
+                return true;
+            }
+            return true;
+        }
+
+        filtered = filtered.filter(l => {
+            const isPgto = filter.periodoTipo === 'PAGAMENTO';
+            if (isPgto) {
+                // Se o filtro é por pagamento, exige data_pagamento
+                return l.data_pagamento ? matchPeriodDate(l.data_pagamento) : false;
+            } else {
+                // Vencimento
+                const refDate = l.data_vencimento || l.previsao_pagamento;
+                return matchPeriodDate(refDate);
+            }
+        });
+    }
+
     if (filter.categoria) filtered = filtered.filter(l => l.centro_custo_id === filter.categoria);
     if (filter.origem) {
         if (filter.origem === 'COMPRAS') {
@@ -520,6 +569,7 @@ function renderLancamentos(tipo) {
                     </td>
                     <td data-label="Previsão">
                         <div style="font-weight:700">${formatDate(l.previsao_pagamento || l.data_vencimento)}</div>
+                        ${l.data_pagamento ? `<div style="font-size:0.65rem; color:var(--success)">Recebido: ${formatDate(l.data_pagamento)}</div>` : ''}
                     </td>
                     <td data-label="Cliente">
                         <div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-weight:700; cursor:pointer;" title="Clique para visualizar os detalhes">${l.entidade_nome || '-'}</div>
@@ -537,6 +587,16 @@ function renderLancamentos(tipo) {
                     <td data-label="Vlr. Bruto" style="text-align:right; font-weight:700">${formatCurrency(vBruto)}</td>
                     <td data-label="Vlr. Líquido" style="text-align:right;">
                         <div style="color:#10b981; font-weight:700;">${formatCurrency(vLiquido)}</div>
+                        ${(() => {
+                            const contaObj = (state.contas || []).find(c => c.id === l.conta_bancaria_id);
+                            if (contaObj && (vPago > 0 || l.status === 'PAGO')) {
+                                return `<div class="bank-paid-badge" title="Conta bancária de recebimento: ${contaObj.nome}">
+                                    <i data-lucide="landmark" style="width:11px; height:11px; flex-shrink:0;"></i>
+                                    <span class="bank-paid-name">${contaObj.nome}</span>
+                                </div>`;
+                            }
+                            return '';
+                        })()}
                         ${l.status === 'PARCIAL' ? `<div style="font-size:0.72rem; font-weight:800; color:#ef4444; margin-top:2px;" title="Valor restante a receber">Falta: ${formatCurrency(vFalta)}</div>` : ''}
                     </td>
                     <td data-label="Status">
@@ -544,19 +604,20 @@ function renderLancamentos(tipo) {
                     </td>
                     <td data-label="Competência">${competencia}</td>
                     <td class="actions-cell">
-                        <div style="display:flex; justify-content:center; gap:0.4rem">
-                            <button class="btn-action history" onclick="showRecordHistory('${l.id}')" title="Histórico de Alterações" style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); color:#6366f1;"><i data-lucide="history"></i></button>
+                        <div class="actions-wrapper">
+                            <button class="btn-action history" onclick="showRecordHistory('${l.id}')" title="Histórico de Alterações"><i data-lucide="history"></i></button>
                             ${l.status === 'PAGO'
-                                ? `<button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar / Voltar para Pendente" style="background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#f59e0b;"><i data-lucide="rotate-ccw"></i></button>`
+                                ? `<button class="btn-action edit-pay" onclick="openEditPaymentModal('${l.id}')" title="Alterar Recebimento (Banco, Forma ou Valor)"><i data-lucide="credit-card"></i></button>
+                                   <button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar / Voltar para Pendente"><i data-lucide="rotate-ccw"></i></button>`
                                 : l.status === 'PARCIAL'
-                                ? `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar Restante / Receber" style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); color:#10b981;"><i data-lucide="check-square"></i></button>
-                                   <button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar Baixa Parcial" style="background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#f59e0b;"><i data-lucide="rotate-ccw"></i></button>`
+                                ? `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar Restante / Receber"><i data-lucide="check-square"></i></button>
+                                   <button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar Baixa Parcial"><i data-lucide="rotate-ccw"></i></button>`
                                 : `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar / Receber"><i data-lucide="check-square"></i></button>`
                             }
                             ${(() => {
                                 const isIntegrado = l.origem_modulo && l.origem_modulo !== 'MANUAL' && l.origem_modulo !== 'FINANCEIRO';
                                 if (isIntegrado) {
-                                    return `<button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Edição bloqueada: Integrado via ${l.origem_modulo}. Clique para instruções." style="opacity: 0.35; filter: grayscale(1);"><i data-lucide="edit-2"></i></button>`;
+                                    return `<button class="btn-action edit is-locked" onclick="editEntry('${l.id}', '${tipo}')" title="Edição bloqueada: Integrado via ${l.origem_modulo}. Clique para instruções."><i data-lucide="edit-2"></i></button>`;
                                 }
                                 return `<button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>`;
                             })()}
@@ -605,19 +666,30 @@ function renderLancamentos(tipo) {
                 <td data-label="Total" style="text-align:right; font-weight:700">${formatCurrency(vTotalPagar)}</td>
                 <td data-label="Pago" style="text-align:right;">
                     <div style="color:var(--success); font-weight:700;">${formatCurrency(vPagoPagar)}</div>
+                    ${(() => {
+                        const contaObj = (state.contas || []).find(c => c.id === l.conta_bancaria_id);
+                        if (contaObj && (vPagoPagar > 0 || l.status === 'PAGO')) {
+                            return `<div class="bank-paid-badge" title="Banco de liquidação: ${contaObj.nome}">
+                                <i data-lucide="landmark" style="width:11px; height:11px; flex-shrink:0;"></i>
+                                <span class="bank-paid-name">${contaObj.nome}</span>
+                            </div>`;
+                        }
+                        return '';
+                    })()}
                     ${l.status === 'PARCIAL' ? `<div style="font-size:0.72rem; font-weight:800; color:#ef4444; margin-top:2px;" title="Valor restante a pagar">Falta: ${formatCurrency(vFaltaPagar)}</div>` : ''}
                 </td>
                 <td data-label="Status">
                     <span class="status-badge ${statusClass}">${displayStatus}</span>
                 </td>
                 <td class="actions-cell">
-                    <div style="display:flex; justify-content:center; gap:0.4rem">
-                        <button class="btn-action history" onclick="showRecordHistory('${l.id}')" title="Histórico de Alterações" style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); color:#6366f1;"><i data-lucide="history"></i></button>
+                    <div class="actions-wrapper">
+                        <button class="btn-action history" onclick="showRecordHistory('${l.id}')" title="Histórico de Alterações"><i data-lucide="history"></i></button>
                         ${l.status === 'PAGO'
-                            ? `<button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar / Voltar para Pendente" style="background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#f59e0b;"><i data-lucide="rotate-ccw"></i></button>`
+                            ? `<button class="btn-action edit-pay" onclick="openEditPaymentModal('${l.id}')" title="Alterar Pagamento (Banco, Forma ou Valor)"><i data-lucide="credit-card"></i></button>
+                               <button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar / Voltar para Pendente"><i data-lucide="rotate-ccw"></i></button>`
                             : l.status === 'PARCIAL'
-                            ? `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar Restante / Pagar" style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); color:#10b981;"><i data-lucide="check-square"></i></button>
-                               <button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar Baixa Parcial" style="background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#f59e0b;"><i data-lucide="rotate-ccw"></i></button>`
+                            ? `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar Restante / Pagar"><i data-lucide="check-square"></i></button>
+                               <button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar Baixa Parcial"><i data-lucide="rotate-ccw"></i></button>`
                             : `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar / Pagar"><i data-lucide="check-square"></i></button>`
                         }
                         ${(() => {
@@ -625,7 +697,7 @@ function renderLancamentos(tipo) {
                             const isCompraOuManut = l.compra_id || l.manutencao_id;
                             if (isIntegrado || isCompraOuManut) {
                                 const mod = l.origem_modulo === 'COMPRAS' || l.compra_id ? 'Compras' : l.origem_modulo === 'MANUTENCAO' || l.manutencao_id ? 'Manutenção' : (l.origem_modulo || 'outro setor');
-                                return `<button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Edição bloqueada: Integrado via ${mod}. Clique para instruções." style="opacity: 0.35; filter: grayscale(1);"><i data-lucide="edit-2"></i></button>`;
+                                return `<button class="btn-action edit is-locked" onclick="editEntry('${l.id}', '${tipo}')" title="Edição bloqueada: Integrado via ${mod}. Clique para instruções."><i data-lucide="edit-2"></i></button>`;
                             }
                             return `<button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>`;
                         })()}
@@ -2858,6 +2930,201 @@ async function handleEstornoSubmit(e) {
 
 window.handleEstornoSubmit = handleEstornoSubmit;
 
+/**
+ * Abre o modal para alterar dados do pagamento (Valor, Conta Bancária, Forma) de um lançamento PAGO
+ */
+window.openEditPaymentModal = async function(id) {
+    const l = state.lancamentos.find(item => item.id === id);
+    if (!l) return;
+
+    if (l.status !== 'PAGO') {
+        showToast('Apenas lançamentos com status PAGO podem ter seus dados de pagamento alterados.', 'warning');
+        return;
+    }
+
+    const mod = l.tipo === 'RECEBER' ? 'financeiro_receber' : 'financeiro_pagar';
+    if (typeof canDo === 'function' && !canDo(mod, 'edit')) {
+        showToast('Você não tem permissão para alterar este pagamento.', 'error');
+        return;
+    }
+
+    document.getElementById('editPayLancamentoId').value = l.id;
+    document.getElementById('editPayDescricao').innerText = `${l.codigo_sequencial ? l.codigo_sequencial + ' - ' : ''}${l.descricao || '-'}`;
+    document.getElementById('editPayEntidade').innerText = `${l.tipo === 'RECEBER' ? 'Cliente' : 'Fornecedor'}: ${l.entidade_nome || '-'}`;
+
+    // Data de pagamento travada (apenas leitura)
+    const dtPgto = l.data_pagamento ? l.data_pagamento.slice(0, 10) : '';
+    document.getElementById('editPayData').value = dtPgto;
+
+    // Valor pago atual
+    const vPagoAtual = parseFloat(l.valor_pago) || parseFloat(l.valor_total) || 0;
+    document.getElementById('editPayValor').value = vPagoAtual.toFixed(2);
+
+    // Popular contas bancárias
+    const selConta = document.getElementById('editPayConta');
+    selConta.innerHTML = (state.contas || []).map(c => `
+        <option value="${c.id}">${c.nome} (Saldo: ${formatCurrency(c.saldo_atual)})</option>
+    `).join('');
+    if (l.conta_bancaria_id) {
+        selConta.value = l.conta_bancaria_id;
+    }
+
+    // Forma de pagamento atual
+    const selForma = document.getElementById('editPayForma');
+    if (l.forma_pagamento && selForma) {
+        selForma.value = l.forma_pagamento;
+    }
+
+    const isReceber = l.tipo === 'RECEBER';
+    const titleEl = document.getElementById('editPaymentModalTitle');
+    if (titleEl) {
+        titleEl.innerHTML = `<i data-lucide="edit-3" style="width:20px;"></i> Alterar Dados do ${isReceber ? 'Recebimento' : 'Pagamento'}`;
+    }
+    const labelData = document.getElementById('labelEditPayData');
+    if (labelData) {
+        labelData.innerText = `Data de ${isReceber ? 'Recebimento' : 'Pagamento'} (Bloqueada)`;
+    }
+    const labelValor = document.getElementById('labelEditPayValor');
+    if (labelValor) {
+        labelValor.innerText = `Valor ${isReceber ? 'Recebido' : 'Pago'}`;
+    }
+    const labelConta = document.getElementById('labelEditPayConta');
+    if (labelConta) {
+        labelConta.innerText = `Conta Bancária / Banco de ${isReceber ? 'Entrada (Depósito)' : 'Saída'}`;
+    }
+    const labelForma = document.getElementById('labelEditPayForma');
+    if (labelForma) {
+        labelForma.innerText = `Forma de ${isReceber ? 'Recebimento' : 'Pagamento'}`;
+    }
+
+    // Limpar motivo
+    const txtMotivo = document.getElementById('editPayMotivo');
+    if (txtMotivo) txtMotivo.value = '';
+
+    const modal = document.getElementById('editPaymentModal');
+    if (modal) modal.classList.add('active');
+    if (window.lucide) lucide.createIcons();
+};
+
+/**
+ * Handler acionado pelo botão "Alterar Pagamento" de dentro do viewModal
+ */
+window.handleViewAlterarPagamentoClick = function() {
+    const btn = document.getElementById('btnViewAlterarPagamento');
+    const lancamentoId = btn ? btn.dataset.lancamentoId : null;
+    if (!lancamentoId) return;
+    closeModal('viewModal');
+    openEditPaymentModal(lancamentoId);
+};
+
+/**
+ * Salva as alterações de pagamento de um lançamento já pago, ajustando saldos bancários e gerando log
+ */
+window.handleEditPaymentSubmit = async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('editPayLancamentoId').value;
+    const l = state.lancamentos.find(item => item.id === id);
+    if (!l) return;
+
+    const novoValorPago = parseFloat(document.getElementById('editPayValor').value) || 0;
+    const novaContaId = document.getElementById('editPayConta').value;
+    const novaForma = document.getElementById('editPayForma').value;
+    const motivoText = document.getElementById('editPayMotivo').value.trim();
+
+    if (novoValorPago <= 0) {
+        showToast('Informe um valor pago válido maior que zero.', 'error');
+        return;
+    }
+    if (!novaContaId) {
+        showToast('Selecione a conta bancária.', 'error');
+        return;
+    }
+    if (!motivoText) {
+        showToast('A justificativa da alteração é obrigatória para fins de auditoria.', 'error');
+        return;
+    }
+
+    const valorPagoAntigo = parseFloat(l.valor_pago) || parseFloat(l.valor_total) || 0;
+    const contaAntigaId = l.conta_bancaria_id;
+
+    try {
+        if (typeof window.showLoader === 'function') window.showLoader();
+
+        const btnSalvar = document.getElementById('btnSalvarEditPayment');
+        if (btnSalvar) btnSalvar.disabled = true;
+
+        // Fator: Para PAGAR, saída é (-) no saldo. Reversão é (+). Para RECEBER, entrada é (+).
+        const fatorSaida = l.tipo === 'PAGAR' ? -1 : 1;
+
+        // 1. Ajustar saldos bancários
+        if (contaAntigaId === novaContaId) {
+            // Mesma conta: ajusta apenas a diferença
+            const diff = novoValorPago - valorPagoAntigo; // se aumentou o pagamento no PAGAR, subtrai mais do saldo
+            if (diff !== 0) {
+                const { data: contaAtual } = await supabaseClient.from('fin_contas_bancarias').select('*').eq('id', novaContaId).single();
+                if (contaAtual) {
+                    const novoSaldo = parseFloat(contaAtual.saldo_atual || 0) + (diff * fatorSaida);
+                    await supabaseClient.from('fin_contas_bancarias').update({ saldo_atual: novoSaldo }).eq('id', novaContaId);
+                }
+            }
+        } else {
+            // Contas diferentes: Devolve o saldo antigo para a conta antiga e deduz da nova conta
+            if (contaAntigaId && valorPagoAntigo > 0) {
+                const { data: cAntiga } = await supabaseClient.from('fin_contas_bancarias').select('*').eq('id', contaAntigaId).single();
+                if (cAntiga) {
+                    const saldoRestaurado = parseFloat(cAntiga.saldo_atual || 0) - (valorPagoAntigo * fatorSaida);
+                    await supabaseClient.from('fin_contas_bancarias').update({ saldo_atual: saldoRestaurado }).eq('id', contaAntigaId);
+                }
+            }
+
+            const { data: cNova } = await supabaseClient.from('fin_contas_bancarias').select('*').eq('id', novaContaId).single();
+            if (cNova) {
+                const saldoAtualizado = parseFloat(cNova.saldo_atual || 0) + (novoValorPago * fatorSaida);
+                await supabaseClient.from('fin_contas_bancarias').update({ saldo_atual: saldoAtualizado }).eq('id', novaContaId);
+            }
+        }
+
+        // 2. Montar texto de observações e histórico
+        const loggedUser = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
+        const hojeStr = formatDate(new Date().toISOString().split('T')[0]);
+        const contaNovaObj = (state.contas || []).find(c => c.id === novaContaId);
+        const contaAntigaObj = (state.contas || []).find(c => c.id === contaAntigaId);
+        const nomeContaNova = contaNovaObj ? contaNovaObj.nome : novaContaId;
+        const nomeContaAntiga = contaAntigaObj ? contaAntigaObj.nome : (contaAntigaId || 'Não definida');
+
+        const logAlteracao = `[ALTERAÇÃO DE PAGAMENTO (${hojeStr}) por ${loggedUser}]: Valor anterior: ${formatCurrency(valorPagoAntigo)} -> Novo valor: ${formatCurrency(novoValorPago)} | Conta anterior: ${nomeContaAntiga} -> Nova conta: ${nomeContaNova} | Forma: ${novaForma} | Motivo: ${motivoText}`;
+        const novasObs = l.observacoes ? `${l.observacoes}\n${logAlteracao}` : logAlteracao;
+
+        // 3. Atualizar o lançamento no Supabase
+        const updateData = {
+            valor_pago: novoValorPago,
+            conta_bancaria_id: novaContaId,
+            forma_pagamento: novaForma,
+            observacoes: novasObs
+        };
+
+        const { error: errUp } = await supabaseClient.from('fin_lancamentos').update(updateData).eq('id', id);
+        if (errUp) throw errUp;
+
+        // 4. Registrar em logs_atividade para auditoria completa
+        if (typeof registrarLog === 'function') {
+            await registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Alterou pagamento do lançamento ${l.codigo_sequencial ? '(' + l.codigo_sequencial + ')' : ''} [${l.id}]: Valor: ${formatCurrency(valorPagoAntigo)} -> ${formatCurrency(novoValorPago)} (Conta: ${nomeContaNova}, Forma: ${novaForma}) - Motivo: ${motivoText}`);
+        }
+
+        closeModal('editPaymentModal');
+        await loadInitialData();
+        renderAll();
+        showToast('Dados do pagamento atualizados com sucesso!', 'success');
+    } catch (err) {
+        console.error('Erro ao alterar pagamento:', err);
+        showToast('Erro ao atualizar pagamento: ' + (err.message || err), 'error');
+    } finally {
+        const btnSalvar = document.getElementById('btnSalvarEditPayment');
+        if (btnSalvar) btnSalvar.disabled = false;
+        if (typeof window.hideLoader === 'function') window.hideLoader();
+    }
+};
+
 function renderDashboardPagar() {
     const elements = {
         total: document.getElementById('kpi-pagar-total'),
@@ -2935,7 +3202,7 @@ function getMonthName(i) { return ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Ju
 function getWeekday(d) { return ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d.getDay()]; }
 
 function updateDropdowns() {
-    const selects = ['entryCategoriaName', 'entryConta', 'entryCentroCusto', 'payConta', 'planoParentId', 'custoParentId', 'entryForma', 'filterFornecedorPagar', 'filterCCPagar', 'concContaSelect'];
+    const selects = ['entryCategoriaName', 'entryConta', 'entryCentroCusto', 'payConta', 'planoParentId', 'custoParentId', 'entryForma', 'filterFornecedorPagar', 'filterClienteReceber', 'filterCCPagar', 'concContaSelect'];
 
     // Função auxiliar para identificar se um item é folha (não tem filhos)
     const isLeaf = (item, list) => !list.some(other => other.parent_id === item.id);
@@ -2992,6 +3259,10 @@ function updateDropdowns() {
         if (id === 'filterFornecedorPagar') {
             const options = state.fornecedores.map(f => `<option value="${f.nome}">${f.nome}</option>`);
             el.innerHTML = '<option value="">Todos os Fornecedores</option>' + options.join('');
+        }
+        if (id === 'filterClienteReceber') {
+            const options = (state.clientes || []).map(c => `<option value="${c.nome}">${c.nome}</option>`);
+            el.innerHTML = '<option value="">Todos os Clientes</option>' + options.join('');
         }
         if (id === 'filterCCPagar') {
             const options = state.centrosCusto.map(c => `<option value="${c.id}">${c.codigo} - ${c.nome}</option>`);
@@ -3095,8 +3366,38 @@ function filterByCategory(tipo, val) {
     renderLancamentos(tipo);
 }
 
+window.handlePeriodoFilterChange = function(tipo) {
+    const selTipo = document.getElementById(`filterPeriodoTipo${tipo === 'PAGAR' ? 'Pagar' : 'Receber'}`);
+    if (selTipo && state.filtros[tipo]) {
+        state.filtros[tipo].periodoTipo = selTipo.value;
+        renderLancamentos(tipo);
+    }
+};
+
+window.handlePeriodoSelectChange = function(tipo, val) {
+    if (!state.filtros[tipo]) return;
+    state.filtros[tipo].periodo = val;
+    const customDiv = document.getElementById(`filterCustomDates${tipo === 'PAGAR' ? 'Pagar' : 'Receber'}`);
+    if (customDiv) {
+        customDiv.style.display = val === 'custom' ? 'flex' : 'none';
+    }
+    if (val !== 'custom') {
+        state.filtros[tipo].dataIni = '';
+        state.filtros[tipo].dataFim = '';
+        renderLancamentos(tipo);
+    }
+};
+
+window.handleCustomDateChange = function(tipo) {
+    if (!state.filtros[tipo]) return;
+    const sfx = tipo === 'PAGAR' ? 'Pagar' : 'Receber';
+    state.filtros[tipo].dataIni = document.getElementById(`filterDataIni${sfx}`)?.value || '';
+    state.filtros[tipo].dataFim = document.getElementById(`filterDataFim${sfx}`)?.value || '';
+    renderLancamentos(tipo);
+};
+
 function clearFilters(tipo) {
-    state.filtros[tipo] = { status: '', busca: '', categoria: '', origem: '' };
+    state.filtros[tipo] = { status: '', busca: '', categoria: '', origem: '', periodoTipo: 'VENCIMENTO', periodo: '', dataIni: '', dataFim: '' };
 
     // Reset inputs
     if (tipo === 'PAGAR') {
@@ -3105,9 +3406,20 @@ function clearFilters(tipo) {
         if (document.getElementById('filterFornecedorPagar')) document.getElementById('filterFornecedorPagar').value = '';
         if (document.getElementById('filterCCPagar')) document.getElementById('filterCCPagar').value = '';
         if (document.getElementById('filterOrigemPagar')) document.getElementById('filterOrigemPagar').value = '';
+        if (document.getElementById('filterPeriodoTipoPagar')) document.getElementById('filterPeriodoTipoPagar').value = 'VENCIMENTO';
+        if (document.getElementById('filterPeriodoPagar')) document.getElementById('filterPeriodoPagar').value = '';
+        if (document.getElementById('filterCustomDatesPagar')) document.getElementById('filterCustomDatesPagar').style.display = 'none';
+        if (document.getElementById('filterDataIniPagar')) document.getElementById('filterDataIniPagar').value = '';
+        if (document.getElementById('filterDataFimPagar')) document.getElementById('filterDataFimPagar').value = '';
     } else {
         if (document.getElementById('receberSearch')) document.getElementById('receberSearch').value = '';
         if (document.getElementById('filterStatusReceber')) document.getElementById('filterStatusReceber').value = '';
+        if (document.getElementById('filterClienteReceber')) document.getElementById('filterClienteReceber').value = '';
+        if (document.getElementById('filterPeriodoTipoReceber')) document.getElementById('filterPeriodoTipoReceber').value = 'VENCIMENTO';
+        if (document.getElementById('filterPeriodoReceber')) document.getElementById('filterPeriodoReceber').value = '';
+        if (document.getElementById('filterCustomDatesReceber')) document.getElementById('filterCustomDatesReceber').style.display = 'none';
+        if (document.getElementById('filterDataIniReceber')) document.getElementById('filterDataIniReceber').value = '';
+        if (document.getElementById('filterDataFimReceber')) document.getElementById('filterDataFimReceber').value = '';
     }
 
     renderLancamentos(tipo);
@@ -3536,11 +3848,33 @@ function setupEventListeners() {
         document.getElementById('viewPrazoVal').innerText = prazoVal ? `${prazoVal} dias` : '-';
         
         const dataPgtoWrapper = document.getElementById('viewDataPagamentoWrapper');
+        const btnAlterarPgto = document.getElementById('btnViewAlterarPagamento');
         if (l.data_pagamento || l.status === 'PAGO') {
             dataPgtoWrapper.style.display = 'block';
             document.getElementById('viewDataPagamentoVal').innerText = formatDate(l.data_pagamento) || 'Baixado';
+            
+            // Resolver nome do banco / conta
+            const contaObj = (state.contas || []).find(c => c.id === l.conta_bancaria_id);
+            const bancoNome = contaObj ? contaObj.nome : '—';
+            const elBanco = document.getElementById('viewBancoPagamentoVal');
+            if (elBanco) elBanco.innerText = bancoNome;
+
+            // Forma de pagamento e valor pago
+            const elFormaRealizada = document.getElementById('viewFormaPgtoRealizadaVal');
+            if (elFormaRealizada) elFormaRealizada.innerText = l.forma_pagamento || formaPgtoVal || '—';
+
+            const elValorPago = document.getElementById('viewValorPagoVal');
+            const vPagoRealizado = parseFloat(l.valor_pago) || parseFloat(l.valor_total) || 0;
+            if (elValorPago) elValorPago.innerText = formatCurrency(vPagoRealizado);
+
+            if (btnAlterarPgto) {
+                btnAlterarPgto.style.display = l.status === 'PAGO' ? 'inline-flex' : 'none';
+                btnAlterarPgto.dataset.lancamentoId = l.id;
+                btnAlterarPgto.innerHTML = `<i data-lucide="credit-card" style="width:16px;height:16px;"></i> Alterar ${l.tipo === 'RECEBER' ? 'Recebimento' : 'Pagamento'}`;
+            }
         } else {
             dataPgtoWrapper.style.display = 'none';
+            if (btnAlterarPgto) btnAlterarPgto.style.display = 'none';
         }
 
         // Observações
@@ -6470,41 +6804,68 @@ async function showRecordHistory(id) {
 
     try {
         // Buscar logs do banco de dados na tabela logs_atividade
+        const orConditions = [
+            `descricao.ilike.%${l.id}%`
+        ];
+        if (l.codigo_sequencial) orConditions.push(`descricao.ilike.%${l.codigo_sequencial}%`);
+        if (l.num_nf) orConditions.push(`descricao.ilike.%${l.num_nf}%`);
+        if (l.descricao && l.descricao.length >= 4) {
+            orConditions.push(`descricao.ilike.%${l.descricao.substring(0, 15).replace(/'/g, "''")}%`);
+        }
+
         const { data: dbLogs } = await supabaseClient
             .from('logs_atividade')
             .select('*')
             .eq('modulo', 'financeiro')
-            .or(`descricao.ilike.%${l.codigo_sequencial}%,descricao.ilike.%${l.descricao.substring(0, 15)}%,descricao.ilike.%${l.id}%`)
+            .or(orConditions.join(','))
             .order('created_at', { ascending: false });
 
         let historyItems = [];
 
         if (dbLogs && dbLogs.length > 0) {
-            historyItems = dbLogs.map(log => ({
-                date: new Date(log.created_at),
-                user: log.usuario_email || 'Usuário',
-                action: log.acao || 'ALTERAÇÃO',
-                desc: log.descricao || ''
-            }));
+            historyItems = dbLogs.map(log => {
+                let displayAction = log.acao || 'ALTERAÇÃO';
+                const descUpper = (log.descricao || '').toUpperCase();
+                if (descUpper.includes('BAIXOU') || descUpper.includes('PAGAMENTO') || descUpper.includes('BAIXA')) {
+                    displayAction = descUpper.includes('EDITOU PAGAMENTO') || descUpper.includes('ALTEROU PAGAMENTO') ? 'ALTERAÇÃO DE PAGAMENTO' : 'PAGAMENTO / BAIXA';
+                } else if (descUpper.includes('ESTORNO') || descUpper.includes('REVERSÃO')) {
+                    displayAction = 'ESTORNO';
+                } else if (descUpper.includes('EDITOU') || descUpper.includes('ALTEROU')) {
+                    displayAction = 'ALTERAÇÃO';
+                } else if (descUpper.includes('LANÇOU') || descUpper.includes('CRIOU') || descUpper.includes('INCLUSÃO')) {
+                    displayAction = 'INCLUSÃO';
+                }
+
+                return {
+                    date: new Date(log.created_at),
+                    user: log.usuario_email || 'Usuário',
+                    action: displayAction,
+                    desc: log.descricao || ''
+                };
+            });
         }
 
         const loggedUser = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
 
-        // Se houver registros específicos em observações (ex: estornos, divergências), incorporar
+        // Se houver registros específicos em observações (ex: estornos, divergências, alteração de pagamento), incorporar
         if (l.observacoes) {
             const lines = l.observacoes.split('\n');
             lines.forEach(line => {
-                if (line.includes('[MOTIVO DIVERGÊNCIA BAIXA') || line.includes('[MOTIVO ESTORNO/REVERSÃO')) {
+                if (line.includes('[MOTIVO DIVERGÊNCIA BAIXA') || line.includes('[MOTIVO ESTORNO/REVERSÃO') || line.includes('[ALTERAÇÃO DE PAGAMENTO')) {
                     let parsedUser = loggedUser;
                     const matchUser = line.match(/por (.*?)]:/);
                     if (matchUser && matchUser[1]) {
                         parsedUser = matchUser[1].trim();
                     }
 
+                    let actionName = 'DIVERGÊNCIA BAIXA';
+                    if (line.includes('ESTORNO')) actionName = 'ESTORNO';
+                    else if (line.includes('ALTERAÇÃO DE PAGAMENTO')) actionName = 'ALTERAÇÃO DE PAGAMENTO';
+
                     historyItems.push({
                         date: new Date(l.updated_at || l.created_at || Date.now()),
                         user: parsedUser,
-                        action: line.includes('ESTORNO') ? 'ESTORNO' : 'DIVERGÊNCIA BAIXA',
+                        action: actionName,
                         desc: line
                     });
                 }
@@ -6539,10 +6900,14 @@ async function showRecordHistory(id) {
                     iconName = 'rotate-ccw';
                     badgeBg = 'rgba(239, 68, 68, 0.15)';
                     badgeColor = '#ef4444';
+                } else if (item.action.includes('ALTERAÇÃO DE PAGAMENTO')) {
+                    iconName = 'file-pen-line';
+                    badgeBg = 'rgba(2, 132, 199, 0.15)';
+                    badgeColor = '#0284c7';
                 } else if (item.action.includes('BAIXA') || item.action.includes('PAGAMENTO')) {
                     iconName = 'check-circle';
-                    badgeBg = 'rgba(245, 158, 11, 0.15)';
-                    badgeColor = '#f59e0b';
+                    badgeBg = 'rgba(16, 185, 129, 0.15)';
+                    badgeColor = '#10b981';
                 }
 
                 return `
@@ -7010,19 +7375,20 @@ window.renderPagamentosPorBanco = function() {
             if (statusFil === 'PAGO' && l.status !== 'PAGO') return false;
             if (statusFil === 'ABERTO' && l.status === 'PAGO') return false; // Abertas inclui ABERTO, ATRASADO, PARCIAL
         }
-        const dateRef = l.data_vencimento || l.previsao_pagamento;
+        // Se houver data de pagamento (liquidada), filtra por data_pagamento; caso contrário, usa vencimento/previsão
+        const dateRef = l.data_pagamento || l.data_vencimento || l.previsao_pagamento;
         return inPeriod(dateRef);
     });
 
-    // ordenar por data decrescente
+    // ordenar por data decrescente (priorizando data de pagamento)
     items = items.sort((a, b) => {
-        const da = new Date(a.data_vencimento || a.previsao_pagamento || 0);
-        const db = new Date(b.data_vencimento || b.previsao_pagamento || 0);
+        const da = new Date(a.data_pagamento || a.data_vencimento || a.previsao_pagamento || 0);
+        const db = new Date(b.data_pagamento || b.data_vencimento || b.previsao_pagamento || 0);
         return db - da;
     });
 
     if (!items.length) {
-        tbody.innerHTML = `<tr><td colspan="7" class="table-empty">Nenhum lançamento encontrado para o período/filtro selecionado.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="table-empty">Nenhum lançamento encontrado para o período/filtro selecionado.</td></tr>`;
         if (footer) footer.innerHTML = '';
         return;
     }
@@ -7036,7 +7402,8 @@ window.renderPagamentosPorBanco = function() {
     tbody.innerHTML = items.map(l => {
         const conta = (state.contas || []).find(c => c.id === l.conta_bancaria_id);
         const bancoNome = conta ? conta.nome : '—';
-        const dateStr = l.data_vencimento || l.previsao_pagamento || '';
+        const vencStr = l.data_vencimento || l.previsao_pagamento || '';
+        const pgtoStr = l.data_pagamento || '';
         const valor = parseFloat(l.valor_total) || 0;
         if (l.tipo === 'PAGAR')   totalPagar   += valor;
         if (l.tipo === 'RECEBER') totalReceber += valor;
@@ -7045,7 +7412,8 @@ window.renderPagamentosPorBanco = function() {
         const tipoColor   = l.tipo === 'PAGAR' ? '#dc2626' : '#059669';
         return `<tr>
             <td style="font-size:0.78rem; font-weight:600; color: #0f172a;">${bancoNome}</td>
-            <td style="font-size:0.78rem; color: #334155;">${dateStr ? formatDate(dateStr) : '—'}</td>
+            <td style="font-size:0.78rem; color: #334155;">${vencStr ? formatDate(vencStr) : '—'}</td>
+            <td style="font-size:0.78rem; font-weight:600; color: #059669;">${pgtoStr ? formatDate(pgtoStr) : '—'}</td>
             <td style="font-size:0.78rem; color: #334155;">${l.entidade_nome || '—'}</td>
             <td style="font-size:0.78rem; color: #334155; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${l.descricao || ''}">${l.descricao || '—'}</td>
             <td><span style="font-size:0.7rem; font-weight:700; color:${tipoColor};">${l.tipo}</span></td>
@@ -7193,13 +7561,14 @@ window.exportPgBanco = function(format) {
             if (statusFil === 'PAGO' && l.status !== 'PAGO') return false;
             if (statusFil === 'ABERTO' && l.status === 'PAGO') return false;
         }
-        const dateRef = l.data_vencimento || l.previsao_pagamento;
+        // Se houver data de pagamento (liquidada), filtra por data_pagamento; caso contrário, usa vencimento/previsão
+        const dateRef = l.data_pagamento || l.data_vencimento || l.previsao_pagamento;
         return inPeriod(dateRef);
     });
 
     items = items.sort((a, b) => {
-        const da = new Date(a.data_vencimento || a.previsao_pagamento || 0);
-        const db = new Date(b.data_vencimento || b.previsao_pagamento || 0);
+        const da = new Date(a.data_pagamento || a.data_vencimento || a.previsao_pagamento || 0);
+        const db = new Date(b.data_pagamento || b.data_vencimento || b.previsao_pagamento || 0);
         return db - da;
     });
 
@@ -7236,17 +7605,19 @@ window.exportPgBanco = function(format) {
             [`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`],
             [`Filtros: Banco: ${bancoLabel} | Tipo: ${tipoLabel} | Status: ${statusLabel} | Período: ${periodoLabel}`],
             [],
-            ['Banco', 'Vencimento', 'Favorecido / Cliente', 'Descrição', 'Tipo', 'Valor (R$)', 'Status']
+            ['Banco', 'Vencimento', 'Data Pagamento', 'Favorecido / Cliente', 'Descrição', 'Tipo', 'Valor (R$)', 'Status']
         ];
 
         items.forEach(l => {
             const conta = (state.contas || []).find(c => c.id === l.conta_bancaria_id);
             const bancoNome = conta ? conta.nome : '—';
-            const dateStr = l.data_vencimento || l.previsao_pagamento || '';
+            const vencStr = l.data_vencimento || l.previsao_pagamento || '';
+            const pgtoStr = l.data_pagamento || '';
             const valor = parseFloat(l.valor_total) || 0;
             rows.push([
                 bancoNome,
-                dateStr ? formatDate(dateStr) : '—',
+                vencStr ? formatDate(vencStr) : '—',
+                pgtoStr ? formatDate(pgtoStr) : '—',
                 l.entidade_nome || '—',
                 l.descricao || '—',
                 l.tipo,
@@ -7256,7 +7627,7 @@ window.exportPgBanco = function(format) {
         });
 
         rows.push([]);
-        rows.push(['TOTAIS:', '', '', '', '', '', '']);
+        rows.push(['TOTAIS:', '', '', '', '', '', '', '']);
         rows.push(['A Pagar:', totalPagar]);
         rows.push(['A Receber:', totalReceber]);
         rows.push(['Saldo do Período:', saldoTotal]);
@@ -7307,11 +7678,13 @@ window.exportPgBanco = function(format) {
             const body = items.map(l => {
                 const conta = (state.contas || []).find(c => c.id === l.conta_bancaria_id);
                 const bancoNome = conta ? conta.nome : '—';
-                const dateStr = l.data_vencimento || l.previsao_pagamento || '';
+                const vencStr = l.data_vencimento || l.previsao_pagamento || '';
+                const pgtoStr = l.data_pagamento || '';
                 const valor = parseFloat(l.valor_total) || 0;
                 return [
                     bancoNome,
-                    dateStr ? formatDate(dateStr) : '—',
+                    vencStr ? formatDate(vencStr) : '—',
+                    pgtoStr ? formatDate(pgtoStr) : '—',
                     l.entidade_nome || '—',
                     l.descricao || '—',
                     l.tipo,
@@ -7323,7 +7696,7 @@ window.exportPgBanco = function(format) {
             doc.autoTable({
                 startY: 34,
                 margin: { left: margin, right: margin, bottom: 18 },
-                head: [['BANCO', 'VENCIMENTO', 'FAVORECIDO / CLIENTE', 'DESCRIÇÃO', 'TIPO', 'VALOR', 'STATUS']],
+                head: [['BANCO', 'VENCIMENTO', 'DATA PGTO', 'FAVORECIDO / CLIENTE', 'DESCRIÇÃO', 'TIPO', 'VALOR', 'STATUS']],
                 body: body,
                 theme: 'plain',
                 headStyles: {
@@ -7343,20 +7716,21 @@ window.exportPgBanco = function(format) {
                     valign: 'middle'
                 },
                 columnStyles: {
-                    0: { cellWidth: 26, fontStyle: 'bold' },
-                    1: { cellWidth: 19, halign: 'center' },
-                    2: { cellWidth: 42 },
-                    3: { cellWidth: 44 },
-                    4: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
-                    5: { cellWidth: 22, halign: 'right', fontStyle: 'bold' },
-                    6: { cellWidth: 18, halign: 'center' }
+                    0: { cellWidth: 24, fontStyle: 'bold' },
+                    1: { cellWidth: 17, halign: 'center' },
+                    2: { cellWidth: 17, halign: 'center', fontStyle: 'bold' },
+                    3: { cellWidth: 38 },
+                    4: { cellWidth: 38 },
+                    5: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
+                    6: { cellWidth: 20, halign: 'right', fontStyle: 'bold' },
+                    7: { cellWidth: 18, halign: 'center' }
                 },
                 didParseCell: function(data) {
                     if (data.section === 'body') {
-                        if (data.column.index === 4) {
+                        if (data.column.index === 5) {
                             data.cell.styles.textColor = data.cell.raw === 'PAGAR' ? [220, 38, 38] : [5, 150, 105];
                         }
-                        if (data.column.index === 6) {
+                        if (data.column.index === 7) {
                             if (data.cell.raw === 'Pago') data.cell.styles.textColor = [5, 150, 105];
                             else if (data.cell.raw === 'Aberto') data.cell.styles.textColor = [217, 119, 6];
                             else if (data.cell.raw === 'Atrasado') data.cell.styles.textColor = [220, 38, 38];

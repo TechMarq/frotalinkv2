@@ -2729,6 +2729,7 @@ async function handleSaveCompra(e) {
                     possui_garantia: row.querySelector('.maint-possui-garantia').value === 'true',
                     meses_garantia: row.querySelector('.maint-meses-garantia')?.value || null,
                     descricao: isServico ? row.querySelector('.item-servico-desc').value : row.querySelector('.item-produto-search').value,
+                    quantidade: parseFloat(itemData.quantidade) || 1,
                     valor_pecas: isServico ? 0 : itemData.valorUnitario * itemData.quantidade,
                     valor_servicos: isServico ? itemData.valorUnitario * itemData.quantidade : 0,
                     oficina_id: compraData.fornecedorId 
@@ -2965,6 +2966,7 @@ async function handleSaveCompra(e) {
                                 tipo_id: m.tipo_id || null,
                                 acao_id: m.acao_id || null,
                                 descricao: `[ID:${compraData.id}] ${m.descricao}`, // Changed to unique internal ID
+                                quantidade: parseFloat(m.quantidade) || 1,
                                 valor_pecas: 0,
                                 valor_servicos: parseFloat(m.valor_servicos) || 0,
                                 possui_garantia: m.possui_garantia,
@@ -2980,8 +2982,9 @@ async function handleSaveCompra(e) {
                             };
 
                             let { error: itemError } = await client.from('manutencao_itens').insert([itemPayload]);
-                            if (itemError && itemError.message && itemError.message.includes('tipo_id')) {
-                                delete itemPayload.tipo_id;
+                            if (itemError && itemError.message && (itemError.message.includes('quantidade') || itemError.message.includes('tipo_id'))) {
+                                if (itemError.message.includes('quantidade')) delete itemPayload.quantidade;
+                                if (itemError.message.includes('tipo_id')) delete itemPayload.tipo_id;
                                 const fbRes = await client.from('manutencao_itens').insert([itemPayload]);
                                 itemError = fbRes.error;
                             }

@@ -1435,6 +1435,7 @@ async function undoMovement(id) {
         const { data: mov, error: err1 } = await supabaseClient.from('estoque_movimentacoes').select('*').eq('id', id).single();
         if (err1) throw err1;
 
+        const userEmail = getCurrentUserEmail();
         // Inverter tipo para estorno
         const estornoObj = {
             item_id: mov.item_id,
@@ -1443,7 +1444,7 @@ async function undoMovement(id) {
             valor_unitario: mov.valor_unitario,
             lucro: -mov.lucro,
             motivo: `ESTORNO: ${mov.motivo}`,
-            responsavel: 'SISTEMA',
+            responsavel: userEmail || 'SISTEMA',
             data: new Date().toISOString()
         };
 
@@ -2494,6 +2495,7 @@ async function saveVenda(event) {
                     .ilike('motivo', `%VENDA: ${newVenda.codigo}%`);
             }
 
+            const userEmail = getCurrentUserEmail();
             const moveObj = {
                 item_id: item.produto_id,
                 tipo: 'SAIDA',
@@ -2501,7 +2503,7 @@ async function saveVenda(event) {
                 valor_unitario: item.valor_unitario,
                 lucro: (item.valor_unitario - item.valor_custo) * item.quantidade + item.adjustment,
                 motivo: `SAÍDA: ${tipo}${tipo === 'SIMPLES' && vendaObj.placa ? ' - PLACA: ' + vendaObj.placa : (tipo === 'OS' && vendaObj.os_id ? ' - OS: #' + vendaObj.os_id : (tipo === 'EXTERNA' && vendaObj.cliente_nome ? ' - CLIENTE: ' + vendaObj.cliente_nome : ''))} | VENDA: ${newVenda.codigo}${currentVendaId ? ' (EDITADO)' : ''}`,
-                responsavel: 'SISTEMA',
+                responsavel: userEmail || 'SISTEMA',
                 data: dataVenda + 'T12:00:00Z',
                 plano_contas_codigo: '04.018.0091',
                 plano_contas_nome: 'SAIDAS DE ESTOQUE'
@@ -2706,6 +2708,7 @@ async function deleteSale(vendaId) {
                     .update({ estoque_atual: currentBalance + qtyToReturn })
                     .eq('id', item.produto_id);
 
+                const userEmail = getCurrentUserEmail();
                 // C. Criar Registro de ESTORNO no histórico (Auditoria)
                 await supabaseClient.from('estoque_movimentacoes').insert([{
                     item_id: item.produto_id,
@@ -2713,7 +2716,7 @@ async function deleteSale(vendaId) {
                     quantidade: qtyToReturn,
                     valor_unitario: item.valor_unitario,
                     motivo: `ESTORNO DE VENDA: ${venda.codigo} (CANCELAMENTO)`,
-                    responsavel: 'SISTEMA (CANCELAMENTO)',
+                    responsavel: userEmail ? `${userEmail} (CANCELAMENTO)` : 'SISTEMA (CANCELAMENTO)',
                     data: venda.data
                 }]);
             }

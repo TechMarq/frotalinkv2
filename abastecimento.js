@@ -1992,6 +1992,29 @@ window.handleIntelligentFilter = (origin) => {
         }
     }
 
+    // --- Atualizar Combustíveis (se a origem não foi combustível) ---
+    const fuelFilterEl = document.getElementById('fuel_filter_combustivel');
+    if (origin !== 'combustivel' && fuelFilterEl) {
+        let matchingForFuel = baseRecords;
+        if (ff.categoria) matchingForFuel = matchingForFuel.filter(r => r.categoria_id === ff.categoria);
+        if (ff.posto && ff.posto !== 'NULL_POSTO') matchingForFuel = matchingForFuel.filter(r => r.posto_id === ff.posto);
+        if (ff.veiculo) matchingForFuel = matchingForFuel.filter(r => r.veiculo_id === ff.veiculo);
+        if (ff.motorista) matchingForFuel = matchingForFuel.filter(r => r.motorista_id === ff.motorista);
+
+        const availableFuelTypes = [...new Set(matchingForFuel.map(r => r.tipo_combustivel).filter(Boolean))];
+        const filteredFuels = (availableFuelTypes.length > 0 && (ff.categoria || ff.posto || ff.veiculo || ff.motorista))
+            ? state.fuelTypes.filter(f => availableFuelTypes.some(af => af.toLowerCase() === f.descricao.toLowerCase()))
+            : state.fuelTypes;
+
+        const currentFuel = fuelFilterEl.value;
+        fuelFilterEl.innerHTML = '<option value="">Todos os Tipos</option>' +
+            filteredFuels.map(f => `<option value="${f.descricao}" ${f.descricao.toLowerCase() === currentFuel.toLowerCase() ? 'selected' : ''}>${f.descricao}</option>`).join('');
+
+        if (ff.combustivel && !filteredFuels.find(f => f.descricao.toLowerCase() === ff.combustivel.toLowerCase())) {
+            state.fuelFilters.combustivel = '';
+        }
+    }
+
     // 3. Reset pagination and render
     state.currentPage = 1;
     renderFuelTable();
@@ -2046,6 +2069,12 @@ window.clearFuelFilters = () => {
         const sortedDrivers = [...state.drivers].sort((a, b) => (a.nome_completo || '').localeCompare(b.nome_completo || ''));
         driverSel.innerHTML = '<option value="">Todos os Condutores</option>' + 
             sortedDrivers.map(d => `<option value="${d.id}">${d.nome_completo}</option>`).join('');
+    }
+
+    const fuelSel = document.getElementById('fuel_filter_combustivel');
+    if (fuelSel) {
+        fuelSel.innerHTML = '<option value="">Todos os Tipos</option>' +
+            state.fuelTypes.map(f => `<option value="${f.descricao}">${f.descricao}</option>`).join('');
     }
     
     state.currentPage = 1;

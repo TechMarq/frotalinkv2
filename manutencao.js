@@ -207,6 +207,48 @@ async function loadInitialData() {
             });
         }
 
+        // --- Vinculação Automática de Quantidades de Compras / Estoque ---
+        try {
+            // Coleta todos os códigos de compra referenciados nos itens (ex: [ID:NC-117194])
+            const compraIdsSet = new Set();
+            state.manutencoes.forEach(m => {
+                (m.manutencao_itens || []).forEach(i => {
+                    const match = (i.descricao || '').match(/\[ID:([^\]]+)\]/i);
+                    if (match && match[1]) compraIdsSet.add(match[1].trim());
+                });
+            });
+
+            if (compraIdsSet.size > 0) {
+                const idList = Array.from(compraIdsSet);
+                const { data: compraItensData } = await supabaseClient
+                    .from('compra_itens')
+                    .select('compra_id, produto, quantidade')
+                    .in('compra_id', idList);
+
+                if (compraItensData && compraItensData.length > 0) {
+                    state.manutencoes.forEach(m => {
+                        (m.manutencao_itens || []).forEach(i => {
+                            if (i.quantidade !== undefined && i.quantidade !== null && i.quantidade > 0) return;
+                            const match = (i.descricao || '').match(/\[ID:([^\]]+)\]/i);
+                            if (match && match[1]) {
+                                const cId = match[1].trim();
+                                const descClean = (i.descricao || '').replace(/\[ID:[^\]]+\]\s*/i, '').trim().toLowerCase();
+                                const matchedItem = compraItensData.find(ci => 
+                                    ci.compra_id === cId && 
+                                    (ci.produto && (descClean.includes(ci.produto.trim().toLowerCase()) || ci.produto.trim().toLowerCase().includes(descClean)))
+                                );
+                                if (matchedItem && matchedItem.quantidade) {
+                                    i.quantidade = parseFloat(matchedItem.quantidade);
+                                }
+                            }
+                        });
+                    });
+                }
+            }
+        } catch (compraErr) {
+            console.warn('[Manutenção] Erro ao carregar quantidades de compras:', compraErr);
+        }
+
         populateDropdowns();
         renderMaintTable();
         calculateMaintStats();
@@ -299,13 +341,28 @@ function populateDropdowns() {
     }
 }
 
+window.clearMaintSearch = function() {
+    const searchInput = document.getElementById('maintSearch');
+    if (searchInput) {
+        searchInput.value = '';
+        const btnClear = document.getElementById('clearMaintSearch');
+        if (btnClear) btnClear.style.display = 'none';
+        state.currentPage = 1;
+        renderMaintTable();
+    }
+};
+
 window.clearMaintFilters = function() {
     const searchInput = document.getElementById('maintSearch');
     const filterPlaca = document.getElementById('maintFilterPlaca');
     const filterTipo = document.getElementById('maintFilterTipo');
     const filterOficina = document.getElementById('maintFilterOficina');
 
-    if (searchInput) searchInput.value = '';
+    if (searchInput) {
+        searchInput.value = '';
+        const btnClear = document.getElementById('clearMaintSearch');
+        if (btnClear) btnClear.style.display = 'none';
+    }
     if (filterPlaca) filterPlaca.value = '';
     if (filterTipo) filterTipo.value = '';
     if (filterOficina) filterOficina.value = '';
@@ -457,6 +514,9 @@ function renderMaintTable() {
     if (!tbody) return;
 
     const search = document.getElementById('maintSearch')?.value.toLowerCase() || '';
+    const btnClear = document.getElementById('clearMaintSearch');
+    if (btnClear) btnClear.style.display = search ? 'flex' : 'none';
+
     const placaFilter = document.getElementById('maintFilterPlaca')?.value.toUpperCase() || '';
     const tipoFilter = document.getElementById('maintFilterTipo')?.value || '';
     const oficinaFilter = document.getElementById('maintFilterOficina')?.value.toLowerCase() || '';
@@ -695,9 +755,18 @@ function renderMaintTable() {
         // Formatação dos itens agrupados para caber na tabela
         const servicosHtml = items.map(i => {
             const tipoLabel = i.manutencao_tipos?.descricao ? ` [${i.manutencao_tipos.descricao}]` : '';
+            const qtdVal = i.quantidade !== undefined && i.quantidade !== null && parseFloat(i.quantidade) > 0 ? parseFloat(i.quantidade) : null;
+            const qtdBadge = qtdVal !== null ? `
+                <span style="display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 7px; background: rgba(16, 185, 129, 0.12); color: #059669; border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 4px; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.02em;">
+                    Qtd: ${qtdVal.toLocaleString('pt-BR')}
+                </span>
+            ` : '';
             return `
                 <div style="margin-bottom: 4px; line-height: 1.2;">
-                    <span style="color: var(--primary); font-weight: 700; font-size: 0.7rem; text-transform: uppercase;">${i.manutencao_acoes?.descricao || 'S/A'}${tipoLabel}</span><br>
+                    <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
+                        <span style="color: var(--primary); font-weight: 700; font-size: 0.7rem; text-transform: uppercase;">${i.manutencao_acoes?.descricao || 'S/A'}${tipoLabel}</span>
+                        ${qtdBadge}
+                    </div>
                     <span style="font-size: 0.75rem; color: #475569; font-weight: 600;">${i.descricao || 'S/D'}</span>
                 </div>
             `;
@@ -1317,10 +1386,14 @@ window.openMaintModal = async (id = null) => {
                 if (statusFormSel) statusFormSel.value = m.status || 'PENDENTE';
 
                 const { data: items } = await supabaseClient.from('manutencao_itens').select('*').eq('manutencao_id', id);
-                state.currentMaintItems = (items || []).map(i => ({
-                    ...i,
-                    tipo_id: i.tipo_id || m?.tipo_id || null
-                }));
+                state.currentMaintItems = (items || []).map(i => {
+                    const cachedItem = (m.manutencao_itens || []).find(ci => ci.id === i.id);
+                    return {
+                        ...i,
+                        quantidade: i.quantidade !== undefined && i.quantidade !== null ? i.quantidade : (cachedItem?.quantidade || 1),
+                        tipo_id: i.tipo_id || m?.tipo_id || null
+                    };
+                });
             }
         } else {
             title.innerText = 'Registrar Manutenção';
@@ -1350,6 +1423,7 @@ window.addMaintItem = () => {
     state.currentMaintItems.push({
         id: newId,
         descricao: '',
+        quantidade: 1,
         tipo_id: '',
         acao_id: '',
         valor_pecas: 0,
@@ -1401,10 +1475,14 @@ function renderMaintItems() {
                 <i data-lucide="x" style="width: 14px;"></i>
             </button>
 
-            <div class="form-grid" style="grid-template-columns: 2fr 1fr 1fr; gap: 0.6rem;">
+            <div class="form-grid" style="grid-template-columns: 2fr 100px 1.2fr 1.2fr; gap: 0.6rem;">
                 <div class="form-group">
                     <label>Descrição do Item / Serviço</label>
                     <input type="text" id="maint_desc_${item.id}" value="${item.descricao || ''}" oninput="updateItemField('${item.id}', 'descricao', this.value)" placeholder="Ex: Óleo 5W30">
+                </div>
+                <div class="form-group">
+                    <label>Qtd.</label>
+                    <input type="number" id="maint_qtd_${item.id}" value="${item.quantidade !== undefined && item.quantidade !== null ? item.quantidade : 1}" min="0.01" step="any" oninput="updateItemField('${item.id}', 'quantidade', this.value)" style="text-align: center;">
                 </div>
                 <div class="form-group">
                     <label>Tipo de Manutenção</label>
@@ -1662,6 +1740,7 @@ function setupFormListeners() {
                         const itemPayload = {
                             manutencao_id: targetHeaderId,
                             descricao: item.descricao,
+                            quantidade: parseFloat(item.quantidade) || 1,
                             tipo_id: item.tipo_id && item.tipo_id !== '' ? item.tipo_id : null,
                             acao_id: item.acao_id && item.acao_id !== '' ? item.acao_id : null,
                             valor_pecas: 0,
@@ -1679,8 +1758,9 @@ function setupFormListeners() {
                         };
 
                         let { error: iError } = await supabaseClient.from('manutencao_itens').insert([itemPayload]);
-                        if (iError && (iError.message.includes('tipo_id') || iError.message.includes('schema cache'))) {
-                            delete itemPayload.tipo_id;
+                        if (iError && (iError.message.includes('quantidade') || iError.message.includes('tipo_id') || iError.message.includes('schema cache'))) {
+                            if (iError.message.includes('quantidade')) delete itemPayload.quantidade;
+                            if (iError.message.includes('tipo_id')) delete itemPayload.tipo_id;
                             await supabaseClient.from('manutencao_itens').insert([itemPayload]);
                         }
                     }
@@ -1722,6 +1802,7 @@ function setupFormListeners() {
                         const itemPayload = {
                             manutencao_id: newH.id,
                             descricao: item.descricao,
+                            quantidade: parseFloat(item.quantidade) || 1,
                             tipo_id: item.tipo_id && item.tipo_id !== '' ? item.tipo_id : null,
                             acao_id: item.acao_id && item.acao_id !== '' ? item.acao_id : null,
                             valor_pecas: 0,
@@ -1739,8 +1820,9 @@ function setupFormListeners() {
                         };
 
                         let { error: iError } = await supabaseClient.from('manutencao_itens').insert([itemPayload]);
-                        if (iError && (iError.message.includes('tipo_id') || iError.message.includes('schema cache'))) {
-                            delete itemPayload.tipo_id;
+                        if (iError && (iError.message.includes('quantidade') || iError.message.includes('tipo_id') || iError.message.includes('schema cache'))) {
+                            if (iError.message.includes('quantidade')) delete itemPayload.quantidade;
+                            if (iError.message.includes('tipo_id')) delete itemPayload.tipo_id;
                             await supabaseClient.from('manutencao_itens').insert([itemPayload]);
                         }
                     }

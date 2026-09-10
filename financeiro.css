@@ -2562,3 +2562,504 @@ th.active-sort i {
     background: rgba(239, 68, 68, 0.1);
     border-color: #ef4444;
 }
+
+/* ==========================================================================
+   ✨ HARMONIZAÇÃO VISUAL PREMIUM: ABA CONTAS A PAGAR & TABELAS FINANCEIRAS
+   ========================================================================== */
+
+/* 1. Grade e Cards de KPIs (Contas a Pagar / Receber) */
+.kpi-grid {
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+}
+
+.kpi-card {
+    border-radius: 18px;
+    padding: 1.4rem 1.6rem;
+    background: #111827;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.35);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.kpi-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 30px -8px rgba(0, 0, 0, 0.45);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.kpi-icon-wrapper {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: transform 0.25s ease;
+}
+
+.kpi-card:hover .kpi-icon-wrapper {
+    transform: scale(1.06);
+}
+
+.kpi-card.expense .kpi-icon-wrapper {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.25);
+}
+
+.kpi-card.projections .kpi-icon-wrapper {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.25);
+}
+
+.kpi-card.income .kpi-icon-wrapper {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.25);
+}
+
+.kpi-info .label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted, #94a3b8);
+}
+
+.kpi-info .value {
+    font-size: 1.65rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    margin-top: 2px;
+}
+
+/* 🌿 Tema Green Pastel para os KPI Cards */
+[data-theme="green_pastel"] .kpi-card {
+    background: #ffffff !important;
+    border: 1px solid rgba(45, 158, 107, 0.16) !important;
+    box-shadow: 0 6px 20px rgba(45, 158, 107, 0.06) !important;
+}
+
+[data-theme="green_pastel"] .kpi-card:hover {
+    background: #ffffff !important;
+    border-color: rgba(45, 158, 107, 0.35) !important;
+    box-shadow: 0 12px 28px rgba(45, 158, 107, 0.12) !important;
+}
+
+[data-theme="green_pastel"] .kpi-info .value {
+    color: #163629 !important;
+}
+
+[data-theme="green_pastel"] .kpi-info .label {
+    color: #4b6e5b !important;
+}
+
+/* 2. Barra de Filtros Rápidos Harmonizada */
+.quick-filters {
+    background: rgba(30, 41, 59, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 1.25rem 1.5rem;
+    border-radius: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+    margin-bottom: 1.75rem;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.15);
+}
+
+.filter-group {
+    flex: 1;
+    min-width: 140px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.filter-group label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.04rem;
+}
+
+.filter-select {
+    height: 42px !important;
+    line-height: 40px !important;
+    border-radius: 10px !important;
+    font-size: 0.84rem !important;
+    font-weight: 600 !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    background: #0f172a !important;
+    color: #f1f5f9 !important;
+    transition: all 0.2s ease !important;
+}
+
+.filter-select:hover {
+    border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+.filter-select:focus {
+    border-color: #2d9e6b !important;
+    box-shadow: 0 0 0 2px rgba(45, 158, 107, 0.2) !important;
+}
+
+[data-theme="green_pastel"] .quick-filters {
+    background: #ffffff !important;
+    border: 1px solid rgba(45, 158, 107, 0.18) !important;
+    box-shadow: 0 4px 20px rgba(45, 158, 107, 0.06) !important;
+}
+
+[data-theme="green_pastel"] .filter-group label {
+    color: #4b6e5b !important;
+}
+
+[data-theme="green_pastel"] .filter-select {
+    background: #f8faf9 !important;
+    border-color: rgba(45, 158, 107, 0.22) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .filter-select:hover {
+    background: #ffffff !important;
+    border-color: rgba(45, 158, 107, 0.4) !important;
+}
+
+[data-theme="green_pastel"] .filter-select:focus {
+    background: #ffffff !important;
+    border-color: #2d9e6b !important;
+    box-shadow: 0 0 0 2px rgba(45, 158, 107, 0.15) !important;
+}
+
+/* Botão de Limpar Filtros */
+.btn-clear-filters {
+    height: 42px;
+    padding: 0 1.25rem;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+}
+
+/* 3. Tabela de Lançamentos - Estrutura e Tipografia */
+.glass-table-container {
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(15, 23, 42, 0.6);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="green_pastel"] .glass-table-container {
+    border: 1px solid rgba(45, 158, 107, 0.15) !important;
+    background: #ffffff !important;
+    box-shadow: 0 4px 24px rgba(45, 158, 107, 0.06) !important;
+}
+
+.glass-table-container table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+}
+
+.glass-table-container table thead th {
+    padding: 0.95rem 1rem;
+    font-size: 0.74rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="green_pastel"] .glass-table-container table thead th {
+    background: #f4f8f5 !important;
+    color: #2e5441 !important;
+    border-bottom: 2px solid rgba(45, 158, 107, 0.18) !important;
+}
+
+.glass-table-container table tbody tr {
+    transition: background 0.18s ease;
+}
+
+.glass-table-container table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.015);
+}
+
+[data-theme="green_pastel"] .glass-table-container table tbody tr:nth-child(even) {
+    background: #fafcfb;
+}
+
+.glass-table-container table tbody tr:hover {
+    background: rgba(99, 102, 241, 0.05) !important;
+}
+
+[data-theme="green_pastel"] .glass-table-container table tbody tr:hover {
+    background: rgba(45, 158, 107, 0.05) !important;
+}
+
+.glass-table-container table tbody td {
+    padding: 0.85rem 1rem;
+    font-size: 0.84rem;
+    vertical-align: middle;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="green_pastel"] .glass-table-container table tbody td {
+    color: #1a2e25;
+    border-bottom: 1px solid rgba(45, 158, 107, 0.08);
+}
+
+/* 4. Badges de Status Refinados */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.status-pago {
+    background: rgba(16, 185, 129, 0.12) !important;
+    color: #10b981 !important;
+    border: 1px solid rgba(16, 185, 129, 0.28) !important;
+}
+
+[data-theme="green_pastel"] .status-pago {
+    background: rgba(45, 158, 107, 0.12) !important;
+    color: #15803d !important;
+    border-color: rgba(45, 158, 107, 0.3) !important;
+}
+
+.status-aberto {
+    background: rgba(245, 158, 11, 0.12) !important;
+    color: #f59e0b !important;
+    border: 1px solid rgba(245, 158, 11, 0.28) !important;
+}
+
+[data-theme="green_pastel"] .status-aberto {
+    background: rgba(217, 119, 6, 0.1) !important;
+    color: #b45309 !important;
+    border-color: rgba(217, 119, 6, 0.25) !important;
+}
+
+.status-atrasado {
+    background: rgba(239, 68, 68, 0.12) !important;
+    color: #ef4444 !important;
+    border: 1px solid rgba(239, 68, 68, 0.28) !important;
+}
+
+[data-theme="green_pastel"] .status-atrasado {
+    background: rgba(225, 29, 72, 0.1) !important;
+    color: #be123c !important;
+    border-color: rgba(225, 29, 72, 0.25) !important;
+}
+
+/* 5. Badge de Banco Liquidado (coluna Valor Pago) */
+.bank-paid-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 3px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: rgba(2, 132, 199, 0.1);
+    color: #0284c7;
+    border: 1px solid rgba(2, 132, 199, 0.22);
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+[data-theme="green_pastel"] .bank-paid-badge {
+    background: rgba(2, 132, 199, 0.08) !important;
+    color: #0369a1 !important;
+    border-color: rgba(2, 132, 199, 0.25) !important;
+}
+
+.bank-paid-name {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 6. Botões de Ações (.actions-cell & .btn-action) */
+.actions-cell {
+    text-align: center;
+    white-space: nowrap;
+}
+
+.actions-wrapper {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+.btn-action {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    background: rgba(255, 255, 255, 0.05);
+    color: #94a3b8;
+}
+
+.btn-action i,
+.btn-action svg {
+    width: 15px;
+    height: 15px;
+    stroke-width: 2.2px;
+}
+
+.btn-action:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* Variações por tipo de ação */
+.btn-action.history {
+    background: rgba(99, 102, 241, 0.12);
+    border-color: rgba(99, 102, 241, 0.28);
+    color: #818cf8;
+}
+.btn-action.history:hover {
+    background: #6366f1;
+    color: #ffffff;
+    border-color: #6366f1;
+}
+
+.btn-action.edit-pay {
+    background: rgba(2, 132, 199, 0.12);
+    border-color: rgba(2, 132, 199, 0.3);
+    color: #38bdf8;
+}
+.btn-action.edit-pay:hover {
+    background: #0284c7;
+    color: #ffffff;
+    border-color: #0284c7;
+}
+
+.btn-action.pay {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #10b981;
+}
+.btn-action.pay:hover {
+    background: #10b981;
+    color: #ffffff;
+    border-color: #10b981;
+}
+
+.btn-action.unpay {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+}
+.btn-action.unpay:hover {
+    background: #f59e0b;
+    color: #ffffff;
+    border-color: #f59e0b;
+}
+
+.btn-action.edit {
+    background: rgba(148, 163, 184, 0.12);
+    border-color: rgba(148, 163, 184, 0.25);
+    color: #cbd5e1;
+}
+.btn-action.edit:hover {
+    background: #3b82f6;
+    color: #ffffff;
+    border-color: #3b82f6;
+}
+
+.btn-action.edit.is-locked {
+    opacity: 0.4;
+    cursor: not-allowed;
+    filter: grayscale(0.8);
+}
+.btn-action.edit.is-locked:hover {
+    transform: none;
+    background: rgba(148, 163, 184, 0.12);
+    color: #cbd5e1;
+}
+
+.btn-action.delete {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.25);
+    color: #ef4444;
+}
+.btn-action.delete:hover {
+    background: #ef4444;
+    color: #ffffff;
+    border-color: #ef4444;
+}
+
+/* Green pastel overrides para os botões de ação */
+[data-theme="green_pastel"] .btn-action.history {
+    background: rgba(99, 102, 241, 0.1) !important;
+    color: #4f46e5 !important;
+    border-color: rgba(99, 102, 241, 0.25) !important;
+}
+[data-theme="green_pastel"] .btn-action.history:hover {
+    background: #4f46e5 !important;
+    color: #ffffff !important;
+}
+
+[data-theme="green_pastel"] .btn-action.edit-pay {
+    background: rgba(2, 132, 199, 0.1) !important;
+    color: #0284c7 !important;
+    border-color: rgba(2, 132, 199, 0.25) !important;
+}
+[data-theme="green_pastel"] .btn-action.edit-pay:hover {
+    background: #0284c7 !important;
+    color: #ffffff !important;
+}
+
+[data-theme="green_pastel"] .btn-action.pay {
+    background: rgba(45, 158, 107, 0.12) !important;
+    color: #1a7a50 !important;
+    border-color: rgba(45, 158, 107, 0.3) !important;
+}
+[data-theme="green_pastel"] .btn-action.pay:hover {
+    background: #2d9e6b !important;
+    color: #ffffff !important;
+}
+
+[data-theme="green_pastel"] .btn-action.edit {
+    background: rgba(100, 116, 139, 0.1) !important;
+    color: #475569 !important;
+    border-color: rgba(100, 116, 139, 0.25) !important;
+}
+[data-theme="green_pastel"] .btn-action.edit:hover {
+    background: #2563eb !important;
+    color: #ffffff !important;
+}
+
+[data-theme="green_pastel"] .btn-action.delete {
+    background: rgba(225, 29, 72, 0.08) !important;
+    color: #e11d48 !important;
+    border-color: rgba(225, 29, 72, 0.22) !important;
+}
+[data-theme="green_pastel"] .btn-action.delete:hover {
+    background: #e11d48 !important;
+    color: #ffffff !important;
+}
