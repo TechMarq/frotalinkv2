@@ -361,16 +361,16 @@
             <section id="tab-fluxo" class="tab-content">
                 <!-- Sub-abas do Fluxo de Caixa -->
                 <div class="cadastro-subtabs" style="margin-bottom: 1.25rem;">
-                    <button class="subtab-item active" id="btn-subtab-fluxo-contas" onclick="switchFluxoSubTab('contas', event)">
+                    <button class="subtab-item" id="btn-subtab-fluxo-contas" onclick="switchFluxoSubTab('contas', event)">
                         <i data-lucide="table-properties"></i> Movimentações de Plano Conta
                     </button>
-                    <button class="subtab-item" id="btn-subtab-fluxo-bancos" onclick="switchFluxoSubTab('bancos', event)">
+                    <button class="subtab-item active" id="btn-subtab-fluxo-bancos" onclick="switchFluxoSubTab('bancos', event)">
                         <i data-lucide="arrow-left-right"></i> Conciliação e Movimentações entre Bancos
                     </button>
                 </div>
 
                 <!-- SUB-ABA 1: Movimento das Contas (Plano de Contas / DRE) -->
-                <div id="subtab-fluxo-contas" class="fluxo-subtab-content active">
+                <div id="subtab-fluxo-contas" class="fluxo-subtab-content" style="display: none;">
                     <div class="fluxo-header" style="flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; background: #ffffff; padding: 1rem 1.25rem; border-radius: 16px; border: 1px solid rgba(45, 158, 107, 0.25); box-shadow: 0 8px 24px rgba(45, 158, 107, 0.08);">
                         <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                             <!-- Navegação por Mês -->
@@ -451,7 +451,7 @@
                 </div>
 
                 <!-- SUB-ABA 2: Movimentações Entre Bancos -->
-                <div id="subtab-fluxo-bancos" class="fluxo-subtab-content" style="display: none;">
+                <div id="subtab-fluxo-bancos" class="fluxo-subtab-content active" style="display: block;">
 
                     <!-- === CARDS DE SALDO POR BANCO === -->
                     <div id="banco-saldo-cards" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;"></div>
@@ -554,14 +554,15 @@
                                 <span style="font-weight:700; font-size:0.82rem; text-transform:uppercase; letter-spacing:0.05em; color: #059669;">Pagamentos por Banco</span>
                             </div>
                             <div style="display:flex; gap:0.6rem; flex-wrap:wrap; align-items:center;">
-                                <select id="pgbanco-filter-banco" class="fluxo-filter-select" onchange="renderPagamentosPorBanco()" style="min-width:170px; height: 34px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;"><option value="">Todos os Bancos</option></select>
-                                <select id="pgbanco-filter-tipo" class="fluxo-filter-select" onchange="renderPagamentosPorBanco()" style="height: 34px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;">
-                                    <option value="">Pagar + Receber</option>
-                                    <option value="PAGAR">Somente a Pagar</option>
-                                    <option value="RECEBER">Somente a Receber</option>
+                                <select id="pgbanco-filter-banco" class="fluxo-filter-select" style="min-width:170px; height: 34px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;"><option value="">Todos os Bancos</option></select>
+                                <select id="pgbanco-filter-tipo" class="fluxo-filter-select" style="height: 34px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;">
+                                    <option value="">Pagar + Receber + Transf.</option>
+                                    <option value="PAGAR">Somente Saídas (Pagar)</option>
+                                    <option value="RECEBER">Somente Entradas (Receber)</option>
+                                    <option value="TRANSFERENCIA">Somente Transferências</option>
                                 </select>
-                                <select id="pgbanco-filter-status" class="fluxo-filter-select" onchange="renderPagamentosPorBanco()" style="height: 34px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;">
-                                    <option value="PAGO" selected>Pagas</option>
+                                <select id="pgbanco-filter-status" class="fluxo-filter-select" style="height: 34px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;">
+                                    <option value="PAGO" selected>Pagas / Concluídas</option>
                                     <option value="">Todos os Status</option>
                                     <option value="ABERTO">Abertas</option>
                                 </select>
@@ -573,13 +574,18 @@
                                     <option value="custom">Personalizado</option>
                                 </select>
                                 <div id="pgbanco-custom-dates" style="display:none; align-items:center; gap:0.4rem;">
-                                    <input type="date" id="pgbanco-data-ini" class="fluxo-filter-select" onchange="renderPagamentosPorBanco()" style="height: 34px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a; font-size: 0.8rem; padding: 0 0.4rem;" />
+                                    <input type="date" id="pgbanco-data-ini" class="fluxo-filter-select" style="height: 34px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a; font-size: 0.8rem; padding: 0 0.4rem;" />
                                     <span style="font-size: 0.8rem; color: #64748b;">até</span>
-                                    <input type="date" id="pgbanco-data-fim" class="fluxo-filter-select" onchange="renderPagamentosPorBanco()" style="height: 34px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a; font-size: 0.8rem; padding: 0 0.4rem;" />
+                                    <input type="date" id="pgbanco-data-fim" class="fluxo-filter-select" style="height: 34px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a; font-size: 0.8rem; padding: 0 0.4rem;" />
                                 </div>
+                                <button type="button" id="btn-gerar-pgbanco" onclick="renderPagamentosPorBanco()" class="btn-primary"
+                                    style="height:34px; padding:0 1rem; font-size:0.78rem; font-weight:800; background:#059669; border-color:#059669; color:#ffffff; border-radius:6px; display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
+                                    <i data-lucide="play" style="width:13px;height:13px;fill:currentColor;"></i>
+                                    <span>Gerar</span>
+                                </button>
                                 <div class="dropdown-export-wrapper" style="position:relative;">
-                                    <button type="button" id="btn-export-pgbanco" onclick="toggleExportPgBancoDropdown()" class="btn-primary"
-                                        style="height:34px; padding:0 0.85rem; font-size:0.78rem; font-weight:700; background:#059669; border-color:#059669; color:#ffffff; border-radius:6px; display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
+                                    <button type="button" id="btn-export-pgbanco" onclick="toggleExportPgBancoDropdown()" class="btn-secondary"
+                                        style="height:34px; padding:0 0.85rem; font-size:0.78rem; font-weight:700; background:#f8fafc; border:1px solid #cbd5e1; color:#334155; border-radius:6px; display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
                                         <i data-lucide="download" style="width:14px;height:14px;"></i>
                                         <span>Exportar</span>
                                         <i data-lucide="chevron-down" style="width:12px;height:12px;opacity:0.8;"></i>
@@ -600,7 +606,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="table-container" style="max-height:380px; overflow-y:auto;">
+                        <div id="pgbanco-table-container" class="table-container" style="max-height:380px; overflow-y:auto; transition: max-height 0.3s ease;">
                             <table class="fluxo-dre-table">
                                 <thead>
                                     <tr>
@@ -615,9 +621,17 @@
                                     </tr>
                                 </thead>
                                 <tbody id="pgbanco-tbody">
-                                    <tr><td colspan="8" class="table-empty">Carregando...</td></tr>
+                                    <tr><td colspan="8" class="table-empty" style="padding: 2rem; color: #64748b;"><i data-lucide="filter" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; color: #059669;"></i> Selecione os filtros acima e clique em <strong>Gerar</strong> para consultar.</td></tr>
                                 </tbody>
                             </table>
+                        </div>
+                        <div style="display:flex; justify-content:center; margin-top:0.35rem; margin-bottom:0.2rem;">
+                            <button type="button" id="btn-toggle-expand-pgbanco" onclick="toggleExpandPgBanco()"
+                                style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:20px; padding:3px 14px; font-size:0.72rem; font-weight:600; color:#475569; display:inline-flex; align-items:center; gap:6px; cursor:pointer; transition:all 0.2s;"
+                                onmouseover="this.style.background='#e2e8f0'; this.style.color='#0f172a';" onmouseout="this.style.background='#f8fafc'; this.style.color='#475569';">
+                                <span id="btn-toggle-expand-pgbanco-text">Expandir tabela</span>
+                                <i id="btn-toggle-expand-pgbanco-icon" data-lucide="chevron-down" style="width:13px; height:13px;"></i>
+                            </button>
                         </div>
                         <div id="pgbanco-footer" style="display:flex; justify-content:flex-end; gap:2rem; padding-top:0.75rem; font-size:0.78rem; font-weight:700; border-top:1px solid #e2e8f0; margin-top:0.5rem; color: #334155;"></div>
                     </div>

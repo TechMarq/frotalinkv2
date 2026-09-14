@@ -100,21 +100,69 @@ async function loadInitialData() {
                 .limit(1000);
             
             if (!error && data) mData = data;
+            if (error) console.warn('[Manutenção] Erro ao buscar relacionamentos profundos:', error);
         } catch (e) {
             console.warn('[Manutenção] Erro ao buscar relacionamentos:', e);
         }
 
         if (!mData) {
-            const { data: fallbackData } = await supabaseClient.from('manutencoes').select('*').order('data', { ascending: false }).limit(1000);
-            mData = fallbackData || [];
+            try {
+                const { data: fallbackData } = await supabaseClient
+                    .from('manutencoes')
+                    .select('*, manutencao_itens(*)')
+                    .order('data', { ascending: false })
+                    .limit(1000);
+                mData = fallbackData || [];
+            } catch (errFallback) {
+                const { data: rawData } = await supabaseClient.from('manutencoes').select('*').order('data', { ascending: false }).limit(1000);
+                mData = rawData || [];
+            }
+        }
+
+        // Garante que todo cabeçalho possua seus itens vinculados buscando diretamente se faltar
+        const missingItemsMaintIds = (mData || []).filter(m => !m.manutencao_itens || m.manutencao_itens.length === 0).map(m => m.id);
+        if (missingItemsMaintIds.length > 0) {
+            try {
+                const { data: directItems } = await supabaseClient
+                    .from('manutencao_itens')
+                    .select('*')
+                    .in('manutencao_id', missingItemsMaintIds);
+                
+                if (directItems && directItems.length > 0) {
+                    const itemMap = {};
+                    directItems.forEach(it => {
+                        if (!itemMap[it.manutencao_id]) itemMap[it.manutencao_id] = [];
+                        itemMap[it.manutencao_id].push(it);
+                    });
+                    mData.forEach(m => {
+                        if ((!m.manutencao_itens || m.manutencao_itens.length === 0) && itemMap[m.id]) {
+                            m.manutencao_itens = itemMap[m.id];
+                        }
+                    });
+                }
+            } catch (dErr) {
+                console.warn('[Manutenção] Erro na verificação direta de itens:', dErr);
+            }
         }
 
         state.manutencoes = mData || [];
         state.manutencoes.forEach(m => {
             if (m.manutencao_itens) {
                 m.manutencao_itens.forEach(i => {
-                    if (!i.manutencao_tipos && m.manutencao_tipos) {
-                        i.manutencao_tipos = { descricao: m.manutencao_tipos.descricao };
+                    // Hidratação por estado caso a chave estrangeira relacional falhe
+                    if (!i.manutencao_tipos) {
+                        const matchedTipo = (state.tipos || []).find(t => t.id === (i.tipo_id || m.tipo_id));
+                        if (matchedTipo) {
+                            i.manutencao_tipos = { descricao: matchedTipo.descricao };
+                        } else if (m.manutencao_tipos) {
+                            i.manutencao_tipos = { descricao: m.manutencao_tipos.descricao };
+                        }
+                    }
+                    if (!i.manutencao_acoes && i.acao_id) {
+                        const matchedAcao = (state.acoes || []).find(a => a.id === i.acao_id);
+                        if (matchedAcao) {
+                            i.manutencao_acoes = { descricao: matchedAcao.descricao };
+                        }
                     }
                     if (!i.tipo_id && m.tipo_id) {
                         i.tipo_id = m.tipo_id;
@@ -152,23 +200,54 @@ async function loadInitialData() {
                 }
             }
             if (splitDone) {
-                const { data: refreshed } = await supabaseClient.from('manutencoes').select(`
-                    *,
-                    veiculos:veiculo_id (placa, modelo),
-                    fornecedores:oficina_id (nome),
-                    manutencao_tipos:tipo_id (descricao),
-                    manutencao_itens (
+                let refreshed = null;
+                try {
+                    const { data: refData } = await supabaseClient.from('manutencoes').select(`
                         *,
-                        manutencao_acoes:acao_id (descricao)
-                    )
-                `).order('data', { ascending: false }).limit(1000);
+                        veiculos:veiculo_id (placa, modelo),
+                        fornecedores:oficina_id (nome),
+                        manutencao_tipos:tipo_id (descricao),
+                        manutencao_itens (
+                            *,
+                            manutencao_acoes:acao_id (descricao)
+                        )
+                    `).order('data', { ascending: false }).limit(1000);
+                    refreshed = refData;
+                } catch (rErr) {
+                    console.warn('[Manutenção] Erro ao reconsultar manutenções desagrupadas:', rErr);
+                }
+
+                if (!refreshed) {
+                    try {
+                        const { data: refFallback } = await supabaseClient
+                            .from('manutencoes')
+                            .select('*, manutencao_itens(*)')
+                            .order('data', { ascending: false })
+                            .limit(1000);
+                        refreshed = refFallback;
+                    } catch (eFallback) {
+                        console.error('Erro no fallback pós-desagrupamento:', eFallback);
+                    }
+                }
+
                 if (refreshed) {
                     state.manutencoes = refreshed;
                     state.manutencoes.forEach(m => {
                         if (m.manutencao_itens) {
                             m.manutencao_itens.forEach(i => {
-                                if (!i.manutencao_tipos && m.manutencao_tipos) {
-                                    i.manutencao_tipos = { descricao: m.manutencao_tipos.descricao };
+                                if (!i.manutencao_tipos) {
+                                    const matchedTipo = (state.tipos || []).find(t => t.id === (i.tipo_id || m.tipo_id));
+                                    if (matchedTipo) {
+                                        i.manutencao_tipos = { descricao: matchedTipo.descricao };
+                                    } else if (m.manutencao_tipos) {
+                                        i.manutencao_tipos = { descricao: m.manutencao_tipos.descricao };
+                                    }
+                                }
+                                if (!i.manutencao_acoes && i.acao_id) {
+                                    const matchedAcao = (state.acoes || []).find(a => a.id === i.acao_id);
+                                    if (matchedAcao) {
+                                        i.manutencao_acoes = { descricao: matchedAcao.descricao };
+                                    }
                                 }
                                 if (!i.tipo_id && m.tipo_id) {
                                     i.tipo_id = m.tipo_id;
@@ -207,31 +286,50 @@ async function loadInitialData() {
             });
         }
 
-        // --- Vinculação Automática de Quantidades de Compras / Estoque ---
+        // --- Vinculação Automática de Quantidades e Número de Notas de Compras / Estoque ---
         try {
             // Coleta todos os códigos de compra referenciados nos itens (ex: [ID:NC-117194])
             const compraIdsSet = new Set();
             state.manutencoes.forEach(m => {
                 (m.manutencao_itens || []).forEach(i => {
                     const match = (i.descricao || '').match(/\[ID:([^\]]+)\]/i);
-                    if (match && match[1]) compraIdsSet.add(match[1].trim());
+                    if (match && match[1]) {
+                        const cId = match[1].trim();
+                        compraIdsSet.add(cId);
+                        m.compra_id = cId;
+                    }
                 });
             });
 
             if (compraIdsSet.size > 0) {
                 const idList = Array.from(compraIdsSet);
-                const { data: compraItensData } = await supabaseClient
-                    .from('compra_itens')
-                    .select('compra_id, produto, quantidade')
-                    .in('compra_id', idList);
+                
+                // Busca tanto compras (para número da nota) quanto itens de compra (para quantidades)
+                const [comprasRes, compraItensRes] = await Promise.all([
+                    supabaseClient.from('compras').select('id, numero_nota').in('id', idList),
+                    supabaseClient.from('compra_itens').select('compra_id, produto, quantidade').in('compra_id', idList)
+                ]);
 
-                if (compraItensData && compraItensData.length > 0) {
-                    state.manutencoes.forEach(m => {
-                        (m.manutencao_itens || []).forEach(i => {
-                            if (i.quantidade !== undefined && i.quantidade !== null && i.quantidade > 0) return;
-                            const match = (i.descricao || '').match(/\[ID:([^\]]+)\]/i);
-                            if (match && match[1]) {
-                                const cId = match[1].trim();
+                const comprasMap = {};
+                (comprasRes.data || []).forEach(c => {
+                    comprasMap[c.id] = c.numero_nota;
+                });
+
+                const compraItensData = compraItensRes.data || [];
+
+                state.manutencoes.forEach(m => {
+                    if (m.compra_id && comprasMap[m.compra_id]) {
+                        m.numero_nota = comprasMap[m.compra_id];
+                    }
+
+                    (m.manutencao_itens || []).forEach(i => {
+                        const match = (i.descricao || '').match(/\[ID:([^\]]+)\]/i);
+                        if (match && match[1]) {
+                            const cId = match[1].trim();
+                            if (!m.numero_nota && comprasMap[cId]) {
+                                m.numero_nota = comprasMap[cId];
+                            }
+                            if (i.quantidade === undefined || i.quantidade === null || i.quantidade <= 0) {
                                 const descClean = (i.descricao || '').replace(/\[ID:[^\]]+\]\s*/i, '').trim().toLowerCase();
                                 const matchedItem = compraItensData.find(ci => 
                                     ci.compra_id === cId && 
@@ -241,12 +339,12 @@ async function loadInitialData() {
                                     i.quantidade = parseFloat(matchedItem.quantidade);
                                 }
                             }
-                        });
+                        }
                     });
-                }
+                });
             }
         } catch (compraErr) {
-            console.warn('[Manutenção] Erro ao carregar quantidades de compras:', compraErr);
+            console.warn('[Manutenção] Erro ao carregar dados complementares de compras:', compraErr);
         }
 
         populateDropdowns();
@@ -542,6 +640,7 @@ function renderMaintTable() {
         const textMatches = (m.veiculos?.placa || '').toLowerCase().includes(search) ||
                (m.fornecedores?.nome || '').toLowerCase().includes(search) ||
                (m.descricao_servico || '').toLowerCase().includes(search) ||
+               String(m.numero_nota || '').toLowerCase().includes(search) ||
                hasItemMatch;
 
         return textMatches;
@@ -619,6 +718,10 @@ function renderMaintTable() {
                 case 'data_manutencao':
                     valA = new Date(a.data_manutencao || a.created_at || 0).getTime();
                     valB = new Date(b.data_manutencao || b.created_at || 0).getTime();
+                    break;
+                case 'numero_nota':
+                    valA = String(a.numero_nota || '').toUpperCase();
+                    valB = String(b.numero_nota || '').toUpperCase();
                     break;
                 case 'fornecedor':
                     valA = (a.fornecedores?.nome || '').toUpperCase();
@@ -761,13 +864,14 @@ function renderMaintTable() {
                     Qtd: ${qtdVal.toLocaleString('pt-BR')}
                 </span>
             ` : '';
+            const rawDesc = i.descricao || 'S/D';
             return `
                 <div style="margin-bottom: 4px; line-height: 1.2;">
                     <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
                         <span style="color: var(--primary); font-weight: 700; font-size: 0.7rem; text-transform: uppercase;">${i.manutencao_acoes?.descricao || 'S/A'}${tipoLabel}</span>
                         ${qtdBadge}
                     </div>
-                    <span style="font-size: 0.75rem; color: #475569; font-weight: 600;">${i.descricao || 'S/D'}</span>
+                    <span style="font-size: 0.75rem; color: #475569; font-weight: 600;">${rawDesc}</span>
                 </div>
             `;
         }).join('');
@@ -875,6 +979,9 @@ function renderMaintTable() {
                     </div>
                 </td>
                 <td data-label="Data" style="font-size: 0.8rem; font-weight: 500;">${m.data ? new Date(m.data + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
+                <td data-label="NF / Nota" style="font-size: 0.8rem; font-weight: 700; color: #10b981;">
+                    ${m.numero_nota ? `<span style="padding: 2px 7px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 6px; font-weight: 800; font-size: 0.75rem;">#${m.numero_nota}</span>` : '<span style="color: #64748b; font-size: 0.75rem;">---</span>'}
+                </td>
                 <td data-label="Fornecedor / Oficina" style="font-size: 0.8rem; font-weight: 600; color: #94a3b8;">${m.fornecedores?.nome || '---'}</td>
                 <td data-label="Serviço / Itens">${servicosHtml || '---'}</td>
                 <td data-label="KM Troca" style="font-weight: 600; font-size: 0.8rem;">${m.km_atual ? parseFloat(m.km_atual).toLocaleString('pt-BR') : '---'}</td>
@@ -1394,6 +1501,18 @@ window.openMaintModal = async (id = null) => {
                         tipo_id: i.tipo_id || m?.tipo_id || null
                     };
                 });
+
+                const groupNota = document.getElementById('group_maint_numero_nota');
+                const inputNota = document.getElementById('maint_numero_nota');
+                if (groupNota && inputNota) {
+                    if (m.numero_nota) {
+                        inputNota.value = `#${m.numero_nota}`;
+                        groupNota.style.display = 'block';
+                    } else {
+                        inputNota.value = '';
+                        groupNota.style.display = 'none';
+                    }
+                }
             }
         } else {
             title.innerText = 'Registrar Manutenção';
@@ -1404,6 +1523,10 @@ window.openMaintModal = async (id = null) => {
             document.getElementById('maint_data').value = new Date().toISOString().split('T')[0];
             const statusFormSel = document.getElementById('maint_form_status');
             if (statusFormSel) statusFormSel.value = 'PENDENTE';
+            
+            const groupNota = document.getElementById('group_maint_numero_nota');
+            if (groupNota) groupNota.style.display = 'none';
+
             addMaintItem();
         }
 

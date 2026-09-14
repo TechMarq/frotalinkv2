@@ -2739,11 +2739,14 @@ async function handleSaveCompra(e) {
 
         if (editId) {
             console.log("🔄 Revertendo estoque anterior...");
-            const oldCompra = compras.find(c => c.id == editId);
+            const oldCompra = compras.find(c => c.id == editId) || { id: editId, numeroNota: numNota };
             if (oldCompra) {
                 const successInv = await rollbackInventory(oldCompra);
                 if (!successInv) return;
                 await rollbackMaintenance(oldCompra); 
+            }
+            if (compraData.id && compraData.id !== editId) {
+                await rollbackMaintenance({ id: compraData.id });
             }
             const idx = compras.findIndex(item => item.id == editId);
             if (idx !== -1) compras[idx] = compraData;
@@ -2863,11 +2866,9 @@ async function handleSaveCompra(e) {
                     if (parcsError) console.error("❌ Erro parcelas:", parcsError);
                 }
 
-                alert("✅ Compra salva e sincronizada com sucesso!");
-
             } catch (err) {
-                console.error("❌ Erro crítico ao sincronizar:", err);
-                alert("Ocorreu um erro inesperado ao salvar: " + err.message);
+                console.error("❌ Erro crítico ao sincronizar compra:", err);
+                alert("Ocorreu um erro ao salvar o registro da compra: " + err.message);
             }
 
             const fornObj = config.fornecedores.find(f => f.id == compraData.fornecedorId) || {};
@@ -2963,16 +2964,15 @@ async function handleSaveCompra(e) {
 
                             const itemPayload = {
                                 manutencao_id: newMaint.id,
-                                tipo_id: m.tipo_id || null,
                                 acao_id: m.acao_id || null,
-                                descricao: `[ID:${compraData.id}] ${m.descricao}`, // Changed to unique internal ID
+                                descricao: `[ID:${compraData.id}] ${m.descricao}`,
                                 quantidade: parseFloat(m.quantidade) || 1,
                                 valor_pecas: 0,
                                 valor_servicos: parseFloat(m.valor_servicos) || 0,
                                 possui_garantia: m.possui_garantia,
                                 meses_garantia: warrantyMonths || null,
                                 vencimento_garantia: vencimento_garantia,
-                                origem_garantia: 'OFICINA', // Linked to the supplier/office
+                                origem_garantia: 'OFICINA',
                                 origem_garantia_fornecedor_id: fornObj.id || m.oficina_id,
                                 controle_proxima_troca: m.controle_proxima_troca,
                                 intervalo_km: intervalKm || null,
@@ -2982,7 +2982,7 @@ async function handleSaveCompra(e) {
                             };
 
                             let { error: itemError } = await client.from('manutencao_itens').insert([itemPayload]);
-                            if (itemError && itemError.message && (itemError.message.includes('quantidade') || itemError.message.includes('tipo_id'))) {
+                            if (itemError && itemError.message && (itemError.message.includes('quantidade') || itemError.message.includes('tipo_id') || itemError.message.includes('schema cache'))) {
                                 if (itemError.message.includes('quantidade')) delete itemPayload.quantidade;
                                 if (itemError.message.includes('tipo_id')) delete itemPayload.tipo_id;
                                 const fbRes = await client.from('manutencao_itens').insert([itemPayload]);
@@ -2999,6 +2999,7 @@ async function handleSaveCompra(e) {
                     }
                 }
             }
+            alert("✅ Compra e manutenção sincronizadas com sucesso!");
         }
 
         console.log("✅ FIM DO PROCESSO!");
@@ -3073,34 +3074,46 @@ async function rollbackInventory(compra) {
 }
 
 async function rollbackMaintenance(compra) {
-    if (!supabaseClient) return true;
+    const client = window.authClient || supabaseClient;
+    if (!client || !compra || !compra.id) return true;
     
     console.log("🔍 Limpando manutenções anteriores da nota ID:", compra.id);
     try {
-        // Find items linked to this purchase using the unique internal ID
         const tag = `[ID:${compra.id}]`;
-        
-        const { data: items, error: itemError } = await supabaseClient
+        const rawId = String(compra.id);
+
+        // Busca itens contendo o ID ou a tag no campo descricao
+        const { data: allItems, error: itemError } = await client
             .from('manutencao_itens')
-            .select('id, manutencao_id')
-            .filter('descricao', 'ilike', `%${tag}%`);
+            .select('id, manutencao_id, descricao');
 
-        if (itemError) throw itemError;
+        if (itemError) {
+            console.warn("⚠️ Aviso ao buscar itens de manutenção para rollback:", itemError);
+        }
 
-        if (items && items.length > 0) {
-            const maintIds = [...new Set(items.map(it => it.manutencao_id))];
+        // Filtra precisamente na memória para evitar problemas com colchetes em regex/like do SQL
+        const matchedItems = (allItems || []).filter(it => {
+            if (!it.descricao) return false;
+            return it.descricao.includes(tag) || it.descricao.includes(`ID:${rawId}`);
+        });
+
+        if (matchedItems.length > 0) {
+            const maintIds = [...new Set(matchedItems.map(it => it.manutencao_id).filter(Boolean))];
             
             // Delete items
-            await supabaseClient.from('manutencao_itens').delete().in('id', items.map(it => it.id));
+            const { error: delItemErr } = await client.from('manutencao_itens').delete().in('id', matchedItems.map(it => it.id));
+            if (delItemErr) {
+                console.error("❌ Erro ao deletar itens de manutenção:", delItemErr);
+            }
             
             // Delete parent maintenance if they have no more items
             for (const mId of maintIds) {
-                const { data: remaining } = await supabaseClient.from('manutencao_itens').select('id').eq('manutencao_id', mId).limit(1);
+                const { data: remaining } = await client.from('manutencao_itens').select('id').eq('manutencao_id', mId).limit(1);
                 if (!remaining || remaining.length === 0) {
-                    await supabaseClient.from('manutencoes').delete().eq('id', mId);
+                    await client.from('manutencoes').delete().eq('id', mId);
                 }
             }
-            console.log(`✅ ${items.length} itens de manutenção removidos.`);
+            console.log(`✅ ${matchedItems.length} itens de manutenção vinculados à compra ${compra.id} removidos.`);
         }
     } catch (err) {
         console.error("❌ Erro ao limpar manutenções:", err);

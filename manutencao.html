@@ -1030,8 +1030,11 @@
                             <th onclick="sortMaintTable('veiculo')" style="width: 120px; cursor: pointer; user-select: none;" title="Clique para ordenar por Veículo">
                                 Veículo <span class="sort-icon" data-sort="veiculo" style="font-size: 0.7rem; color: #94a3b8;">↕</span>
                             </th>
-                            <th onclick="sortMaintTable('data')" style="width: 110px; cursor: pointer; user-select: none;" title="Clique para ordenar por Data">
+                            <th onclick="sortMaintTable('data')" style="width: 105px; cursor: pointer; user-select: none;" title="Clique para ordenar por Data">
                                 Data <span class="sort-icon" data-sort="data" style="font-size: 0.7rem; color: #94a3b8;">↕</span>
+                            </th>
+                            <th onclick="sortMaintTable('numero_nota')" style="width: 100px; cursor: pointer; user-select: none;" title="Clique para ordenar por Nota Fiscal">
+                                NF / Nota <span class="sort-icon" data-sort="numero_nota" style="font-size: 0.7rem; color: #94a3b8;">↕</span>
                             </th>
                             <th onclick="sortMaintTable('fornecedor')" style="cursor: pointer; user-select: none;" title="Clique para ordenar por Fornecedor">
                                 Fornecedor / Oficina <span class="sort-icon" data-sort="fornecedor" style="font-size: 0.7rem; color: #94a3b8;">↕</span>
@@ -1188,6 +1191,11 @@
                             <input type="hidden" id="maint_oficina" required>
                             <div class="autocomplete-results" id="maint_oficina_results" style="display: none; position: absolute; top: 100%; left: 0; right: 0; border-radius: 8px; z-index: 100; max-height: 200px; overflow-y: auto;"></div>
                         </div>
+                    </div>
+
+                    <div class="form-group" id="group_maint_numero_nota" style="display: none;">
+                        <label style="color: #10b981; font-weight: 700;">Nota Fiscal (Módulo Compras)</label>
+                        <input type="text" id="maint_numero_nota" readonly style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.3); color: #10b981; font-weight: 800;" placeholder="---">
                     </div>
                     <!-- Seção: Itens da Manutenção (DINÂMICO) -->
                     <div class="form-group full" style="margin-top: 1.5rem; margin-bottom: 0.5rem;">
