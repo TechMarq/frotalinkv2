@@ -1136,6 +1136,7 @@ window.openCompraModal = async (id = null) => {
             if (c) populateModal(c);
         } else {
             editId = null;
+            if (typeof applyStockItemLock === 'function') applyStockItemLock(false);
             const uniqueId = 'NC-' + Date.now().toString().slice(-6);
             document.getElementById('labelCodUnico').innerText = 'COD: ' + uniqueId;
             document.getElementById('labelCodUnico').dataset.value = uniqueId;
@@ -1492,9 +1493,138 @@ window.openViewModal = (id) => {
 
 window.closeViewModal = () => { document.getElementById('viewCompraModal').classList.remove('active'); };
 
-window.closeCompraModal = () => { document.getElementById('compraModal').classList.remove('active'); editId = null; };
+window.closeCompraModal = () => { 
+    document.getElementById('compraModal').classList.remove('active'); 
+    editId = null; 
+    applyStockItemLock(false);
+};
 
 window.closeFornecedorModal = () => { document.getElementById('fornecedorModal').classList.remove('active'); };
+
+function applyStockItemLock(isLocked) {
+    window.currentCompraStockLocked = !!isLocked;
+    const existingBanner = document.getElementById('stockLockedBanner');
+    if (existingBanner) existingBanner.remove();
+
+    const addBtn = document.querySelector('.btn-add-item');
+    const itemsContainer = document.getElementById('itemsContainer');
+
+    if (isLocked) {
+        if (addBtn) addBtn.style.display = 'none';
+
+        const banner = document.createElement('div');
+        banner.id = 'stockLockedBanner';
+        banner.style = "display: flex; align-items: flex-start; gap: 0.85rem; background: #eff6ff; border: 1px solid #93c5fd; color: #1e293b; padding: 0.9rem 1.1rem; border-radius: 10px; margin-bottom: 1rem; font-size: 0.84rem; line-height: 1.5; box-shadow: 0 2px 6px rgba(0,0,0,0.04);";
+        banner.innerHTML = `
+            <div style="background: #dbeafe; padding: 0.45rem; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-top: 2px;">
+                <i data-lucide="shield-check" style="width: 22px; height: 22px; color: #1d4ed8;"></i>
+            </div>
+            <div style="flex: 1;">
+                <div style="font-weight: 700; color: #1e3a8a; font-size: 0.92rem; margin-bottom: 0.25rem;">
+                    Itens Vinculados ao Estoque (Edição Protegida)
+                </div>
+                <div style="color: #334155; font-size: 0.82rem;">
+                    Os itens desta nota já deram entrada no módulo de estoque. Para assegurar a consistência das saídas e do saldo atual, a alteração direta dos itens está bloqueada.
+                    <span style="color: #1d4ed8; font-weight: 700; display: block; margin-top: 0.25rem;">Você pode alterar normalmente todos os outros campos da nota (Espécie, Fornecedor, Datas, Categoria, Forma de Pagamento, etc.).</span>
+                </div>
+            </div>
+        `;
+        if (itemsContainer && itemsContainer.parentElement) {
+            itemsContainer.parentElement.insertBefore(banner, itemsContainer);
+        }
+
+        const rows = document.querySelectorAll('.item-row');
+        rows.forEach(row => {
+            row.style.background = '#f8fafc';
+            row.style.borderColor = '#cbd5e1';
+            row.style.opacity = '1';
+            
+            const interactives = row.querySelectorAll('input, select, button, .stock-toggle');
+            interactives.forEach(el => {
+                el.style.pointerEvents = 'none';
+                if (el.tagName === 'INPUT') {
+                    el.readOnly = true;
+                    el.style.color = '#0f172a';
+                    el.style.webkitTextFillColor = '#0f172a';
+                    el.style.background = '#ffffff';
+                    el.style.fontWeight = '600';
+                    el.style.opacity = '1';
+                    el.style.borderColor = '#cbd5e1';
+                    el.style.cursor = 'default';
+                } else if (el.tagName === 'SELECT') {
+                    el.disabled = true;
+                    el.style.color = '#0f172a';
+                    el.style.webkitTextFillColor = '#0f172a';
+                    el.style.background = '#ffffff';
+                    el.style.fontWeight = '600';
+                    el.style.opacity = '1';
+                    el.style.borderColor = '#cbd5e1';
+                    el.style.cursor = 'default';
+                } else if (el.tagName === 'BUTTON') {
+                    el.disabled = true;
+                    if (el.classList.contains('type-btn')) {
+                        el.style.opacity = '1';
+                    }
+                }
+            });
+
+            row.querySelectorAll('label, span').forEach(lbl => { lbl.style.opacity = '1'; });
+
+            const removeBtn = row.querySelector('.btn-remove');
+            if (removeBtn) removeBtn.style.display = 'none';
+
+            const actionsGroup = row.querySelector('.product-actions-group');
+            if (actionsGroup) actionsGroup.style.display = 'none';
+        });
+
+        if (window.lucide) lucide.createIcons();
+    } else {
+        if (addBtn) addBtn.style.display = '';
+
+        const rows = document.querySelectorAll('.item-row');
+        rows.forEach(row => {
+            row.style.background = '';
+            row.style.borderColor = '';
+            row.style.opacity = '';
+
+            const interactives = row.querySelectorAll('input, select, button, .stock-toggle');
+            interactives.forEach(el => {
+                el.style.pointerEvents = '';
+                if (el.tagName === 'INPUT') {
+                    el.readOnly = false;
+                    el.style.color = '';
+                    el.style.webkitTextFillColor = '';
+                    el.style.background = '';
+                    el.style.fontWeight = '';
+                    el.style.opacity = '';
+                    el.style.borderColor = '';
+                    el.style.cursor = '';
+                } else if (el.tagName === 'SELECT') {
+                    el.disabled = false;
+                    el.style.color = '';
+                    el.style.webkitTextFillColor = '';
+                    el.style.background = '';
+                    el.style.fontWeight = '';
+                    el.style.opacity = '';
+                    el.style.borderColor = '';
+                    el.style.cursor = '';
+                } else if (el.tagName === 'BUTTON') {
+                    el.disabled = false;
+                }
+            });
+
+            const removeBtn = row.querySelector('.btn-remove');
+            if (removeBtn) removeBtn.style.display = '';
+
+            const actionsGroup = row.querySelector('.product-actions-group');
+            if (actionsGroup) {
+                const typeBtn = row.querySelector('.type-btn.active');
+                const isServico = typeBtn?.innerText.trim().toUpperCase() === 'SERVIÇO';
+                actionsGroup.style.display = isServico ? 'none' : 'flex';
+            }
+        });
+    }
+}
 
 function populateModal(c) {
     document.getElementById('labelCodUnico').innerText = 'COD: ' + c.id;
@@ -1571,6 +1701,9 @@ function populateModal(c) {
             container.appendChild(row);
         });
     }
+
+    const hasLinkedStock = (c.items || c.itens || []).some(it => (it.estoque === true || it.estoque === 'true') && it.produtoId);
+    applyStockItemLock(hasLinkedStock);
 }
 
 function addItemRow(data = {}, shouldFocus = true) {
@@ -2677,6 +2810,8 @@ async function handleSaveCompra(e) {
 
         const activeUserName = getCurrentUserDisplayName();
         const existingCompra = editId ? compras.find(x => x.id == editId) : null;
+        const oldExistingItems = existingCompra ? (existingCompra.items || existingCompra.itens || []) : [];
+        const hasLinkedStock = oldExistingItems.some(it => (it.estoque === true || it.estoque === 'true') && it.produtoId);
 
         const compraData = {
             id: editId || codUnico, 
@@ -2688,7 +2823,7 @@ async function handleSaveCompra(e) {
             formaPgtoId,
             categoriaId,
             vencimento,
-            itens: items,
+            itens: (editId && hasLinkedStock && oldExistingItems.length > 0) ? oldExistingItems : items,
             parcelasData,
             valorTotal: finalTotal,
             financeiro: isParcelado,
@@ -2738,12 +2873,14 @@ async function handleSaveCompra(e) {
         });
 
         if (editId) {
-            console.log("🔄 Revertendo estoque anterior...");
-            const oldCompra = compras.find(c => c.id == editId) || { id: editId, numeroNota: numNota };
-            if (oldCompra) {
+            const oldCompra = existingCompra || compras.find(c => c.id == editId) || { id: editId, numeroNota: numNota };
+            if (!hasLinkedStock) {
+                console.log("🔄 Revertendo estoque anterior (nota sem itens de estoque vinculados)...");
                 const successInv = await rollbackInventory(oldCompra);
                 if (!successInv) return;
                 await rollbackMaintenance(oldCompra); 
+            } else {
+                console.log("🔒 Nota com itens já vinculados ao estoque em edição: preservando estoque existente.");
             }
             if (compraData.id && compraData.id !== editId) {
                 await rollbackMaintenance({ id: compraData.id });
@@ -2874,36 +3011,59 @@ async function handleSaveCompra(e) {
             const fornObj = config.fornecedores.find(f => f.id == compraData.fornecedorId) || {};
             const fornNome = fornObj.nome || 'Fornecedor';
     
-            for (const it of compraData.itens) {
-                if (it.estoque && it.produtoId) {
-                    try {
-                        const activeUser = (window.currentUserAccess?.nome_completo || window.currentUserAccess?.nome || window.currentUser?.email || localStorage.getItem('user_email') || 'SISTEMA COMPRAS').toUpperCase();
-                        await client.from('estoque_movimentacoes').insert([{
-                            item_id: it.produtoId,
-                            tipo: 'ENTRADA',
-                            quantidade: it.quantidade,
-                            motivo: `COMPRA: Nota #${compraData.numeroNota} | ${fornNome}`,
-                            responsavel: activeUser,
-                            valor_unitario: it.valorUnitario,
-                            data: new Date().toISOString(),
-                            empresa_id: window.currentEmpresaId || null
-                        }]);
-
-                        const { data: prod } = await client.from('estoque').select('estoque_atual').eq('id', it.produtoId).single();
-                        if (prod) {
-                            const newStock = (parseFloat(prod.estoque_atual) || 0) + it.quantidade;
-                            await client.from('estoque').update({ 
-                                estoque_atual: newStock,
-                                valor_custo: it.valorUnitario,
-                                valor_venda: it.valorVenda || 0
-                            }).eq('id', it.produtoId);
+            if (editId && hasLinkedStock) {
+                console.log("🔒 Nota em edição com estoque já movimentado: mantendo movimentações e saldos existentes.");
+                // Se o número da nota ou fornecedor mudou, atualizamos o motivo da entrada original no estoque para manter a rastreabilidade perfeita
+                if (existingCompra && (compraData.numeroNota !== existingCompra.numeroNota || compraData.fornecedorId !== existingCompra.fornecedorId)) {
+                    for (const it of compraData.itens) {
+                        if (it.estoque && it.produtoId) {
+                            try {
+                                const newMotivo = `COMPRA: Nota #${compraData.numeroNota} | ${fornNome}`;
+                                const oldNum = existingCompra.numeroNota || numNota;
+                                await client.from('estoque_movimentacoes')
+                                    .update({ motivo: newMotivo })
+                                    .eq('item_id', it.produtoId)
+                                    .eq('tipo', 'ENTRADA')
+                                    .ilike('motivo', `COMPRA: Nota #${oldNum}%`);
+                                console.log(`✅ Motivo no histórico do estoque atualizado para o item ${it.produtoId}: ${newMotivo}`);
+                            } catch (err) {
+                                console.warn("⚠️ Não foi possível atualizar motivo no histórico do estoque:", err);
+                            }
                         }
-                    } catch (err) { console.error("❌ Erro Supabase Item:", err); }
+                    }
+                }
+            } else {
+                for (const it of compraData.itens) {
+                    if (it.estoque && it.produtoId) {
+                        try {
+                            const activeUser = (window.currentUserAccess?.nome_completo || window.currentUserAccess?.nome || window.currentUser?.email || localStorage.getItem('user_email') || 'SISTEMA COMPRAS').toUpperCase();
+                            await client.from('estoque_movimentacoes').insert([{
+                                item_id: it.produtoId,
+                                tipo: 'ENTRADA',
+                                quantidade: it.quantidade,
+                                motivo: `COMPRA: Nota #${compraData.numeroNota} | ${fornNome}`,
+                                responsavel: activeUser,
+                                valor_unitario: it.valorUnitario,
+                                data: new Date().toISOString(),
+                                empresa_id: window.currentEmpresaId || null
+                            }]);
+
+                            const { data: prod } = await client.from('estoque').select('estoque_atual').eq('id', it.produtoId).single();
+                            if (prod) {
+                                const newStock = (parseFloat(prod.estoque_atual) || 0) + it.quantidade;
+                                await client.from('estoque').update({ 
+                                    estoque_atual: newStock,
+                                    valor_custo: it.valorUnitario,
+                                    valor_venda: it.valorVenda || 0
+                                }).eq('id', it.produtoId);
+                            }
+                        } catch (err) { console.error("❌ Erro Supabase Item:", err); }
+                    }
                 }
             }
 
             // --- INTEGRATION: CREATE MAINTENANCE RECORDS ---
-            if (maintRecords.length > 0) {
+            if (maintRecords.length > 0 && !(editId && hasLinkedStock)) {
                 console.log("🛠️ Criando registros de manutenção...");
                 for (const m of maintRecords) {
                     try {

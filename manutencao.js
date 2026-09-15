@@ -1498,7 +1498,12 @@ window.openMaintModal = async (id = null) => {
                     return {
                         ...i,
                         quantidade: i.quantidade !== undefined && i.quantidade !== null ? i.quantidade : (cachedItem?.quantidade || 1),
-                        tipo_id: i.tipo_id || m?.tipo_id || null
+                        tipo_id: i.tipo_id || m?.tipo_id || null,
+                        proxima_troca_km: i.proxima_troca_km != null ? i.proxima_troca_km : (cachedItem?.proxima_troca_km || null),
+                        km_ajustado_manualmente: i.km_ajustado_manualmente || cachedItem?.km_ajustado_manualmente || false,
+                        motivo_ajuste_km: i.motivo_ajuste_km || cachedItem?.motivo_ajuste_km || '',
+                        data_ajuste_km: i.data_ajuste_km || cachedItem?.data_ajuste_km || null,
+                        usuario_ajuste_km: i.usuario_ajuste_km || cachedItem?.usuario_ajuste_km || ''
                     };
                 });
 
@@ -1637,7 +1642,19 @@ function renderMaintItems() {
                     <div class="form-group">
                         <label style="font-size: 0.7rem;">Intervalo KM / Prev.</label>
                         <input type="number" id="maint_km_${item.id}" value="${item.intervalo_km || ''}" oninput="updateItemField('${item.id}', 'intervalo_km', this.value)" style="height: 35px; margin-bottom: 5px;">
-                        <div id="prediction_km_${item.id}" style="font-size: 0.75rem; font-weight: bold; color: var(--primary);">${calculateItemPrediction(item, 'KM')}</div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; margin-top: 2px;">
+                            <div id="prediction_km_${item.id}" style="font-size: 0.75rem; font-weight: bold; color: var(--primary);">
+                                ${calculateItemPrediction(item, 'KM')}
+                            </div>
+                            <button type="button" class="btn-adjust-km" onclick="openAjusteKmModal('${item.id}')" title="Ajustar Próximo KM manualmente" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981; border-radius: 6px; padding: 2px 7px; font-size: 0.68rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s;">
+                                <i data-lucide="edit-3" style="width: 12px; height: 12px;"></i> Ajustar KM
+                            </button>
+                        </div>
+                        ${item.km_ajustado_manualmente ? `
+                            <div style="font-size: 0.68rem; color: #f59e0b; margin-top: 4px; display: flex; align-items: center; gap: 4px; font-weight: 600; cursor: help;" title="Ajustado em ${item.data_ajuste_km ? new Date(item.data_ajuste_km).toLocaleString('pt-BR') : ''} por ${item.usuario_ajuste_km || 'Usuário'}: ${item.motivo_ajuste_km || ''}">
+                                <i data-lucide="info" style="width: 12px; height: 12px; color: #f59e0b;"></i> KM ajustado manualmente
+                            </div>
+                        ` : ''}
                     </div>
                 ` : ''}
 
@@ -1699,10 +1716,13 @@ function calculateItemPrediction(item, type) {
     const kmInput = document.getElementById('maint_km');
     const currentKm = kmInput ? parseFloat(kmInput.value) || 0 : 0;
     const dateInput = document.getElementById('maint_data')?.value;
-    if (!dateInput) return '---';
-    const currentDate = new Date(dateInput + 'T12:00:00');
+    if (!dateInput && type !== 'KM') return '---';
+    const currentDate = dateInput ? new Date(dateInput + 'T12:00:00') : new Date();
 
     if (type === 'KM') {
+        if (item.km_ajustado_manualmente && item.proxima_troca_km) {
+            return parseFloat(item.proxima_troca_km).toLocaleString('pt-BR') + ' KM';
+        }
         const interval = parseFloat(item.intervalo_km) || 0;
         return interval > 0 ? (currentKm + interval).toLocaleString('pt-BR') + ' KM' : '---';
     }
@@ -1723,8 +1743,10 @@ window.updateItemField = (id, field, value) => {
         item[field] = value;
         // Atualiza a previsão dinamicamente sem forçar re-render total do DOM (evita travar o tab)
         if (field === 'intervalo_km') {
-            const el = document.getElementById(`prediction_km_${id}`);
-            if (el) el.innerText = calculateItemPrediction(item, 'KM');
+            if (!item.km_ajustado_manualmente) {
+                const el = document.getElementById(`prediction_km_${id}`);
+                if (el) el.innerText = calculateItemPrediction(item, 'KM');
+            }
         } else if (field === 'intervalo_meses') {
             const el = document.getElementById(`prediction_date_${id}`);
             if (el) el.innerText = calculateItemPrediction(item, 'DATA');
@@ -1745,6 +1767,87 @@ window.handleWarrantyOriginChange = (id, value) => {
     } else {
         item.origem_garantia = 'FORNECEDOR';
         item.origem_garantia_fornecedor_id = value;
+    }
+};
+
+window.openAjusteKmModal = (itemId) => {
+    const item = state.currentMaintItems.find(i => i.id === itemId);
+    if (!item) return;
+
+    const kmInput = document.getElementById('maint_km');
+    const osKm = kmInput ? parseFloat(kmInput.value) || 0 : 0;
+    const interval = parseFloat(item.intervalo_km) || 0;
+    const currentTargetKm = item.proxima_troca_km ? parseFloat(item.proxima_troca_km) : (interval > 0 ? (osKm + interval) : 0);
+
+    const vehSearch = document.getElementById('maint_veiculo_search')?.value || 'Não informado';
+    
+    document.getElementById('ajuste_item_id').value = itemId;
+    document.getElementById('ajuste_novo_km').value = currentTargetKm || '';
+    document.getElementById('ajuste_motivo').value = item.motivo_ajuste_km || '';
+
+    const infoBox = document.getElementById('ajusteKmInfoBox');
+    if (infoBox) {
+        infoBox.innerHTML = `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <div><span style="color: var(--text-muted); font-size: 0.75rem;">Veículo:</span> <strong style="color: var(--text-main); font-size: 0.8rem;">${vehSearch}</strong></div>
+                <div><span style="color: var(--text-muted); font-size: 0.75rem;">KM da Manutenção:</span> <strong style="color: var(--text-main); font-size: 0.8rem;">${osKm.toLocaleString('pt-BR')} KM</strong></div>
+            </div>
+            <div style="margin-bottom: 0.5rem;">
+                <span style="color: var(--text-muted); font-size: 0.75rem;">Item / Serviço:</span> <strong style="color: var(--primary); font-size: 0.82rem;">${item.descricao || 'Item sem descrição'}</strong>
+            </div>
+            <div style="display: flex; gap: 1.5rem; align-items: center; background: rgba(0,0,0,0.15); padding: 0.45rem 0.7rem; border-radius: 6px;">
+                <div><span style="color: var(--text-muted); font-size: 0.72rem;">Intervalo Padrão:</span> <strong>${interval.toLocaleString('pt-BR')} KM</strong></div>
+                <div><span style="color: var(--text-muted); font-size: 0.72rem;">Próximo KM Atual:</span> <strong style="color: #10b981;">${currentTargetKm ? currentTargetKm.toLocaleString('pt-BR') + ' KM' : '---'}</strong></div>
+            </div>
+        `;
+    }
+
+    const modal = document.getElementById('modalAjusteKm');
+    if (modal) {
+        modal.classList.add('active');
+        if (window.lucide) lucide.createIcons();
+        setTimeout(() => {
+            const inputNovo = document.getElementById('ajuste_novo_km');
+            if (inputNovo) inputNovo.focus();
+        }, 100);
+    }
+};
+
+window.closeAjusteKmModal = () => {
+    const modal = document.getElementById('modalAjusteKm');
+    if (modal) modal.classList.remove('active');
+};
+
+window.confirmarAjusteKm = (e) => {
+    if (e) e.preventDefault();
+    const itemId = document.getElementById('ajuste_item_id').value;
+    const novoKm = parseFloat(document.getElementById('ajuste_novo_km').value);
+    const motivo = document.getElementById('ajuste_motivo').value.trim();
+
+    if (!novoKm || isNaN(novoKm) || novoKm <= 0) {
+        alert('Por favor, informe um valor de KM válido maior que zero.');
+        return;
+    }
+
+    if (!motivo) {
+        alert('É obrigatório informar o motivo da alteração do próximo KM.');
+        document.getElementById('ajuste_motivo').focus();
+        return;
+    }
+
+    const item = state.currentMaintItems.find(i => i.id === itemId);
+    if (!item) return;
+
+    item.proxima_troca_km = novoKm;
+    item.km_ajustado_manualmente = true;
+    item.motivo_ajuste_km = motivo;
+    item.data_ajuste_km = new Date().toISOString();
+    item.usuario_ajuste_km = (window.currentUserAccess?.nome_completo || window.currentUserAccess?.nome || localStorage.getItem('user_email') || 'USUÁRIO').toUpperCase();
+
+    closeAjusteKmModal();
+    renderMaintItems();
+    if (typeof showToast === 'function') {
+        showToast(`Próximo KM atualizado para ${novoKm.toLocaleString('pt-BR')} KM!`);
     }
 };
 
@@ -1840,8 +1943,12 @@ function setupFormListeners() {
                         let vencimento_garantia = null;
 
                         if (item.controle_proxima_troca === 'KM') {
-                            const interval = parseFloat(item.intervalo_km) || 0;
-                            if (interval > 0) proxima_troca_km = currentKm + interval;
+                            if (item.km_ajustado_manualmente && item.proxima_troca_km) {
+                                proxima_troca_km = parseFloat(item.proxima_troca_km);
+                            } else {
+                                const interval = parseFloat(item.intervalo_km) || 0;
+                                if (interval > 0) proxima_troca_km = currentKm + interval;
+                            }
                         } else if (item.controle_proxima_troca === 'DATA') {
                             const months = parseInt(item.intervalo_meses) || 0;
                             if (months > 0) {
@@ -1877,14 +1984,36 @@ function setupFormListeners() {
                             meses_garantia: parseInt(item.meses_garantia) || null,
                             vencimento_garantia,
                             origem_garantia: item.origem_garantia,
-                            origem_garantia_fornecedor_id: item.origem_garantia_fornecedor_id
+                            origem_garantia_fornecedor_id: item.origem_garantia_fornecedor_id,
+                            km_ajustado_manualmente: item.km_ajustado_manualmente || false,
+                            motivo_ajuste_km: item.motivo_ajuste_km || null,
+                            data_ajuste_km: item.data_ajuste_km || null,
+                            usuario_ajuste_km: item.usuario_ajuste_km || null
                         };
 
                         let { error: iError } = await supabaseClient.from('manutencao_itens').insert([itemPayload]);
-                        if (iError && (iError.message.includes('quantidade') || iError.message.includes('tipo_id') || iError.message.includes('schema cache'))) {
+                        if (iError && (iError.message.includes('quantidade') || iError.message.includes('tipo_id') || iError.message.includes('motivo_ajuste_km') || iError.message.includes('km_ajustado_manualmente') || iError.message.includes('schema cache'))) {
                             if (iError.message.includes('quantidade')) delete itemPayload.quantidade;
                             if (iError.message.includes('tipo_id')) delete itemPayload.tipo_id;
+                            if (iError.message.includes('motivo_ajuste_km') || iError.message.includes('km_ajustado_manualmente') || iError.message.includes('schema cache')) {
+                                delete itemPayload.km_ajustado_manualmente;
+                                delete itemPayload.motivo_ajuste_km;
+                                delete itemPayload.data_ajuste_km;
+                                delete itemPayload.usuario_ajuste_km;
+                            }
                             await supabaseClient.from('manutencao_itens').insert([itemPayload]);
+                        }
+
+                        if (proxima_troca_km) {
+                            await supabaseClient.from('manutencoes').update({ proxima_troca_km }).eq('id', targetHeaderId);
+                        }
+
+                        if (item.km_ajustado_manualmente && item.motivo_ajuste_km) {
+                            const vehObj = state.vehicles.find(v => v.id === header.veiculo_id);
+                            const placaStr = vehObj ? `${vehObj.placa} - ${vehObj.modelo}` : 'Veículo';
+                            if (typeof window.registrarLog === 'function') {
+                                window.registrarLog('manutencao', 'ALTERAÇÃO', `DETALHE: Ajustou manualmente o Próximo KM da manutenção [${placaStr}] - Item: ${item.descricao} - Novo Próximo KM: ${(proxima_troca_km || 0).toLocaleString('pt-BR')} KM - Motivo: ${item.motivo_ajuste_km}`);
+                            }
                         }
                     }
                 } else {
@@ -1902,8 +2031,12 @@ function setupFormListeners() {
                         let vencimento_garantia = null;
 
                         if (item.controle_proxima_troca === 'KM') {
-                            const interval = parseFloat(item.intervalo_km) || 0;
-                            if (interval > 0) proxima_troca_km = currentKm + interval;
+                            if (item.km_ajustado_manualmente && item.proxima_troca_km) {
+                                proxima_troca_km = parseFloat(item.proxima_troca_km);
+                            } else {
+                                const interval = parseFloat(item.intervalo_km) || 0;
+                                if (interval > 0) proxima_troca_km = currentKm + interval;
+                            }
                         } else if (item.controle_proxima_troca === 'DATA') {
                             const months = parseInt(item.intervalo_meses) || 0;
                             if (months > 0) {
@@ -1939,14 +2072,36 @@ function setupFormListeners() {
                             meses_garantia: parseInt(item.meses_garantia) || null,
                             vencimento_garantia,
                             origem_garantia: item.origem_garantia,
-                            origem_garantia_fornecedor_id: item.origem_garantia_fornecedor_id
+                            origem_garantia_fornecedor_id: item.origem_garantia_fornecedor_id,
+                            km_ajustado_manualmente: item.km_ajustado_manualmente || false,
+                            motivo_ajuste_km: item.motivo_ajuste_km || null,
+                            data_ajuste_km: item.data_ajuste_km || null,
+                            usuario_ajuste_km: item.usuario_ajuste_km || null
                         };
 
                         let { error: iError } = await supabaseClient.from('manutencao_itens').insert([itemPayload]);
-                        if (iError && (iError.message.includes('quantidade') || iError.message.includes('tipo_id') || iError.message.includes('schema cache'))) {
+                        if (iError && (iError.message.includes('quantidade') || iError.message.includes('tipo_id') || iError.message.includes('motivo_ajuste_km') || iError.message.includes('km_ajustado_manualmente') || iError.message.includes('schema cache'))) {
                             if (iError.message.includes('quantidade')) delete itemPayload.quantidade;
                             if (iError.message.includes('tipo_id')) delete itemPayload.tipo_id;
+                            if (iError.message.includes('motivo_ajuste_km') || iError.message.includes('km_ajustado_manualmente') || iError.message.includes('schema cache')) {
+                                delete itemPayload.km_ajustado_manualmente;
+                                delete itemPayload.motivo_ajuste_km;
+                                delete itemPayload.data_ajuste_km;
+                                delete itemPayload.usuario_ajuste_km;
+                            }
                             await supabaseClient.from('manutencao_itens').insert([itemPayload]);
+                        }
+
+                        if (proxima_troca_km) {
+                            await supabaseClient.from('manutencoes').update({ proxima_troca_km }).eq('id', newH.id);
+                        }
+
+                        if (item.km_ajustado_manualmente && item.motivo_ajuste_km) {
+                            const vehObj = state.vehicles.find(v => v.id === header.veiculo_id);
+                            const placaStr = vehObj ? `${vehObj.placa} - ${vehObj.modelo}` : 'Veículo';
+                            if (typeof window.registrarLog === 'function') {
+                                window.registrarLog('manutencao', 'INCLUSÃO', `DETALHE: Registrou com ajuste manual de Próximo KM na manutenção [${placaStr}] - Item: ${item.descricao} - Próximo KM: ${(proxima_troca_km || 0).toLocaleString('pt-BR')} KM - Motivo: ${item.motivo_ajuste_km}`);
+                            }
                         }
                     }
                 }
@@ -1986,6 +2141,11 @@ function setupFormListeners() {
     window.addEventListener('keydown', (e) => {
         // Esc -> Fecha todas as modais
         if (e.key === 'Escape') {
+            const ajusteKmModal = document.getElementById('modalAjusteKm');
+            if (ajusteKmModal && ajusteKmModal.classList.contains('active')) {
+                closeAjusteKmModal();
+                return;
+            }
             const maintModal = document.getElementById('modalMaint');
             if (maintModal && maintModal.classList.contains('active')) {
                 closeMaintModal(false);
@@ -1994,6 +2154,7 @@ function setupFormListeners() {
                 closeModal('modalTipo');
                 closeModal('modalFornecedor');
                 closeModal('modalAuth');
+                closeModal('modalAjusteKm');
             }
         }
 
