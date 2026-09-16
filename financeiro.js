@@ -1444,16 +1444,20 @@ async function openEntryModal(tipo, id = null) {
                     document.getElementById('qtdParcelas').value = item.qtd_parcelas;
                     document.getElementById('installmentsWrapper').style.display = 'block';
                     document.getElementById('installmentsContainer').innerHTML = parc.map((p, idx) => `
-                        <div class="installment-row" style="display: grid; grid-template-columns: 80px 1fr 1fr; gap: 1rem; margin-bottom: 0.8rem; align-items: center; background: rgba(255,255,255,0.03); padding: 0.8rem; border-radius: 8px;">
-                            <div style="font-weight: 800; color: #818cf8; font-size: 0.8rem;">#${p.numero_parcela}</div>
+                        <div class="installment-row" data-index="${idx}" style="display: grid; grid-template-columns: 70px 1.1fr 1fr; gap: 1rem; margin-bottom: 0.6rem; align-items: center; background: rgba(255,255,255,0.03); padding: 0.65rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); transition: border-color 0.2s;">
+                            <div style="font-weight: 800; color: #818cf8; font-size: 0.85rem; padding-left: 4px;">#${p.numero_parcela}</div>
                             <div class="input-group" style="margin:0;">
                                 <input type="date" class="financeiro-input parc-date" value="${p.data_vencimento}">
                             </div>
                             <div class="input-group" style="margin:0;">
-                                <input type="number" step="0.01" class="financeiro-input parc-val" value="${p.valor}">
+                                <input type="text" inputmode="decimal" class="financeiro-input parc-val" value="${p.valor}"
+                                    placeholder="0,00"
+                                    oninput="window.onInstallmentValueChange(${idx})" onchange="window.onInstallmentValueChange(${idx})">
                             </div>
                         </div>
                     `).join('');
+                    if (window.lucide) lucide.createIcons();
+                    setTimeout(updateInstallmentsSummary, 300);
                 }
             } catch (e) {
                 console.error("Erro ao carregar detalhes:", e);
@@ -2409,10 +2413,28 @@ async function handleEntrySubmit(e) {
         return;
     }
 
-    const finalTotal = calculateFinTotal();
+    const finalTotal = calculateFinTotal(false);
     if (finalTotal <= 0) {
         showToast('O valor total do lançamento deve ser maior que zero.', 'error');
         return alert('O valor total deve ser maior que zero.');
+    }
+
+    // Validação estrita da soma das parcelas vs Total do lançamento
+    if (qtdParcVal > 1) {
+        const bateu = updateInstallmentsSummary();
+        if (!bateu) {
+            const totalDisplay = document.getElementById('installmentsTotalDisplay')?.innerText || 'R$ 0,00';
+            const totalNotaStr = finalTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            showToast(`A soma das parcelas (${totalDisplay}) não bate com o valor total da nota (${totalNotaStr})!`, 'error');
+            const rebalance = confirm(`A soma das parcelas (${totalDisplay}) é diferente do valor total da nota (${totalNotaStr}).\n\nDeseja que o sistema reequilibre automaticamente as parcelas agora para bater com o valor da nota?`);
+            if (rebalance) {
+                rebalanceInstallments();
+            } else {
+                const wrapper = document.getElementById('installmentsWrapper');
+                if (wrapper) wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            return;
+        }
     }
 
     const formData = new FormData(e.target);
@@ -2461,7 +2483,7 @@ async function handleEntrySubmit(e) {
             installmentRows.forEach((row, idx) => {
                 const parcNum = idx + 1;
                 const parcVenc = row.querySelector('.parc-date').value;
-                const parcVal = parseFloat(row.querySelector('.parc-val').value) || (finalTotal / totalParcs);
+                const parcVal = parseFinNumber(row.querySelector('.parc-val')?.value) || (finalTotal / totalParcs);
 
                 recordsToInsert.push({
                     ...mainRecord,
@@ -3504,16 +3526,148 @@ function setItemTipo(rowId, tipo, btn) {
     // Mantido por compatibilidade
 }
 
+// Helper universal para parse numérico aceitando formato pt-BR (vírgula e ponto)
+function parseFinNumber(val) {
+    if (val === null || val === undefined) return 0;
+    if (typeof val === 'number') return isNaN(val) ? 0 : val;
+    let s = String(val).trim();
+    if (!s) return 0;
+    // Se tiver tanto '.' quanto ',', remove os pontos de milhar e substitui a vírgula por ponto
+    if (s.includes('.') && s.includes(',')) {
+        s = s.replace(/\./g, '').replace(',', '.');
+    } else if (s.includes(',')) {
+        s = s.replace(',', '.');
+    }
+    const num = parseFloat(s);
+    return isNaN(num) ? 0 : num;
+}
+
 /**
- * 📦 GERAÇÃO DINÂMICA DE PARCELAS
+ * 📦 GERAÇÃO DINÂMICA E REDISTRIBUIÇÃO INTELIGENTE DE PARCELAS
  */
+window.updateInstallmentsSummary = function() {
+    const wrapper = document.getElementById('installmentsWrapper');
+    if (!wrapper || wrapper.style.display === 'none') return true;
+
+    // Obtém o total diretamente pela função pura getFinTotalAmount sem disparar recálculos
+    const totalLancamento = typeof window.getFinTotalAmount === 'function' ? window.getFinTotalAmount() : 0;
+    const parcRows = document.querySelectorAll('#installmentsContainer .installment-row');
+    if (parcRows.length === 0) return true;
+
+    let somaParcelas = 0;
+    parcRows.forEach(row => {
+        const inp = row.querySelector('.parc-val');
+        if (inp) somaParcelas += parseFinNumber(inp.value);
+    });
+
+    somaParcelas = Math.round(somaParcelas * 100) / 100;
+    const totalArredondado = Math.round(totalLancamento * 100) / 100;
+    const diff = Math.round((somaParcelas - totalArredondado) * 100) / 100;
+
+    const totalDisplay = document.getElementById('installmentsTotalDisplay');
+    if (totalDisplay) {
+        totalDisplay.innerText = somaParcelas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    const badge = document.getElementById('installmentsDiffBadge');
+    if (badge) {
+        if (Math.abs(diff) < 0.01) {
+            badge.style.background = 'rgba(16, 185, 129, 0.12)';
+            badge.style.color = '#10b981';
+            badge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+            badge.innerHTML = `<svg style="width:14px;height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg> <span>Valores batem 100%</span>`;
+        } else if (diff > 0) {
+            const sobra = diff.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            badge.style.background = 'rgba(239, 68, 68, 0.15)';
+            badge.style.color = '#ef4444';
+            badge.style.borderColor = 'rgba(239, 68, 68, 0.35)';
+            badge.innerHTML = `<svg style="width:14px;height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> <span>Excesso de +${sobra}</span>`;
+        } else {
+            const falta = Math.abs(diff).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            badge.style.background = 'rgba(245, 158, 11, 0.15)';
+            badge.style.color = '#f59e0b';
+            badge.style.borderColor = 'rgba(245, 158, 11, 0.35)';
+            badge.innerHTML = `<svg style="width:14px;height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> <span>Faltam -${falta}</span>`;
+        }
+    }
+
+    return Math.abs(diff) < 0.01;
+};
+
+window.onInstallmentValueChange = function(changedIndex) {
+    const totalNota = typeof window.getFinTotalAmount === 'function' ? window.getFinTotalAmount() : 0;
+    const parcRows = Array.from(document.querySelectorAll('#installmentsContainer .installment-row'));
+    const totalParcs = parcRows.length;
+    if (totalParcs <= 1) return updateInstallmentsSummary();
+
+    // 1. Somar os valores até a parcela modificada (incluindo ela)
+    let somaAteModificada = 0;
+    for (let i = 0; i <= changedIndex; i++) {
+        const valInput = parcRows[i].querySelector('.parc-val');
+        const v = parseFinNumber(valInput?.value);
+        somaAteModificada += v;
+    }
+
+    const saldoRestante = Math.max(0, Math.round((totalNota - somaAteModificada) * 100) / 100);
+    const posterioresCount = totalParcs - (changedIndex + 1);
+
+    // 2. Se houver parcelas posteriores, divide o saldo restante entre elas
+    if (posterioresCount > 0) {
+        let centavosRestantes = Math.round(saldoRestante * 100);
+        const baseCentavos = Math.floor(centavosRestantes / posterioresCount);
+        let restoCentavos = centavosRestantes % posterioresCount;
+
+        for (let i = changedIndex + 1; i < totalParcs; i++) {
+            let parcelaCentavos = baseCentavos;
+            if (restoCentavos > 0) {
+                parcelaCentavos += 1;
+                restoCentavos--;
+            }
+            const valInput = parcRows[i].querySelector('.parc-val');
+            if (valInput) {
+                valInput.value = (parcelaCentavos / 100).toFixed(2);
+            }
+        }
+    }
+
+    updateInstallmentsSummary();
+};
+
+window.rebalanceInstallments = function() {
+    const totalNota = typeof window.getFinTotalAmount === 'function' ? window.getFinTotalAmount() : 0;
+    const parcRows = document.querySelectorAll('#installmentsContainer .installment-row');
+    const totalParcs = parcRows.length;
+    if (totalParcs <= 0) return;
+
+    let centavosRestantes = Math.round(totalNota * 100);
+    const baseCentavos = Math.floor(centavosRestantes / totalParcs);
+    let restoCentavos = centavosRestantes % totalParcs;
+
+    parcRows.forEach((row, i) => {
+        let parcelaCentavos = baseCentavos;
+        if (restoCentavos > 0) {
+            parcelaCentavos += 1;
+            restoCentavos--;
+        }
+        const valInput = row.querySelector('.parc-val');
+        if (valInput) {
+            valInput.value = (parcelaCentavos / 100).toFixed(2);
+        }
+    });
+
+    updateInstallmentsSummary();
+    if (typeof showToast === 'function') {
+        showToast('Parcelas reequilibradas com sucesso!', 'success');
+    }
+};
+
 window.generateInstallmentFields = function(forcedTotal = null) {
     const qtdInput = document.getElementById('qtdParcelas');
     const qtd = parseInt(qtdInput ? qtdInput.value : 1) || 1;
     const wrapper = document.getElementById('installmentsWrapper');
     const container = document.getElementById('installmentsContainer');
     const firstDate = document.getElementById('entryVencimento')?.value;
-    const total = forcedTotal !== null ? forcedTotal : calculateFinTotal();
+    const total = forcedTotal !== null ? forcedTotal : (typeof window.getFinTotalAmount === 'function' ? window.getFinTotalAmount() : 0);
     const prazoGroup = document.getElementById('prazoDiasGroup');
     const intervalInput = document.getElementById('intervaloPrazoDias');
     const intervalDays = parseInt(intervalInput ? intervalInput.value : 30) || 30;
@@ -3529,7 +3683,11 @@ window.generateInstallmentFields = function(forcedTotal = null) {
     if (wrapper) wrapper.style.display = 'block';
     if (container) container.innerHTML = '';
 
-    const valorParcela = (total / qtd).toFixed(2);
+    // Distribuição precisa em centavos para nunca faltar ou sobrar
+    let centavosRestantes = Math.round(total * 100);
+    const baseCentavos = Math.floor(centavosRestantes / qtd);
+    let restoCentavos = centavosRestantes % qtd;
+
     let dateBase = firstDate ? new Date(firstDate + 'T12:00:00') : new Date();
 
     for (let i = 0; i < qtd; i++) {
@@ -3537,20 +3695,33 @@ window.generateInstallmentFields = function(forcedTotal = null) {
         rowDate.setDate(rowDate.getDate() + (i * intervalDays));
         const dateStr = rowDate.toISOString().split('T')[0];
 
+        let parcelaCentavos = baseCentavos;
+        if (restoCentavos > 0) {
+            parcelaCentavos += 1;
+            restoCentavos--;
+        }
+        const valorParcela = (parcelaCentavos / 100).toFixed(2);
+
         const row = document.createElement('div');
         row.className = 'installment-row';
-        row.style = "display: grid; grid-template-columns: 80px 1fr 1fr; gap: 1rem; margin-bottom: 0.8rem; align-items: center; background: rgba(255,255,255,0.03); padding: 0.8rem; border-radius: 8px;";
+        row.dataset.index = i;
+        row.style = "display: grid; grid-template-columns: 70px 1.1fr 1fr; gap: 1rem; margin-bottom: 0.6rem; align-items: center; background: rgba(255,255,255,0.03); padding: 0.65rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); transition: border-color 0.2s;";
         row.innerHTML = `
-            <div style="font-weight: 800; color: #818cf8; font-size: 0.8rem;">#${i + 1}</div>
+            <div style="font-weight: 800; color: #818cf8; font-size: 0.85rem; padding-left: 4px;">#${i + 1}</div>
             <div class="input-group" style="margin:0;">
                 <input type="date" class="financeiro-input parc-date" value="${dateStr}">
             </div>
             <div class="input-group" style="margin:0;">
-                <input type="number" step="0.01" class="financeiro-input parc-val" value="${valorParcela}">
+                <input type="text" inputmode="decimal" class="financeiro-input parc-val" value="${valorParcela}"
+                    placeholder="0,00"
+                    oninput="window.onInstallmentValueChange(${i})" onchange="window.onInstallmentValueChange(${i})">
             </div>
         `;
         container.appendChild(row);
     }
+
+    if (window.lucide) lucide.createIcons();
+    updateInstallmentsSummary();
 };
 
 window.addFinAdditionalRow = function(data = null) {
@@ -3599,16 +3770,39 @@ window.removeFinRow = function(id) {
     calculateFinTotal();
 };
 
-window.calculateFinTotal = function() {
+window.getFinTotalAmount = function() {
+    let totalItems = 0;
+    const parseNum = (val) => parseFinNumber(val);
+
+    // Itens
+    document.querySelectorAll('.item-row-v2:not([id^="add-"]):not([id^="desc-"])').forEach(row => {
+        const qtdInput = row.querySelector('.item-qtd');
+        const unitInput = row.querySelector('.item-unit');
+        if (!qtdInput || !unitInput) return;
+        totalItems += (parseNum(qtdInput.value) * parseNum(unitInput.value));
+    });
+
+    // Adicionais
+    let totalAdds = 0;
+    document.querySelectorAll('.add-val').forEach(input => {
+        totalAdds += parseNum(input.value);
+    });
+
+    // Descontos
+    let totalDiscounts = 0;
+    document.querySelectorAll('.discount-val').forEach(input => {
+        totalDiscounts += parseNum(input.value);
+    });
+
+    return Math.max(0, totalItems + totalAdds - totalDiscounts);
+};
+
+let _isCalculatingFinTotal = false;
+window.calculateFinTotal = function(autoRegenerateInstallments = true) {
     let totalItems = 0;
     let countItems = 0;
 
-    const parseNum = (val) => {
-        if (!val) return 0;
-        const cleaned = String(val).replace(',', '.');
-        const num = parseFloat(cleaned);
-        return isNaN(num) ? 0 : num;
-    };
+    const parseNum = (val) => parseFinNumber(val);
 
     // Itens
     document.querySelectorAll('.item-row-v2:not([id^="add-"]):not([id^="desc-"])').forEach(row => {
@@ -3658,10 +3852,21 @@ window.calculateFinTotal = function() {
         summaryEl.innerHTML = summaryParts.join(' + ');
     }
 
-    // Atualiza parcelas se estiverem visíveis
-    const instWrapper = document.getElementById('installmentsWrapper');
-    if (instWrapper && instWrapper.style.display !== 'none') {
-        generateInstallmentFields(finalTotal);
+    // Evita recursão infinita
+    if (!_isCalculatingFinTotal) {
+        _isCalculatingFinTotal = true;
+        try {
+            const instWrapper = document.getElementById('installmentsWrapper');
+            if (instWrapper && instWrapper.style.display !== 'none') {
+                if (autoRegenerateInstallments) {
+                    generateInstallmentFields(finalTotal);
+                } else {
+                    updateInstallmentsSummary();
+                }
+            }
+        } finally {
+            _isCalculatingFinTotal = false;
+        }
     }
 
     return finalTotal;

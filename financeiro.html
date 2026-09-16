@@ -1551,10 +1551,47 @@
 
                         <!-- CONTAINER PARA DETALHAMENTO DE PARCELAS -->
                         <div id="installmentsWrapper"
-                            style="display:none; margin-top: 1.5rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 1rem;">
-                            <div
-                                style="font-size: 0.75rem; font-weight: 700; color: #818cf8; margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.5px;">
-                                Detalhamento das Parcelas</div>
+                            style="display:none; margin-top: 1.5rem; background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 1.2rem;">
+                            
+                            <!-- Cabeçalho do Detalhamento com Status e Ações -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.8rem; margin-bottom: 1.2rem; padding-bottom: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <div>
+                                    <div style="font-size: 0.8rem; font-weight: 800; color: #818cf8; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 0.4rem;">
+                                        <i data-lucide="layers" style="width: 16px; height: 16px;"></i> Detalhamento das Parcelas
+                                    </div>
+                                    <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
+                                        Altere qualquer parcela para redistribuir o saldo restante automaticamente.
+                                    </div>
+                                </div>
+
+                                <div style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
+                                    <!-- Card Total Parcelas -->
+                                    <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); padding: 0.35rem 0.8rem; border-radius: 8px; display: flex; flex-direction: column; align-items: flex-end;">
+                                        <span style="font-size: 0.6rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Total Parcelas</span>
+                                        <span id="installmentsTotalDisplay" style="font-size: 0.95rem; font-weight: 800; color: #fff;">R$ 0,00</span>
+                                    </div>
+
+                                    <!-- Badge de Validação / Conferência -->
+                                    <div id="installmentsDiffBadge" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.8rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">
+                                        <i data-lucide="check-circle" style="width: 14px; height: 14px;"></i>
+                                        <span>Valores batem 100%</span>
+                                    </div>
+
+                                    <!-- Botão Reequilibrar -->
+                                    <button type="button" onclick="rebalanceInstallments()" title="Distribuir o valor total igualmente entre todas as parcelas"
+                                        style="background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); color: #818cf8; padding: 0.45rem 0.8rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; transition: all 0.2s;">
+                                        <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i> Reequilibrar
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Cabeçalho das Colunas -->
+                            <div style="display: grid; grid-template-columns: 70px 1.1fr 1fr; gap: 1rem; padding: 0 0.8rem 0.4rem 0.8rem; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px;">
+                                <div>Nº</div>
+                                <div>Data de Vencimento</div>
+                                <div>Valor da Parcela</div>
+                            </div>
+
                             <div id="installmentsContainer" class="installments-grid">
                                 <!-- Gerado via JS -->
                             </div>
@@ -2289,7 +2326,7 @@
                 </div>
             </form>
         </div>
-    <script src="financeiro.js?v=20260910_04"></script>
+    <script src="financeiro.js?v=20260916_01"></script>
     <script src="orb_menu.js?v=20260910_02"></script>
 </body>
 
