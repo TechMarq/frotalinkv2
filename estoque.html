@@ -1970,17 +1970,16 @@
                                     style="height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.85rem; font-weight: 600; padding: 0 0.8rem;">
                             </div>
 
-                            <!-- Campo Dinâmico: Cliente -->
+                            <!-- Campo Dinâmico: Cliente / Prestador -->
                             <div class="form-group" id="group_v_cliente" style="display: none; position: relative;">
-                                <label style="font-size: 0.72rem; font-weight: 700; color: #475569;">Nome do
-                                    Cliente*</label>
+                                <label style="font-size: 0.72rem; font-weight: 700; color: #475569;">Cliente / Prestador Comercial*</label>
                                 <input type="text" id="v_cliente_nome" oninput="searchVendaCliente(this.value)"
-                                    onfocus="searchVendaCliente(this.value)" placeholder="Busque o cliente..."
+                                    onfocus="searchVendaCliente(this.value)" placeholder="Busque cliente ou prestador (nome, doc, placa)..."
                                     style="height: 42px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 0.85rem; font-weight: 600; padding: 0 0.8rem;"
                                     autocomplete="off">
                                 <div id="v_cliente_search_results" class="search-autocomplete-dropdown"
                                     style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; z-index: 1000; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15);">
-                                    <!-- Clientes filtered list -->
+                                    <!-- Clientes e Prestadores filtered list -->
                                 </div>
                             </div>
 
@@ -2195,7 +2194,11 @@
                             </div>
                         </div>
 
-                        <div style="display: flex; gap: 0.75rem;">
+                        <div style="display: flex; gap: 0.75rem; align-items: center;">
+                            <button type="button" id="btn_delete_venda_edit" onclick="confirmDeleteFromEdit()" title="Excluir/Cancelar Venda"
+                                style="display: none; height: 40px; padding: 0 1.2rem; border-radius: 10px; font-weight: 800; font-size: 0.78rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; cursor: pointer; transition: all 0.2s ease;">
+                                <i data-lucide="trash-2" style="width: 15px; vertical-align: middle; margin-right: 4px;"></i> EXCLUIR VENDA
+                            </button>
                             <button type="button" class="btn-cancel" onclick="closeVendaModal()" title="Cancelar (ESC)"
                                 style="height: 40px; padding: 0 1.25rem; border-radius: 10px; font-weight: 700; font-size: 0.78rem; background: #ffffff; border: 1px solid #cbd5e1; color: #475569; cursor: pointer;">CANCELAR</button>
                             <button type="submit" class="btn-save" id="btn_confirm_venda" disabled

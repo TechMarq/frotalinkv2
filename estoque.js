@@ -5,6 +5,7 @@ let filteredData = [];
 let showLowStockOnly = false;
 let selectedApplications = [];
 let clientesData = [];
+let prestadoresData = [];
 let historyData = [];
 
 function logEstoque(acao, descricao) {
@@ -1561,6 +1562,24 @@ async function loadSetup() {
                 { id: '1', nome: 'Consumidor Final', documento: '000.000.000-00', telefone: '(00) 00000-0000', email: 'consumidor@frotalink.com' }
             ];
         }
+
+        // Carregar Prestadores Comerciais (Agregados)
+        try {
+            const { data: pData, error: errP } = await supabaseClient
+                .from('com_prestadores')
+                .select('id, nome_prestador, cpf, cnpj, status, placa, modelo')
+                .order('nome_prestador');
+            if (errP) throw errP;
+            prestadoresData = pData || [];
+            if (prestadoresData.length > 0) {
+                localStorage.setItem('com_prestadores', JSON.stringify(prestadoresData));
+            }
+        } catch (e) {
+            console.warn("Tabela com_prestadores não acessível online no estoque. Buscando cache local:", e);
+            const localP = localStorage.getItem('com_prestadores');
+            prestadoresData = localP ? JSON.parse(localP) : [];
+        }
+
         renderClientes(clientesData);
         updateSelectClientes(clientesData);
         
@@ -1796,28 +1815,78 @@ function updateSelectClientes(clientes) {
     }
 }
 
+function selectVendaCliente(nome) {
+    const input = document.getElementById('v_cliente_nome');
+    if (input) {
+        input.value = nome;
+    }
+    const resultsDiv = document.getElementById('v_cliente_search_results');
+    if (resultsDiv) {
+        resultsDiv.style.display = 'none';
+    }
+}
+window.selectVendaCliente = selectVendaCliente;
+
 function searchVendaCliente(query) {
     const resultsDiv = document.getElementById('v_cliente_search_results');
     if (!resultsDiv) return;
 
-    // Se a query for vazia, mostra todos os clientes cadastrados
-    const filtered = query.trim() === '' 
-        ? clientesData 
-        : clientesData.filter(c => c.nome.toLowerCase().includes(query.toLowerCase()));
+    const q = (query || '').trim().toLowerCase();
+
+    // 1. Normalizar Clientes do Estoque
+    const clientesList = (clientesData || []).map(c => ({
+        tipoOrigem: 'CLIENTE',
+        nome: c.nome,
+        documento: c.documento || '',
+        infoSecundaria: c.telefone ? `Tel: ${c.telefone}` : (c.email || '')
+    }));
+
+    // 2. Normalizar Prestadores do Comercial
+    const prestadoresList = (prestadoresData || []).map(p => ({
+        tipoOrigem: 'PRESTADOR',
+        nome: p.nome_prestador,
+        documento: p.cpf || p.cnpj || '',
+        infoSecundaria: p.placa ? `Placa: ${p.placa}${p.modelo ? ' (' + p.modelo + ')' : ''}` : (p.status ? `Status: ${p.status}` : '')
+    }));
+
+    // 3. Unir e filtrar por termo de busca
+    const allEntities = [...prestadoresList, ...clientesList];
+    const filtered = q === ''
+        ? allEntities
+        : allEntities.filter(e => 
+            e.nome.toLowerCase().includes(q) || 
+            (e.documento && e.documento.toLowerCase().includes(q)) ||
+            (e.infoSecundaria && e.infoSecundaria.toLowerCase().includes(q))
+        );
 
     if (filtered.length === 0) {
         resultsDiv.innerHTML = `<div class="search-item" style="padding: 0.8rem; font-size: 0.8rem; color: var(--text-muted); cursor: pointer;" onclick="selectVendaCliente('${query.replace(/'/g, "\\'")}')">
             <span class="name" style="font-weight: 700; color: var(--primary);">Usar termo digitado: "${query}"</span>
         </div>`;
     } else {
-        resultsDiv.innerHTML = filtered.map(c => `
-            <div class="search-item" style="padding: 0.8rem; border-bottom: 1px solid rgba(226, 232, 240, 0.5); cursor: pointer; transition: 0.2s;" onclick="selectVendaCliente('${c.nome.replace(/'/g, "\\'")}')">
-                <span class="name" style="font-weight: 700; font-size: 0.8rem; display: block; color: #0f172a;">${c.nome}</span>
-                <span class="info" style="font-size: 0.65rem; color: #64748b; font-weight: 600;">
-                    ${c.documento ? `Doc: ${c.documento}` : ''} ${c.telefone ? ` | Tel: ${c.telefone}` : ''}
-                </span>
-            </div>
-        `).join('');
+        resultsDiv.innerHTML = filtered.slice(0, 40).map(e => {
+            const isPrestador = e.tipoOrigem === 'PRESTADOR';
+            const badgeBg = isPrestador ? 'rgba(2, 132, 199, 0.12)' : 'rgba(16, 185, 129, 0.12)';
+            const badgeColor = isPrestador ? '#0284c7' : '#059669';
+            const badgeBorder = isPrestador ? 'rgba(2, 132, 199, 0.25)' : 'rgba(16, 185, 129, 0.25)';
+            const badgeLabel = isPrestador ? 'Prestador Comercial' : 'Cliente Balcão';
+
+            return `
+                <div class="search-item" style="padding: 0.75rem 0.9rem; border-bottom: 1px solid rgba(226, 232, 240, 0.6); cursor: pointer; transition: background 0.15s ease;"
+                     onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'"
+                     onclick="selectVendaCliente('${e.nome.replace(/'/g, "\\'")}')">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <span class="name" style="font-weight: 700; font-size: 0.82rem; color: #0f172a;">${e.nome}</span>
+                        <span style="font-size: 0.62rem; font-weight: 800; padding: 2px 7px; border-radius: 12px; background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder}; white-space: nowrap; text-transform: uppercase;">
+                            ${badgeLabel}
+                        </span>
+                    </div>
+                    <div class="info" style="font-size: 0.68rem; color: #64748b; font-weight: 600; margin-top: 3px;">
+                        ${e.documento ? `Doc: ${e.documento}` : ''} ${e.infoSecundaria ? ` | ${e.infoSecundaria}` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
     resultsDiv.style.display = 'block';
 }
@@ -2897,7 +2966,12 @@ async function editSale(vendaId) {
             saveBtn.style.opacity = '1';
             
             // Mostrar botão de excluir
-            document.getElementById('btn_delete_venda_edit').style.display = 'block';
+            const btnDelEdit = document.getElementById('btn_delete_venda_edit');
+            if (btnDelEdit) {
+                btnDelEdit.style.display = 'inline-flex';
+                btnDelEdit.style.alignItems = 'center';
+            }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
             
             closeReceiptModal();
             console.log('Edição carregada com sucesso.');
@@ -2913,11 +2987,19 @@ function closeReceiptModal() {
     document.getElementById('receiptModal').classList.remove('active');
 }
 
-function confirmDeleteFromEdit() {
+async function confirmDeleteFromEdit() {
     if (currentVendaId) {
-        deleteSale(currentVendaId);
+        await deleteSale(currentVendaId);
         closeVendaModal();
     }
 }
+window.confirmDeleteFromEdit = confirmDeleteFromEdit;
 
-
+// Fechar autocomplete de clientes/prestadores ao clicar fora
+document.addEventListener('click', function(e) {
+    const resultsDiv = document.getElementById('v_cliente_search_results');
+    const input = document.getElementById('v_cliente_nome');
+    if (resultsDiv && input && !input.contains(e.target) && !resultsDiv.contains(e.target)) {
+        resultsDiv.style.display = 'none';
+    }
+});

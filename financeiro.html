@@ -23,7 +23,7 @@
 
     <link rel="stylesheet" href="style.css?v=20260901_01">
     <link rel="stylesheet" href="orb_menu.css?v=20260901_01">
-    <link rel="stylesheet" href="financeiro.css?v=20260910_04">
+    <link rel="stylesheet" href="financeiro.css?v=20260916_01">
     <script src="config.js"></script>
 </head>
 
@@ -618,10 +618,11 @@
                                         <th>Tipo</th>
                                         <th style="text-align:right;">Valor</th>
                                         <th>Status</th>
+                                        <th style="text-align:center; width:80px;">Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody id="pgbanco-tbody">
-                                    <tr><td colspan="8" class="table-empty" style="padding: 2rem; color: #64748b;"><i data-lucide="filter" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; color: #059669;"></i> Selecione os filtros acima e clique em <strong>Gerar</strong> para consultar.</td></tr>
+                                    <tr><td colspan="9" class="table-empty" style="padding: 2rem; color: #64748b;"><i data-lucide="filter" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; color: #059669;"></i> Selecione os filtros acima e clique em <strong>Gerar</strong> para consultar.</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -632,6 +633,24 @@
                                 <span id="btn-toggle-expand-pgbanco-text">Expandir tabela</span>
                                 <i id="btn-toggle-expand-pgbanco-icon" data-lucide="chevron-down" style="width:13px; height:13px;"></i>
                             </button>
+                        </div>
+
+                        <!-- Barra de Atalhos Rápidos para Linha Avulsa Selecionada -->
+                        <div id="pgbanco-shortcut-bar" style="display:none; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:0.45rem 0.85rem; margin-top:0.4rem;">
+                            <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.75rem; color:#166534; font-weight:700;">
+                                <i data-lucide="receipt" style="width:14px; height:14px; color:#0284c7;"></i>
+                                <span>Avulso Selecionado: <strong id="pgbanco-selected-desc" style="color:#0f172a;">—</strong></span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                <button type="button" id="btn-shortcut-edit" onclick="triggerSelectedAvulsoEdit()"
+                                    style="padding:3px 10px; font-size:0.72rem; font-weight:800; background:#0284c7; color:#ffffff; border:none; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;">
+                                    <i data-lucide="edit-2" style="width:12px; height:12px;"></i> Editar <span style="background:rgba(255,255,255,0.25); padding:1px 5px; border-radius:4px; font-size:0.65rem;">F3</span>
+                                </button>
+                                <button type="button" id="btn-shortcut-del" onclick="triggerSelectedAvulsoDelete()"
+                                    style="padding:3px 10px; font-size:0.72rem; font-weight:800; background:#dc2626; color:#ffffff; border:none; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;">
+                                    <i data-lucide="trash-2" style="width:12px; height:12px;"></i> Excluir <span style="background:rgba(255,255,255,0.25); padding:1px 5px; border-radius:4px; font-size:0.65rem;">F4</span>
+                                </button>
+                            </div>
                         </div>
                         <div id="pgbanco-footer" style="display:flex; justify-content:flex-end; gap:2rem; padding-top:0.75rem; font-size:0.78rem; font-weight:700; border-top:1px solid #e2e8f0; margin-top:0.5rem; color: #334155;"></div>
                     </div>
@@ -661,6 +680,56 @@
                                 </thead>
                                 <tbody id="transf-hist-tbody">
                                     <tr><td colspan="6" class="table-empty">Carregando transferências...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- === SEÇÃO DEDICADA DE JUROS E ENCARGOS PAGOS === -->
+                    <div id="secao-juros-wrapper" style="background: #ffffff; border-radius: 12px; padding: 1.25rem 1.5rem; margin-top: 1.5rem; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
+                            <div style="display:flex; align-items:center; gap:0.6rem;">
+                                <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(220, 38, 38, 0.1); display: flex; align-items: center; justify-content: center;">
+                                    <i data-lucide="percent" style="width:17px;height:17px;color: #dc2626;"></i>
+                                </div>
+                                <div>
+                                    <div style="font-weight:800; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.04em; color: #1e293b;">Juros e Encargos Financeiros Pagos</div>
+                                    <div style="font-size:0.72rem; color: #64748b;">Diferenças financeiras contabilizadas nas baixas e integradas à conciliação</div>
+                                </div>
+                            </div>
+                            
+                            <!-- KPI Card Rápido de Juros Acumulados -->
+                            <div style="display:flex; align-items:center; gap: 1rem; flex-wrap:wrap;">
+                                <div style="display:flex; align-items:center; gap:0.6rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.4rem 0.85rem;">
+                                    <span style="font-size:0.72rem; font-weight:700; color: #991b1b; text-transform:uppercase;">Total Juros no Período:</span>
+                                    <strong id="kpi-total-juros-periodo" style="font-size:0.95rem; font-weight:800; color: #dc2626;">R$ 0,00</strong>
+                                </div>
+                                <button type="button" onclick="renderJurosSection()" class="btn-secondary btn-sm"
+                                    style="height:34px; padding:0 0.85rem; font-size:0.75rem; font-weight:700; background:#f8fafc; border:1px solid #cbd5e1; color:#334155; border-radius:6px; display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
+                                    <i data-lucide="refresh-cw" style="width:13px;height:13px;"></i>
+                                    <span>Atualizar</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Tabela de Juros e Encargos -->
+                        <div class="table-container" style="max-height:340px; overflow-y:auto;">
+                            <table class="fluxo-dre-table">
+                                <thead>
+                                    <tr>
+                                        <th>Data Baixa</th>
+                                        <th>Banco</th>
+                                        <th>NF / Documento</th>
+                                        <th>Favorecido / Fornecedor</th>
+                                        <th>Categoria Original</th>
+                                        <th style="text-align:right;">Valor Nota</th>
+                                        <th style="text-align:right;">Valor Pago</th>
+                                        <th style="text-align:right; color: #dc2626;">Juros Pagos</th>
+                                        <th style="text-align:center;">Motivo / Info</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="juros-hist-tbody">
+                                    <tr><td colspan="9" class="table-empty" style="padding: 1.5rem; text-align: center; color: #64748b;">Nenhum pagamento com juros registrado para o período.</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -1223,7 +1292,7 @@
 
     <!-- Modal: Pagamento (Baixa) -->
     <div id="paymentModal" class="modal-overlay">
-        <div class="modal-v2" style="max-width: 520px;">
+        <div class="modal-v2" style="max-width: 720px; width: 92%;">
             <div class="modal-header"
                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
                 <h2
@@ -1266,35 +1335,83 @@
                     </div>
                 </div>
 
-                <!-- Campo de Motivo/Justificativa de Divergência (Obrigatório se o valor for diferente) -->
-                <div class="input-group" id="payMotivoGroup" style="display: none; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 0.8rem;">
-                    <label style="color: #f59e0b; font-weight: 800; font-size: 0.78rem; display: flex; align-items: center; gap: 0.4rem;">
-                        <i data-lucide="alert-triangle" style="width:16px;"></i> Motivo da Divergência (Obrigatório) *
-                    </label>
-                    <p style="font-size: 0.75rem; opacity: 0.8; margin: 0 0 0.4rem 0;">
-                        O valor digitado difere do valor líquido esperado. Por favor, informe a justificativa abaixo para liberar a baixa:
+                <!-- Bloco Inteligente de Tratamento de Divergência de Valor -->
+                <div class="input-group" id="payMotivoGroup" style="display: none; background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 1rem; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.08);">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; flex-wrap: wrap; gap: 0.5rem;">
+                        <label style="color: #b45309; font-weight: 800; font-size: 0.8rem; display: flex; align-items: center; gap: 0.45rem; margin: 0;">
+                            <i data-lucide="alert-triangle" style="width:16px; height:16px; color: #d97706;"></i>
+                            <span>DIVERGÊNCIA DE VALOR IDENTIFICADA</span>
+                        </label>
+                        <span id="payDiffBadge" style="background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; font-weight: 800; font-size: 0.78rem; padding: 3px 9px; border-radius: 20px; letter-spacing: 0.02em;">
+                            Diferença: R$ 0,00
+                        </span>
+                    </div>
+
+                    <input type="hidden" id="payTipoDivergencia" value="JUROS">
+                    <input type="hidden" id="payValorDiferenca" value="0">
+
+                    <p id="payDiffDescription" style="font-size: 0.75rem; color: #4b5563; margin: 0 0 0.65rem 0; line-height: 1.35;">
+                        O valor digitado difere do valor esperado da nota. Selecione como deseja tratar essa diferença:
                     </p>
-                    <textarea id="payMotivo" class="financeiro-input" rows="2" placeholder="Descreva o motivo (ex: tarifa bancária, abatimento, acréscimo)..." style="resize: vertical; font-size: 0.85rem;"></textarea>
+
+                    <!-- Opções de Seleção Semântica (Juros/Desconto vs Outros) -->
+                    <div id="payDivergenciaOptions" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-bottom: 0.75rem;">
+                        <!-- Botão Juros / Desconto -->
+                        <button type="button" id="btnPayDivJuros" onclick="selectPaymentDivergenceType('JUROS')"
+                            style="border: 2px solid #059669; background: #ecfdf5; color: #065f46; border-radius: 8px; padding: 0.6rem 0.75rem; text-align: left; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 2px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <strong id="btnPayDivJurosTitle" style="font-size: 0.78rem; font-weight: 800;">Juros / Encargos</strong>
+                                <i id="btnPayDivJurosCheck" data-lucide="check-circle-2" style="width:14px; height:14px; color: #059669;"></i>
+                            </div>
+                            <span id="btnPayDivJurosSub" style="font-size: 0.68rem; opacity: 0.85;">Calcula no Plano de Contas e Conciliação</span>
+                        </button>
+
+                        <!-- Botão Outros -->
+                        <button type="button" id="btnPayDivOutros" onclick="selectPaymentDivergenceType('OUTROS')"
+                            style="border: 1px solid #d1d5db; background: #ffffff; color: #4b5563; border-radius: 8px; padding: 0.6rem 0.75rem; text-align: left; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 2px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <strong style="font-size: 0.78rem; font-weight: 800;">Outros (Informativo)</strong>
+                                <i id="btnPayDivOutrosCheck" data-lucide="circle" style="width:14px; height:14px; color: #9ca3af;"></i>
+                            </div>
+                            <span style="font-size: 0.68rem; opacity: 0.85;">Apenas justificativa informativa na nota</span>
+                        </button>
+                    </div>
+
+                    <!-- Aviso de Contabilização para Juros -->
+                    <div id="payDivergenciaNotice" style="font-size: 0.73rem; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 0.5rem 0.75rem; border-radius: 6px; margin-bottom: 0.65rem; display: flex; align-items: center; gap: 0.4rem;">
+                        <i data-lucide="info" style="width: 14px; height: 14px; flex-shrink: 0; color: #16a34a;"></i>
+                        <span id="payDivergenciaNoticeText">O valor do juros será contabilizado na conta de despesas financeiras e refletido na Conciliação Bancária.</span>
+                    </div>
+
+                    <!-- Campo de Justificativa / Observação -->
+                    <div id="payMotivoTextareaWrapper">
+                        <label id="payMotivoLabel" style="display: block; font-size: 0.72rem; font-weight: 700; color: #374151; text-transform: uppercase; margin-bottom: 0.3rem;">
+                            Observação Adicional (Opcional)
+                        </label>
+                        <textarea id="payMotivo" class="financeiro-input" rows="2" placeholder="Observações adicionais sobre esta baixa..." style="resize: vertical; font-size: 0.82rem; background: #ffffff;"></textarea>
+                    </div>
                 </div>
 
-                <div class="input-group">
-                    <label>Data do Pagamento</label>
-                    <input type="date" id="payData" class="financeiro-input" required>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="input-group">
+                        <label>Data do Pagamento</label>
+                        <input type="date" id="payData" class="financeiro-input" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Forma de Pagamento</label>
+                        <select id="payForma" class="financeiro-input">
+                            <option value="BOLETO">Boleto</option>
+                            <option value="PIX">PIX</option>
+                            <option value="CARTAO_CREDITO">Cartão de Crédito</option>
+                            <option value="TRANSFERENCIA">Transferência</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="input-group">
                     <label>Conta de Origem/Destino</label>
                     <select id="payConta" class="financeiro-input" required></select>
-                </div>
-
-                <div class="input-group">
-                    <label>Forma de Pagamento</label>
-                    <select id="payForma" class="financeiro-input">
-                        <option value="BOLETO">Boleto</option>
-                        <option value="PIX">PIX</option>
-                        <option value="CARTAO_CREDITO">Cartão de Crédito</option>
-                        <option value="TRANSFERENCIA">Transferência</option>
-                    </select>
                 </div>
 
                 <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:0.5rem;">
@@ -1335,6 +1452,85 @@
                 <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:0.5rem;">
                     <button type="button" onclick="closeModal('estornoModal')" style="background:none; border:none; color:#64748b; font-weight:700; cursor:pointer; padding:0.8rem 1.5rem;">Cancelar</button>
                     <button type="submit" style="background:#ef4444; color:white; border:none; border-radius:10px; padding:0.8rem 1.8rem; font-weight:800; cursor:pointer;">Confirmar Estorno</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: EDITAR LANÇAMENTO AVULSO (F3) -->
+    <div id="editAvulsoModal" class="modal-overlay">
+        <div class="modal-v2" style="max-width: 620px; width: 92%;">
+            <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.2rem;">
+                <h2 style="background: linear-gradient(to right, #0284c7, #38bdf8); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; font-size:1.3rem; font-weight:800; margin:0; display:flex; align-items:center; gap:0.5rem;">
+                    <i data-lucide="edit-2" style="width:20px; height:20px; color:#0284c7;"></i>
+                    <span>Editar Lançamento Avulso</span>
+                </h2>
+                <button onclick="closeModal('editAvulsoModal')" style="background:none; border:none; color:#64748b; cursor:pointer; padding:0.4rem;">
+                    <i data-lucide="x" style="width:20px; height:20px;"></i>
+                </button>
+            </div>
+            <form id="editAvulsoForm" style="display:flex; flex-direction:column; gap:1rem;" onsubmit="handleSaveEditAvulso(event)">
+                <input type="hidden" id="edit-avulso-id">
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 0.85rem;">
+                    <div class="input-group">
+                        <label>Tipo de Movimentação</label>
+                        <select id="edit-avulso-tipo" class="financeiro-input" required style="font-weight:600;" onchange="_updateEditAvulsoCategorias()">
+                            <option value="PAGAR">🔴 Saída (Tarifa / Despesa)</option>
+                            <option value="RECEBER">🟢 Entrada (Rendimento / Receita)</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Conta Bancária</label>
+                        <select id="edit-avulso-conta" class="financeiro-input" required></select>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Plano de Contas / Categoria</label>
+                    <div class="autocomplete-wrapper" style="position:relative; width:100%;">
+                        <input type="text" id="edit-avulso-categoria-search" class="financeiro-input"
+                            placeholder="Digitar conta para buscar..." autocomplete="off"
+                            oninput="handleEditAvulsoCategoriaSearch(this)" onfocus="handleEditAvulsoCategoriaSearch(this)" required>
+                        <input type="hidden" id="edit-avulso-categoria" required>
+                        <div class="autocomplete-results" style="max-height: 250px; overflow-y: auto; z-index: 1000; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.1); background: #ffffff; border-radius: 8px;"></div>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 0.85rem;">
+                    <div class="input-group">
+                        <label>Valor (R$)</label>
+                        <div class="input-money">
+                            <span>R$</span>
+                            <input type="number" step="0.01" min="0.01" id="edit-avulso-valor" class="financeiro-input"
+                                style="border:none; background:transparent;" required>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Data</label>
+                        <input type="date" id="edit-avulso-data" class="financeiro-input" required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Descrição / Histórico</label>
+                    <input type="text" id="edit-avulso-descricao" class="financeiro-input" placeholder="Ex: Tarifa de manutenção, IOF, Rendimento..." required>
+                </div>
+
+                <div style="font-size:0.75rem; background:#f0f9ff; border:1px solid #bae6fd; color:#0369a1; padding:0.5rem 0.75rem; border-radius:8px; display:flex; align-items:center; gap:6px;">
+                    <i data-lucide="info" style="width:14px; height:14px; flex-shrink:0;"></i>
+                    <span>Ao salvar, os saldos das contas bancárias envolvidas serão ajustados automaticamente pela diferença.</span>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:0.5rem;">
+                    <button type="button" onclick="closeModal('editAvulsoModal')"
+                        style="background:none; border:none; color:#64748b; font-weight:700; cursor:pointer; padding:0.7rem 1.4rem;">Cancelar</button>
+                    <button type="submit"
+                        style="background:#0284c7; color:white; border:none; border-radius:8px; padding:0.7rem 1.8rem; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                        <i data-lucide="check" style="width:16px; height:16px;"></i> Salvar Alterações
+                    </button>
                 </div>
             </form>
         </div>
@@ -2119,6 +2315,7 @@
                         <div id="viewDoc" style="font-weight: 700; font-size: 0.95rem;">NF: -</div>
                         <div id="viewTipoNotaDisplay" style="font-size: 0.8rem; margin-top: 0.3rem;"><strong style="opacity:0.7">Tipo de Nota:</strong> <span id="viewTipoNotaVal" style="font-weight:800; color:#0284c7;">-</span></div>
                         <div id="viewFormaPagamentoDisplay" style="font-size: 0.8rem; margin-top: 0.3rem;"><strong style="opacity:0.7">Forma de Pagamento:</strong> <span id="viewFormaPagamentoVal" style="font-weight:800; color:#7c3aed;">-</span></div>
+                        <div id="viewVeiculoDisplay" style="font-size: 0.8rem; margin-top: 0.3rem; display:none;"><strong style="opacity:0.7">Veículo / Placa:</strong> <span id="viewVeiculoVal" style="font-weight:800; color:#0f172a;">-</span></div>
                     </div>
 
                     <div class="info-card">

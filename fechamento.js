@@ -205,6 +205,22 @@ async function loadInitialData() {
         }
         state.estoqueClientes = clientsData;
 
+        // Load Prestadores Comerciais (Agregados) with fallback
+        let prestadoresData = [];
+        try {
+            const { data, error } = await supabaseClient.from('com_prestadores').select('id, nome_prestador').order('nome_prestador');
+            if (error) throw error;
+            prestadoresData = data || [];
+            if (prestadoresData.length > 0) {
+                localStorage.setItem('com_prestadores', JSON.stringify(prestadoresData));
+            }
+        } catch (e) {
+            console.warn("Tabela com_prestadores não encontrada online no fechamento. Usando fallback local:", e);
+            const local = localStorage.getItem('com_prestadores');
+            prestadoresData = local ? JSON.parse(local) : [];
+        }
+        state.prestadoresComercial = prestadoresData;
+
         // Load Products with fallback
         let productsData = [];
         try {
@@ -334,11 +350,15 @@ window.populateProprietarios = () => {
     if (!dropdown) return;
     
     let props = [];
-    if (selectedClasses.includes('SAIDA_ESTOQUE')) {
-        props = [...new Set((state.estoqueClientes || []).map(c => c.nome))].filter(Boolean);
+    const includeAllByDefault = selectedClasses.length === 0;
+
+    if (includeAllByDefault || selectedClasses.includes('SAIDA_ESTOQUE')) {
+        const clientesNomes = (state.estoqueClientes || []).map(c => c.nome);
+        const prestadoresNomes = (state.prestadoresComercial || []).map(p => p.nome_prestador);
+        props = [...new Set([...props, ...clientesNomes, ...prestadoresNomes])].filter(Boolean);
     }
     
-    if (selectedClasses.includes('VINCULO_PESSOA')) {
+    if (includeAllByDefault || selectedClasses.includes('VINCULO_PESSOA')) {
         props = [...props, ...new Set((state.drivers || []).map(d => d.nome_completo))].filter(Boolean);
     }
     
@@ -346,7 +366,7 @@ window.populateProprietarios = () => {
     if (hasVehiclesClasses.length > 0) {
         const filteredVehicles = state.vehicles.filter(v => hasVehiclesClasses.includes(v.classificacao));
         props = [...props, ...new Set(filteredVehicles.map(v => v.proprietario))].filter(Boolean);
-    } else if (!selectedClasses.includes('SAIDA_ESTOQUE') && !selectedClasses.includes('VINCULO_PESSOA')) {
+    } else if (includeAllByDefault) {
         props = [...props, ...new Set(state.vehicles.map(v => v.proprietario))].filter(Boolean);
     }
 
@@ -766,13 +786,13 @@ function processData(fuel, maint, vehicles, purchases, sales) {
         state.products.forEach(p => productMap[p.id] = p.nome);
     }
 
-    const shouldProcessEstoque = selectedClasses.includes('SAIDA_ESTOQUE');
-    const shouldProcessPessoa = selectedClasses.includes('VINCULO_PESSOA');
+    const shouldProcessEstoque = (selectedClasses.length === 0) || selectedClasses.includes('SAIDA_ESTOQUE');
+    const shouldProcessPessoa = (selectedClasses.length === 0) || selectedClasses.includes('VINCULO_PESSOA');
     const hasVehicleClasses = selectedClasses.filter(c => c !== 'SAIDA_ESTOQUE' && c !== 'VINCULO_PESSOA').length > 0;
     const shouldProcessVehicles = (selectedClasses.length === 0) || hasVehicleClasses;
 
     if (shouldProcessEstoque) {
-        // Group ONLY by client sales (estoque)
+        // Group ONLY by client/prestador sales (estoque)
         sales.forEach(s => {
             if (s.tipo !== 'EXTERNA' || !s.cliente_nome) return;
             const owner = s.cliente_nome;

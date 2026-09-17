@@ -20,6 +20,9 @@ const state = {
     favorecidoFiltroTipo: 'ALL',
     formasPagamento: [],
     especiesNota: [],
+    veiculos: [],
+    veiculosMap: {},
+    compraPlacasMap: {},
     periodoFluxo: new Date(),
     filtros: {
         PAGAR: { status: 'UNPAID', busca: '', categoria: '', origem: '', periodoTipo: 'VENCIMENTO', periodo: '', dataIni: '', dataFim: '' },
@@ -155,6 +158,17 @@ async function loadInitialData() {
             }
         };
 
+        const fetchVeiculosSafely = async () => {
+            try {
+                const { data, error } = await supabaseClient.from('veiculos').select('id, placa, modelo').order('placa');
+                if (error) throw error;
+                return data || [];
+            } catch (e) {
+                console.warn('Financeiro: Não foi possível carregar veículos da frota:', e.message);
+                return [];
+            }
+        };
+
         // Otimização de Performance: Por padrão, carrega apenas contas não totalmente pagas (ABERTO / PARCIAL / PENDENTE)
         // para minimizar a carga no banco de dados e acelerar o tempo de resposta
         let lancQuery = supabaseClient.from('fin_lancamentos')
@@ -162,7 +176,7 @@ async function loadInitialData() {
             .order('data_vencimento', { ascending: false })
             .limit(1000);
 
-        const [l, c, cat, cc, forn, cl, formas, especies, motFrota, funcDP, prestCom] = await Promise.all([
+        const [l, c, cat, cc, forn, cl, formas, especies, motFrota, funcDP, prestCom, veics] = await Promise.all([
             lancQuery,
             supabaseClient.from('fin_contas_bancarias').select('*'),
             supabaseClient.from('fin_plano_contas').select('*').order('codigo'),
@@ -173,7 +187,8 @@ async function loadInitialData() {
             supabaseClient.from('especies_nota').select('*').order('nome'),
             fetchMotoristasSafely(),
             fetchFuncionariosDPSafely(),
-            fetchPrestadoresSafely()
+            fetchPrestadoresSafely(),
+            fetchVeiculosSafely()
         ]);
 
         state.lancamentos = l.data || [];
@@ -193,6 +208,58 @@ async function loadInitialData() {
         state.motoristasFrota = motFrota || [];
         state.funcionariosDP = funcDP || [];
         state.prestadoresComercial = prestCom || [];
+        state.veiculos = veics || [];
+        
+        // Mapear veículos por ID para lookup instantâneo O(1)
+        state.veiculosMap = {};
+        (state.veiculos || []).forEach(v => {
+            if (v && v.id) {
+                state.veiculosMap[v.id] = v;
+            }
+        });
+
+        // Carregar mapeamento de placas para compras vinculadas
+        try {
+            const compraIds = [...new Set((state.lancamentos || [])
+                .filter(lanc => lanc.compra_id)
+                .map(lanc => lanc.compra_id))];
+
+            state.compraPlacasMap = {};
+            if (compraIds.length > 0) {
+                // Realizar busca em blocos caso haja muitos compra_id
+                const chunkSize = 200;
+                for (let i = 0; i < compraIds.length; i += chunkSize) {
+                    const chunk = compraIds.slice(i, i + chunkSize);
+                    const { data: cItens, error: cItensErr } = await supabaseClient
+                        .from('compra_itens')
+                        .select('compra_id, vinculo_veiculo_id')
+                        .in('compra_id', chunk)
+                        .not('vinculo_veiculo_id', 'is', null);
+
+                    if (!cItensErr && cItens) {
+                        cItens.forEach(item => {
+                            if (!item.compra_id || !item.vinculo_veiculo_id) return;
+                            const vObj = state.veiculosMap[item.vinculo_veiculo_id];
+                            if (vObj && vObj.placa) {
+                                if (!state.compraPlacasMap[item.compra_id]) {
+                                    state.compraPlacasMap[item.compra_id] = [];
+                                }
+                                const exists = state.compraPlacasMap[item.compra_id].some(x => x.placa === vObj.placa);
+                                if (!exists) {
+                                    state.compraPlacasMap[item.compra_id].push({
+                                        id: vObj.id,
+                                        placa: vObj.placa,
+                                        modelo: vObj.modelo || ''
+                                    });
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        } catch (eComprasPlacas) {
+            console.warn("Aviso ao carregar placas vinculadas a compras no Financeiro:", eComprasPlacas);
+        }
 
         updateDropdowns();
         renderAll();
@@ -346,6 +413,32 @@ function renderAll() {
     renderConfig();
 }
 
+// --- Helper: Resolução de Placas do Lançamento (Compras / Frota) ---
+function getPlacasLancamento(l) {
+    if (!l) return [];
+    const placas = [];
+
+    // 1. Placas vindas da integração com Compras (via compra_itens -> vinculo_veiculo_id)
+    if (l.compra_id && state.compraPlacasMap && state.compraPlacasMap[l.compra_id]) {
+        state.compraPlacasMap[l.compra_id].forEach(item => {
+            if (item && item.placa && !placas.some(p => p.placa === item.placa)) {
+                placas.push(item);
+            }
+        });
+    }
+
+    // 2. Placa vinculada diretamente no lançamento (se houver veiculo_id ou vinculo_veiculo_id)
+    const directVeicId = l.veiculo_id || l.vinculo_veiculo_id;
+    if (directVeicId && state.veiculosMap && state.veiculosMap[directVeicId]) {
+        const v = state.veiculosMap[directVeicId];
+        if (v && v.placa && !placas.some(p => p.placa === v.placa)) {
+            placas.push({ id: v.id, placa: v.placa, modelo: v.modelo || '' });
+        }
+    }
+
+    return placas;
+}
+
 function renderLancamentos(tipo) {
     const tbody = document.getElementById(`tbody-${tipo.toLowerCase()}`);
     if (!tbody) return;
@@ -450,14 +543,25 @@ function renderLancamentos(tipo) {
         const numVal = parseFloat(numSearch);
 
         if (tipo === 'PAGAR') {
-            // Busca restrita a: Fornecedor/Favorecido, Número NF/Doc, Valor Total ou Valor Pago
+            // Busca: Fornecedor/Favorecido, Número NF/Doc, Placa de Veículo, Valor Total ou Valor Pago
+            const searchCleanPlate = rawSearch.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
             filtered = filtered.filter(l => {
                 const entidade = (l.entidade_nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                 const numNf = (l.num_nf || '').toLowerCase().trim();
                 const vTotalStr = (l.valor_total != null ? String(l.valor_total) : '').replace('.', ',');
                 const vPagoStr = (l.valor_pago != null ? String(l.valor_pago) : '').replace('.', ',');
                 
-                const matchTexto = entidade.includes(b) || (numNf && numNf.includes(b));
+                let matchPlaca = false;
+                if (searchCleanPlate.length >= 2) {
+                    const lPlacas = getPlacasLancamento(l);
+                    matchPlaca = lPlacas.some(p => {
+                        const cleanP = (p.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                        return cleanP.includes(searchCleanPlate);
+                    });
+                }
+
+                const matchTexto = entidade.includes(b) || (numNf && numNf.includes(b)) || matchPlaca;
                 
                 let matchValor = false;
                 if (!isNaN(numVal) && numSearch !== '') {
@@ -474,12 +578,24 @@ function renderLancamentos(tipo) {
             });
         } else {
             // Contas a Receber / Outros
-            filtered = filtered.filter(l =>
-                (l.descricao || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(b) ||
-                (l.entidade_nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(b) ||
-                (l.codigo_sequencial || '').toLowerCase().includes(b) ||
-                (l.num_nf || '').toLowerCase().includes(b)
-            );
+            const searchCleanPlate = rawSearch.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+            filtered = filtered.filter(l => {
+                let matchPlaca = false;
+                if (searchCleanPlate.length >= 2) {
+                    const lPlacas = getPlacasLancamento(l);
+                    matchPlaca = lPlacas.some(p => {
+                        const cleanP = (p.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                        return cleanP.includes(searchCleanPlate);
+                    });
+                }
+
+                return (l.descricao || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(b) ||
+                    (l.entidade_nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(b) ||
+                    (l.codigo_sequencial || '').toLowerCase().includes(b) ||
+                    (l.num_nf || '').toLowerCase().includes(b) ||
+                    matchPlaca;
+            });
         }
     }
 
@@ -656,13 +772,37 @@ function renderLancamentos(tipo) {
                     ${l.num_nf ? `<div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px; cursor:pointer;" title="Clique para visualizar os detalhes">NF/Doc: ${l.num_nf}${l.serie_nf ? ' (Série ' + l.serie_nf + ')' : ''}</div>` : ''}
                     <div>${l.descricao}</div>
                     ${(() => {
+                        const lPlacas = getPlacasLancamento(l);
+                        let placaBadgeHtml = '';
+
+                        if (lPlacas.length > 0) {
+                            const pPrincipal = lPlacas[0];
+                            const tooltipPlacas = lPlacas.map(p => p.placa + (p.modelo ? ' (' + p.modelo + ')' : '')).join(', ');
+                            const maisPlacasBadge = lPlacas.length > 1
+                                ? `<span style="display:inline-flex; align-items:center; font-size:0.62rem; font-weight:800; padding:1px 5px; border-radius:6px; background:rgba(30, 41, 59, 0.08); color:var(--text-muted); border:1px solid rgba(0,0,0,0.1); cursor:help;" title="${tooltipPlacas}">+${lPlacas.length - 1}</span>`
+                                : '';
+
+                            placaBadgeHtml = `
+                                <span class="badge-placa-frota" title="${tooltipPlacas}" style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:800; font-family:'JetBrains Mono', monospace; padding:2px 7px; border-radius:6px; background:rgba(15, 23, 42, 0.06); color:#1e293b; border:1px solid rgba(15, 23, 42, 0.15); letter-spacing:0.3px; vertical-align:middle;">
+                                    <i data-lucide="truck" style="width:11px; height:11px; color:#0284c7;"></i>
+                                    ${pPrincipal.placa}
+                                </span>
+                                ${maisPlacasBadge}
+                            `;
+                        }
+
+                        let origemBadgeHtml = '';
                         if (l.origem_modulo === 'COMPRAS' || l.compra_id) {
                             const setor = l.setor_origem ? ` • ${l.setor_origem}` : '';
-                            return `<div style="margin-top:4px;"><span class="badge-origem-compras" style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:700; padding:2px 7px; border-radius:12px; background:rgba(79, 70, 229, 0.12); color:#4f46e5; border:1px solid rgba(79, 70, 229, 0.25);" title="Integrado via Módulo de Compras"><i data-lucide="shopping-cart" style="width:11px; height:11px;"></i> Compras${setor}</span></div>`;
+                            origemBadgeHtml = `<span class="badge-origem-compras" style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:700; padding:2px 7px; border-radius:12px; background:rgba(79, 70, 229, 0.12); color:#4f46e5; border:1px solid rgba(79, 70, 229, 0.25);" title="Integrado via Módulo de Compras"><i data-lucide="shopping-cart" style="width:11px; height:11px;"></i> Compras${setor}</span>`;
                         } else if (l.origem_modulo === 'MANUTENCAO' || l.manutencao_id) {
-                            return `<div style="margin-top:4px;"><span class="badge-origem-manutencao" style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:700; padding:2px 7px; border-radius:12px; background:rgba(217, 119, 6, 0.12); color:#d97706; border:1px solid rgba(217, 119, 6, 0.25);" title="Integrado via Módulo de Manutenção"><i data-lucide="wrench" style="width:11px; height:11px;"></i> Manutenção</span></div>`;
+                            origemBadgeHtml = `<span class="badge-origem-manutencao" style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:700; padding:2px 7px; border-radius:12px; background:rgba(217, 119, 6, 0.12); color:#d97706; border:1px solid rgba(217, 119, 6, 0.25);" title="Integrado via Módulo de Manutenção"><i data-lucide="wrench" style="width:11px; height:11px;"></i> Manutenção</span>`;
                         } else if (l.origem_modulo && l.origem_modulo !== 'MANUAL') {
-                            return `<div style="margin-top:4px;"><span class="badge-origem-outros" style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:700; padding:2px 7px; border-radius:12px; background:rgba(107, 114, 128, 0.12); color:#4b5563; border:1px solid rgba(107, 114, 128, 0.25);"><i data-lucide="link" style="width:11px; height:11px;"></i> ${l.origem_modulo}</span></div>`;
+                            origemBadgeHtml = `<span class="badge-origem-outros" style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:700; padding:2px 7px; border-radius:12px; background:rgba(107, 114, 128, 0.12); color:#4b5563; border:1px solid rgba(107, 114, 128, 0.25);"><i data-lucide="link" style="width:11px; height:11px;"></i> ${l.origem_modulo}</span>`;
+                        }
+
+                        if (origemBadgeHtml || placaBadgeHtml) {
+                            return `<div style="display:inline-flex; align-items:center; flex-wrap:wrap; gap:5px; margin-top:4px;">${origemBadgeHtml}${placaBadgeHtml}</div>`;
                         }
                         return '';
                     })()}
@@ -670,6 +810,7 @@ function renderLancamentos(tipo) {
                 <td data-label="Total" style="text-align:right; font-weight:700">${formatCurrency(vTotalPagar)}</td>
                 <td data-label="Pago" style="text-align:right;">
                     <div style="color:var(--success); font-weight:700;">${formatCurrency(vPagoPagar)}</div>
+                    ${(parseFloat(l.valor_juros) > 0) ? `<div style="font-size:0.68rem; font-weight:800; color:#dc2626; margin-top:1px;" title="Acréscimo de Juros pago na baixa">+${formatCurrency(l.valor_juros)} juros</div>` : ''}
                     ${(() => {
                         const contaObj = (state.contas || []).find(c => c.id === l.conta_bancaria_id);
                         if (contaObj && (vPagoPagar > 0 || l.status === 'PAGO')) {
@@ -1123,6 +1264,50 @@ async function renderFluxo() {
                 targetMonth.pago += valValido;
             } else {
                 targetMonth.prev += valPrevisao;
+            }
+        });
+    }
+
+    // 2.1 Segregação Contábil de Juros no Plano de Contas
+    // Garante que o valor da despesa original fique com o valor base e a diferença de juros seja alocada em Despesas Financeiras / Juros
+    const catJuros = (state.categorias || []).find(c =>
+        (c.codigo && (c.codigo.includes('04.004.0009.0268') || c.codigo === '4.3.01')) ||
+        (c.nome && c.nome.toUpperCase().includes('JUROS PAGOS')) ||
+        (c.nome && c.nome.toUpperCase().includes('JUROS PASSIVOS')) ||
+        (c.nome && c.nome.toUpperCase().includes('JUROS'))
+    );
+
+    if (catJuros) {
+        (state.lancamentos || []).forEach(l => {
+            if (l.status === 'CANCELADO' || !l.categoria_id) return;
+            if (bancoId && l.conta_bancaria_id !== bancoId) return;
+            const isPago = (l.status === 'PAGO' || l.status === 'RECEBIDO');
+            if (!isPago || l.tipo !== 'PAGAR') return;
+            const valJuros = parseFloat(l.valor_juros) || 0;
+            if (valJuros <= 0) return;
+
+            const dateStr = l.data_pagamento || l.data_vencimento || l.data_competencia;
+            if (!dateStr) return;
+            const anoMes = dateStr.substring(0, 7);
+            if (anoMes !== keyAnt && anoMes !== keyAtual && anoMes !== keyPost) return;
+
+            const catId = l.categoria_id;
+            const jurosCatId = catJuros.id;
+
+            if (!totalsByCat[jurosCatId]) {
+                totalsByCat[jurosCatId] = {
+                    ant:   { pago: 0, prev: 0 },
+                    atual: { pago: 0, prev: 0 },
+                    post:  { pago: 0, prev: 0 }
+                };
+            }
+
+            const targetCat = (anoMes === keyAnt) ? totalsByCat[catId]?.ant : ((anoMes === keyAtual) ? totalsByCat[catId]?.atual : totalsByCat[catId]?.post);
+            const targetJuros = (anoMes === keyAnt) ? totalsByCat[jurosCatId]?.ant : ((anoMes === keyAtual) ? totalsByCat[jurosCatId]?.atual : totalsByCat[jurosCatId]?.post);
+
+            if (targetCat && targetJuros && targetCat !== targetJuros) {
+                targetCat.pago = Math.max(0, targetCat.pago - valJuros);
+                targetJuros.pago += valJuros;
             }
         });
     }
@@ -2609,22 +2794,146 @@ async function handleEntrySubmit(e) {
 let currentModalParcelas = [];
 let currentPayExpectedValue = 0;
 
+window.selectPaymentDivergenceType = function(type) {
+    const inputTipo = document.getElementById('payTipoDivergencia');
+    if (inputTipo) inputTipo.value = type;
+
+    const btnJuros = document.getElementById('btnPayDivJuros');
+    const btnOutros = document.getElementById('btnPayDivOutros');
+    const checkJuros = document.getElementById('btnPayDivJurosCheck');
+    const checkOutros = document.getElementById('btnPayDivOutrosCheck');
+    const notice = document.getElementById('payDivergenciaNotice');
+    const noticeText = document.getElementById('payDivergenciaNoticeText');
+    const motivoInput = document.getElementById('payMotivo');
+    const motivoLabel = document.getElementById('payMotivoLabel');
+
+    const valorInput = parseFloat(document.getElementById('payValor')?.value) || 0;
+    const rawDiff = valorInput - currentPayExpectedValue;
+
+    if (type === 'JUROS' || type === 'DESCONTO') {
+        if (btnJuros) {
+            btnJuros.style.borderColor = '#059669';
+            btnJuros.style.background = '#ecfdf5';
+            btnJuros.style.color = '#065f46';
+        }
+        if (btnOutros) {
+            btnOutros.style.borderColor = '#d1d5db';
+            btnOutros.style.background = '#ffffff';
+            btnOutros.style.color = '#4b5563';
+        }
+        if (checkJuros) {
+            checkJuros.setAttribute('data-lucide', 'check-circle-2');
+            checkJuros.style.color = '#059669';
+        }
+        if (checkOutros) {
+            checkOutros.setAttribute('data-lucide', 'circle');
+            checkOutros.style.color = '#9ca3af';
+        }
+        if (notice) notice.style.display = 'flex';
+        if (noticeText) {
+            if (rawDiff > 0) {
+                noticeText.innerText = `O valor do juros (+${formatCurrency(Math.abs(rawDiff))}) será contabilizado em Juros Pagos a Fornecedores no Plano de Contas e Conciliação.`;
+            } else {
+                noticeText.innerText = `O valor do desconto (-${formatCurrency(Math.abs(rawDiff))}) será considerado no cálculo contábil.`;
+            }
+        }
+        if (motivoInput) {
+            motivoInput.removeAttribute('required');
+            motivoInput.placeholder = 'Observações adicionais sobre esta baixa (opcional)...';
+        }
+        if (motivoLabel) {
+            motivoLabel.innerText = 'Observação Adicional (Opcional)';
+            motivoLabel.style.color = '#374151';
+        }
+    } else { // 'OUTROS'
+        if (btnJuros) {
+            btnJuros.style.borderColor = '#d1d5db';
+            btnJuros.style.background = '#ffffff';
+            btnJuros.style.color = '#4b5563';
+        }
+        if (btnOutros) {
+            btnOutros.style.borderColor = '#d97706';
+            btnOutros.style.background = '#fffbeb';
+            btnOutros.style.color = '#92400e';
+        }
+        if (checkJuros) {
+            checkJuros.setAttribute('data-lucide', 'circle');
+            checkJuros.style.color = '#9ca3af';
+        }
+        if (checkOutros) {
+            checkOutros.setAttribute('data-lucide', 'check-circle-2');
+            checkOutros.style.color = '#d97706';
+        }
+        if (notice) notice.style.display = 'none';
+        if (motivoInput) {
+            motivoInput.setAttribute('required', 'required');
+            motivoInput.placeholder = 'Descreva obrigatoriamente a justificativa desta diferença para liberar a baixa...';
+        }
+        if (motivoLabel) {
+            motivoLabel.innerText = 'Motivo da Divergência (Obrigatório) *';
+            motivoLabel.style.color = '#b45309';
+        }
+    }
+
+    if (window.lucide) lucide.createIcons();
+};
+
 function checkPaymentDivergence() {
-    const valorInput = parseFloat(document.getElementById('payValor').value) || 0;
-    const diff = Math.abs(valorInput - currentPayExpectedValue);
+    const valorInput = parseFloat(document.getElementById('payValor')?.value) || 0;
+    const rawDiff = Math.round((valorInput - currentPayExpectedValue) * 100) / 100;
+    const absDiff = Math.abs(rawDiff);
     const motivoGroup = document.getElementById('payMotivoGroup');
     const motivoInput = document.getElementById('payMotivo');
+    const diffBadge = document.getElementById('payDiffBadge');
+    const diffInput = document.getElementById('payValorDiferenca');
+    const tipoInput = document.getElementById('payTipoDivergencia');
+    const jurosTitle = document.getElementById('btnPayDivJurosTitle');
+    const jurosSub = document.getElementById('btnPayDivJurosSub');
 
-    if (!motivoGroup || !motivoInput) return;
+    if (!motivoGroup) return;
 
-    if (diff > 0.05) {
+    if (absDiff > 0.05) {
         motivoGroup.style.display = 'block';
-        motivoInput.setAttribute('required', 'required');
+        if (diffInput) diffInput.value = absDiff.toFixed(2);
+
+        if (rawDiff > 0) {
+            // Valor pago maior (Juros / Encargos)
+            if (diffBadge) {
+                diffBadge.style.background = '#fef2f2';
+                diffBadge.style.borderColor = '#fecaca';
+                diffBadge.style.color = '#dc2626';
+                diffBadge.innerText = `Diferença: +${formatCurrency(absDiff)} (Acréscimo)`;
+            }
+            if (jurosTitle) jurosTitle.innerText = 'Juros / Encargos';
+            if (jurosSub) jurosSub.innerText = 'Calcula no Plano de Contas e Conciliação';
+            
+            const curType = tipoInput?.value === 'OUTROS' ? 'OUTROS' : 'JUROS';
+            selectPaymentDivergenceType(curType);
+        } else {
+            // Valor pago menor (Desconto / Abatimento)
+            if (diffBadge) {
+                diffBadge.style.background = '#eff6ff';
+                diffBadge.style.borderColor = '#bfdbfe';
+                diffBadge.style.color = '#1d4ed8';
+                diffBadge.innerText = `Diferença: -${formatCurrency(absDiff)} (Desconto)`;
+            }
+            if (jurosTitle) jurosTitle.innerText = 'Desconto / Abatimento';
+            if (jurosSub) jurosSub.innerText = 'Calcula abatimento no Plano de Contas';
+
+            const curType = tipoInput?.value === 'OUTROS' ? 'OUTROS' : 'DESCONTO';
+            selectPaymentDivergenceType(curType);
+        }
     } else {
         motivoGroup.style.display = 'none';
-        motivoInput.removeAttribute('required');
-        motivoInput.value = '';
+        if (diffInput) diffInput.value = '0';
+        if (tipoInput) tipoInput.value = 'NENHUM';
+        if (motivoInput) {
+            motivoInput.removeAttribute('required');
+            motivoInput.value = '';
+        }
     }
+
+    if (window.lucide) lucide.createIcons();
 }
 
 window.checkPaymentDivergence = checkPaymentDivergence;
@@ -2644,6 +2953,12 @@ async function openPaymentModal(id) {
     if (document.getElementById('payMotivo')) {
         document.getElementById('payMotivo').value = '';
         document.getElementById('payMotivoGroup').style.display = 'none';
+    }
+    if (document.getElementById('payTipoDivergencia')) {
+        document.getElementById('payTipoDivergencia').value = 'JUROS';
+    }
+    if (document.getElementById('payValorDiferenca')) {
+        document.getElementById('payValorDiferenca').value = '0';
     }
 
     const selectConta = document.getElementById('payConta');
@@ -2784,12 +3099,29 @@ async function handlePayment(e) {
 
         if (!l || !conta) throw new Error('Dados inválidos');
 
-        // VALIDAÇÃO E BLOQUEIO DE VALOR DIVERGENTE SEM MOTIVO
-        const diff = Math.abs(valorPagoInput - currentPayExpectedValue);
-        if (diff > 0.05 && !motivoText) {
-            showToast('Divergência de valor: Informe o motivo da diferença para confirmar a baixa.', 'error');
-            alert(`Não é possível salvar a baixa:\n\nO valor digitado (${formatCurrency(valorPagoInput)}) é diferente do valor líquido esperado (${formatCurrency(currentPayExpectedValue)}).\n\nPor favor, preencha o campo "Motivo da Divergência" informando a justificativa da diferença (ex: tarifa bancária, juros, desconto concedido, etc.).`);
-            return;
+        // VALIDAÇÃO E TRATAMENTO SEMÂNTICO DE DIVERGÊNCIA
+        const rawDiff = Math.round((valorPagoInput - currentPayExpectedValue) * 100) / 100;
+        const absDiff = Math.abs(rawDiff);
+        const tipoDivergencia = (document.getElementById('payTipoDivergencia')?.value || 'NENHUM').toUpperCase();
+        
+        let valorJurosBaixa = 0;
+        let finalTipoDivergencia = 'NENHUM';
+
+        if (absDiff > 0.05) {
+            if (tipoDivergencia === 'OUTROS') {
+                if (!motivoText) {
+                    showToast('Divergência de valor: Informe o motivo da diferença para confirmar a baixa.', 'error');
+                    alert(`Não é possível salvar a baixa:\n\nO valor digitado (${formatCurrency(valorPagoInput)}) é diferente do valor líquido esperado (${formatCurrency(currentPayExpectedValue)}).\n\nComo você selecionou "Outros", por favor, preencha o campo "Motivo da Divergência" informando a justificativa da diferença.`);
+                    document.getElementById('payMotivo')?.focus();
+                    return;
+                }
+                finalTipoDivergencia = 'OUTROS';
+            } else if (tipoDivergencia === 'JUROS' || (rawDiff > 0 && tipoDivergencia !== 'OUTROS')) {
+                finalTipoDivergencia = 'JUROS';
+                valorJurosBaixa = absDiff;
+            } else if (tipoDivergencia === 'DESCONTO' || (rawDiff < 0 && tipoDivergencia !== 'OUTROS')) {
+                finalTipoDivergencia = 'DESCONTO';
+            }
         }
 
         const novoValorPago = (parseFloat(l.valor_pago) || 0) + valorPagoInput;
@@ -2818,16 +3150,37 @@ async function handlePayment(e) {
             forma_pagamento: forma
         };
 
-        if (motivoText) {
-            const loggedUser = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
-            updateObj.motivo_divergencia = motivoText;
-            const logMotivo = `[MOTIVO DIVERGÊNCIA BAIXA (${formatDate(dataPagamento)}) por ${loggedUser}]: ${motivoText}`;
-            updateObj.observacoes = l.observacoes ? `${l.observacoes}\n${logMotivo}` : logMotivo;
+        const loggedUser = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
+
+        if (absDiff > 0.05) {
+            updateObj.tipo_divergencia = finalTipoDivergencia;
+            if (finalTipoDivergencia === 'JUROS') {
+                updateObj.valor_juros = (parseFloat(l.valor_juros) || 0) + valorJurosBaixa;
+            }
+        }
+
+        if (motivoText || finalTipoDivergencia !== 'NENHUM') {
+            if (motivoText) {
+                updateObj.motivo_divergencia = motivoText;
+            }
+            let infoLog = '';
+            if (finalTipoDivergencia === 'JUROS') {
+                infoLog = `[BAIXA COM JUROS (+${formatCurrency(valorJurosBaixa)}) em ${formatDate(dataPagamento)} por ${loggedUser}]${motivoText ? ': ' + motivoText : ''}`;
+            } else if (finalTipoDivergencia === 'DESCONTO') {
+                infoLog = `[BAIXA COM DESCONTO (-${formatCurrency(absDiff)}) em ${formatDate(dataPagamento)} por ${loggedUser}]${motivoText ? ': ' + motivoText : ''}`;
+            } else if (motivoText) {
+                infoLog = `[MOTIVO DIVERGÊNCIA BAIXA (${formatDate(dataPagamento)}) por ${loggedUser}]: ${motivoText}`;
+            }
+            if (infoLog) {
+                updateObj.observacoes = l.observacoes ? `${l.observacoes}\n${infoLog}` : infoLog;
+            }
         }
 
         let { error: errL } = await supabaseClient.from('fin_lancamentos').update(updateObj).eq('id', id);
-        if (errL && errL.message && errL.message.includes('motivo_divergencia')) {
-            console.warn("Coluna motivo_divergencia não encontrada no banco. Salvando motivo no campo observações...");
+        if (errL && (errL.message?.includes('valor_juros') || errL.message?.includes('tipo_divergencia') || errL.message?.includes('motivo_divergencia'))) {
+            console.warn("Alguma coluna de juros/divergência não encontrada no banco. Salvando com payload seguro:", errL.message);
+            delete updateObj.valor_juros;
+            delete updateObj.tipo_divergencia;
             delete updateObj.motivo_divergencia;
             const { error: retryErr } = await supabaseClient.from('fin_lancamentos').update(updateObj).eq('id', id);
             if (retryErr) throw retryErr;
@@ -2844,12 +3197,15 @@ async function handlePayment(e) {
         if (errC) throw errC;
 
         if (typeof registrarLog === 'function') {
-            registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Baixou/Registrou pagamento no lançamento (${l.tipo}): ${l.descricao} - Valor Baixado: R$ ${valorPagoInput} (Esperado: R$ ${currentPayExpectedValue}). Conta: ${conta.nome}${motivoText ? ' - Motivo Divergência: ' + motivoText : ''}`);
+            const jurosDesc = finalTipoDivergencia === 'JUROS' ? ` - Juros: +${formatCurrency(valorJurosBaixa)}` : '';
+            registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Baixou/Registrou pagamento no lançamento (${l.tipo}): ${l.descricao} - Valor Baixado: R$ ${valorPagoInput} (Esperado: R$ ${currentPayExpectedValue})${jurosDesc}. Conta: ${conta.nome}${motivoText ? ' - Motivo: ' + motivoText : ''}`);
         }
 
         closeModal('paymentModal');
         await loadInitialData();
         renderAll();
+        if (typeof renderFluxo === 'function') renderFluxo();
+        if (typeof renderJurosSection === 'function') renderJurosSection();
         showToast('Pagamento registrado com sucesso!', 'success');
     } catch (err) {
         showToast('Erro ao registrar pagamento: ' + err.message, 'error');
@@ -4062,6 +4418,24 @@ function setupEventListeners() {
         const tipoNotaVal = l.tipo_nota || especieNomeComp || (compraData ? compraData.especie_nota : null);
         document.getElementById('viewTipoNotaVal').innerText = tipoNotaVal || '-';
 
+        // Resolução de Veículo / Placa
+        const elVeiculoDisplay = document.getElementById('viewVeiculoDisplay');
+        const elVeiculoVal = document.getElementById('viewVeiculoVal');
+        const lPlacasModal = getPlacasLancamento(l);
+        if (elVeiculoDisplay && elVeiculoVal) {
+            if (lPlacasModal.length > 0) {
+                elVeiculoDisplay.style.display = 'block';
+                elVeiculoVal.innerHTML = lPlacasModal.map(p => `
+                    <span style="display:inline-flex; align-items:center; gap:4px; font-family:'JetBrains Mono', monospace; font-size:0.75rem; font-weight:800; background:rgba(2,132,199,0.1); color:#0284c7; padding:2px 8px; border-radius:6px; border:1px solid rgba(2,132,199,0.25); margin-right:4px;">
+                        <i data-lucide="truck" style="width:12px; height:12px;"></i> ${p.placa}${p.modelo ? ' • ' + p.modelo : ''}
+                    </span>
+                `).join('');
+            } else {
+                elVeiculoDisplay.style.display = 'none';
+                elVeiculoVal.innerText = '-';
+            }
+        }
+
         // Resolução da Forma de Pagamento (tratando UUIDs)
         let formaPgtoVal = l.forma_pagamento || formaPgtoNomeComp;
         if (!formaPgtoVal || (formaPgtoVal.length === 36 && formaPgtoVal.includes('-'))) {
@@ -4171,32 +4545,54 @@ function setupEventListeners() {
             let rowsHtml = '';
 
             if (itens.length > 0) {
-                rowsHtml += itens.map(i => `
+                rowsHtml += itens.map(i => {
+                    const veicItemObj = (i.veiculo_id || i.vinculo_veiculo_id) ? (state.veiculosMap[i.veiculo_id || i.vinculo_veiculo_id]) : null;
+                    const veicBadge = veicItemObj && veicItemObj.placa ? `
+                        <span style="display:inline-flex; align-items:center; gap:3px; font-family:'JetBrains Mono', monospace; font-size:0.68rem; font-weight:800; background:rgba(2,132,199,0.08); color:#0284c7; padding:1px 5px; border-radius:4px; margin-left:6px; border:1px solid rgba(2,132,199,0.2);">
+                            <i data-lucide="truck" style="width:10px; height:10px;"></i> ${veicItemObj.placa}
+                        </span>` : '';
+
+                    return `
                     <tr>
                         <td style="padding: 0.8rem;">
-                            <div style="font-weight:700;">${i.descricao || i.produto || i.nome || 'Item sem descrição'}</div>
+                            <div style="font-weight:700; display:flex; align-items:center; flex-wrap:wrap;">
+                                <span>${i.descricao || i.produto || i.nome || 'Item sem descrição'}</span>
+                                ${veicBadge}
+                            </div>
                             <div style="font-size:0.75rem; opacity:0.7;">${i.tipo || 'SERVICO'}</div>
                         </td>
                         <td style="padding: 0.8rem; text-align:center;">${i.quantidade}</td>
                         <td style="padding: 0.8rem; text-align:right;">${formatCurrency(i.valor_unitario)}</td>
                         <td style="padding: 0.8rem; text-align:right; font-weight:800;">${formatCurrency(i.quantidade * i.valor_unitario)}</td>
                     </tr>
-                `).join('');
+                `;
+                }).join('');
             } else if (l.compra_id) {
                 // Fallback: carregar itens de compra_itens se fin_lancamento_itens estiver vazio
                 const { data: compItens } = await supabaseClient.from('compra_itens').select('*').eq('compra_id', l.compra_id);
                 if (compItens && compItens.length > 0) {
-                    rowsHtml += compItens.map(i => `
+                    rowsHtml += compItens.map(i => {
+                        const veicItemObj = i.vinculo_veiculo_id ? (state.veiculosMap[i.vinculo_veiculo_id]) : null;
+                        const veicBadge = veicItemObj && veicItemObj.placa ? `
+                            <span style="display:inline-flex; align-items:center; gap:3px; font-family:'JetBrains Mono', monospace; font-size:0.68rem; font-weight:800; background:rgba(2,132,199,0.08); color:#0284c7; padding:1px 5px; border-radius:4px; margin-left:6px; border:1px solid rgba(2,132,199,0.2);">
+                                <i data-lucide="truck" style="width:10px; height:10px;"></i> ${veicItemObj.placa}
+                            </span>` : '';
+
+                        return `
                         <tr>
                             <td style="padding: 0.8rem;">
-                                <div style="font-weight:700;">${i.produto || i.descricao || i.nome || 'Item da Compra'}</div>
+                                <div style="font-weight:700; display:flex; align-items:center; flex-wrap:wrap;">
+                                    <span>${i.produto || i.descricao || i.nome || 'Item da Compra'}</span>
+                                    ${veicBadge}
+                                </div>
                                 <div style="font-size:0.75rem; opacity:0.7;">${(i.tipo || 'PRODUTO').toUpperCase()}</div>
                             </td>
                             <td style="padding: 0.8rem; text-align:center;">${i.quantidade || 1}</td>
                             <td style="padding: 0.8rem; text-align:right;">${formatCurrency(i.valor_unitario || i.valor_total || 0)}</td>
                             <td style="padding: 0.8rem; text-align:right; font-weight:800;">${formatCurrency((i.quantidade || 1) * (i.valor_unitario || i.valor_total || 0))}</td>
                         </tr>
-                    `).join('');
+                    `;
+                    }).join('');
                 }
             }
 
@@ -4263,6 +4659,8 @@ function setupEventListeners() {
             } else {
                 parcWrapper.style.display = 'none';
             }
+
+            if (window.lucide) lucide.createIcons();
         } catch (dbErr) {
             console.error("Erro ao buscar detalhes no DB:", dbErr);
         }
@@ -7200,6 +7598,9 @@ window.renderBancoSubTab = async function() {
     _populateAvulsoFields();
     _populatePgBancoFilter();
     await renderHistoricoTransferencias();
+    if (typeof window.renderJurosSection === 'function') {
+        await window.renderJurosSection();
+    }
 };
 
 /** Popula os selects do formulário de lançamento avulso */
@@ -7545,6 +7946,10 @@ window.deleteTransferencia = async function(id) {
         _renderBancoSaldoCards();
         _populateTransfSelects();
         await renderHistoricoTransferencias();
+        if (typeof renderPagamentosPorBanco === 'function') {
+            await renderPagamentosPorBanco();
+        }
+        if (typeof renderFluxo === 'function') renderFluxo();
 
     } catch (err) {
         console.error('[deleteTransferencia] Erro:', err);
@@ -7577,6 +7982,66 @@ window.handlePgbancoPeriodoChange = function(selectEl) {
         }
     }
     // Não executa automaticamente: aguarda clique no botão "Gerar"
+};
+
+/**
+ * Renderiza a seção dedicada de "Juros e Encargos Financeiros Pagos"
+ * Mostra todos os pagamentos liquidados com juros, vínculo com nota e favorecido.
+ */
+window.renderJurosSection = async function() {
+    const tbody = document.getElementById('juros-hist-tbody');
+    const kpiEl = document.getElementById('kpi-total-juros-periodo');
+    if (!tbody) return;
+
+    // Filtra todos os lançamentos que foram pagos e possuem valor_juros > 0
+    const jurosList = (state.lancamentos || []).filter(l => {
+        const isPago = (l.status === 'PAGO' || l.status === 'RECEBIDO' || (parseFloat(l.valor_pago) > 0));
+        const valJuros = parseFloat(l.valor_juros) || 0;
+        return isPago && valJuros > 0;
+    }).sort((a, b) => {
+        const dateA = new Date(a.data_pagamento || a.data_vencimento || 0).getTime();
+        const dateB = new Date(b.data_pagamento || b.data_vencimento || 0).getTime();
+        return dateB - dateA;
+    });
+
+    const totalJuros = jurosList.reduce((sum, item) => sum + (parseFloat(item.valor_juros) || 0), 0);
+    if (kpiEl) kpiEl.innerText = formatCurrency(totalJuros);
+
+    if (jurosList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="table-empty" style="padding: 1.5rem; text-align: center; color: #64748b;"><i data-lucide="check-circle-2" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px; color: #16a34a;"></i> Nenhum pagamento com juros registrado.</td></tr>`;
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+
+    tbody.innerHTML = jurosList.map(l => {
+        const conta = (state.contas || []).find(c => c.id === l.conta_bancaria_id);
+        const cat = (state.categorias || []).find(c => c.id === l.categoria_id);
+        const bancoNome = conta ? conta.nome : '—';
+        const catNome = cat ? `${cat.codigo ? cat.codigo + ' - ' : ''}${cat.nome}` : '—';
+        const docRef = l.num_nf ? `NF ${l.num_nf}` : (l.documento || l.descricao || '—');
+        const favorecido = l.favorecido || l.entidade_nome || l.fornecedor || '—';
+        const dtPgto = l.data_pagamento ? formatDate(l.data_pagamento) : (l.data_vencimento ? formatDate(l.data_vencimento) : '—');
+        
+        const valorPago = parseFloat(l.valor_pago) || parseFloat(l.valor_total) || 0;
+        const valorJuros = parseFloat(l.valor_juros) || 0;
+        const valorNota = Math.max(0, valorPago - valorJuros);
+
+        const motivoDisplay = (l.motivo_divergencia || (l.observacoes && l.observacoes.includes('BAIXA COM JUROS') ? 'Juros / Encargos' : '—'));
+
+        return `<tr style="transition: background 0.15s ease;">
+            <td style="font-size:0.78rem; font-weight:600; color: #059669;">${dtPgto}</td>
+            <td style="font-size:0.78rem; font-weight:700; color: #0f172a;">${bancoNome}</td>
+            <td style="font-size:0.78rem; color: #1e293b; font-weight: 600;">${docRef}</td>
+            <td style="font-size:0.78rem; color: #334155;">${favorecido}</td>
+            <td style="font-size:0.75rem; color: #475569; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${catNome}">${catNome}</td>
+            <td style="text-align:right; font-size:0.78rem; color: #64748b;">${formatCurrency(valorNota)}</td>
+            <td style="text-align:right; font-size:0.8rem; font-weight:700; color: #0f172a;">${formatCurrency(valorPago)}</td>
+            <td style="text-align:right; font-size:0.82rem; font-weight:800; color: #dc2626;">+ ${formatCurrency(valorJuros)}</td>
+            <td style="text-align:center;"><span style="font-size:0.68rem; font-weight:600; background: #fef2f2; color: #991b1b; padding: 2px 8px; border-radius: 6px; border: 1px solid #fee2e2;" title="${motivoDisplay}">${motivoDisplay}</span></td>
+        </tr>`;
+    }).join('');
+
+    if (window.lucide) lucide.createIcons();
 };
 
 /**
@@ -7732,9 +8197,15 @@ window.renderPagamentosPorBanco = async function() {
         // Requisito 2: Usar o valor registrado como pago (valor_pago)
         const isPago = l.status === 'PAGO' || (parseFloat(l.valor_pago) > 0);
         const valorFinal = isPago && parseFloat(l.valor_pago) > 0 ? parseFloat(l.valor_pago) : (parseFloat(l.valor_total) || 0);
+        const valorJuros = parseFloat(l.valor_juros) || 0;
+        const isAvulso = l.origem_modulo === 'AVULSO' || l.origem_modulo === 'ENTRADA_SAIDA_AVULSA';
 
         return {
+            id: l.id,
             isTransferencia: false,
+            isAvulso: isAvulso,
+            origemModulo: l.origem_modulo,
+            categoriaId: l.categoria_id,
             bancoNome: bancoNome,
             contaId: l.conta_bancaria_id,
             vencStr: vencStr,
@@ -7743,6 +8214,7 @@ window.renderPagamentosPorBanco = async function() {
             descricao: l.descricao || '—',
             tipo: l.tipo,
             valor: valorFinal,
+            valorJuros: valorJuros,
             status: l.status,
             sortDate: new Date(pgtoStr || vencStr || 0).getTime()
         };
@@ -7762,6 +8234,7 @@ window.renderPagamentosPorBanco = async function() {
                 if (!tipoFil || tipoFil === 'PAGAR' || tipoFil === 'TRANSFERENCIA') {
                     transferRows.push({
                         isTransferencia: true,
+                        transfId: t.id,
                         bancoNome: t.conta_origem_nome || 'Conta Origem',
                         contaId: t.conta_origem_id,
                         vencStr: dataStr,
@@ -7781,6 +8254,7 @@ window.renderPagamentosPorBanco = async function() {
                 if (!tipoFil || tipoFil === 'RECEBER' || tipoFil === 'TRANSFERENCIA') {
                     transferRows.push({
                         isTransferencia: true,
+                        transfId: t.id,
                         bancoNome: t.conta_destino_nome || 'Conta Destino',
                         contaId: t.conta_destino_id,
                         vencStr: dataStr,
@@ -7804,7 +8278,7 @@ window.renderPagamentosPorBanco = async function() {
     window._pgBancoCurrentGeneratedItems = allRows;
 
     if (!allRows.length) {
-        tbody.innerHTML = `<tr><td colspan="8" class="table-empty">Nenhum lançamento ou transferência encontrado para o período/filtro selecionado.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="table-empty">Nenhum lançamento ou transferência encontrado para o período/filtro selecionado.</td></tr>`;
         if (footer) footer.innerHTML = '';
         return;
     }
@@ -7849,15 +8323,66 @@ window.renderPagamentosPorBanco = async function() {
         const statusColor = STATUS_COLOR[row.status] || '#059669';
         const statusBg    = STATUS_BG[row.status] || '#d1fae5';
 
-        return `<tr class="pgbanco-row" onclick="selectPgBancoRow(this)" style="cursor: pointer; transition: background 0.15s ease;">
+        // Identificação Visual Clara para Lançamentos da Seção Avulsa
+        let descHtml = '';
+        if (row.isAvulso) {
+            descHtml = `<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <span class="badge-avulso" style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:700; padding:2px 7px; border-radius:12px; background:rgba(2, 132, 199, 0.12); color:#0284c7; border:1px solid rgba(2, 132, 199, 0.25);"><i data-lucide="receipt" style="width:11px; height:11px;"></i> Avulso / Caixa</span>
+                <span style="font-weight:600; color:#0f172a;">${row.descricao}</span>
+            </div>`;
+        } else {
+            descHtml = `<span>${row.descricao}</span>`;
+        }
+
+        // Coluna de Ações: Habilitada para Lançamentos Avulsos (Editar/Excluir) e Transferências entre Contas (Estornar)
+        let acoesHtml = '';
+        if (row.isAvulso && row.id) {
+            acoesHtml = `
+                <div style="display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+                    <button type="button" class="btn-action-avulso-edit" onclick="event.stopPropagation(); openEditAvulsoModal('${row.id}')"
+                        title="Editar Lançamento Avulso (Atalho: F3)"
+                        style="width:28px; height:28px; padding:0; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:all 0.15s; box-shadow:0 1px 2px rgba(0,0,0,0.03);"
+                        onmouseover="this.style.background='#bae6fd'; this.style.transform='scale(1.06)'" onmouseout="this.style.background='#e0f2fe'; this.style.transform='scale(1)'">
+                        <i data-lucide="edit-2" style="width:13px; height:13px;"></i>
+                    </button>
+                    <button type="button" class="btn-action-avulso-del" onclick="event.stopPropagation(); deleteLancamentoAvulso('${row.id}')"
+                        title="Excluir Lançamento Avulso (Atalho: F4)"
+                        style="width:28px; height:28px; padding:0; background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:all 0.15s; box-shadow:0 1px 2px rgba(0,0,0,0.03);"
+                        onmouseover="this.style.background='#fecaca'; this.style.transform='scale(1.06)'" onmouseout="this.style.background='#fee2e2'; this.style.transform='scale(1)'">
+                        <i data-lucide="trash-2" style="width:13px; height:13px;"></i>
+                    </button>
+                </div>
+            `;
+        } else if (row.isTransferencia && row.transfId) {
+            acoesHtml = `
+                <div style="display:inline-flex; align-items:center; justify-content:center;">
+                    <button type="button" class="btn-action-transf-undo" onclick="event.stopPropagation(); deleteTransferencia('${row.transfId}')"
+                        title="Estornar Transferência entre Contas"
+                        style="width:28px; height:28px; padding:0; background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:all 0.15s; box-shadow:0 1px 2px rgba(0,0,0,0.03);"
+                        onmouseover="this.style.background='#fecaca'; this.style.transform='scale(1.06)'" onmouseout="this.style.background='#fee2e2'; this.style.transform='scale(1)'">
+                        <i data-lucide="undo-2" style="width:13px; height:13px;"></i>
+                    </button>
+                </div>
+            `;
+        } else {
+            acoesHtml = `<span style="color:#cbd5e1; font-size:0.75rem;">—</span>`;
+        }
+
+        const safeDesc = (row.descricao || '').replace(/"/g, '&quot;');
+
+        return `<tr class="pgbanco-row" data-id="${row.id || ''}" data-is-avulso="${row.isAvulso ? 'true' : 'false'}" data-desc="${safeDesc}" onclick="selectPgBancoRow(this)" style="cursor: pointer; transition: background 0.15s ease;">
             <td style="font-size:0.78rem; font-weight:700; color: #0f172a;">${row.bancoNome}</td>
             <td style="font-size:0.78rem; color: #334155;">${row.vencStr ? formatDate(row.vencStr) : '—'}</td>
             <td style="font-size:0.78rem; font-weight:600; color: #059669;">${row.pgtoStr ? formatDate(row.pgtoStr) : '—'}</td>
             <td style="font-size:0.78rem; color: #334155; font-weight: 500;">${row.entidade}</td>
-            <td style="font-size:0.78rem; color: #334155; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${row.descricao}">${row.descricao}</td>
+            <td style="font-size:0.78rem; color: #334155; max-width:260px; overflow:hidden; text-overflow:ellipsis;" title="${row.descricao}">${descHtml}</td>
             <td><span style="font-size:0.68rem; font-weight:800; color:${tipoColor}; text-transform:uppercase;">${row.tipo}</span></td>
-            <td style="text-align:right; font-weight:800; font-size:0.82rem; color: ${valorColor};">${valorDisplay}</td>
+            <td style="text-align:right; font-weight:800; font-size:0.82rem; color: ${valorColor};">
+                <div>${valorDisplay}</div>
+                ${row.valorJuros > 0 ? `<div style="font-size:0.68rem; font-weight:800; color:#dc2626; margin-top:1px;" title="Acréscimo de Juros">+${formatCurrency(row.valorJuros)} juros</div>` : ''}
+            </td>
             <td><span style="font-size:0.68rem; font-weight:700; color:${statusColor}; background:${statusBg}; padding:2px 8px; border-radius:6px;">${STATUS_MAP[row.status] || row.status}</span></td>
+            <td style="text-align:center;">${acoesHtml}</td>
         </tr>`;
     }).join('');
 
@@ -7892,12 +8417,58 @@ window.selectPgBancoRow = function(rowEl) {
     rowEl.style.backgroundColor = '#ecfdf5'; // Verde suave elegante
     rowEl.style.outline = '2px solid #10b981'; // Borda verde destacada
 
+    // Se for avulso, exibe barra flutuante de atalhos rápidos F3/F4
+    const isAvulso = rowEl.dataset.isAvulso === 'true';
+    const shortcutBar = document.getElementById('pgbanco-shortcut-bar');
+    const descEl = document.getElementById('pgbanco-selected-desc');
+
+    if (shortcutBar) {
+        if (isAvulso) {
+            shortcutBar.style.display = 'flex';
+            if (descEl) descEl.innerText = rowEl.dataset.desc || 'Lançamento Avulso';
+        } else {
+            shortcutBar.style.display = 'none';
+        }
+    }
+
     // Mantém a linha visível no scroll se necessário
     rowEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 };
 
-// Navegação com setas do teclado (Cima / Baixo) para mover a seleção de conferência
+window.triggerSelectedAvulsoEdit = function() {
+    const selectedRow = document.querySelector('.pgbanco-row.pgbanco-row-selected');
+    if (selectedRow && selectedRow.dataset.isAvulso === 'true' && selectedRow.dataset.id) {
+        openEditAvulsoModal(selectedRow.dataset.id);
+    } else {
+        showToast('Selecione uma linha de lançamento avulso para editar (F3).', 'info');
+    }
+};
+
+window.triggerSelectedAvulsoDelete = function() {
+    const selectedRow = document.querySelector('.pgbanco-row.pgbanco-row-selected');
+    if (selectedRow && selectedRow.dataset.isAvulso === 'true' && selectedRow.dataset.id) {
+        deleteLancamentoAvulso(selectedRow.dataset.id);
+    } else {
+        showToast('Selecione uma linha de lançamento avulso para excluir (F4).', 'info');
+    }
+};
+
+// Atalhos Globais: F3 para Editar Avulso, F4 para Excluir Avulso, e Setas para navegação
 document.addEventListener('keydown', function(e) {
+    // Atalhos F3 e F4 quando uma linha avulsa estiver selecionada na tabela
+    if (e.key === 'F3' || e.key === 'F4') {
+        const selectedRow = document.querySelector('.pgbanco-row.pgbanco-row-selected');
+        if (selectedRow && selectedRow.dataset.isAvulso === 'true' && selectedRow.dataset.id) {
+            e.preventDefault();
+            if (e.key === 'F3') {
+                openEditAvulsoModal(selectedRow.dataset.id);
+            } else if (e.key === 'F4') {
+                deleteLancamentoAvulso(selectedRow.dataset.id);
+            }
+            return;
+        }
+    }
+
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
 
     // Se o usuário estiver digitando em um input/select/textarea, não intercepta as setas
@@ -7915,7 +8486,6 @@ document.addEventListener('keydown', function(e) {
     const selectedIdx = rows.findIndex(r => r.classList.contains('pgbanco-row-selected'));
 
     if (selectedIdx === -1) {
-        // Se nenhuma linha estiver selecionada e apertar seta para baixo, seleciona a primeira
         if (e.key === 'ArrowDown') {
             e.preventDefault();
             selectPgBancoRow(rows[0]);
@@ -7934,6 +8504,243 @@ document.addEventListener('keydown', function(e) {
         }
     }
 });
+
+// Funções do Modal de Edição de Lançamento Avulso (F3)
+window.openEditAvulsoModal = function(id) {
+    const l = (state.lancamentos || []).find(item => item.id === id);
+    if (!l) {
+        showToast('Lançamento não encontrado.', 'error');
+        return;
+    }
+
+    document.getElementById('edit-avulso-id').value = l.id;
+    document.getElementById('edit-avulso-tipo').value = l.tipo || 'PAGAR';
+
+    // Popula contas bancárias
+    const contaSel = document.getElementById('edit-avulso-conta');
+    if (contaSel) {
+        const contas = state.contas || [];
+        contaSel.innerHTML = contas.map(c => `<option value="${c.id}">${c.nome} (${c.banco || ''} | Saldo: ${formatCurrency(c.saldo_atual)})</option>`).join('');
+        if (l.conta_bancaria_id) contaSel.value = l.conta_bancaria_id;
+    }
+
+    // Categoria / Plano de Contas
+    const cat = (state.categorias || []).find(c => c.id === l.categoria_id);
+    const catHidden = document.getElementById('edit-avulso-categoria');
+    const catSearch = document.getElementById('edit-avulso-categoria-search');
+    if (catHidden) catHidden.value = l.categoria_id || '';
+    if (catSearch) catSearch.value = cat ? `${cat.codigo ? cat.codigo + ' - ' : ''}${cat.nome}` : '';
+
+    // Valor, Data, Descrição
+    const valorVal = parseFloat(l.valor_pago) || parseFloat(l.valor_total) || 0;
+    document.getElementById('edit-avulso-valor').value = valorVal.toFixed(2);
+    document.getElementById('edit-avulso-data').value = l.data_pagamento || l.data_vencimento || new Date().toISOString().slice(0, 10);
+    document.getElementById('edit-avulso-descricao').value = l.descricao || '';
+
+    const modal = document.getElementById('editAvulsoModal');
+    if (modal) modal.classList.add('active');
+    if (window.lucide) lucide.createIcons();
+};
+
+window.handleEditAvulsoCategoriaSearch = function(el) {
+    const query = el.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const wrapper = el.closest('.autocomplete-wrapper');
+    if (!wrapper) return;
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
+    if (!resultsDiv) return;
+
+    if (!query) {
+        resultsDiv.style.display = 'none';
+        return;
+    }
+
+    const tipo = document.getElementById('edit-avulso-tipo')?.value || 'PAGAR';
+    const cats = (state.categorias || []).filter(c => {
+        const matchTipo = (tipo === 'PAGAR' ? c.tipo === 'DESPESA' : c.tipo === 'RECEITA');
+        const str = `${c.codigo || ''} ${c.nome || ''}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        return matchTipo && str.includes(query);
+    });
+
+    if (cats.length === 0) {
+        resultsDiv.innerHTML = '<div style="padding:0.6rem 0.8rem; font-size:0.78rem; color:#94a3b8;">Nenhuma conta encontrada</div>';
+        resultsDiv.style.display = 'block';
+        return;
+    }
+
+    resultsDiv.innerHTML = cats.map(c => `
+        <div onclick="selectEditAvulsoCategoria('${c.id}', '${(c.codigo ? c.codigo + ' - ' : '') + c.nome.replace(/'/g, "\\'")}')"
+            style="padding:0.55rem 0.8rem; font-size:0.78rem; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between;"
+            onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+            <span style="font-weight:700; color:#0f172a;">${c.codigo ? c.codigo + ' - ' : ''}${c.nome}</span>
+        </div>
+    `).join('');
+    resultsDiv.style.display = 'block';
+};
+
+window.selectEditAvulsoCategoria = function(id, name) {
+    const hidden = document.getElementById('edit-avulso-categoria');
+    const search = document.getElementById('edit-avulso-categoria-search');
+    if (hidden) hidden.value = id;
+    if (search) search.value = name;
+    const results = search?.closest('.autocomplete-wrapper')?.querySelector('.autocomplete-results');
+    if (results) results.style.display = 'none';
+};
+
+window._updateEditAvulsoCategorias = function() {
+    const hidden = document.getElementById('edit-avulso-categoria');
+    const search = document.getElementById('edit-avulso-categoria-search');
+    if (hidden) hidden.value = '';
+    if (search) search.value = '';
+};
+
+window.handleSaveEditAvulso = async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('edit-avulso-id')?.value;
+    const tipo = document.getElementById('edit-avulso-tipo')?.value;
+    const contaId = document.getElementById('edit-avulso-conta')?.value;
+    const catId = document.getElementById('edit-avulso-categoria')?.value;
+    const valor = parseFloat(document.getElementById('edit-avulso-valor')?.value) || 0;
+    const data = document.getElementById('edit-avulso-data')?.value;
+    const descricao = (document.getElementById('edit-avulso-descricao')?.value || '').trim();
+
+    if (!id) return;
+    if (!contaId) { showToast('Selecione a conta bancária.', 'error'); return; }
+    if (!catId) { showToast('Selecione o plano de contas/categoria.', 'error'); return; }
+    if (valor <= 0) { showToast('Informe um valor válido maior que zero.', 'error'); return; }
+    if (!data) { showToast('Informe a data do lançamento.', 'error'); return; }
+    if (!descricao) { showToast('Informe a descrição.', 'error'); return; }
+
+    const oldL = (state.lancamentos || []).find(item => item.id === id);
+    if (!oldL) { showToast('Lançamento original não encontrado.', 'error'); return; }
+
+    const novaConta = (state.contas || []).find(c => c.id === contaId);
+    const velhaConta = (state.contas || []).find(c => c.id === oldL.conta_bancaria_id);
+    if (!novaConta) { showToast('Conta bancária não encontrada.', 'error'); return; }
+
+    try {
+        const loggedUser = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
+
+        // 1. Reverter impacto antigo e aplicar novo nas contas
+        const oldFator = oldL.tipo === 'PAGAR' ? -1 : 1;
+        const oldValor = parseFloat(oldL.valor_pago) || parseFloat(oldL.valor_total) || 0;
+        
+        if (novaConta.id === velhaConta?.id) {
+            const novoFator = tipo === 'PAGAR' ? -1 : 1;
+            const saldoBase = (parseFloat(novaConta.saldo_atual) || 0) - (oldValor * oldFator);
+            const saldoFinal = saldoBase + (valor * novoFator);
+
+            const { error: errC } = await supabaseClient
+                .from('fin_contas_bancarias')
+                .update({ saldo_atual: saldoFinal })
+                .eq('id', novaConta.id);
+            if (errC) throw errC;
+            novaConta.saldo_atual = saldoFinal;
+        } else {
+            if (velhaConta) {
+                const saldoVelhaFinal = (parseFloat(velhaConta.saldo_atual) || 0) - (oldValor * oldFator);
+                await supabaseClient.from('fin_contas_bancarias').update({ saldo_atual: saldoVelhaFinal }).eq('id', velhaConta.id);
+                velhaConta.saldo_atual = saldoVelhaFinal;
+            }
+            const novoFator = tipo === 'PAGAR' ? -1 : 1;
+            const saldoNovaFinal = (parseFloat(novaConta.saldo_atual) || 0) + (valor * novoFator);
+            await supabaseClient.from('fin_contas_bancarias').update({ saldo_atual: saldoNovaFinal }).eq('id', novaConta.id);
+            novaConta.saldo_atual = saldoNovaFinal;
+        }
+
+        // 2. Atualiza fin_lancamentos
+        const logEdit = `[EDIÇÃO AVULSO (${formatDate(data)}) por ${loggedUser}]: Alterado de R$ ${oldValor.toFixed(2)} para R$ ${valor.toFixed(2)}`;
+        const updatePayload = {
+            tipo: tipo,
+            descricao: descricao,
+            entidade_nome: novaConta.nome,
+            valor_total: valor,
+            valor_pago: valor,
+            data_vencimento: data,
+            data_competencia: data,
+            data_pagamento: data,
+            data_emissao: data,
+            categoria_id: catId,
+            conta_bancaria_id: contaId,
+            status: 'PAGO',
+            observacoes: oldL.observacoes ? `${oldL.observacoes}\n${logEdit}` : logEdit
+        };
+
+        const { error: errL } = await supabaseClient
+            .from('fin_lancamentos')
+            .update(updatePayload)
+            .eq('id', id);
+        if (errL) throw errL;
+
+        // 3. Atualiza state local
+        Object.assign(oldL, updatePayload);
+
+        if (typeof registrarLog === 'function') {
+            registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Editou lançamento avulso (${tipo}): ${descricao} - Novo Valor: R$ ${valor} na conta ${novaConta.nome}`);
+        }
+
+        closeModal('editAvulsoModal');
+        _renderBancoSaldoCards();
+        await renderPagamentosPorBanco();
+        if (typeof renderFluxo === 'function') renderFluxo();
+        showToast('Lançamento avulso atualizado com sucesso!', 'success');
+
+    } catch (err) {
+        console.error('[handleSaveEditAvulso] Erro:', err);
+        showToast('Erro ao atualizar lançamento avulso: ' + (err.message || err), 'error');
+    }
+};
+
+window.deleteLancamentoAvulso = async function(id) {
+    const l = (state.lancamentos || []).find(item => item.id === id);
+    if (!l) {
+        showToast('Lançamento não encontrado.', 'error');
+        return;
+    }
+
+    const conta = (state.contas || []).find(c => c.id === l.conta_bancaria_id);
+    const valor = parseFloat(l.valor_pago) || parseFloat(l.valor_total) || 0;
+    const fator = l.tipo === 'PAGAR' ? -1 : 1;
+    const contaNome = conta ? conta.nome : 'Conta Bancária';
+
+    const confirmar = confirm(`Deseja realmente EXCLUIR este lançamento avulso?\n\n• Descrição: ${l.descricao}\n• Valor: ${formatCurrency(valor)}\n• Tipo: ${l.tipo === 'PAGAR' ? 'Saída/Tarifa' : 'Entrada/Rendimento'}\n• Conta: ${contaNome}\n\nO valor de ${formatCurrency(valor)} será estornado automaticamente no saldo bancário.`);
+    if (!confirmar) return;
+
+    try {
+        // 1. Estornar saldo da conta bancária
+        if (conta) {
+            const novoSaldo = (parseFloat(conta.saldo_atual) || 0) - (valor * fator);
+            const { error: errConta } = await supabaseClient
+                .from('fin_contas_bancarias')
+                .update({ saldo_atual: novoSaldo })
+                .eq('id', conta.id);
+            if (errConta) throw errConta;
+            conta.saldo_atual = novoSaldo;
+        }
+
+        // 2. Excluir de fin_lancamentos
+        const { error: errDel } = await supabaseClient
+            .from('fin_lancamentos')
+            .delete()
+            .eq('id', id);
+        if (errDel) throw errDel;
+
+        // 3. Atualizar state local
+        state.lancamentos = (state.lancamentos || []).filter(item => item.id !== id);
+
+        if (typeof registrarLog === 'function') {
+            registrarLog('financeiro', 'EXCLUSÃO', `DETALHE: Excluiu lançamento avulso (${l.tipo}): ${l.descricao} - Valor Estornado: R$ ${valor} na conta ${contaNome}`);
+        }
+
+        _renderBancoSaldoCards();
+        await renderPagamentosPorBanco();
+        if (typeof renderFluxo === 'function') renderFluxo();
+        showToast(`Lançamento excluído e saldo de ${formatCurrency(valor)} estornado com sucesso!`, 'success');
+
+    } catch (err) {
+        console.error('[deleteLancamentoAvulso] Erro:', err);
+        showToast('Erro ao excluir lançamento avulso: ' + (err.message || err), 'error');
+    }
+};
 
 /**
  * Alterna a expansão da tabela de Pagamentos por Banco entre o limite padrão (380px com scroll)
