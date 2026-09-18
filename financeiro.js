@@ -4706,14 +4706,26 @@ function renderConfig() {
         if (filteredFornecedores.length === 0) {
             fornList.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:2rem; color:var(--text-muted); font-size:0.85rem;">Nenhum fornecedor encontrado para a pesquisa.</td></tr>`;
         } else {
-            fornList.innerHTML = filteredFornecedores.map(f => `
+            fornList.innerHTML = filteredFornecedores.map(f => {
+                let planoBadge = '<span class="badge secondary" style="opacity:0.7;">Sem vínculo</span>';
+                if (f.plano_contas_id && state.categorias) {
+                    const cat = state.categorias.find(c => c.id === f.plano_contas_id);
+                    if (cat) {
+                        const label = (cat.codigo ? `${cat.codigo} - ` : '') + cat.nome;
+                        planoBadge = `<span class="badge" style="background:rgba(5, 150, 105, 0.12); color:#059669; border:1px solid rgba(5, 150, 105, 0.25); font-weight:700; font-size:0.75rem;">${label}</span>`;
+                    }
+                } else if (f.categoria) {
+                    planoBadge = `<span class="badge secondary">${f.categoria}</span>`;
+                }
+
+                return `
                 <tr>
                     <td style="font-weight:700">
                         ${f.nome}
                         ${f.nome_fantasia && f.nome_fantasia !== f.nome ? `<div style="font-size:0.75rem; color:var(--text-muted); font-weight:500;">${f.nome_fantasia}</div>` : ''}
                     </td>
                     <td>${f.cnpj_cpf || f.cnpj || f.doc || '-'}</td>
-                    <td><span class="badge secondary">${f.categoria || 'Geral'}</span></td>
+                    <td>${planoBadge}</td>
                     <td style="font-size:0.8rem">${f.contato || f.email || f.tel || '-'}</td>
                     <td>
                         <div class="table-actions">
@@ -4722,7 +4734,8 @@ function renderConfig() {
                         </div>
                     </td>
                 </tr>
-            `).join('');
+                `;
+            }).join('');
         }
     }
 
@@ -4911,14 +4924,135 @@ function openFornecedorModal(id = null) {
             document.getElementById('fCidade').value = forn.cidade || '';
             document.getElementById('fTel').value = maskTelefone(forn.tel || forn.contato || '');
             document.getElementById('fEmail').value = forn.email || '';
+
+            // Preenche Plano de Contas padrão vinculado
+            const planoHidden = document.getElementById('fornecedorPlanoId');
+            const planoSearch = document.getElementById('fornecedorPlanoSearch');
+            if (planoHidden && planoSearch) {
+                planoHidden.value = forn.plano_contas_id || '';
+                if (forn.plano_contas_id && state.categorias) {
+                    const cat = state.categorias.find(c => c.id === forn.plano_contas_id);
+                    planoSearch.value = cat ? ((cat.codigo ? `${cat.codigo} - ` : '') + cat.nome) : '';
+                } else {
+                    planoSearch.value = '';
+                }
+            }
         }
     } else {
         title.innerText = 'Cadastro de Fornecedor';
+        const planoHidden = document.getElementById('fornecedorPlanoId');
+        const planoSearch = document.getElementById('fornecedorPlanoSearch');
+        if (planoHidden) planoHidden.value = '';
+        if (planoSearch) planoSearch.value = '';
     }
 
     modal.classList.add('active');
     if (window.lucide) lucide.createIcons();
 }
+
+// Funções de busca e seleção de Plano de Contas no modal do Fornecedor
+window.handleFornecedorPlanoSearch = (el) => {
+    currentFinAutocompleteIndex = -1;
+    const query = el.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const resultsDiv = el.parentElement.querySelector('.autocomplete-results');
+    const hiddenId = document.getElementById('fornecedorPlanoId');
+    
+    if (el.value.trim() === '') {
+        if (hiddenId) hiddenId.value = '';
+    }
+
+    let matches = [];
+    if (query.length === 0) {
+        matches = [...(state.categorias || [])];
+        matches.sort((a, b) => {
+            const aCod = a.codigo || '';
+            const bCod = b.codigo || '';
+            return aCod.localeCompare(bCod, undefined, { numeric: true, sensitivity: 'base' });
+        });
+    } else {
+        const directMatches = (state.categorias || []).filter(c => {
+            const nameNorm = (c.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const cod = (c.codigo || '').toLowerCase();
+            return nameNorm.includes(query) || cod.includes(query);
+        });
+
+        const matchedIds = new Set();
+        directMatches.forEach(dm => {
+            matchedIds.add(dm.id);
+            if (dm.codigo) {
+                const parts = dm.codigo.split('.');
+                for (let i = 1; i < parts.length; i++) {
+                    const parentCode = parts.slice(0, i).join('.');
+                    const parentCat = (state.categorias || []).find(cat => cat.codigo === parentCode);
+                    if (parentCat) matchedIds.add(parentCat.id);
+                }
+            }
+            if (dm.codigo) {
+                (state.categorias || []).forEach(cat => {
+                    if (cat.codigo && cat.codigo.startsWith(dm.codigo + '.')) {
+                        matchedIds.add(cat.id);
+                    }
+                });
+            }
+        });
+
+        matches = (state.categorias || []).filter(c => matchedIds.has(c.id));
+        matches.sort((a, b) => {
+            const aCod = a.codigo || '';
+            const bCod = b.codigo || '';
+            return aCod.localeCompare(bCod, undefined, { numeric: true, sensitivity: 'base' });
+        });
+    }
+
+    if (matches.length === 0) {
+        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.75rem;">Nenhum plano de contas encontrado...</div>';
+    } else {
+        resultsDiv.innerHTML = matches.map(c => {
+            const label = (c.codigo ? `${c.codigo} - ` : '') + c.nome;
+            const level = c.codigo ? c.codigo.split('.').length - 1 : 0;
+            const indentStyle = `padding-left: ${1 + level * 1.2}rem;`;
+            const isParent = (state.categorias || []).some(cat => cat.parent_id === c.id || (cat.codigo && c.codigo && cat.codigo.startsWith(c.codigo + '.')));
+            
+            if (isParent) {
+                return `
+                    <div class="autocomplete-item" style="opacity: 0.6; cursor: not-allowed; background: rgba(255,255,255,0.02); font-weight: bold; border-left: 3px solid rgba(255,255,255,0.1); ${indentStyle}" onclick="event.stopPropagation();">
+                        <span class="prod-name" style="color: var(--text-muted);">${label} (Grupo)</span>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="autocomplete-item" style="${indentStyle}" onclick="selectFornecedorPlano('${c.id}', '${label.replace(/'/g, "\\'")}', this)">
+                        <span class="prod-name">${label}</span>
+                    </div>
+                `;
+            }
+        }).join('');
+    }
+    
+    positionFinDropdown(el, resultsDiv);
+    resultsDiv.style.display = 'block';
+};
+
+window.selectFornecedorPlano = (id, label, itemEl) => {
+    const wrapper = itemEl.closest('.autocomplete-wrapper');
+    const searchInput = document.getElementById('fornecedorPlanoSearch');
+    const hiddenId = document.getElementById('fornecedorPlanoId');
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
+
+    if (searchInput) searchInput.value = label;
+    if (hiddenId) hiddenId.value = id;
+    if (resultsDiv) {
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+    }
+};
+
+window.clearFornecedorPlano = () => {
+    const searchInput = document.getElementById('fornecedorPlanoSearch');
+    const hiddenId = document.getElementById('fornecedorPlanoId');
+    if (searchInput) searchInput.value = '';
+    if (hiddenId) hiddenId.value = '';
+};
 
 async function handleFornecedorSubmit(e) {
     e.preventDefault();
@@ -4927,6 +5061,9 @@ async function handleFornecedorSubmit(e) {
     const data = Object.fromEntries(formData.entries());
 
     delete data.id;
+    if (!data.plano_contas_id) {
+        data.plano_contas_id = null;
+    }
 
     try {
         if (id) {
@@ -6107,7 +6244,9 @@ window.handleFinEntidadeSearch = (el) => {
 
     // 1. Fornecedores
     const fornecedoresList = (state.fornecedores || []).map(f => ({
-        id: f.nome,
+        id: f.id || f.nome,
+        fId: f.id,
+        plano_contas_id: f.plano_contas_id || null,
         nome: f.nome,
         fantasia: f.nome_fantasia || '',
         doc: f.cnpj_cpf || f.cnpj || f.cpf || '',
@@ -6277,6 +6416,25 @@ window.selectFinEntidade = (nome, itemEl) => {
     if (resultsDiv) {
         resultsDiv.style.display = 'none';
         resultsDiv.innerHTML = '';
+    }
+
+    // Auto-preenchimento do Plano de Contas padrão do Fornecedor
+    try {
+        if (state.fornecedores && state.fornecedores.length > 0) {
+            const forn = state.fornecedores.find(f => (f.nome || '').trim().toLowerCase() === (nome || '').trim().toLowerCase());
+            if (forn && forn.plano_contas_id && state.categorias) {
+                const cat = state.categorias.find(c => c.id === forn.plano_contas_id);
+                if (cat) {
+                    const catSearch = document.getElementById('entryCategoriaSearch');
+                    const catId = document.getElementById('entryCategoriaId');
+                    const catLabel = (cat.codigo ? `${cat.codigo} - ` : '') + cat.nome;
+                    if (catSearch) catSearch.value = catLabel;
+                    if (catId) catId.value = cat.id;
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Erro ao auto-preencher plano de contas do fornecedor:', err);
     }
 };
 

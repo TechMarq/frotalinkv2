@@ -589,6 +589,11 @@ window.openFornecedorModal = (id = null) => {
     form.reset();
     document.getElementById('editFornecedorId').value = '';
 
+    const fPlanoHidden = document.getElementById('fPlanoId');
+    const fPlanoSearch = document.getElementById('fPlanoSearch');
+    if (fPlanoHidden) fPlanoHidden.value = '';
+    if (fPlanoSearch) fPlanoSearch.value = '';
+
     if (id) {
         const f = config.fornecedores.find(x => x.id == id);
         if (f) {
@@ -601,6 +606,14 @@ window.openFornecedorModal = (id = null) => {
             document.getElementById('fCidade').value = f.cidade || '';
             document.getElementById('fTel').value = maskTelefone(f.tel || f.contato || '');
             document.getElementById('fEmail').value = f.email || '';
+
+            if (fPlanoHidden && fPlanoSearch) {
+                fPlanoHidden.value = f.plano_contas_id || '';
+                if (f.plano_contas_id && config.categorias) {
+                    const cat = config.categorias.find(c => c.id === f.plano_contas_id);
+                    fPlanoSearch.value = cat ? ((cat.codigo ? `${cat.codigo} - ` : '') + cat.nome) : '';
+                }
+            }
         }
     }
     if (window.lucide) lucide.createIcons();
@@ -608,6 +621,110 @@ window.openFornecedorModal = (id = null) => {
 
 window.closeFornecedorModal = () => {
     document.getElementById('fornecedorModal').classList.remove('active');
+};
+
+// Autocomplete de Plano de Contas no modal do Fornecedor em Compras
+window.handleFPlanoSearch = (el) => {
+    currentAutocompleteIndex = -1;
+    const query = el.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const resultsDiv = el.parentElement.querySelector('.autocomplete-results');
+    const hiddenId = document.getElementById('fPlanoId');
+    
+    if (el.value.trim() === '') {
+        if (hiddenId) hiddenId.value = '';
+    }
+
+    let matches = [];
+    if (query.length === 0) {
+        matches = (config.categorias || []).slice(0, 200);
+        matches.sort((a, b) => {
+            const aCod = a.codigo || '';
+            const bCod = b.codigo || '';
+            return aCod.localeCompare(bCod, undefined, { numeric: true, sensitivity: 'base' });
+        });
+    } else {
+        const directMatches = (config.categorias || []).filter(c => {
+            const nameNorm = (c.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const cod = (c.codigo || '').toLowerCase();
+            return nameNorm.includes(query) || cod.includes(query);
+        });
+
+        const matchedIds = new Set();
+        directMatches.forEach(dm => {
+            matchedIds.add(dm.id);
+            if (dm.codigo) {
+                const parts = dm.codigo.split('.');
+                for (let i = 1; i < parts.length; i++) {
+                    const parentCode = parts.slice(0, i).join('.');
+                    const parentCat = (config.categorias || []).find(cat => cat.codigo === parentCode);
+                    if (parentCat) matchedIds.add(parentCat.id);
+                }
+            }
+            if (dm.codigo) {
+                (config.categorias || []).forEach(cat => {
+                    if (cat.codigo && cat.codigo.startsWith(dm.codigo + '.')) {
+                        matchedIds.add(cat.id);
+                    }
+                });
+            }
+        });
+
+        matches = (config.categorias || []).filter(c => matchedIds.has(c.id));
+        matches.sort((a, b) => {
+            const aCod = a.codigo || '';
+            const bCod = b.codigo || '';
+            return aCod.localeCompare(bCod, undefined, { numeric: true, sensitivity: 'base' });
+        });
+    }
+
+    if (matches.length === 0) {
+        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.75rem;">Nenhuma categoria encontrada...</div>';
+    } else {
+        resultsDiv.innerHTML = matches.map(c => {
+            const label = (c.codigo ? `${c.codigo} - ` : '') + c.nome;
+            const level = c.codigo ? c.codigo.split('.').length - 1 : 0;
+            const indentStyle = `padding-left: ${1 + level * 1.2}rem;`;
+            const isParent = (config.categorias || []).some(cat => cat.parent_id === c.id || (cat.codigo && c.codigo && cat.codigo.startsWith(c.codigo + '.')));
+            
+            if (isParent) {
+                return `
+                    <div class="autocomplete-item" style="opacity: 0.6; cursor: not-allowed; background: rgba(255,255,255,0.02); font-weight: bold; border-left: 3px solid rgba(255,255,255,0.1); ${indentStyle}" onclick="event.stopPropagation();">
+                        <span class="prod-name" style="color: var(--text-muted);">${label} (Grupo)</span>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="autocomplete-item" style="${indentStyle}" onclick="selectFPlano('${c.id}', '${label.replace(/'/g, "\\'")}', this)">
+                        <span class="prod-name">${label}</span>
+                    </div>
+                `;
+            }
+        }).join('');
+    }
+    
+    positionDropdown(el, resultsDiv);
+    resultsDiv.style.display = 'block';
+};
+
+window.selectFPlano = (id, label, itemEl) => {
+    const wrapper = itemEl.closest('.autocomplete-wrapper');
+    const searchInput = document.getElementById('fPlanoSearch');
+    const hiddenId = document.getElementById('fPlanoId');
+    const resultsDiv = wrapper ? wrapper.querySelector('.autocomplete-results') : null;
+
+    if (searchInput) searchInput.value = label;
+    if (hiddenId) hiddenId.value = id;
+    if (resultsDiv) {
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+    }
+};
+
+window.clearFPlano = () => {
+    const searchInput = document.getElementById('fPlanoSearch');
+    const hiddenId = document.getElementById('fPlanoId');
+    if (searchInput) searchInput.value = '';
+    if (hiddenId) hiddenId.value = '';
 };
 
 async function handleSaveFornecedor(e) {
@@ -618,6 +735,8 @@ async function handleSaveFornecedor(e) {
         alert(`Você não tem permissão para ${isEditing ? 'editar' : 'cadastrar'} fornecedores.`);
         return;
     }
+    const fPlanoVal = document.getElementById('fPlanoId')?.value || null;
+
     const data = {
         nome: document.getElementById('fNome').value,
         nome_fantasia: document.getElementById('fNomeFantasia').value,
@@ -625,7 +744,8 @@ async function handleSaveFornecedor(e) {
         endereco: document.getElementById('fRua').value,
         cidade: document.getElementById('fCidade').value,
         contato: document.getElementById('fTel').value,
-        email: document.getElementById('fEmail').value
+        email: document.getElementById('fEmail').value,
+        plano_contas_id: fPlanoVal || null
     };
 
     if (supabaseClient) {
@@ -917,7 +1037,7 @@ function renderGenericTab(tab) {
     if (tab === 'fornecedores') { 
         data = config.fornecedores; 
         title = "Fornecedor"; 
-        extraCol = "<th>Documento</th><th>Cidade</th>";
+        extraCol = "<th>Documento</th><th>Plano de Contas</th><th>Cidade</th>";
     }
     else if (tab === 'custo') { 
         data = config.centrosCusto; 
@@ -938,7 +1058,14 @@ function renderGenericTab(tab) {
     list.innerHTML = filtered.map(d => {
         let cells = `<td data-label="ID">#${d.id}</td><td data-label="Nome / Descrição" style="font-weight:700;">${(d.parentId ? '<span style="color:var(--text-muted); font-size:0.8rem; margin-right:0.3rem;">↳</span>' : '') + d.nome}</td>`;
         if (tab === 'fornecedores') {
-            cells += `<td data-label="Documento">${d.cnpj_cpf || d.doc || '-'}</td><td data-label="Cidade">${d.cidade || '-'}</td>`;
+            let planoLabel = '<span style="color:var(--text-muted); font-size:0.75rem;">Sem vínculo</span>';
+            if (d.plano_contas_id && config.categorias) {
+                const cat = config.categorias.find(c => c.id === d.plano_contas_id);
+                if (cat) {
+                    planoLabel = `<span style="background:rgba(5, 150, 105, 0.12); color:#059669; border:1px solid rgba(5, 150, 105, 0.25); padding:2px 8px; border-radius:6px; font-weight:700; font-size:0.75rem;">${(cat.codigo ? `${cat.codigo} - ` : '') + cat.nome}</span>`;
+                }
+            }
+            cells += `<td data-label="Documento">${d.cnpj_cpf || d.doc || '-'}</td><td data-label="Plano de Contas">${planoLabel}</td><td data-label="Cidade">${d.cidade || '-'}</td>`;
         } else if (tab === 'custo') {
             cells += `<td data-label="Código"><span class="cod-badge">${d.cod || '-'}</span></td>`;
         }
@@ -2212,6 +2339,23 @@ window.selectFornecedor = (id, nome, itemEl) => {
     resultsDiv.style.display = 'none';
     resultsDiv.innerHTML = '';
     
+    // Auto-preenchimento do Plano de Contas padrão do Fornecedor
+    try {
+        const forn = (config.fornecedores || []).find(f => f.id == id);
+        if (forn && forn.plano_contas_id && config.categorias) {
+            const cat = config.categorias.find(c => c.id === forn.plano_contas_id);
+            if (cat) {
+                const catSearch = document.getElementById('categoriaSearch');
+                const catId = document.getElementById('categoriaId');
+                const catLabel = (cat.codigo ? `${cat.codigo} - ` : '') + cat.nome;
+                if (catSearch) catSearch.value = catLabel;
+                if (catId) catId.value = cat.id;
+            }
+        }
+    } catch (err) {
+        console.warn('Erro ao auto-preencher plano de contas do fornecedor em compras:', err);
+    }
+
     // Trigger duplicate check
     if (window.checkDuplicateNota) window.checkDuplicateNota();
 };
@@ -3152,6 +3296,11 @@ async function handleSaveCompra(e) {
                             if (itemError) {
                                 console.error("❌ Erro ao criar item de manutenção:", itemError);
                                 alert("Erro ao criar detalhe da manutenção: " + itemError.message);
+                                try {
+                                    await client.from('manutencoes').delete().eq('id', newMaint.id);
+                                } catch (delErr) {
+                                    console.warn("Aviso ao limpar cabeçalho órfão de manutenção:", delErr);
+                                }
                             }
                         }
                     } catch (err) {

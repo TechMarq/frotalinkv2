@@ -145,7 +145,7 @@ async function loadInitialData() {
             }
         }
 
-        state.manutencoes = mData || [];
+        state.manutencoes = (mData || []).filter(m => m.manutencao_itens && m.manutencao_itens.length > 0);
         state.manutencoes.forEach(m => {
             if (m.manutencao_itens) {
                 m.manutencao_itens.forEach(i => {
@@ -231,7 +231,7 @@ async function loadInitialData() {
                 }
 
                 if (refreshed) {
-                    state.manutencoes = refreshed;
+                    state.manutencoes = (refreshed || []).filter(m => m.manutencao_itens && m.manutencao_itens.length > 0);
                     state.manutencoes.forEach(m => {
                         if (m.manutencao_itens) {
                             m.manutencao_itens.forEach(i => {
@@ -621,6 +621,8 @@ function renderMaintTable() {
 
     // 1. Filtrar base pelos campos de busca (sem o filtro de pílula de status ainda)
     const baseFiltered = state.manutencoes.filter(m => {
+        if (!m.manutencao_itens || m.manutencao_itens.length === 0) return false;
+
         const placa = (m.veiculos?.placa || '').toUpperCase();
         if (placaFilter && placa !== placaFilter) return false;
 
@@ -1495,8 +1497,10 @@ window.openMaintModal = async (id = null) => {
                 const { data: items } = await supabaseClient.from('manutencao_itens').select('*').eq('manutencao_id', id);
                 state.currentMaintItems = (items || []).map(i => {
                     const cachedItem = (m.manutencao_itens || []).find(ci => ci.id === i.id);
+                    const tagMatch = (i.descricao || cachedItem?.descricao || '').match(/\[ID:[^\]]+\]/i);
                     return {
                         ...i,
+                        _original_compra_tag: tagMatch ? tagMatch[0] : null,
                         quantidade: i.quantidade !== undefined && i.quantidade !== null ? i.quantidade : (cachedItem?.quantidade || 1),
                         tipo_id: i.tipo_id || m?.tipo_id || null,
                         proxima_troca_km: i.proxima_troca_km != null ? i.proxima_troca_km : (cachedItem?.proxima_troca_km || null),
@@ -1741,6 +1745,30 @@ window.updateItemField = (id, field, value) => {
     const item = state.currentMaintItems.find(i => i.id === id);
     if (item) {
         item[field] = value;
+
+        if (field === 'controle_proxima_troca') {
+            if (value === 'NENHUMA') {
+                item.intervalo_km = null;
+                item.proxima_troca_km = null;
+                item.intervalo_meses = null;
+                item.proxima_troca_data = null;
+                item.km_ajustado_manualmente = false;
+                item.motivo_ajuste_km = null;
+                item.data_ajuste_km = null;
+                item.usuario_ajuste_km = null;
+            } else if (value === 'KM') {
+                item.intervalo_meses = null;
+                item.proxima_troca_data = null;
+            } else if (value === 'DATA') {
+                item.intervalo_km = null;
+                item.proxima_troca_km = null;
+                item.km_ajustado_manualmente = false;
+                item.motivo_ajuste_km = null;
+                item.data_ajuste_km = null;
+                item.usuario_ajuste_km = null;
+            }
+        }
+
         // Atualiza a previsão dinamicamente sem forçar re-render total do DOM (evita travar o tab)
         if (field === 'intervalo_km') {
             if (!item.km_ajustado_manualmente) {
@@ -1818,7 +1846,7 @@ window.closeAjusteKmModal = () => {
     if (modal) modal.classList.remove('active');
 };
 
-window.confirmarAjusteKm = (e) => {
+window.confirmarAjusteKm = async (e) => {
     if (e) e.preventDefault();
     const itemId = document.getElementById('ajuste_item_id').value;
     const novoKm = parseFloat(document.getElementById('ajuste_novo_km').value);
@@ -1843,6 +1871,56 @@ window.confirmarAjusteKm = (e) => {
     item.motivo_ajuste_km = motivo;
     item.data_ajuste_km = new Date().toISOString();
     item.usuario_ajuste_km = (window.currentUserAccess?.nome_completo || window.currentUserAccess?.nome || localStorage.getItem('user_email') || 'USUÁRIO').toUpperCase();
+
+    // Se o item já existe no banco de dados (não é temporário recém-adicionado no modal), persiste o ajuste imediatamente
+    if (itemId && !itemId.startsWith('temp_')) {
+        try {
+            const updatePayload = {
+                proxima_troca_km: novoKm,
+                km_ajustado_manualmente: true,
+                motivo_ajuste_km: motivo,
+                data_ajuste_km: item.data_ajuste_km,
+                usuario_ajuste_km: item.usuario_ajuste_km
+            };
+            const { error: itemUpdErr } = await supabaseClient.from('manutencao_itens').update(updatePayload).eq('id', itemId);
+            if (itemUpdErr) {
+                console.warn('[Ajuste KM] Erro ao persistir em manutencao_itens, tentando payload simplificado:', itemUpdErr);
+                await supabaseClient.from('manutencao_itens').update({ proxima_troca_km: novoKm }).eq('id', itemId);
+            }
+
+            const headerId = item.manutencao_id || state.editingId;
+            if (headerId) {
+                await supabaseClient.from('manutencoes').update({ proxima_troca_km: novoKm }).eq('id', headerId);
+            }
+
+            // Atualiza também no cache local de state.manutencoes para a tabela refletir imediatamente
+            state.manutencoes.forEach(m => {
+                if (m.id === headerId || (m.manutencao_itens || []).some(it => it.id === itemId)) {
+                    m.proxima_troca_km = novoKm;
+                    (m.manutencao_itens || []).forEach(it => {
+                        if (it.id === itemId) {
+                            it.proxima_troca_km = novoKm;
+                            it.km_ajustado_manualmente = true;
+                            it.motivo_ajuste_km = motivo;
+                            it.data_ajuste_km = item.data_ajuste_km;
+                            it.usuario_ajuste_km = item.usuario_ajuste_km;
+                        }
+                    });
+                }
+            });
+
+            const currentVehId = document.getElementById('maint_veiculo')?.value;
+            const vehObj = state.vehicles.find(v => v.id === currentVehId);
+            const placaStr = vehObj ? `${vehObj.placa} - ${vehObj.modelo}` : 'Veículo';
+            if (typeof window.registrarLog === 'function') {
+                window.registrarLog('manutencao', 'ALTERAÇÃO', `DETALHE: Ajustou manualmente o Próximo KM da manutenção [${placaStr}] - Item: ${item.descricao} - Novo Próximo KM: ${novoKm.toLocaleString('pt-BR')} KM - Motivo: ${motivo}`);
+            }
+
+            renderMaintTable();
+        } catch (dbErr) {
+            console.error('Erro ao gravar ajuste de KM no banco:', dbErr);
+        }
+    }
 
     closeAjusteKmModal();
     renderMaintItems();
@@ -1920,21 +1998,30 @@ function setupFormListeners() {
 
             try {
                 if (state.editingId) {
-                    const { data: savedHeader, error: hError } = await supabaseClient.from('manutencoes').update(header).eq('id', state.editingId).select().single();
+                    const firstItem = state.currentMaintItems[0];
+                    const headerUpdatePayload = {
+                        ...header,
+                        tipo_id: firstItem?.tipo_id && firstItem.tipo_id !== '' ? firstItem.tipo_id : null
+                    };
+
+                    const { data: savedHeader, error: hError } = await supabaseClient.from('manutencoes').update(headerUpdatePayload).eq('id', state.editingId).select().single();
                     if (hError) throw hError;
 
-                    await supabaseClient.from('manutencao_itens').delete().eq('manutencao_id', state.editingId);
+                    // Exclui itens antigos para reinserção consistente
+                    const { error: delErr } = await supabaseClient.from('manutencao_itens').delete().eq('manutencao_id', state.editingId);
+                    if (delErr) console.warn('[Manutenção] Aviso ao limpar itens anteriores:', delErr);
 
                     for (let idx = 0; idx < state.currentMaintItems.length; idx++) {
                         const item = state.currentMaintItems[idx];
                         let targetHeaderId = savedHeader.id;
 
                         if (idx > 0) {
-                            const { data: newH } = await supabaseClient.from('manutencoes').insert([{
+                            const { data: newH, error: newHErr } = await supabaseClient.from('manutencoes').insert([{
                                 ...header,
                                 tipo_id: item.tipo_id && item.tipo_id !== '' ? item.tipo_id : null,
                                 empresa_id: window.currentEmpresaId || null
                             }]).select().single();
+                            if (newHErr) throw newHErr;
                             if (newH) targetHeaderId = newH.id;
                         }
 
@@ -1967,46 +2054,54 @@ function setupFormListeners() {
                             }
                         }
 
+                        // Preserva a tag [ID:NC-xxxxxx] de compras original se ela existia no item
+                        let finalDescricao = item.descricao || '';
+                        const originalTagMatch = (item._original_compra_tag || '').match(/\[ID:[^\]]+\]/i);
+                        if (originalTagMatch && !finalDescricao.match(/\[ID:[^\]]+\]/i)) {
+                            finalDescricao = `${originalTagMatch[0]} ${finalDescricao}`.trim();
+                        }
+
+                        // OBS: A tabela manutencao_itens no Supabase NÃO possui as colunas 'quantidade' e 'tipo_id'
                         const itemPayload = {
                             manutencao_id: targetHeaderId,
-                            descricao: item.descricao,
-                            quantidade: parseFloat(item.quantidade) || 1,
-                            tipo_id: item.tipo_id && item.tipo_id !== '' ? item.tipo_id : null,
+                            descricao: finalDescricao,
                             acao_id: item.acao_id && item.acao_id !== '' ? item.acao_id : null,
-                            valor_pecas: 0,
-                            valor_servicos: 0,
-                            controle_proxima_troca: item.controle_proxima_troca,
-                            intervalo_km: parseFloat(item.intervalo_km) || null,
-                            intervalo_meses: parseInt(item.intervalo_meses) || null,
+                            valor_pecas: parseFloat(item.valor_pecas) || 0,
+                            valor_servicos: parseFloat(item.valor_servicos) || 0,
+                            controle_proxima_troca: item.controle_proxima_troca || 'NENHUMA',
+                            intervalo_km: item.controle_proxima_troca === 'KM' ? (parseFloat(item.intervalo_km) || null) : null,
+                            intervalo_meses: item.controle_proxima_troca === 'DATA' ? (parseInt(item.intervalo_meses) || null) : null,
                             proxima_troca_km,
                             proxima_troca_data,
-                            possui_garantia: item.possui_garantia,
-                            meses_garantia: parseInt(item.meses_garantia) || null,
-                            vencimento_garantia,
-                            origem_garantia: item.origem_garantia,
-                            origem_garantia_fornecedor_id: item.origem_garantia_fornecedor_id,
-                            km_ajustado_manualmente: item.km_ajustado_manualmente || false,
-                            motivo_ajuste_km: item.motivo_ajuste_km || null,
-                            data_ajuste_km: item.data_ajuste_km || null,
-                            usuario_ajuste_km: item.usuario_ajuste_km || null
+                            possui_garantia: !!item.possui_garantia,
+                            meses_garantia: item.possui_garantia ? (parseInt(item.meses_garantia) || null) : null,
+                            vencimento_garantia: item.possui_garantia ? vencimento_garantia : null,
+                            origem_garantia: item.possui_garantia ? (item.origem_garantia || null) : null,
+                            origem_garantia_fornecedor_id: item.possui_garantia ? (item.origem_garantia_fornecedor_id || null) : null,
+                            km_ajustado_manualmente: item.controle_proxima_troca === 'KM' ? (item.km_ajustado_manualmente || false) : false,
+                            motivo_ajuste_km: item.controle_proxima_troca === 'KM' ? (item.motivo_ajuste_km || null) : null,
+                            data_ajuste_km: item.controle_proxima_troca === 'KM' ? (item.data_ajuste_km || null) : null,
+                            usuario_ajuste_km: item.controle_proxima_troca === 'KM' ? (item.usuario_ajuste_km || null) : null
                         };
 
                         let { error: iError } = await supabaseClient.from('manutencao_itens').insert([itemPayload]);
-                        if (iError && (iError.message.includes('quantidade') || iError.message.includes('tipo_id') || iError.message.includes('motivo_ajuste_km') || iError.message.includes('km_ajustado_manualmente') || iError.message.includes('schema cache'))) {
-                            if (iError.message.includes('quantidade')) delete itemPayload.quantidade;
-                            if (iError.message.includes('tipo_id')) delete itemPayload.tipo_id;
-                            if (iError.message.includes('motivo_ajuste_km') || iError.message.includes('km_ajustado_manualmente') || iError.message.includes('schema cache')) {
-                                delete itemPayload.km_ajustado_manualmente;
-                                delete itemPayload.motivo_ajuste_km;
-                                delete itemPayload.data_ajuste_km;
-                                delete itemPayload.usuario_ajuste_km;
-                            }
-                            await supabaseClient.from('manutencao_itens').insert([itemPayload]);
+                        if (iError) {
+                            console.error('[Manutenção] Erro ao inserir item:', iError, itemPayload);
+                            // Fallback defensivo removendo campos opcionais se coluna não existir no cache
+                            const safePayload = { ...itemPayload };
+                            delete safePayload.km_ajustado_manualmente;
+                            delete safePayload.motivo_ajuste_km;
+                            delete safePayload.data_ajuste_km;
+                            delete safePayload.usuario_ajuste_km;
+                            const { error: fErr } = await supabaseClient.from('manutencao_itens').insert([safePayload]);
+                            if (fErr) throw fErr;
                         }
 
-                        if (proxima_troca_km) {
-                            await supabaseClient.from('manutencoes').update({ proxima_troca_km }).eq('id', targetHeaderId);
-                        }
+                        // Atualiza proxima_troca_km no cabeçalho (inclusive limpando com null quando NENHUMA)
+                        await supabaseClient.from('manutencoes').update({
+                            proxima_troca_km: proxima_troca_km || null,
+                            controle_proxima_troca: item.controle_proxima_troca || 'NENHUMA'
+                        }).eq('id', targetHeaderId);
 
                         if (item.km_ajustado_manualmente && item.motivo_ajuste_km) {
                             const vehObj = state.vehicles.find(v => v.id === header.veiculo_id);
@@ -2058,43 +2153,42 @@ function setupFormListeners() {
                         const itemPayload = {
                             manutencao_id: newH.id,
                             descricao: item.descricao,
-                            quantidade: parseFloat(item.quantidade) || 1,
-                            tipo_id: item.tipo_id && item.tipo_id !== '' ? item.tipo_id : null,
                             acao_id: item.acao_id && item.acao_id !== '' ? item.acao_id : null,
-                            valor_pecas: 0,
-                            valor_servicos: 0,
-                            controle_proxima_troca: item.controle_proxima_troca,
-                            intervalo_km: parseFloat(item.intervalo_km) || null,
-                            intervalo_meses: parseInt(item.intervalo_meses) || null,
+                            valor_pecas: parseFloat(item.valor_pecas) || 0,
+                            valor_servicos: parseFloat(item.valor_servicos) || 0,
+                            controle_proxima_troca: item.controle_proxima_troca || 'NENHUMA',
+                            intervalo_km: item.controle_proxima_troca === 'KM' ? (parseFloat(item.intervalo_km) || null) : null,
+                            intervalo_meses: item.controle_proxima_troca === 'DATA' ? (parseInt(item.intervalo_meses) || null) : null,
                             proxima_troca_km,
                             proxima_troca_data,
-                            possui_garantia: item.possui_garantia,
-                            meses_garantia: parseInt(item.meses_garantia) || null,
-                            vencimento_garantia,
-                            origem_garantia: item.origem_garantia,
-                            origem_garantia_fornecedor_id: item.origem_garantia_fornecedor_id,
-                            km_ajustado_manualmente: item.km_ajustado_manualmente || false,
-                            motivo_ajuste_km: item.motivo_ajuste_km || null,
-                            data_ajuste_km: item.data_ajuste_km || null,
-                            usuario_ajuste_km: item.usuario_ajuste_km || null
+                            possui_garantia: !!item.possui_garantia,
+                            meses_garantia: item.possui_garantia ? (parseInt(item.meses_garantia) || null) : null,
+                            vencimento_garantia: item.possui_garantia ? vencimento_garantia : null,
+                            origem_garantia: item.possui_garantia ? (item.origem_garantia || null) : null,
+                            origem_garantia_fornecedor_id: item.possui_garantia ? (item.origem_garantia_fornecedor_id || null) : null,
+                            km_ajustado_manualmente: item.controle_proxima_troca === 'KM' ? (item.km_ajustado_manualmente || false) : false,
+                            motivo_ajuste_km: item.controle_proxima_troca === 'KM' ? (item.motivo_ajuste_km || null) : null,
+                            data_ajuste_km: item.controle_proxima_troca === 'KM' ? (item.data_ajuste_km || null) : null,
+                            usuario_ajuste_km: item.controle_proxima_troca === 'KM' ? (item.usuario_ajuste_km || null) : null
                         };
 
                         let { error: iError } = await supabaseClient.from('manutencao_itens').insert([itemPayload]);
-                        if (iError && (iError.message.includes('quantidade') || iError.message.includes('tipo_id') || iError.message.includes('motivo_ajuste_km') || iError.message.includes('km_ajustado_manualmente') || iError.message.includes('schema cache'))) {
-                            if (iError.message.includes('quantidade')) delete itemPayload.quantidade;
-                            if (iError.message.includes('tipo_id')) delete itemPayload.tipo_id;
-                            if (iError.message.includes('motivo_ajuste_km') || iError.message.includes('km_ajustado_manualmente') || iError.message.includes('schema cache')) {
-                                delete itemPayload.km_ajustado_manualmente;
-                                delete itemPayload.motivo_ajuste_km;
-                                delete itemPayload.data_ajuste_km;
-                                delete itemPayload.usuario_ajuste_km;
-                            }
-                            await supabaseClient.from('manutencao_itens').insert([itemPayload]);
+                        if (iError) {
+                            console.error('[Manutenção] Erro ao inserir item:', iError, itemPayload);
+                            const safePayload = { ...itemPayload };
+                            delete safePayload.km_ajustado_manualmente;
+                            delete safePayload.motivo_ajuste_km;
+                            delete safePayload.data_ajuste_km;
+                            delete safePayload.usuario_ajuste_km;
+                            const { error: fErr } = await supabaseClient.from('manutencao_itens').insert([safePayload]);
+                            if (fErr) throw fErr;
                         }
 
-                        if (proxima_troca_km) {
-                            await supabaseClient.from('manutencoes').update({ proxima_troca_km }).eq('id', newH.id);
-                        }
+                        // Atualiza proxima_troca_km no cabeçalho
+                        await supabaseClient.from('manutencoes').update({
+                            proxima_troca_km: proxima_troca_km || null,
+                            controle_proxima_troca: item.controle_proxima_troca || 'NENHUMA'
+                        }).eq('id', newH.id);
 
                         if (item.km_ajustado_manualmente && item.motivo_ajuste_km) {
                             const vehObj = state.vehicles.find(v => v.id === header.veiculo_id);

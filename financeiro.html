@@ -766,7 +766,7 @@
                                     <tr>
                                         <th>Nome / Razão Social</th>
                                         <th>CNPJ/CPF</th>
-                                        <th>Categoria</th>
+                                        <th>Plano de Contas (Padrão)</th>
                                         <th>Contato</th>
                                         <th style="width: 100px;">Ações</th>
                                     </tr>
@@ -2047,6 +2047,30 @@
                         <label>E-mail Corporativo</label>
                         <input type="email" id="fEmail" name="email" class="compra-input"
                             placeholder="contato@fornecedor.com">
+                    </div>
+
+                    <div class="form-section-header" style="grid-column: 1 / -1;">Classificação Contábil</div>
+
+                    <div class="input-group" style="grid-column: 1 / -1;">
+                        <label>Plano de Contas Padrão (Tipo de Despesa)</label>
+                        <div class="input-with-btn" style="display:flex; gap:0.5rem; align-items:center;">
+                            <div class="autocomplete-wrapper" style="flex: 1;">
+                                <input type="text" id="fornecedorPlanoSearch" class="compra-input"
+                                    placeholder="Vincular plano de contas padrão (opcional)..." autocomplete="off"
+                                    oninput="handleFornecedorPlanoSearch(this)" onfocus="handleFornecedorPlanoSearch(this)"
+                                    onkeydown="handleFinAutocompleteKeydown(event, this)"
+                                    style="width: 100%; box-sizing: border-box;">
+                                <input type="hidden" name="plano_contas_id" id="fornecedorPlanoId">
+                                <div class="autocomplete-results"></div>
+                            </div>
+                            <button type="button" class="btn-secondary" onclick="clearFornecedorPlano()"
+                                title="Limpar plano vinculado" style="height:38px; padding:0 0.8rem; font-size:0.75rem; border-radius:8px; display:inline-flex; align-items:center; gap:0.3rem;">
+                                <i data-lucide="x" style="width:14px; height:14px;"></i> Limpar
+                            </button>
+                        </div>
+                        <small style="color:var(--text-muted); font-size:0.72rem; margin-top:0.3rem; display:block;">
+                            Ao vincular um plano de contas, ele será preenchido automaticamente ao lançar notas deste fornecedor no Financeiro e Compras.
+                        </small>
                     </div>
                 </div>
                 <div class="modal-footer">

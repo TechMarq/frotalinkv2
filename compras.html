@@ -1425,6 +1425,31 @@
                             class="compra-input"></div>
                     <div class="input-group" style="grid-column: 1 / -1;"><label>E-mail Corporativo</label><input
                             type="email" id="fEmail" class="compra-input"></div>
+
+                    <div class="form-section-header"
+                        style="grid-column: 1 / -1; font-weight:800; color:var(--primary); font-size:0.75rem; margin-top:1.5rem; text-transform:uppercase; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:0.5rem;">
+                        Classificação Contábil</div>
+                    <div class="input-group" style="grid-column: 1 / -1;">
+                        <label>Plano de Contas Padrão (Tipo de Despesa)</label>
+                        <div class="input-with-btn" style="display:flex; gap:0.5rem; align-items:center;">
+                            <div class="autocomplete-wrapper" style="flex: 1;">
+                                <input type="text" id="fPlanoSearch" class="compra-input"
+                                    placeholder="Vincular plano de contas padrão (opcional)..." autocomplete="off"
+                                    oninput="handleFPlanoSearch(this)" onfocus="handleFPlanoSearch(this)"
+                                    onkeydown="handleAutocompleteKeydown(event, this)"
+                                    style="width: 100%; box-sizing: border-box;">
+                                <input type="hidden" id="fPlanoId">
+                                <div class="autocomplete-results"></div>
+                            </div>
+                            <button type="button" class="btn" onclick="clearFPlano()"
+                                title="Limpar plano vinculado" style="height:38px; padding:0 0.8rem; font-size:0.75rem; background:rgba(255,255,255,0.08); color:white; border:1px solid rgba(255,255,255,0.15); border-radius:8px; display:inline-flex; align-items:center; gap:0.3rem; cursor:pointer;">
+                                &times; Limpar
+                            </button>
+                        </div>
+                        <small style="color:var(--text-muted); font-size:0.72rem; margin-top:0.3rem; display:block;">
+                            Ao vincular um plano de contas, ele será preenchido automaticamente ao lançar notas deste fornecedor no Compras e Financeiro.
+                        </small>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <a href="#" class="btn-cancel" onclick="closeFornecedorModal()">Cancelar</a>
