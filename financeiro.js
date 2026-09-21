@@ -23,6 +23,7 @@ const state = {
     veiculos: [],
     veiculosMap: {},
     compraPlacasMap: {},
+    finItensPlacasMap: {},
     periodoFluxo: new Date(),
     filtros: {
         PAGAR: { status: 'UNPAID', busca: '', categoria: '', origem: '', periodoTipo: 'VENCIMENTO', periodo: '', dataIni: '', dataFim: '' },
@@ -261,6 +262,48 @@ async function loadInitialData() {
             console.warn("Aviso ao carregar placas vinculadas a compras no Financeiro:", eComprasPlacas);
         }
 
+        // Carregar mapeamento de placas para itens lançados no próprio Financeiro (fin_lancamento_itens)
+        try {
+            state.finItensPlacasMap = {};
+            const finLancIds = [...new Set((state.lancamentos || []).map(l => l.id))];
+            if (finLancIds.length > 0) {
+                const chunkSize = 200;
+                for (let i = 0; i < finLancIds.length; i += chunkSize) {
+                    const chunk = finLancIds.slice(i, i + chunkSize);
+                    const { data: fItens, error: fItensErr } = await supabaseClient
+                        .from('fin_lancamento_itens')
+                        .select('lancamento_id, veiculo_id')
+                        .in('lancamento_id', chunk)
+                        .not('veiculo_id', 'is', null);
+
+                    if (fItensErr) {
+                        break;
+                    }
+                    if (fItens) {
+                        fItens.forEach(item => {
+                            if (!item.lancamento_id || !item.veiculo_id) return;
+                            const vObj = state.veiculosMap[item.veiculo_id];
+                            if (vObj && vObj.placa) {
+                                if (!state.finItensPlacasMap[item.lancamento_id]) {
+                                    state.finItensPlacasMap[item.lancamento_id] = [];
+                                }
+                                const exists = state.finItensPlacasMap[item.lancamento_id].some(x => x.placa === vObj.placa);
+                                if (!exists) {
+                                    state.finItensPlacasMap[item.lancamento_id].push({
+                                        id: vObj.id,
+                                        placa: vObj.placa,
+                                        modelo: vObj.modelo || ''
+                                    });
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        } catch (eFinPlacas) {
+            console.warn("Aviso ao carregar placas de itens do Financeiro:", eFinPlacas);
+        }
+
         updateDropdowns();
         renderAll();
     } catch (err) {
@@ -436,6 +479,36 @@ function getPlacasLancamento(l) {
         }
     }
 
+    // 3. Placas vinculadas nos itens do próprio lançamento (fin_lancamento_itens)
+    if (l.id && state.finItensPlacasMap && state.finItensPlacasMap[l.id]) {
+        state.finItensPlacasMap[l.id].forEach(item => {
+            if (item && item.placa && !placas.some(p => p.placa === item.placa)) {
+                placas.push(item);
+            }
+        });
+    }
+
+    // 4. Herança de placas via pai_id caso seja parcela vinculada
+    if (l.pai_id) {
+        if (state.finItensPlacasMap && state.finItensPlacasMap[l.pai_id]) {
+            state.finItensPlacasMap[l.pai_id].forEach(item => {
+                if (item && item.placa && !placas.some(p => p.placa === item.placa)) {
+                    placas.push(item);
+                }
+            });
+        }
+        const parentLanc = (state.lancamentos || []).find(p => p.id === l.pai_id);
+        if (parentLanc) {
+            const parentDirectVeic = parentLanc.veiculo_id || parentLanc.vinculo_veiculo_id;
+            if (parentDirectVeic && state.veiculosMap && state.veiculosMap[parentDirectVeic]) {
+                const vp = state.veiculosMap[parentDirectVeic];
+                if (vp && vp.placa && !placas.some(p => p.placa === vp.placa)) {
+                    placas.push({ id: vp.id, placa: vp.placa, modelo: vp.modelo || '' });
+                }
+            }
+        }
+    }
+
     return placas;
 }
 
@@ -561,7 +634,8 @@ function renderLancamentos(tipo) {
                     });
                 }
 
-                const matchTexto = entidade.includes(b) || (numNf && numNf.includes(b)) || matchPlaca;
+                const matchCheque = (l.numero_cheque || '').toLowerCase().includes(b);
+                const matchTexto = entidade.includes(b) || (numNf && numNf.includes(b)) || matchPlaca || matchCheque;
                 
                 let matchValor = false;
                 if (!isNaN(numVal) && numSearch !== '') {
@@ -594,6 +668,7 @@ function renderLancamentos(tipo) {
                     (l.entidade_nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(b) ||
                     (l.codigo_sequencial || '').toLowerCase().includes(b) ||
                     (l.num_nf || '').toLowerCase().includes(b) ||
+                    (l.numero_cheque || '').toLowerCase().includes(b) ||
                     matchPlaca;
             });
         }
@@ -695,7 +770,7 @@ function renderLancamentos(tipo) {
                         <div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-weight:700; cursor:pointer;" title="Clique para visualizar os detalhes">${l.entidade_nome || '-'}</div>
                     </td>
                     <td data-label="Descrição">
-                        ${l.num_nf ? `<div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px; cursor:pointer;" title="Clique para visualizar os detalhes">NF/Doc: ${l.num_nf}${l.serie_nf ? ' (Série ' + l.serie_nf + ')' : ''}</div>` : ''}
+                        ${l.num_nf ? `<div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px; cursor:pointer;" title="Clique para visualizar os detalhes">NF/Doc: ${l.num_nf}</div>` : ''}
                         <div style="font-size:0.85rem">${l.descricao}</div>
                     </td>
                     <td data-label="Tipo/Pgto">
@@ -769,7 +844,7 @@ function renderLancamentos(tipo) {
                     <div style="font-size:0.7rem; color:var(--text-muted)">${l.recorrencia !== 'NAO' ? '<i data-lucide="repeat" style="width:10px"></i> Recorrência' : ''}</div>
                 </td>
                 <td data-label="Descrição">
-                    ${l.num_nf ? `<div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px; cursor:pointer;" title="Clique para visualizar os detalhes">NF/Doc: ${l.num_nf}${l.serie_nf ? ' (Série ' + l.serie_nf + ')' : ''}</div>` : ''}
+                    ${l.num_nf ? `<div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px; cursor:pointer;" title="Clique para visualizar os detalhes">NF/Doc: ${l.num_nf}</div>` : ''}
                     <div>${l.descricao}</div>
                     ${(() => {
                         const lPlacas = getPlacasLancamento(l);
@@ -1590,10 +1665,28 @@ async function openEntryModal(tipo, id = null) {
         });
     }
 
+    // Popular select de Conta Bancária para Cheque
+    const cbSelect = document.getElementById('entryContaBancaria');
+    if (cbSelect) {
+        cbSelect.innerHTML = '<option value="">Selecione a conta bancária...</option>' + 
+            (state.contas || []).map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+    }
+
     if (id) {
         const item = state.lancamentos.find(l => l.id === id);
         if (item) {
             populateForm(form, item);
+
+            // Tratar forma de pagamento e campos de cheque
+            const isCheque = (item.forma_pagamento || '').toUpperCase() === 'CHEQUE';
+            if (typeof window.handleFinFormaPgtoChange === 'function') {
+                window.handleFinFormaPgtoChange(item.forma_pagamento || 'BOLETO');
+            }
+            if (isCheque) {
+                if (cbSelect && item.conta_bancaria_id) cbSelect.value = item.conta_bancaria_id;
+                const numChequeInput = document.getElementById('entryNumCheque');
+                if (numChequeInput) numChequeInput.value = item.numero_cheque || '';
+            }
 
             // Carregar itens do banco
             try {
@@ -1626,21 +1719,67 @@ async function openEntryModal(tipo, id = null) {
                 // Carregar parcelas
                 const { data: parc } = await supabaseClient.from('fin_lancamento_parcelas').select('*').eq('lancamento_id', id).order('numero_parcela');
                 if (parc && parc.length > 1) {
+                    const isChequeParc = (item.forma_pagamento || '').toUpperCase() === 'CHEQUE';
                     document.getElementById('qtdParcelas').value = item.qtd_parcelas;
                     document.getElementById('installmentsWrapper').style.display = 'block';
-                    document.getElementById('installmentsContainer').innerHTML = parc.map((p, idx) => `
-                        <div class="installment-row" data-index="${idx}" style="display: grid; grid-template-columns: 70px 1.1fr 1fr; gap: 1rem; margin-bottom: 0.6rem; align-items: center; background: rgba(255,255,255,0.03); padding: 0.65rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); transition: border-color 0.2s;">
+
+                    const chequeWrap = document.getElementById('chequeFieldsWrapper');
+                    if (chequeWrap && isChequeParc) chequeWrap.style.display = 'none';
+
+                    const headerLabels = document.getElementById('installmentsHeaderLabels');
+                    if (headerLabels) {
+                        if (isChequeParc) {
+                            headerLabels.style.gridTemplateColumns = '45px 1.1fr 1fr 1.3fr 1fr';
+                            headerLabels.style.gap = '0.8rem';
+                            headerLabels.innerHTML = `
+                                <div>Nº</div>
+                                <div>Data de Vencimento</div>
+                                <div>Valor da Parcela</div>
+                                <div>Conta Bancária (Emissão) <span style="color:#ef4444;">*</span></div>
+                                <div>Nº do Cheque <span style="color:#ef4444;">*</span></div>
+                            `;
+                        } else {
+                            headerLabels.style.gridTemplateColumns = '70px 1.1fr 1fr';
+                            headerLabels.style.gap = '1rem';
+                            headerLabels.innerHTML = `
+                                <div>Nº</div>
+                                <div>Data de Vencimento</div>
+                                <div>Valor da Parcela</div>
+                            `;
+                        }
+                    }
+
+                    document.getElementById('installmentsContainer').innerHTML = parc.map((p, idx) => {
+                        const rowContaId = p.conta_bancaria_id || item.conta_bancaria_id || '';
+                        const contasOptions = (state.contas || []).map(c => 
+                            `<option value="${c.id}" ${c.id === rowContaId ? 'selected' : ''}>${c.nome}</option>`
+                        ).join('');
+
+                        return `
+                        <div class="installment-row" data-index="${idx}" style="${isChequeParc ? 'display: grid; grid-template-columns: 45px 1.1fr 1fr 1.3fr 1fr; gap: 0.8rem;' : 'display: grid; grid-template-columns: 70px 1.1fr 1fr; gap: 1rem;'} margin-bottom: 0.6rem; align-items: center; background: rgba(255,255,255,0.03); padding: 0.65rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); transition: border-color 0.2s;">
                             <div style="font-weight: 800; color: #818cf8; font-size: 0.85rem; padding-left: 4px;">#${p.numero_parcela}</div>
                             <div class="input-group" style="margin:0;">
-                                <input type="date" class="financeiro-input parc-date" value="${p.data_vencimento}">
+                                <input type="date" class="financeiro-input parc-date" value="${p.data_vencimento}"
+                                    oninput="window.onInstallmentDateChange(${idx})" onchange="window.onInstallmentDateChange(${idx})">
                             </div>
                             <div class="input-group" style="margin:0;">
                                 <input type="text" inputmode="decimal" class="financeiro-input parc-val" value="${p.valor}"
                                     placeholder="0,00"
                                     oninput="window.onInstallmentValueChange(${idx})" onchange="window.onInstallmentValueChange(${idx})">
                             </div>
+                            ${isChequeParc ? `
+                            <div class="input-group" style="margin:0;">
+                                <select class="financeiro-input parc-conta" title="Conta bancária da parcela #${idx + 1}" required>
+                                    <option value="">Selecione a conta...</option>
+                                    ${contasOptions}
+                                </select>
+                            </div>
+                            <div class="input-group" style="margin:0;">
+                                <input type="text" class="financeiro-input parc-cheque" value="${p.numero_cheque || ''}" placeholder="Nº Cheque #${idx + 1}" title="Número da folha de cheque da parcela #${idx + 1}" required>
+                            </div>` : ''}
                         </div>
-                    `).join('');
+                    `;
+                    }).join('');
                     if (window.lucide) lucide.createIcons();
                     setTimeout(updateInstallmentsSummary, 300);
                 }
@@ -1655,6 +1794,12 @@ async function openEntryModal(tipo, id = null) {
         document.getElementById('entryEntidade').value = '';
         document.getElementById('entryCategoriaSearch').value = '';
         document.getElementById('entryCategoriaId').value = '';
+        if (typeof window.handleFinFormaPgtoChange === 'function') {
+            window.handleFinFormaPgtoChange('BOLETO');
+        }
+        const numChequeInput = document.getElementById('entryNumCheque');
+        if (numChequeInput) numChequeInput.value = '';
+        if (cbSelect) cbSelect.value = '';
         addFinItemRow(); // Inicia com uma linha vazia
     }
 
@@ -1676,8 +1821,17 @@ async function openEntryModal(tipo, id = null) {
 }
 
 async function editEntry(id, tipo) {
-    const item = state.lancamentos.find(l => l.id === id);
+    let item = state.lancamentos.find(l => l.id === id);
     if (!item) return;
+
+    // Se for parcela vinculada (filha), abre a nota completa pelo lançamento pai
+    if (item.pai_id) {
+        const parentItem = state.lancamentos.find(l => l.id === item.pai_id);
+        if (parentItem) {
+            id = parentItem.id;
+            item = parentItem;
+        }
+    }
 
     // Bloqueio de segurança: Lançamentos integrados de outros módulos (Compras, Manutenção, etc.)
     const isIntegrado = item.origem_modulo && item.origem_modulo !== 'MANUAL' && item.origem_modulo !== 'FINANCEIRO';
@@ -1733,7 +1887,6 @@ function populateForm(form, item) {
 
     if (document.getElementById('entryLoja')) document.getElementById('entryLoja').value = item.loja_unidade || '';
     if (document.getElementById('entryNumNF')) document.getElementById('entryNumNF').value = item.num_nf || '';
-    if (document.getElementById('entrySerieNF')) document.getElementById('entrySerieNF').value = item.serie_nf || '';
     if (document.getElementById('entryEmissao')) document.getElementById('entryEmissao').value = item.data_emissao || '';
 }
 
@@ -1803,22 +1956,209 @@ function confirmPin() {
     }
 }
 
+// --- Modal de Decisão de Exclusão de Parcela (FrotaLink Design) ---
+function promptParcelaDeleteChoice(entry, sisterLancamentos) {
+    return new Promise((resolve) => {
+        const modalId = 'modalParcelaDeleteChoiceOverlay';
+        let overlay = document.getElementById(modalId);
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = modalId;
+            overlay.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); z-index:10001; align-items:center; justify-content:center; padding:1rem; font-family:"Inter",sans-serif;';
+            document.body.appendChild(overlay);
+        }
+
+        const count = sisterLancamentos.length;
+        const totalVal = sisterLancamentos.reduce((acc, c) => acc + (parseFloat(c.valor_total) || 0), 0);
+        const entryVal = parseFloat(entry.valor_total) || 0;
+
+        overlay.innerHTML = `
+            <div style="background:#0d1322; border:1px solid rgba(255,255,255,0.08); border-radius:20px; width:100%; max-width:480px; padding:2rem 1.75rem; text-align:center; box-shadow:0 25px 50px -12px rgba(0,0,0,0.8); display:flex; flex-direction:column; align-items:center; animation:sysModalFadeIn 0.2s ease-out;">
+                
+                <div style="width:56px; height:56px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:1.25rem; background:rgba(239, 68, 68, 0.12); border:1px solid rgba(239, 68, 68, 0.3); color:#ef4444;">
+                    <i data-lucide="alert-triangle" style="width:28px; height:28px;"></i>
+                </div>
+
+                <h3 style="font-size:1.25rem; font-weight:800; color:#ffffff; margin-bottom:0.4rem; letter-spacing:-0.02em;">Excluir Parcela</h3>
+                
+                <div style="font-size:0.88rem; color:#94a3b8; line-height:1.5; margin-bottom:1.25rem; text-align:center; width:100%;">
+                    Este lançamento faz parte de uma nota parcelada em <strong style="color:#ffffff;">${count} parcelas</strong>.
+                    <div style="margin-top:0.75rem; padding:0.75rem 1rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; text-align:left; font-size:0.8rem; font-family:'JetBrains Mono', monospace;">
+                        <div style="color:var(--text-muted); font-size:0.72rem; text-transform:uppercase;">Parcela Selecionada:</div>
+                        <div style="color:#ffffff; font-weight:700; margin-top:2px;">${entry.codigo_sequencial || '-'} • ${entry.descricao || ''}</div>
+                        <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.78rem;">
+                            <span>Valor desta parcela: <strong style="color:#38bdf8;">${formatCurrency(entryVal)}</strong></span>
+                            <span>Total da nota: <strong style="color:#10b981;">${formatCurrency(totalVal)}</strong></span>
+                        </div>
+                    </div>
+                    <div style="margin-top:1rem; font-size:0.85rem; color:#cbd5e1;">Como você deseja prosseguir com a exclusão?</div>
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:0.6rem; width:100%;">
+                    <button id="btnDeleteSingleParcel" style="width:100%; padding:0.75rem 1rem; background:rgba(245, 158, 11, 0.12); border:1px solid rgba(245, 158, 11, 0.35); border-radius:10px; color:#fbbf24; font-size:0.85rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px;" onmouseover="this.style.background='rgba(245, 158, 11, 0.25)'" onmouseout="this.style.background='rgba(245, 158, 11, 0.12)'">
+                        <i data-lucide="file-minus" style="width:16px; height:16px;"></i>
+                        Excluir Apenas Esta Parcela
+                    </button>
+
+                    <button id="btnDeleteAllParcels" style="width:100%; padding:0.75rem 1rem; background:#dc2626; border:none; border-radius:10px; color:#ffffff; font-size:0.85rem; font-weight:800; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 12px rgba(220,38,38,0.3);" onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">
+                        <i data-lucide="trash-2" style="width:16px; height:16px;"></i>
+                        Excluir Todas as ${count} Parcelas da Nota
+                    </button>
+
+                    <button id="btnCancelDeleteParcel" style="width:100%; height:38px; background:transparent; border:1px solid #334155; border-radius:10px; color:#94a3b8; font-size:0.82rem; font-weight:700; cursor:pointer; transition:all 0.2s; margin-top:0.25rem;" onmouseover="this.style.color='#ffffff'; this.style.borderColor='#64748b';" onmouseout="this.style.color='#94a3b8'; this.style.borderColor='#334155';">
+                        CANCELAR
+                    </button>
+                </div>
+            </div>
+        `;
+
+        overlay.style.display = 'flex';
+        if (window.lucide) lucide.createIcons();
+
+        document.getElementById('btnDeleteSingleParcel').onclick = () => {
+            overlay.style.display = 'none';
+            resolve('SINGLE');
+        };
+
+        document.getElementById('btnDeleteAllParcels').onclick = () => {
+            overlay.style.display = 'none';
+            resolve('ALL');
+        };
+
+        document.getElementById('btnCancelDeleteParcel').onclick = () => {
+            overlay.style.display = 'none';
+            resolve('CANCEL');
+        };
+    });
+}
+
 async function deleteEntry(id) {
     if (!id) return;
-    const l = state.lancamentos.find(item => item.id === id);
-    if (l) {
-        const mod = l.tipo === 'RECEBER' ? 'financeiro_receber' : 'financeiro_pagar';
-        if (typeof canDo === 'function' && !canDo(mod, 'delete')) {
-            showToast('Você não tem permissão para esta ação.', 'error');
-            return;
+    let l = state.lancamentos.find(item => item.id === id);
+    if (!l) {
+        try {
+            const { data: dbL } = await supabaseClient.from('fin_lancamentos').select('*').eq('id', id).maybeSingle();
+            l = dbL;
+        } catch (_) {}
+    }
+    if (!l) return;
+
+    const mod = l.tipo === 'RECEBER' ? 'financeiro_receber' : 'financeiro_pagar';
+    if (typeof canDo === 'function' && !canDo(mod, 'delete')) {
+        showToast('Você não tem permissão para esta ação.', 'error');
+        return;
+    }
+
+    // Identificar se faz parte de uma nota com múltiplas parcelas vinculadas
+    const parentId = l.pai_id || l.id;
+    let sisterLancamentos = [];
+
+    try {
+        const { data: sisters } = await supabaseClient
+            .from('fin_lancamentos')
+            .select('id, codigo_sequencial, pai_id, descricao, valor_total, data_vencimento, status, compra_id')
+            .or(`id.eq.${parentId},pai_id.eq.${parentId}`)
+            .order('data_vencimento', { ascending: true });
+        
+        if (sisters && sisters.length > 0) {
+            sisterLancamentos = sisters;
         }
+    } catch (err) {
+        console.warn('Erro ao consultar parcelas vinculadas:', err);
+    }
+
+    let deleteMode = 'SINGLE'; // 'SINGLE' | 'ALL'
+    if (sisterLancamentos.length > 1) {
+        const choice = await promptParcelaDeleteChoice(l, sisterLancamentos);
+        if (choice === 'CANCEL') return;
+        deleteMode = choice;
     }
     
     openPinModal(async () => {
         try {
-            const { error } = await supabaseClient.from('fin_lancamentos').delete().eq('id', id);
-            if (error) throw error;
-            if (typeof registrarLog === 'function') registrarLog('financeiro', 'EXCLUSÃO', `DETALHE: Excluiu lançamento ${l ? l.tipo : ''}: ${l ? l.descricao : id} (Valor: R$ ${l ? l.valor_total : 0})`);
+            if (typeof window.showLoader === 'function') window.showLoader();
+
+            if (deleteMode === 'ALL' && sisterLancamentos.length > 1) {
+                // Excluir todas as parcelas vinculadas
+                const childIds = sisterLancamentos.filter(s => s.id !== parentId).map(s => s.id);
+                if (childIds.length > 0) {
+                    await supabaseClient.from('fin_lancamentos').delete().in('id', childIds);
+                }
+                const { error } = await supabaseClient.from('fin_lancamentos').delete().eq('id', parentId);
+                if (error) throw error;
+
+                if (typeof registrarLog === 'function') {
+                    registrarLog('financeiro', 'EXCLUSÃO', `DETALHE: Excluiu todas as ${sisterLancamentos.length} parcelas do lançamento ${l.tipo}: ${parentId} (${l.descricao})`);
+                }
+            } else {
+                // Excluir APENAS esta parcela
+                if (l.id === parentId && sisterLancamentos.length > 1) {
+                    // O lançamento a ser excluído é o PAI da estrutura.
+                    // Para evitar que ON DELETE CASCADE apague os filhos no Postgres:
+                    const remainingChildren = sisterLancamentos.filter(s => s.id !== parentId);
+                    const newParent = remainingChildren[0];
+
+                    // 1. Promover o primeiro filho para ser o novo pai (pai_id: null)
+                    await supabaseClient
+                        .from('fin_lancamentos')
+                        .update({ pai_id: null, is_parcelado: remainingChildren.length > 1 })
+                        .eq('id', newParent.id);
+
+                    // 2. Re-vincular os demais filhos ao novo pai
+                    const otherChildrenIds = remainingChildren.slice(1).map(c => c.id);
+                    if (otherChildrenIds.length > 0) {
+                        await supabaseClient
+                            .from('fin_lancamentos')
+                            .update({ pai_id: newParent.id })
+                            .in('id', otherChildrenIds);
+                    }
+
+                    // 3. Re-vincular o cronograma de parcelas ao novo pai e remover a linha da parcela excluída
+                    await supabaseClient
+                        .from('fin_lancamento_parcelas')
+                        .update({ lancamento_id: newParent.id })
+                        .eq('lancamento_id', parentId);
+
+                    const { data: parcsDb } = await supabaseClient
+                        .from('fin_lancamento_parcelas')
+                        .select('id, numero_parcela, data_vencimento, valor')
+                        .eq('lancamento_id', newParent.id);
+
+                    if (parcsDb && parcsDb.length > 0) {
+                        const match = parcsDb.find(p => p.numero_parcela === 1 || (p.data_vencimento === l.data_vencimento && Math.abs(parseFloat(p.valor) - parseFloat(l.valor_total)) < 0.01));
+                        if (match) {
+                            await supabaseClient.from('fin_lancamento_parcelas').delete().eq('id', match.id);
+                        }
+                    }
+
+                    // 4. Agora pode apagar o antigo pai com total segurança
+                    const { error } = await supabaseClient.from('fin_lancamentos').delete().eq('id', parentId);
+                    if (error) throw error;
+                } else {
+                    // É uma parcela filha ou lançamento avulso
+                    const { error } = await supabaseClient.from('fin_lancamentos').delete().eq('id', l.id);
+                    if (error) throw error;
+
+                    // Remover linha correspondente em fin_lancamento_parcelas se existir
+                    if (parentId) {
+                        const { data: parcsDb } = await supabaseClient
+                            .from('fin_lancamento_parcelas')
+                            .select('id, numero_parcela, data_vencimento, valor')
+                            .eq('lancamento_id', parentId);
+
+                        if (parcsDb && parcsDb.length > 0) {
+                            const match = parcsDb.find(p => p.data_vencimento === l.data_vencimento && Math.abs(parseFloat(p.valor) - parseFloat(l.valor_total)) < 0.01);
+                            if (match) {
+                                await supabaseClient.from('fin_lancamento_parcelas').delete().eq('id', match.id);
+                            }
+                        }
+                    }
+                }
+
+                if (typeof registrarLog === 'function') {
+                    registrarLog('financeiro', 'EXCLUSÃO', `DETALHE: Excluiu lançamento ${l ? l.tipo : ''}: ${l ? l.descricao : id} (Valor: R$ ${l ? l.valor_total : 0})`);
+                }
+            }
             
             // Reverter integrado_financeiro se for o último lançamento daquela compra
             if (l && l.compra_id) {
@@ -1856,12 +2196,15 @@ async function deleteEntry(id) {
 
             await loadInitialData();
             renderAll();
-            showToast('Lançamento excluído com sucesso!', 'success');
+            showToast(deleteMode === 'ALL' ? 'Todas as parcelas foram excluídas com sucesso!' : 'Lançamento excluído com sucesso!', 'success');
             
             // Fecha o modal de edição se estiver aberto
             closeModal('entryModal');
         } catch (err) { 
+            console.error('Erro ao excluir lançamento:', err);
             showToast('Erro ao excluir: ' + err.message, 'error'); 
+        } finally {
+            if (typeof window.hideLoader === 'function') window.hideLoader();
         }
     });
 }
@@ -2575,6 +2918,15 @@ async function handleEntrySubmit(e) {
     if (!elForma || !elForma.value) markError(elForma, 'Forma de Pagamento');
     if (!elVencimento || !elVencimento.value) markError(elVencimento, 'Data de Vencimento');
 
+    const formaPgtoVal = elForma?.value;
+    const isChequeForma = formaPgtoVal === 'CHEQUE';
+    if (isChequeForma && qtdParcVal <= 1) {
+        const elContaBancaria = document.getElementById('entryContaBancaria');
+        const elNumCheque = document.getElementById('entryNumCheque');
+        if (!elContaBancaria || !elContaBancaria.value) markError(elContaBancaria, 'Conta Bancária (Emissão do Cheque)');
+        if (!elNumCheque || !elNumCheque.value.trim()) markError(elNumCheque, 'Número do Cheque');
+    }
+
     // Validação das Parcelas Individuais (quando parcelado)
     if (qtdParcVal > 1) {
         const parcRows = document.querySelectorAll('#installmentsContainer .installment-row');
@@ -2583,6 +2935,13 @@ async function handleEntrySubmit(e) {
             const parcValEl = row.querySelector('.parc-val');
             if (!parcDateEl || !parcDateEl.value) markError(parcDateEl, `Parcela #${idx + 1}: Vencimento`);
             if (!parcValEl || parseFloat(parcValEl.value) <= 0) markError(parcValEl, `Parcela #${idx + 1}: Valor`);
+
+            if (isChequeForma) {
+                const parcContaEl = row.querySelector('.parc-conta');
+                const parcChequeEl = row.querySelector('.parc-cheque');
+                if (!parcContaEl || !parcContaEl.value) markError(parcContaEl, `Parcela #${idx + 1}: Conta Bancária do Cheque`);
+                if (!parcChequeEl || !parcChequeEl.value.trim()) markError(parcChequeEl, `Parcela #${idx + 1}: Número do Cheque`);
+            }
         });
     }
 
@@ -2625,19 +2984,67 @@ async function handleEntrySubmit(e) {
     const formData = new FormData(e.target);
     const id = document.getElementById('entryId').value;
     const tipo = document.getElementById('entryTipo').value || 'PAGAR';
+    const numNFVal = (formData.get('num_nf') || '').trim();
+
+    // Validação de Duplicidade de Nota Fiscal / Documento para o mesmo Favorecido/Fornecedor
+    if (numNFVal && entidadeNome) {
+        try {
+            let dupQuery = supabaseClient
+                .from('fin_lancamentos')
+                .select('id, num_nf, entidade_nome, status, pai_id')
+                .eq('tipo', tipo)
+                .ilike('num_nf', numNFVal)
+                .ilike('entidade_nome', entidadeNome);
+
+            if (id) {
+                // Na edição, desconsidera o próprio lançamento e suas parcelas irmãs/filhas
+                dupQuery = dupQuery.neq('id', id).neq('pai_id', id);
+            }
+
+            const { data: dups, error: dupErr } = await dupQuery.limit(5);
+
+            if (dupErr) {
+                console.warn('Aviso ao consultar duplicidade de notas:', dupErr);
+            } else if (dups && dups.length > 0) {
+                // Filtrar caso alguma das duplicatas encontradas seja a mãe deste ID caso o id atual seja filha
+                const trueDups = dups.filter(d => d.id !== id && d.pai_id !== id);
+                if (trueDups.length > 0) {
+                    showToast(`A nota fiscal/documento "${numNFVal}" já está lançada para "${entidadeNome}".`, 'error');
+                    alert(`Nota Já Lançada!\n\nO número de documento/nota "${numNFVal}" já foi cadastrado para o favorecido "${entidadeNome}".\n\nNão é permitido cadastrar documentos duplicados para o mesmo fornecedor/favorecido.`);
+                    markError(elNumNF, 'Número Nota / Documento (Já existe para este fornecedor)');
+                    elNumNF.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    elNumNF.focus();
+                    return;
+                }
+            }
+        } catch (chkErr) {
+            console.error('Erro na checagem de nota duplicada:', chkErr);
+        }
+    }
+
     const qtdParcelas = parseInt(document.getElementById('qtdParcelas').value) || 1;
     const isParcelado = qtdParcelas > 1;
 
     const firstItemDesc = document.querySelector('.item-desc')?.value || 'Lançamento sem itens';
+    const firstParcConta = document.querySelector('#installmentsContainer .installment-row .parc-conta')?.value || null;
+    const firstParcCheque = document.querySelector('#installmentsContainer .installment-row .parc-cheque')?.value || null;
+
+    const mainContaBancaria = isChequeForma 
+        ? (qtdParcelas > 1 ? firstParcConta : (formData.get('conta_bancaria_id') || null)) 
+        : null;
+    const mainNumCheque = isChequeForma 
+        ? (qtdParcelas > 1 ? firstParcCheque : (formData.get('numero_cheque') || null)) 
+        : null;
+
     const mainRecord = {
         data_emissao: formData.get('data_emissao'),
         num_nf: formData.get('num_nf'),
-        serie_nf: formData.get('serie_nf'),
         entidade_nome: entidadeNome,
         categoria_id: catId,
-        forma_pagamento: formData.get('forma_pagamento'),
+        forma_pagamento: formaPgtoVal,
         data_vencimento: formData.get('data_vencimento'),
-        conta_bancaria_id: formData.get('conta_bancaria_id') || null,
+        conta_bancaria_id: mainContaBancaria,
+        numero_cheque: mainNumCheque,
         observacoes: formData.get('observacoes') || '',
         valor_total: finalTotal,
         descricao: firstItemDesc,
@@ -2649,78 +3056,250 @@ async function handleEntrySubmit(e) {
 
     try {
         let lancamentoId = id;
+        let allLancamentoIds = [];
 
         if (id) {
             // Edição de registro existente
-            const { error: upErr } = await supabaseClient.from('fin_lancamentos').update(mainRecord).eq('id', id);
-            if (upErr) throw upErr;
-            if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Editou lançamento (${mainRecord.tipo}): ${mainRecord.descricao} - Fornecedor/Entidade: ${mainRecord.entidade_nome} (Valor: R$ ${mainRecord.valor_total})`);
-            await supabaseClient.from('fin_lancamento_itens').delete().eq('lancamento_id', id);
+            if (isParcelado) {
+                // Edição de lançamento parcelado
+                const installmentRows = document.querySelectorAll('#installmentsContainer .installment-row');
+                const totalParcs = installmentRows.length || qtdParcelas;
+
+                // 1ª parcela (Pai)
+                const row1 = installmentRows[0];
+                const parc1Venc = row1 ? row1.querySelector('.parc-date').value : formData.get('data_vencimento');
+                const parc1Val = row1 ? (parseFinNumber(row1.querySelector('.parc-val')?.value) || (finalTotal / totalParcs)) : finalTotal;
+                const parc1Conta = isChequeForma && row1 ? (row1.querySelector('.parc-conta')?.value || null) : null;
+                const parc1Cheque = isChequeForma && row1 ? (row1.querySelector('.parc-cheque')?.value || null) : null;
+
+                const parentUpdate = {
+                    ...mainRecord,
+                    descricao: `${firstItemDesc} (Parc 1/${totalParcs})`,
+                    data_vencimento: parc1Venc,
+                    valor_total: parc1Val,
+                    conta_bancaria_id: parc1Conta,
+                    numero_cheque: parc1Cheque,
+                    is_parcelado: true,
+                    qtd_parcelas: totalParcs,
+                    pai_id: null
+                };
+
+                const { error: upErr } = await supabaseClient.from('fin_lancamentos').update(parentUpdate).eq('id', id);
+                if (upErr) throw upErr;
+                allLancamentoIds.push(id);
+
+                // Buscar irmãs existentes
+                const { data: existingSisters } = await supabaseClient
+                    .from('fin_lancamentos')
+                    .select('id')
+                    .eq('pai_id', id)
+                    .order('created_at', { ascending: true });
+
+                const sisters = existingSisters || [];
+
+                for (let idx = 1; idx < installmentRows.length; idx++) {
+                    const row = installmentRows[idx];
+                    const parcNum = idx + 1;
+                    const pVenc = row.querySelector('.parc-date').value;
+                    const pVal = parseFinNumber(row.querySelector('.parc-val')?.value) || (finalTotal / totalParcs);
+                    const pConta = isChequeForma ? (row.querySelector('.parc-conta')?.value || null) : null;
+                    const pCheque = isChequeForma ? (row.querySelector('.parc-cheque')?.value || null) : null;
+
+                    const sisterData = {
+                        ...mainRecord,
+                        descricao: `${firstItemDesc} (Parc ${parcNum}/${totalParcs})`,
+                        data_vencimento: pVenc,
+                        valor_total: pVal,
+                        conta_bancaria_id: pConta,
+                        numero_cheque: pCheque,
+                        is_parcelado: true,
+                        qtd_parcelas: totalParcs,
+                        pai_id: id,
+                        status: 'ABERTO'
+                    };
+
+                    const sisterIndex = idx - 1;
+                    if (sisterIndex < sisters.length) {
+                        const sisterId = sisters[sisterIndex].id;
+                        await supabaseClient.from('fin_lancamentos').update(sisterData).eq('id', sisterId);
+                        allLancamentoIds.push(sisterId);
+                    } else {
+                        const { data: insertedSister, error: inSisterErr } = await supabaseClient
+                            .from('fin_lancamentos')
+                            .insert([sisterData])
+                            .select()
+                            .single();
+                        if (inSisterErr) throw inSisterErr;
+                        if (insertedSister) allLancamentoIds.push(insertedSister.id);
+                    }
+                }
+
+                // Se diminuiu parcelas, remove as excedentes
+                const neededSistersCount = totalParcs - 1;
+                if (sisters.length > neededSistersCount) {
+                    const sistersToDelete = sisters.slice(neededSistersCount).map(s => s.id);
+                    if (sistersToDelete.length > 0) {
+                        await supabaseClient.from('fin_lancamentos').delete().in('id', sistersToDelete);
+                    }
+                }
+            } else {
+                // Edição de registro não parcelado
+                const { error: upErr } = await supabaseClient.from('fin_lancamentos').update(mainRecord).eq('id', id);
+                if (upErr) throw upErr;
+                allLancamentoIds.push(id);
+            }
+
+            if (typeof registrarLog === 'function') {
+                registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Editou lançamento (${mainRecord.tipo}): ${mainRecord.descricao} - Fornecedor/Entidade: ${mainRecord.entidade_nome} (Valor Total: R$ ${finalTotal})`);
+            }
+
+            // Deletar itens antigos de todos os lançamentos do grupo
+            if (allLancamentoIds.length > 0) {
+                await supabaseClient.from('fin_lancamento_itens').delete().in('lancamento_id', allLancamentoIds);
+            }
             await supabaseClient.from('fin_lancamento_adicionais').delete().eq('lancamento_id', id);
             await supabaseClient.from('fin_lancamento_descontos').delete().eq('lancamento_id', id);
             await supabaseClient.from('fin_lancamento_parcelas').delete().eq('lancamento_id', id);
         } else if (isParcelado) {
-            // Novo lançamento parcelado: cria 1 registro individual em fin_lancamentos para cada parcela
+            // Novo lançamento parcelado: cria 1 registro pai para a 1ª parcela e filhas com pai_id
             const installmentRows = document.querySelectorAll('#installmentsContainer .installment-row');
             const totalParcs = installmentRows.length || qtdParcelas;
-            const recordsToInsert = [];
 
-            installmentRows.forEach((row, idx) => {
+            // 1ª parcela (Pai)
+            const row1 = installmentRows[0];
+            const parc1Venc = row1 ? row1.querySelector('.parc-date').value : formData.get('data_vencimento');
+            const parc1Val = row1 ? (parseFinNumber(row1.querySelector('.parc-val')?.value) || (finalTotal / totalParcs)) : finalTotal;
+            const parc1Conta = isChequeForma && row1 ? (row1.querySelector('.parc-conta')?.value || null) : null;
+            const parc1Cheque = isChequeForma && row1 ? (row1.querySelector('.parc-cheque')?.value || null) : null;
+
+            const parentRecord = {
+                ...mainRecord,
+                descricao: `${firstItemDesc} (Parc 1/${totalParcs})`,
+                data_vencimento: parc1Venc,
+                valor_total: parc1Val,
+                conta_bancaria_id: parc1Conta,
+                numero_cheque: parc1Cheque,
+                is_parcelado: true,
+                qtd_parcelas: totalParcs,
+                pai_id: null,
+                status: 'ABERTO'
+            };
+
+            const { data: parentInserted, error: pErr } = await supabaseClient
+                .from('fin_lancamentos')
+                .insert([parentRecord])
+                .select()
+                .single();
+
+            if (pErr) throw pErr;
+            lancamentoId = parentInserted.id;
+            allLancamentoIds.push(parentInserted.id);
+
+            // Parcelas 2..N (Filhas vinculadas via pai_id)
+            const sisterRecords = [];
+            for (let idx = 1; idx < installmentRows.length; idx++) {
+                const row = installmentRows[idx];
                 const parcNum = idx + 1;
-                const parcVenc = row.querySelector('.parc-date').value;
-                const parcVal = parseFinNumber(row.querySelector('.parc-val')?.value) || (finalTotal / totalParcs);
+                const pVenc = row.querySelector('.parc-date').value;
+                const pVal = parseFinNumber(row.querySelector('.parc-val')?.value) || (finalTotal / totalParcs);
+                const pConta = isChequeForma ? (row.querySelector('.parc-conta')?.value || null) : null;
+                const pCheque = isChequeForma ? (row.querySelector('.parc-cheque')?.value || null) : null;
 
-                recordsToInsert.push({
+                sisterRecords.push({
                     ...mainRecord,
                     descricao: `${firstItemDesc} (Parc ${parcNum}/${totalParcs})`,
-                    data_vencimento: parcVenc,
-                    valor_total: parcVal,
+                    data_vencimento: pVenc,
+                    valor_total: pVal,
+                    conta_bancaria_id: pConta,
+                    numero_cheque: pCheque,
                     is_parcelado: true,
                     qtd_parcelas: totalParcs,
+                    pai_id: lancamentoId,
                     status: 'ABERTO'
                 });
-            });
+            }
 
-            const { data: insertedList, error: inErr } = await supabaseClient.from('fin_lancamentos').insert(recordsToInsert).select();
-            if (inErr) throw inErr;
-            if (typeof registrarLog === 'function') registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Lançou ${recordsToInsert.length} parcelas para (${mainRecord.tipo.toLowerCase()}): ${firstItemDesc} - Entidade: ${mainRecord.entidade_nome}`);
-            if (insertedList && insertedList.length > 0) lancamentoId = insertedList[0].id;
+            if (sisterRecords.length > 0) {
+                const { data: insertedSisters, error: sErr } = await supabaseClient
+                    .from('fin_lancamentos')
+                    .insert(sisterRecords)
+                    .select();
+                if (sErr) throw sErr;
+                if (insertedSisters) {
+                    insertedSisters.forEach(s => allLancamentoIds.push(s.id));
+                }
+            }
+
+            if (typeof registrarLog === 'function') {
+                registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Lançou ${allLancamentoIds.length} parcelas vinculadas para (${mainRecord.tipo.toLowerCase()}): ${firstItemDesc} - Entidade: ${mainRecord.entidade_nome}`);
+            }
         } else {
             // Novo lançamento único (não parcelado)
             const { data: inserted, error: inErr } = await supabaseClient.from('fin_lancamentos').insert([mainRecord]).select().single();
             if (inErr) throw inErr;
-            if (typeof registrarLog === 'function') registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Lançou ${mainRecord.tipo.toLowerCase()}: ${mainRecord.descricao} - Fornecedor/Entidade: ${mainRecord.entidade_nome} (Valor: R$ ${mainRecord.valor_total})`);
             lancamentoId = inserted.id;
+            allLancamentoIds.push(inserted.id);
+            if (typeof registrarLog === 'function') {
+                registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Lançou ${mainRecord.tipo.toLowerCase()}: ${mainRecord.descricao} - Fornecedor/Entidade: ${mainRecord.entidade_nome} (Valor: R$ ${mainRecord.valor_total})`);
+            }
         }
 
-        // 3. Salvar Itens (Peças/Serviços)
-        const itens = [];
+        // 3. Salvar Itens (Peças/Serviços) - Replicados para todas as parcelas da nota
+        const rawItens = [];
         document.querySelectorAll('#itemsContainer .item-row-v2').forEach(row => {
             const desc = row.querySelector('.item-desc').value.trim();
             const qtd = parseFloat(row.querySelector('.item-qtd').value) || 0;
             const unit = parseFloat(row.querySelector('.item-unit').value) || 0;
             const ccEl = row.querySelector('.item-cc');
+            const veicId = row.querySelector('.item-veiculo-id')?.value || null;
             
             if (desc || unit > 0) {
-                itens.push({
-                    lancamento_id: lancamentoId,
+                rawItens.push({
                     descricao: desc,
                     tipo: row.querySelector('.item-tipo')?.value || 'SERVICO',
                     quantidade: qtd || 1,
                     valor_unitario: unit,
-                    centro_custo_id: ccEl ? (ccEl.value || null) : null
+                    centro_custo_id: ccEl ? (ccEl.value || null) : null,
+                    veiculo_id: veicId
                 });
             }
         });
 
-        console.log("Tentando salvar itens detalhados:", itens);
-        if (itens.length > 0) {
-            const { error: itemErr } = await supabaseClient
+        console.log("Tentando salvar itens detalhados para os IDs:", allLancamentoIds, rawItens);
+        if (rawItens.length > 0) {
+            const itensToInsert = [];
+            allLancamentoIds.forEach(targetLancId => {
+                rawItens.forEach(itemTemplate => {
+                    itensToInsert.push({
+                        ...itemTemplate,
+                        lancamento_id: targetLancId
+                    });
+                });
+            });
+
+            let { error: itemErr } = await supabaseClient
                 .from('fin_lancamento_itens')
-                .insert(itens);
+                .insert(itensToInsert);
+
+            if (itemErr && (itemErr.message?.includes('veiculo_id') || itemErr.code === 'PGRST204')) {
+                console.warn("Coluna veiculo_id ausente em fin_lancamento_itens. Salvando itens sem a coluna...", itemErr);
+                const itensFallback = itensToInsert.map(({ veiculo_id, ...resto }) => resto);
+                const fallbackRes = await supabaseClient
+                    .from('fin_lancamento_itens')
+                    .insert(itensFallback);
+                if (fallbackRes.error) {
+                    console.error("Erro no fallback de itens:", fallbackRes.error);
+                    throw fallbackRes.error;
+                }
+                itemErr = null;
+                if (typeof showToast === 'function') {
+                    showToast("Lançamento salvo! Para gravar a placa, execute o SQL veiculo_id no Supabase.", "warning");
+                }
+            }
+
             if (itemErr) {
                 console.error("Erro crítico ao salvar itens:", itemErr);
-                throw new Error("Falha ao salvar itens detalhados.");
+                throw new Error("Falha ao salvar itens detalhados: " + (itemErr.message || ''));
             }
         }
 
@@ -2770,11 +3349,15 @@ async function handleEntrySubmit(e) {
         if (isParcelado) {
             const parcelas = [];
             document.querySelectorAll('#installmentsContainer .installment-row').forEach((row, idx) => {
+                const pConta = isChequeForma ? (row.querySelector('.parc-conta')?.value || null) : null;
+                const pCheque = isChequeForma ? (row.querySelector('.parc-cheque')?.value || null) : null;
                 parcelas.push({
                     lancamento_id: lancamentoId,
                     numero_parcela: idx + 1,
                     data_vencimento: row.querySelector('.parc-date').value,
                     valor: parseFloat(row.querySelector('.parc-val').value) || 0,
+                    numero_cheque: pCheque || null,
+                    conta_bancaria_id: pConta || null,
                     status: 'ABERTO'
                 });
             });
@@ -2961,11 +3544,7 @@ async function openPaymentModal(id) {
         document.getElementById('payValorDiferenca').value = '0';
     }
 
-    const selectConta = document.getElementById('payConta');
-    selectConta.innerHTML = state.contas.map(c => `<option value="${c.id}">${c.nome} (Saldo: ${formatCurrency(c.saldo_atual)})</option>`).join('');
-    if (l.conta_bancaria_id) selectConta.value = l.conta_bancaria_id;
-
-    // Popula o select de Forma de Pagamento com as formas cadastradas no sistema
+    // 1. Bloqueia a Forma de Pagamento e garante que ela reflete exatamente o que foi lançado
     const selectForma = document.getElementById('payForma');
     if (selectForma) {
         let formas = state.formasPagamento || [];
@@ -2982,22 +3561,61 @@ async function openPaymentModal(id) {
         }
 
         if (formas.length > 0) {
-            selectForma.innerHTML = formas.map(f => {
-                const val = f.nome;
-                return `<option value="${val}">${f.nome}</option>`;
-            }).join('');
-
-            // Tenta selecionar a forma já definida no lançamento
-            if (l.forma_pagamento) {
-                const formaUpper = l.forma_pagamento.toUpperCase();
-                const matched = formas.find(f => f.nome.toUpperCase() === formaUpper || f.nome.toUpperCase().includes(formaUpper) || formaUpper.includes(f.nome.toUpperCase()));
-                if (matched) {
-                    selectForma.value = matched.nome;
-                } else {
-                    selectForma.value = l.forma_pagamento;
-                }
+            selectForma.innerHTML = formas.map(f => `<option value="${f.nome}">${f.nome}</option>`).join('');
+            if (!formas.some(f => (f.nome || '').toUpperCase() === 'CHEQUE')) {
+                selectForma.innerHTML += `<option value="CHEQUE">Cheque</option>`;
+            }
+            if (!formas.some(f => (f.nome || '').toUpperCase() === 'DINHEIRO')) {
+                selectForma.innerHTML += `<option value="DINHEIRO">Dinheiro</option>`;
             }
         }
+
+        if (l.forma_pagamento) {
+            const formaUpper = l.forma_pagamento.toUpperCase();
+            const matched = Array.from(selectForma.options).find(opt => opt.value.toUpperCase() === formaUpper || opt.text.toUpperCase() === formaUpper);
+            if (matched) {
+                selectForma.value = matched.value;
+            } else {
+                selectForma.value = l.forma_pagamento;
+            }
+        }
+        selectForma.disabled = true;
+        selectForma.style.opacity = '0.9';
+        selectForma.style.cursor = 'not-allowed';
+        selectForma.style.background = 'rgba(0,0,0,0.2)';
+    }
+
+    // 2. Tratar Cheque vs Outras Formas
+    const isCheque = (l.forma_pagamento || '').toUpperCase() === 'CHEQUE';
+    const chequeInfoWrapper = document.getElementById('payChequeInfoWrapper');
+    const chequeNumDisplay = document.getElementById('payChequeNumDisplay');
+
+    if (isCheque) {
+        if (chequeInfoWrapper) chequeInfoWrapper.style.display = 'flex';
+        if (chequeNumDisplay) chequeNumDisplay.innerText = l.numero_cheque ? `#${l.numero_cheque}` : 'Não informado';
+    } else {
+        if (chequeInfoWrapper) chequeInfoWrapper.style.display = 'none';
+    }
+
+    const selectConta = document.getElementById('payConta');
+    const contasOptions = state.contas.map(c => `<option value="${c.id}">${c.nome} (Saldo: ${formatCurrency(c.saldo_atual)})</option>`).join('');
+
+    if (isCheque) {
+        // Se for cheque: conta já vem preenchida com o banco vinculado e travada
+        selectConta.innerHTML = contasOptions;
+        if (l.conta_bancaria_id) selectConta.value = l.conta_bancaria_id;
+        selectConta.disabled = true;
+        selectConta.style.opacity = '0.9';
+        selectConta.style.cursor = 'not-allowed';
+        selectConta.style.background = 'rgba(0,0,0,0.2)';
+    } else {
+        // Se for PIX, Boleto, etc.: conta inicia sem preencher e é obrigatório o usuário escolher
+        selectConta.innerHTML = `<option value="">Selecione a conta de origem/destino...</option>` + contasOptions;
+        selectConta.value = '';
+        selectConta.disabled = false;
+        selectConta.style.opacity = '1';
+        selectConta.style.cursor = 'default';
+        selectConta.style.background = '';
     }
 
     // Cálculo do Valor Líquido (se houver tributos) vs Valor Bruto
@@ -3029,42 +3647,48 @@ async function openPaymentModal(id) {
     if (payValEsperadoLabel) payValEsperadoLabel.innerText = l.tipo === 'RECEBER' ? 'Valor Líquido a Receber:' : 'Valor a Pagar:';
     if (payValEsperadoText) payValEsperadoText.innerText = formatCurrency(currentPayExpectedValue);
 
-    // Verificar se possui parcelas no banco
-    currentModalParcelas = [];
+    // Ocultar sempre o seletor de parcelas: cada linha da tabela já representa sua parcela individual
     const parcelaGroup = document.getElementById('payParcelaGroup');
-    const parcelaSelect = document.getElementById('payParcelaSelect');
+    if (parcelaGroup) parcelaGroup.style.display = 'none';
+    const payValorEl = document.getElementById('payValor');
+    if (payValorEl) payValorEl.value = currentPayExpectedValue.toFixed(2);
 
-    try {
-        const { data: parc } = await supabaseClient
-            .from('fin_lancamento_parcelas')
-            .select('*')
-            .eq('lancamento_id', l.id)
-            .order('numero_parcela');
+    // Se for cheque e o lançamento não tiver conta/número de cheque explícito, busca na parcela correspondente
+    if (isCheque && (!l.numero_cheque || !l.conta_bancaria_id)) {
+        try {
+            const parentId = l.pai_id || l.id;
+            const { data: parcs } = await supabaseClient
+                .from('fin_lancamento_parcelas')
+                .select('*')
+                .eq('lancamento_id', parentId)
+                .order('numero_parcela');
 
-        if (parc && parc.length > 0) {
-            currentModalParcelas = parc;
-            const parcelasAbertas = parc.filter(p => p.status !== 'PAGO');
+            if (parcs && parcs.length > 0) {
+                let target = null;
+                if (!l.pai_id) {
+                    target = parcs.find(p => p.numero_parcela === 1) || parcs[0];
+                } else {
+                    target = parcs.find(p => p.data_vencimento === l.data_vencimento && Math.abs(parseFloat(p.valor) - bruto) < 0.05);
+                    if (!target) {
+                        const matchDesc = (l.descricao || '').match(/Parc\s+(\d+)\//i);
+                        if (matchDesc && matchDesc[1]) {
+                            target = parcs.find(p => p.numero_parcela === parseInt(matchDesc[1]));
+                        }
+                    }
+                }
 
-            if (parcelasAbertas.length > 0) {
-                parcelaGroup.style.display = 'block';
-                parcelaSelect.innerHTML = `<option value="">-- Quitar Lançamento / Valor Livre --</option>` +
-                    parcelasAbertas.map(p => `<option value="${p.id}" data-val="${p.valor}">Parcela #${p.numero_parcela} - Venc: ${formatDate(p.data_vencimento)} (${formatCurrency(p.valor)})</option>`).join('');
-
-                parcelaSelect.value = parcelasAbertas[0].id;
-                currentPayExpectedValue = Math.round((parseFloat(parcelasAbertas[0].valor) || 0) * 100) / 100;
-                document.getElementById('payValor').value = currentPayExpectedValue.toFixed(2);
-            } else {
-                parcelaGroup.style.display = 'none';
-                document.getElementById('payValor').value = currentPayExpectedValue.toFixed(2);
+                if (target) {
+                    if (!l.numero_cheque && target.numero_cheque && chequeNumDisplay) {
+                        chequeNumDisplay.innerText = `#${target.numero_cheque}`;
+                    }
+                    if (!l.conta_bancaria_id && target.conta_bancaria_id && selectConta) {
+                        selectConta.value = target.conta_bancaria_id;
+                    }
+                }
             }
-        } else {
-            parcelaGroup.style.display = 'none';
-            document.getElementById('payValor').value = currentPayExpectedValue.toFixed(2);
+        } catch (errParc) {
+            console.warn('Aviso ao consultar detalhes do cheque da parcela:', errParc);
         }
-    } catch (errParc) {
-        console.warn('Erro ao carregar parcelas:', errParc);
-        parcelaGroup.style.display = 'none';
-        document.getElementById('payValor').value = currentPayExpectedValue.toFixed(2);
     }
 
     checkPaymentDivergence();
@@ -3074,30 +3698,30 @@ async function openPaymentModal(id) {
 }
 
 window.handleParcelaBaixaChange = () => {
-    const sel = document.getElementById('payParcelaSelect');
-    const selectedOption = sel.options[sel.selectedIndex];
-    if (selectedOption && selectedOption.dataset.val) {
-        currentPayExpectedValue = Math.round((parseFloat(selectedOption.dataset.val) || 0) * 100) / 100;
-        document.getElementById('payValor').value = currentPayExpectedValue.toFixed(2);
-    }
     checkPaymentDivergence();
 };
 
 async function handlePayment(e) {
     e.preventDefault();
     const id = document.getElementById('payLancamentoId').value;
+    const l = state.lancamentos.find(item => item.id === id);
     const valorPagoInput = parseFloat(document.getElementById('payValor').value) || 0;
     const dataPagamento = document.getElementById('payData').value;
-    const contaId = document.getElementById('payConta').value;
-    const forma = document.getElementById('payForma').value;
-    const parcelaId = document.getElementById('payParcelaSelect')?.value || null;
+    const forma = document.getElementById('payForma').value || (l ? l.forma_pagamento : '');
+    const isCheque = (forma || '').toUpperCase() === 'CHEQUE';
+    const contaId = document.getElementById('payConta').value || (isCheque && l ? l.conta_bancaria_id : null);
     const motivoText = (document.getElementById('payMotivo')?.value || '').trim();
 
     try {
-        const l = state.lancamentos.find(item => item.id === id);
-        const conta = state.contas.find(c => c.id === contaId);
+        if (!l) throw new Error('Lançamento não encontrado');
 
-        if (!l || !conta) throw new Error('Dados inválidos');
+        const conta = state.contas.find(c => c.id === contaId);
+        if (!contaId || !conta) {
+            showToast('Por favor, selecione a Conta de Origem/Destino antes de confirmar a baixa.', 'warning');
+            alert('Por favor, selecione a Conta Bancária de Origem/Destino para efetuar a baixa.');
+            document.getElementById('payConta')?.focus();
+            return;
+        }
 
         // VALIDAÇÃO E TRATAMENTO SEMÂNTICO DE DIVERGÊNCIA
         const rawDiff = Math.round((valorPagoInput - currentPayExpectedValue) * 100) / 100;
@@ -3127,18 +3751,38 @@ async function handlePayment(e) {
         const novoValorPago = (parseFloat(l.valor_pago) || 0) + valorPagoInput;
         const novoStatus = novoValorPago >= (l.valor_total - (l.valor_tributo_total || 0) - 0.01) ? 'PAGO' : 'PARCIAL';
 
-        // 1. Se uma parcela específica foi selecionada, marca ela como PAGO no banco
-        if (parcelaId) {
-            const { error: errParc } = await supabaseClient
+        // 1. Sincroniza o status da parcela correspondente em fin_lancamento_parcelas
+        try {
+            const parentId = l.pai_id || l.id;
+            const { data: parcs } = await supabaseClient
                 .from('fin_lancamento_parcelas')
-                .update({ status: 'PAGO' })
-                .eq('id', parcelaId);
-            if (errParc) console.error("Erro ao atualizar parcela:", errParc);
-        } else if (currentModalParcelas.length > 0 && novoStatus === 'PAGO') {
-            await supabaseClient
-                .from('fin_lancamento_parcelas')
-                .update({ status: 'PAGO' })
-                .eq('lancamento_id', id);
+                .select('id, numero_parcela, data_vencimento, valor')
+                .eq('lancamento_id', parentId)
+                .order('numero_parcela');
+
+            if (parcs && parcs.length > 0) {
+                let targetParc = null;
+                if (!l.pai_id) {
+                    targetParc = parcs.find(p => p.numero_parcela === 1) || parcs.find(p => p.data_vencimento === l.data_vencimento) || parcs[0];
+                } else {
+                    targetParc = parcs.find(p => p.data_vencimento === l.data_vencimento && Math.abs(parseFloat(p.valor) - parseFloat(l.valor_total)) < 0.05);
+                    if (!targetParc) {
+                        const matchDesc = (l.descricao || '').match(/Parc\s+(\d+)\//i);
+                        if (matchDesc && matchDesc[1]) {
+                            targetParc = parcs.find(p => p.numero_parcela === parseInt(matchDesc[1]));
+                        }
+                    }
+                }
+
+                if (targetParc) {
+                    await supabaseClient
+                        .from('fin_lancamento_parcelas')
+                        .update({ status: novoStatus })
+                        .eq('id', targetParc.id);
+                }
+            }
+        } catch (errSyncParc) {
+            console.warn('Aviso ao sincronizar fin_lancamento_parcelas na baixa:', errSyncParc);
         }
 
         // 2. Atualiza Lançamento mestre
@@ -3303,11 +3947,39 @@ async function handleEstornoSubmit(e) {
             }
         }
 
-        // 2. Reseta status das parcelas se existirem
-        await supabaseClient
-            .from('fin_lancamento_parcelas')
-            .update({ status: 'PENDENTE' })
-            .eq('lancamento_id', id);
+        // 2. Reseta status da parcela correspondente em fin_lancamento_parcelas se existir
+        try {
+            const parentId = l.pai_id || l.id;
+            const { data: parcs } = await supabaseClient
+                .from('fin_lancamento_parcelas')
+                .select('id, numero_parcela, data_vencimento, valor')
+                .eq('lancamento_id', parentId)
+                .order('numero_parcela');
+
+            if (parcs && parcs.length > 0) {
+                let targetParc = null;
+                if (!l.pai_id) {
+                    targetParc = parcs.find(p => p.numero_parcela === 1) || parcs.find(p => p.data_vencimento === l.data_vencimento) || parcs[0];
+                } else {
+                    targetParc = parcs.find(p => p.data_vencimento === l.data_vencimento && Math.abs(parseFloat(p.valor) - (parseFloat(l.valor_pago) || parseFloat(l.valor_total))) < 0.05);
+                    if (!targetParc) {
+                        const matchDesc = (l.descricao || '').match(/Parc\s+(\d+)\//i);
+                        if (matchDesc && matchDesc[1]) {
+                            targetParc = parcs.find(p => p.numero_parcela === parseInt(matchDesc[1]));
+                        }
+                    }
+                }
+
+                if (targetParc) {
+                    await supabaseClient
+                        .from('fin_lancamento_parcelas')
+                        .update({ status: 'ABERTO' })
+                        .eq('id', targetParc.id);
+                }
+            }
+        } catch (errEstornoParc) {
+            console.warn('Aviso ao sincronizar estorno em fin_lancamento_parcelas:', errEstornoParc);
+        }
 
         // 3. Atualiza o lançamento mestre para ABERTO e anexa o motivo do estorno
         const loggedUser = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
@@ -3855,10 +4527,14 @@ window.addFinItemRow = function(data = null) {
     row.className = 'item-row-v2';
     row.id = rowId;
 
+    const veicId = data ? (data.veiculo_id || data.vinculo_veiculo_id || '') : '';
+    const vObj = veicId ? (state.veiculosMap[veicId] || (state.veiculos || []).find(v => v.id === veicId)) : null;
+    const veicPlaca = vObj ? vObj.placa : (data && data.placa ? data.placa : '');
+
     row.innerHTML = `
         <input type="hidden" class="item-tipo" value="SERVICO">
 
-        <!-- Linha principal: descrição | qtd | valor | total | lixeira -->
+        <!-- Linha principal: descrição | qtd | valor | total | placa | lixeira -->
         <div class="item-main-row">
             <div class="item-desc-wrap">
                 <i data-lucide="search" class="item-search-icon"></i>
@@ -3867,6 +4543,12 @@ window.addFinItemRow = function(data = null) {
             <input type="number" class="financeiro-input item-qtd" value="${data && data.quantidade !== undefined && data.quantidade !== null ? data.quantidade : ''}" step="any" oninput="calculateFinTotal()" onchange="calculateFinTotal()" placeholder="Qtd" title="Quantidade">
             <input type="number" class="financeiro-input item-unit" value="${data && data.valor_unitario !== undefined && data.valor_unitario !== null ? data.valor_unitario : ''}" step="any" oninput="calculateFinTotal()" onchange="calculateFinTotal()" placeholder="Vlr. Unitário" title="Valor Unitário">
             <input type="text" class="financeiro-input item-total item-total-display" value="R$ 0,00" readonly title="Total do Item">
+            <div class="item-veiculo-wrap autocomplete-wrapper">
+                <i data-lucide="truck" class="item-veiculo-icon"></i>
+                <input type="text" class="financeiro-input item-veiculo-search" placeholder="Placa..." value="${veicPlaca}" oninput="handleFinVeiculoSearch(this)" onfocus="handleFinVeiculoSearch(this)" onkeydown="handleFinAutocompleteKeydown(event, this)" autocomplete="off" title="Vincular Placa do Veículo (Frota)">
+                <input type="hidden" class="item-veiculo-id" value="${veicId}">
+                <div class="autocomplete-results"></div>
+            </div>
             <button type="button" class="btn-remove" onclick="removeFinRow('${rowId}')" title="Excluir Item">
                 <i data-lucide="trash-2"></i>
             </button>
@@ -3876,6 +4558,100 @@ window.addFinItemRow = function(data = null) {
     container.appendChild(row);
     if (window.lucide) lucide.createIcons();
     calculateFinTotal();
+};
+
+window.handleFinVeiculoSearch = function(input) {
+    const wrapper = input.closest('.item-veiculo-wrap');
+    if (!wrapper) return;
+    const resultsContainer = wrapper.querySelector('.autocomplete-results');
+    const hiddenId = wrapper.querySelector('.item-veiculo-id');
+    const rawVal = input.value || '';
+    const query = rawVal.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    if (!rawVal.trim()) {
+        hiddenId.value = '';
+    }
+
+    const veics = state.veiculos || [];
+    const filtered = query.length === 0
+        ? veics.slice(0, 15)
+        : veics.filter(v => {
+            const p = (v.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const m = (v.modelo || '').toUpperCase();
+            return p.includes(query) || m.includes(rawVal.trim().toUpperCase());
+        }).slice(0, 20);
+
+    if (filtered.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="autocomplete-item" style="color: #94a3b8; font-style: italic; cursor: default; padding: 0.6rem 0.8rem;">
+                Nenhum veículo encontrado
+            </div>
+        `;
+        resultsContainer.style.display = 'block';
+        return;
+    }
+
+    resultsContainer.innerHTML = filtered.map(v => `
+        <div class="autocomplete-item" onclick="selectFinVeiculo('${v.id}', '${v.placa}', this)" style="padding: 0.55rem 0.8rem; cursor: pointer;">
+            <span class="prod-name" style="display:flex; align-items:center; gap:6px;">
+                <i data-lucide="truck" style="width:12px; height:12px; color:#0284c7;"></i>
+                <span style="font-family:'JetBrains Mono', monospace; font-weight:800; font-size:0.8rem;">${v.placa}</span>
+            </span>
+            <span class="prod-meta" style="color: #64748b; font-size: 0.65rem; margin-top: 1px;">${v.modelo || 'Sem modelo'}${v.marca ? ' • ' + v.marca : ''}</span>
+        </div>
+    `).join('');
+
+    resultsContainer.style.display = 'block';
+    if (window.lucide) lucide.createIcons();
+};
+
+window.selectFinVeiculo = function(id, placa, itemEl) {
+    const wrapper = itemEl.closest('.item-veiculo-wrap');
+    if (!wrapper) return;
+    const searchInput = wrapper.querySelector('.item-veiculo-search');
+    const hiddenId = wrapper.querySelector('.item-veiculo-id');
+    const resultsContainer = wrapper.querySelector('.autocomplete-results');
+
+    if (hiddenId) hiddenId.value = id;
+    if (searchInput) searchInput.value = placa;
+    if (resultsContainer) resultsContainer.style.display = 'none';
+};
+
+window.handleFinFormaPgtoChange = function(forma) {
+    const isCheque = (forma || '').toUpperCase() === 'CHEQUE';
+    const wrapper = document.getElementById('chequeFieldsWrapper');
+    const contaSelect = document.getElementById('entryContaBancaria');
+    const numChequeInput = document.getElementById('entryNumCheque');
+    const qtdInput = document.getElementById('qtdParcelas');
+    const qtd = parseInt(qtdInput ? qtdInput.value : 1) || 1;
+
+    // Se for cheque E parcela única (qtd <= 1), exibe os campos no topo.
+    // Se for parcelado (qtd > 1), o vínculo de banco e número do cheque é feito diretamente em cada parcela!
+    if (wrapper) {
+        wrapper.style.display = (isCheque && qtd <= 1) ? 'grid' : 'none';
+    }
+
+    if (contaSelect) {
+        contaSelect.required = isCheque && qtd <= 1;
+        if (!isCheque) {
+            contaSelect.value = '';
+        } else if (state.contas && state.contas.length > 0) {
+            if (contaSelect.options.length <= 1) {
+                contaSelect.innerHTML = '<option value="">Selecione a conta bancária...</option>' + 
+                    state.contas.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+            }
+        }
+    }
+
+    if (numChequeInput) {
+        numChequeInput.required = isCheque && qtd <= 1;
+        if (!isCheque) numChequeInput.value = '';
+    }
+
+    // Se o lançamento for parcelado, regenera/atualiza parcelas com os campos adequados
+    if (typeof window.generateInstallmentFields === 'function') {
+        window.generateInstallmentFields();
+    }
 };
 
 function setItemTipo(rowId, tipo, btn) {
@@ -4017,6 +4793,83 @@ window.rebalanceInstallments = function() {
     }
 };
 
+window.onInstallmentDateChange = function(changedIndex) {
+    const parcRows = Array.from(document.querySelectorAll('#installmentsContainer .installment-row'));
+    if (!parcRows[changedIndex]) return;
+
+    const changedInput = parcRows[changedIndex].querySelector('.parc-date');
+    if (!changedInput || !changedInput.value) return;
+
+    const intervalInput = document.getElementById('intervaloPrazoDias');
+    const intervalDays = parseInt(intervalInput ? intervalInput.value : 30) || 30;
+
+    // Se alterou a primeira parcela (#1), sincroniza o vencimento do cabeçalho
+    if (changedIndex === 0) {
+        const topVenc = document.getElementById('entryVencimento');
+        if (topVenc) topVenc.value = changedInput.value;
+    }
+
+    // Cascata automática instantânea para todas as parcelas posteriores
+    const baseDate = new Date(changedInput.value + 'T12:00:00');
+    if (isNaN(baseDate.getTime())) return;
+
+    for (let i = changedIndex + 1; i < parcRows.length; i++) {
+        const nextDate = new Date(baseDate);
+        nextDate.setDate(nextDate.getDate() + ((i - changedIndex) * intervalDays));
+        const dateInput = parcRows[i].querySelector('.parc-date');
+        if (dateInput) {
+            dateInput.value = nextDate.toISOString().split('T')[0];
+        }
+    }
+};
+
+window.onTopVencimentoChange = function() {
+    const topVenc = document.getElementById('entryVencimento')?.value;
+    if (!topVenc) return;
+    const parcRows = Array.from(document.querySelectorAll('#installmentsContainer .installment-row'));
+    if (parcRows.length === 0) {
+        if (typeof window.generateInstallmentFields === 'function') window.generateInstallmentFields();
+        return;
+    }
+
+    const intervalInput = document.getElementById('intervaloPrazoDias');
+    const intervalDays = parseInt(intervalInput ? intervalInput.value : 30) || 30;
+    const baseDate = new Date(topVenc + 'T12:00:00');
+    if (isNaN(baseDate.getTime())) return;
+
+    parcRows.forEach((row, idx) => {
+        const rowDate = new Date(baseDate);
+        rowDate.setDate(rowDate.getDate() + (idx * intervalDays));
+        const dateInput = row.querySelector('.parc-date');
+        if (dateInput) {
+            dateInput.value = rowDate.toISOString().split('T')[0];
+        }
+    });
+};
+
+window.onIntervaloPrazoChange = function() {
+    const parcRows = Array.from(document.querySelectorAll('#installmentsContainer .installment-row'));
+    if (parcRows.length <= 1) return;
+    const firstDateInput = parcRows[0].querySelector('.parc-date');
+    const firstDate = firstDateInput?.value || document.getElementById('entryVencimento')?.value;
+    if (!firstDate) return;
+
+    const intervalInput = document.getElementById('intervaloPrazoDias');
+    const intervalDays = parseInt(intervalInput ? intervalInput.value : 30) || 30;
+
+    const baseDate = new Date(firstDate + 'T12:00:00');
+    if (isNaN(baseDate.getTime())) return;
+
+    for (let i = 1; i < parcRows.length; i++) {
+        const nextDate = new Date(baseDate);
+        nextDate.setDate(nextDate.getDate() + (i * intervalDays));
+        const dateInput = parcRows[i].querySelector('.parc-date');
+        if (dateInput) {
+            dateInput.value = nextDate.toISOString().split('T')[0];
+        }
+    }
+};
+
 window.generateInstallmentFields = function(forcedTotal = null) {
     const qtdInput = document.getElementById('qtdParcelas');
     const qtd = parseInt(qtdInput ? qtdInput.value : 1) || 1;
@@ -4027,6 +4880,23 @@ window.generateInstallmentFields = function(forcedTotal = null) {
     const prazoGroup = document.getElementById('prazoDiasGroup');
     const intervalInput = document.getElementById('intervaloPrazoDias');
     const intervalDays = parseInt(intervalInput ? intervalInput.value : 30) || 30;
+
+    const formaVal = document.getElementById('entryForma')?.value || '';
+    const isCheque = formaVal.toUpperCase() === 'CHEQUE';
+    const chequeWrapper = document.getElementById('chequeFieldsWrapper');
+    const contaSelect = document.getElementById('entryContaBancaria');
+    const numChequeInput = document.getElementById('entryNumCheque');
+
+    // Sincroniza a exibição dos campos de cheque do cabeçalho
+    if (chequeWrapper) {
+        chequeWrapper.style.display = (isCheque && qtd <= 1) ? 'grid' : 'none';
+    }
+    if (contaSelect) {
+        contaSelect.required = isCheque && qtd <= 1;
+    }
+    if (numChequeInput) {
+        numChequeInput.required = isCheque && qtd <= 1;
+    }
 
     if (qtd <= 1) {
         if (wrapper) wrapper.style.display = 'none';
@@ -4039,12 +4909,49 @@ window.generateInstallmentFields = function(forcedTotal = null) {
     if (wrapper) wrapper.style.display = 'block';
     if (container) container.innerHTML = '';
 
+    // Atualiza o cabeçalho das colunas das parcelas
+    const headerLabels = document.getElementById('installmentsHeaderLabels');
+    if (headerLabels) {
+        if (isCheque) {
+            headerLabels.style.gridTemplateColumns = '45px 1.1fr 1fr 1.3fr 1fr';
+            headerLabels.style.gap = '0.8rem';
+            headerLabels.innerHTML = `
+                <div>Nº</div>
+                <div>Data de Vencimento</div>
+                <div>Valor da Parcela</div>
+                <div>Conta Bancária (Emissão) <span style="color:#ef4444;">*</span></div>
+                <div>Nº do Cheque <span style="color:#ef4444;">*</span></div>
+            `;
+        } else {
+            headerLabels.style.gridTemplateColumns = '70px 1.1fr 1fr';
+            headerLabels.style.gap = '1rem';
+            headerLabels.innerHTML = `
+                <div>Nº</div>
+                <div>Data de Vencimento</div>
+                <div>Valor da Parcela</div>
+            `;
+        }
+    }
+
     // Distribuição precisa em centavos para nunca faltar ou sobrar
     let centavosRestantes = Math.round(total * 100);
     const baseCentavos = Math.floor(centavosRestantes / qtd);
     let restoCentavos = centavosRestantes % qtd;
 
     let dateBase = firstDate ? new Date(firstDate + 'T12:00:00') : new Date();
+
+    const baseChequeNumRaw = (document.getElementById('entryNumCheque')?.value || '').trim();
+    const baseChequeInt = parseInt(baseChequeNumRaw);
+
+    // Determina a conta padrão a sugerir para as parcelas
+    let defaultContaId = contaSelect?.value || '';
+    if (!defaultContaId && state.contas && state.contas.length > 0) {
+        defaultContaId = state.contas[0].id;
+    }
+
+    const contasOptionsHtml = (state.contas || []).map(c => 
+        `<option value="${c.id}" ${c.id === defaultContaId ? 'selected' : ''}>${c.nome}</option>`
+    ).join('');
 
     for (let i = 0; i < qtd; i++) {
         const rowDate = new Date(dateBase);
@@ -4058,20 +4965,43 @@ window.generateInstallmentFields = function(forcedTotal = null) {
         }
         const valorParcela = (parcelaCentavos / 100).toFixed(2);
 
+        let sugeridoCheque = '';
+        if (isCheque) {
+            if (!isNaN(baseChequeInt) && String(baseChequeInt) === baseChequeNumRaw) {
+                sugeridoCheque = String(baseChequeInt + i);
+            } else if (baseChequeNumRaw) {
+                sugeridoCheque = i === 0 ? baseChequeNumRaw : `${baseChequeNumRaw}-${i + 1}`;
+            }
+        }
+
         const row = document.createElement('div');
         row.className = 'installment-row';
         row.dataset.index = i;
-        row.style = "display: grid; grid-template-columns: 70px 1.1fr 1fr; gap: 1rem; margin-bottom: 0.6rem; align-items: center; background: rgba(255,255,255,0.03); padding: 0.65rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); transition: border-color 0.2s;";
+        row.style = isCheque 
+            ? "display: grid; grid-template-columns: 45px 1.1fr 1fr 1.3fr 1fr; gap: 0.8rem; margin-bottom: 0.6rem; align-items: center; background: rgba(255,255,255,0.03); padding: 0.65rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); transition: border-color 0.2s;"
+            : "display: grid; grid-template-columns: 70px 1.1fr 1fr; gap: 1rem; margin-bottom: 0.6rem; align-items: center; background: rgba(255,255,255,0.03); padding: 0.65rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); transition: border-color 0.2s;";
+
         row.innerHTML = `
             <div style="font-weight: 800; color: #818cf8; font-size: 0.85rem; padding-left: 4px;">#${i + 1}</div>
             <div class="input-group" style="margin:0;">
-                <input type="date" class="financeiro-input parc-date" value="${dateStr}">
+                <input type="date" class="financeiro-input parc-date" value="${dateStr}"
+                    oninput="window.onInstallmentDateChange(${i})" onchange="window.onInstallmentDateChange(${i})">
             </div>
             <div class="input-group" style="margin:0;">
                 <input type="text" inputmode="decimal" class="financeiro-input parc-val" value="${valorParcela}"
                     placeholder="0,00"
                     oninput="window.onInstallmentValueChange(${i})" onchange="window.onInstallmentValueChange(${i})">
             </div>
+            ${isCheque ? `
+            <div class="input-group" style="margin:0;">
+                <select class="financeiro-input parc-conta" title="Conta bancária de emissão do cheque da parcela #${i + 1}" required>
+                    <option value="">Selecione a conta...</option>
+                    ${contasOptionsHtml}
+                </select>
+            </div>
+            <div class="input-group" style="margin:0;">
+                <input type="text" class="financeiro-input parc-cheque" value="${sugeridoCheque}" placeholder="Nº Cheque #${i + 1}" title="Número da folha de cheque da parcela #${i + 1}" required>
+            </div>` : ''}
         `;
         container.appendChild(row);
     }
@@ -4361,7 +5291,29 @@ function setupEventListeners() {
 
         // 1. Código e Valores
         document.getElementById('viewCod').innerText = l.codigo_sequencial || (compraData ? `NC-${compraData.numero_nota || compraData.id.slice(0,6)}` : '-');
-        document.getElementById('viewValor').innerText = formatCurrency(l.valor_total);
+        
+        const parentLancamentoId = l.pai_id || l.id;
+        const grupoParcelas = (state.lancamentos || []).filter(item => 
+            item.id === parentLancamentoId || item.pai_id === parentLancamentoId
+        );
+        const totalNotaCalculado = grupoParcelas.length > 1
+            ? grupoParcelas.reduce((acc, curr) => acc + (parseFloat(curr.valor_total) || 0), 0)
+            : (parseFloat(l.valor_total) || 0);
+
+        const viewValorEl = document.getElementById('viewValor');
+        if (viewValorEl) {
+            if (l.is_parcelado || l.pai_id || grupoParcelas.length > 1) {
+                const qtdP = l.qtd_parcelas || grupoParcelas.length;
+                viewValorEl.innerHTML = `
+                    <div>${formatCurrency(l.valor_total)}</div>
+                    <div style="font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-top:3px;">
+                        Total da Nota: <strong style="color:var(--primary);">${formatCurrency(totalNotaCalculado)}</strong> (${qtdP}x)
+                    </div>
+                `;
+            } else {
+                viewValorEl.innerText = formatCurrency(l.valor_total);
+            }
+        }
         document.getElementById('viewVenc').innerText = formatDate(l.data_vencimento || l.previsao_pagamento);
         
         // Status Badge
@@ -4413,7 +5365,7 @@ function setupEventListeners() {
 
         // Documentos & Tipos
         const numNfVal = l.num_nf || (compraData ? compraData.numero_nota : null);
-        document.getElementById('viewDoc').innerText = `NF: ${numNfVal || '-'}${l.serie_nf ? ' (Série ' + l.serie_nf + ')' : ''}`;
+        document.getElementById('viewDoc').innerText = `NF: ${numNfVal || '-'}`;
 
         const tipoNotaVal = l.tipo_nota || especieNomeComp || (compraData ? compraData.especie_nota : null);
         document.getElementById('viewTipoNotaVal').innerText = tipoNotaVal || '-';
@@ -4449,7 +5401,11 @@ function setupEventListeners() {
                 }
             }
         }
-        document.getElementById('viewFormaPagamentoVal').innerText = formaPgtoVal || '-';
+        let formaPgtoExibicao = formaPgtoVal || '-';
+        if (l.numero_cheque) {
+            formaPgtoExibicao += ` (Cheque nº ${l.numero_cheque})`;
+        }
+        document.getElementById('viewFormaPagamentoVal').innerText = formaPgtoExibicao;
 
         // Datas e Prazos
         const dataEmissaoVal = l.data_emissao || (compraData ? compraData.data_emissao : null);
@@ -4482,7 +5438,11 @@ function setupEventListeners() {
 
             // Forma de pagamento e valor pago
             const elFormaRealizada = document.getElementById('viewFormaPgtoRealizadaVal');
-            if (elFormaRealizada) elFormaRealizada.innerText = l.forma_pagamento || formaPgtoVal || '—';
+            if (elFormaRealizada) {
+                let fRealizada = l.forma_pagamento || formaPgtoVal || '—';
+                if (l.numero_cheque) fRealizada += ` (Cheque nº ${l.numero_cheque})`;
+                elFormaRealizada.innerText = fRealizada;
+            }
 
             const elValorPago = document.getElementById('viewValorPagoVal');
             const vPagoRealizado = parseFloat(l.valor_pago) || parseFloat(l.valor_total) || 0;
@@ -4531,15 +5491,35 @@ function setupEventListeners() {
         try {
             const [itensRes, addsRes, discsRes, parcsRes] = await Promise.all([
                 supabaseClient.from('fin_lancamento_itens').select('*').eq('lancamento_id', id),
-                supabaseClient.from('fin_lancamento_adicionais').select('*').eq('lancamento_id', id),
-                supabaseClient.from('fin_lancamento_descontos').select('*').eq('lancamento_id', id),
-                supabaseClient.from('fin_lancamento_parcelas').select('*').eq('lancamento_id', id).order('numero_parcela')
+                supabaseClient.from('fin_lancamento_adicionais').select('*').eq('lancamento_id', parentLancamentoId),
+                supabaseClient.from('fin_lancamento_descontos').select('*').eq('lancamento_id', parentLancamentoId),
+                supabaseClient.from('fin_lancamento_parcelas').select('*').eq('lancamento_id', parentLancamentoId).order('numero_parcela')
             ]);
 
-            const itens = itensRes.data || [];
+            let itens = itensRes.data || [];
+            // Fallback de itens: se a parcela consultada não possuir itens salvos e for filha, busca do pai
+            if (itens.length === 0 && l.pai_id) {
+                const { data: parentItens } = await supabaseClient.from('fin_lancamento_itens').select('*').eq('lancamento_id', l.pai_id);
+                if (parentItens && parentItens.length > 0) itens = parentItens;
+            }
+
             const adicionais = addsRes.data || [];
             const descontos = discsRes.data || [];
-            const parcelas = parcsRes.data || [];
+            let parcelas = parcsRes.data || [];
+
+            // Se fin_lancamento_parcelas estiver vazio mas for parcelado, monta dinamicamente com base nas irmãs do grupo
+            if (parcelas.length === 0 && (l.is_parcelado || l.pai_id || grupoParcelas.length > 1)) {
+                parcelas = grupoParcelas.map((gp, idx) => ({
+                    id: gp.id,
+                    lancamento_id: gp.id,
+                    numero_parcela: idx + 1,
+                    data_vencimento: gp.data_vencimento,
+                    valor: gp.valor_total,
+                    numero_cheque: gp.numero_cheque || null,
+                    conta_bancaria_id: gp.conta_bancaria_id || null,
+                    status: gp.status || 'ABERTO'
+                }));
+            }
 
             const itemsList = document.getElementById('viewItemsList');
             let rowsHtml = '';
@@ -4646,16 +5626,46 @@ function setupEventListeners() {
             const parcList = document.getElementById('viewParcelasList');
             if (parcelas && parcelas.length > 0) {
                 parcWrapper.style.display = 'block';
-                parcList.innerHTML = parcelas.map(p => `
-                    <div class="info-card" style="padding:0.8rem; border-left: 3px solid ${p.status === 'PAGO' ? '#10b981' : '#f59e0b'};">
+
+                // Identificar qual número da parcela corresponde ao lançamento consultado
+                let numParcAtual = null;
+                const matchDesc = (l.descricao || '').match(/Parc\s*(\d+)\//i);
+                if (matchDesc) {
+                    numParcAtual = parseInt(matchDesc[1]);
+                } else if (!l.pai_id && (l.is_parcelado || parcelas.length > 1)) {
+                    numParcAtual = 1;
+                }
+
+                parcList.innerHTML = parcelas.map(p => {
+                    const isCurrentParc = (numParcAtual !== null && p.numero_parcela === numParcAtual);
+                    const chequeInfo = p.numero_cheque ? `<div style="font-size:0.75rem; color:#6366f1; font-weight:700; margin-top:2px;"><i data-lucide="ticket" style="width:11px; height:11px; display:inline-block; vertical-align:middle;"></i> Cheque nº ${p.numero_cheque}</div>` : '';
+                    const contaObj = p.conta_bancaria_id ? (state.contas || []).find(c => c.id === p.conta_bancaria_id) : null;
+                    const bancoInfo = contaObj ? `<div style="font-size:0.72rem; color:var(--text-muted); margin-top:2px;"><i data-lucide="landmark" style="width:10px; height:10px; display:inline-block; vertical-align:middle;"></i> ${contaObj.nome}</div>` : '';
+
+                    const borderHighlight = isCurrentParc 
+                        ? 'border: 2px solid #6366f1; box-shadow: 0 0 10px rgba(99,102,241,0.25); background: rgba(99,102,241,0.04);' 
+                        : '';
+
+                    const currentBadge = isCurrentParc 
+                        ? `<span style="background:rgba(99,102,241,0.15); color:#6366f1; border:1px solid rgba(99,102,241,0.3); font-size:0.62rem; font-weight:800; padding:1px 5px; border-radius:4px; margin-left:6px;">ESTA PARCELA</span>` 
+                        : '';
+
+                    return `
+                    <div class="info-card" style="padding:0.8rem; border-left: 3px solid ${p.status === 'PAGO' ? '#10b981' : '#f59e0b'}; ${borderHighlight}">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                            <span style="font-weight:800; font-size:0.8rem;">Parc #${p.numero_parcela}</span>
+                            <div style="display:flex; align-items:center;">
+                                <span style="font-weight:800; font-size:0.8rem;">Parc #${p.numero_parcela}</span>
+                                ${currentBadge}
+                            </div>
                             <span class="status-badge status-${(p.status || 'pendente').toLowerCase()}" style="font-size:0.65rem; padding:2px 6px;">${p.status}</span>
                         </div>
                         <div style="font-weight:800; font-size:0.95rem;">${formatCurrency(p.valor)}</div>
                         <div style="font-size:0.75rem; opacity:0.7; margin-top:2px;">Venc: ${formatDate(p.data_vencimento)}</div>
+                        ${chequeInfo}
+                        ${bancoInfo}
                     </div>
-                `).join('');
+                `;
+                }).join('');
             } else {
                 parcWrapper.style.display = 'none';
             }
