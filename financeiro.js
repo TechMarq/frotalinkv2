@@ -23,11 +23,12 @@ const state = {
     veiculos: [],
     veiculosMap: {},
     compraPlacasMap: {},
+    compraNotasMap: {},
     finItensPlacasMap: {},
     periodoFluxo: new Date(),
     filtros: {
-        PAGAR: { status: 'UNPAID', busca: '', categoria: '', origem: '', periodoTipo: 'VENCIMENTO', periodo: '', dataIni: '', dataFim: '' },
-        RECEBER: { status: 'UNPAID', busca: '', categoria: '', origem: '' }
+        PAGAR: { status: 'UNPAID', busca: '', fornecedor: '', categoria: '', origem: '', periodoTipo: 'VENCIMENTO', periodo: '', dataIni: '', dataFim: '' },
+        RECEBER: { status: 'UNPAID', busca: '', fornecedor: '', categoria: '', origem: '', periodoTipo: 'VENCIMENTO', periodo: '', dataIni: '', dataFim: '' }
     },
     sort: {
         PAGAR: { key: 'data_vencimento', dir: 'asc' },
@@ -89,6 +90,44 @@ function initSupabase() {
         console.error('Erro Supabase:', e);
     }
 }
+
+// Helper unificado para obter o número da NF/Documento (do Financeiro, de Compras ou extraído da Descrição)
+function getLancamentoNumNF(l) {
+    if (!l) return '';
+    // 1. Já informado no campo específico da tabela fin_lancamentos
+    if (l.num_nf && String(l.num_nf).trim()) {
+        const nfStr = String(l.num_nf).trim();
+        if (nfStr.toUpperCase() !== 'NULL' && nfStr.toUpperCase() !== 'UNDEFINED') {
+            return nfStr;
+        }
+    }
+    // 2. Vindo de compra vinculada (state.compraNotasMap)
+    if (l.compra_id && state.compraNotasMap && state.compraNotasMap[l.compra_id]) {
+        return state.compraNotasMap[l.compra_id];
+    }
+    // 3. Extrair da descrição (ex: "Referente NF 11402/1842", "NF: 11402", "Doc: 12345", "NF 227062")
+    if (l.descricao) {
+        const m = l.descricao.match(/(?:NF[\/Doc]*|Nota\s+Fiscal|Doc(?:\.|\:|\s))\s*[:#-]?\s*([A-Za-z0-9\/\-\.]+)/i);
+        if (m && m[1]) {
+            const clean = m[1].replace(/[\(\),;].*$/, '').trim();
+            if (clean && clean.toUpperCase() !== 'MANUAL' && clean.toUpperCase() !== 'S/N' && clean.toUpperCase() !== 'NULL') {
+                return clean;
+            }
+        }
+    }
+    // 4. Extrair de observações se houver menção
+    if (l.observacoes) {
+        const mObs = l.observacoes.match(/(?:NF[\/Doc]*|Nota\s+Fiscal|Doc(?:\.|\:|\s))\s*[:#-]?\s*([A-Za-z0-9\/\-\.]+)/i);
+        if (mObs && mObs[1]) {
+            const clean = mObs[1].replace(/[\(\),;].*$/, '').trim();
+            if (clean && clean.toUpperCase() !== 'MANUAL' && clean.toUpperCase() !== 'S/N') {
+                return clean;
+            }
+        }
+    }
+    return '';
+}
+window.getLancamentoNumNF = getLancamentoNumNF;
 
 async function loadInitialData() {
     if (!supabaseClient) return;
@@ -175,7 +214,7 @@ async function loadInitialData() {
         let lancQuery = supabaseClient.from('fin_lancamentos')
             .select('*')
             .order('data_vencimento', { ascending: false })
-            .limit(1000);
+            .limit(5000);
 
         const [l, c, cat, cc, forn, cl, formas, especies, motFrota, funcDP, prestCom, veics] = await Promise.all([
             lancQuery,
@@ -219,18 +258,39 @@ async function loadInitialData() {
             }
         });
 
-        // Carregar mapeamento de placas para compras vinculadas
+        // Carregar mapeamento de placas e notas fiscais para compras vinculadas
         try {
             const compraIds = [...new Set((state.lancamentos || [])
                 .filter(lanc => lanc.compra_id)
                 .map(lanc => lanc.compra_id))];
 
             state.compraPlacasMap = {};
+            state.compraNotasMap = {};
             if (compraIds.length > 0) {
                 // Realizar busca em blocos caso haja muitos compra_id
                 const chunkSize = 200;
                 for (let i = 0; i < compraIds.length; i += chunkSize) {
                     const chunk = compraIds.slice(i, i + chunkSize);
+
+                    // 1. Carregar números de nota fiscal das compras vinculadas
+                    try {
+                        const { data: cNotas, error: cNotasErr } = await supabaseClient
+                            .from('compras')
+                            .select('id, numero_nota')
+                            .in('id', chunk);
+
+                        if (!cNotasErr && cNotas) {
+                            cNotas.forEach(c => {
+                                if (c.id && c.numero_nota) {
+                                    state.compraNotasMap[c.id] = String(c.numero_nota).trim();
+                                }
+                            });
+                        }
+                    } catch (eCNotas) {
+                        console.warn("Aviso ao carregar números de nota de compras:", eCNotas);
+                    }
+
+                    // 2. Carregar placas vinculadas
                     const { data: cItens, error: cItensErr } = await supabaseClient
                         .from('compra_itens')
                         .select('compra_id, vinculo_veiculo_id')
@@ -259,7 +319,7 @@ async function loadInitialData() {
                 }
             }
         } catch (eComprasPlacas) {
-            console.warn("Aviso ao carregar placas vinculadas a compras no Financeiro:", eComprasPlacas);
+            console.warn("Aviso ao carregar placas/notas vinculadas a compras no Financeiro:", eComprasPlacas);
         }
 
         // Carregar mapeamento de placas para itens lançados no próprio Financeiro (fin_lancamento_itens)
@@ -303,6 +363,16 @@ async function loadInitialData() {
         } catch (eFinPlacas) {
             console.warn("Aviso ao carregar placas de itens do Financeiro:", eFinPlacas);
         }
+
+        // Sincronizar número de NF/documento em memória para todos os lançamentos
+        (state.lancamentos || []).forEach(lanc => {
+            if (!lanc.num_nf) {
+                const notaResolvida = getLancamentoNumNF(lanc);
+                if (notaResolvida) {
+                    lanc.num_nf = notaResolvida;
+                }
+            }
+        });
 
         updateDropdowns();
         renderAll();
@@ -597,81 +667,96 @@ function renderLancamentos(tipo) {
         });
     }
 
-    if (filter.categoria) filtered = filtered.filter(l => l.centro_custo_id === filter.categoria);
-    if (filter.origem) {
-        if (filter.origem === 'COMPRAS') {
-            filtered = filtered.filter(l => l.origem_modulo === 'COMPRAS' || l.compra_id != null);
-        } else if (filter.origem === 'MANUTENCAO') {
-            filtered = filtered.filter(l => l.origem_modulo === 'MANUTENCAO' || l.manutencao_id != null);
-        } else if (filter.origem === 'MANUAL') {
-            filtered = filtered.filter(l => (!l.origem_modulo || l.origem_modulo === 'MANUAL') && !l.compra_id && !l.manutencao_id);
-        } else {
-            filtered = filtered.filter(l => l.origem_modulo === filter.origem);
-        }
+    if (filter.fornecedor) {
+        const fNorm = filter.fornecedor.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        filtered = filtered.filter(l => {
+            const ent = (l.entidade_nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            return ent === fNorm || ent.includes(fNorm);
+        });
     }
+
     if (filter.busca) {
         const rawSearch = filter.busca.trim();
         const b = rawSearch.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const searchCleanPlate = rawSearch.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const searchCleanDigits = rawSearch.replace(/\D/g, '');
+        const searchCleanAlphanum = rawSearch.toLowerCase().replace(/[^a-z0-9]/g, '');
+
         const numSearch = rawSearch.replace('R$', '').replace(/\s/g, '').replace('.', '').replace(',', '.');
         const numVal = parseFloat(numSearch);
 
-        if (tipo === 'PAGAR') {
-            // Busca: Fornecedor/Favorecido, Número NF/Doc, Placa de Veículo, Valor Total ou Valor Pago
-            const searchCleanPlate = rawSearch.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        filtered = filtered.filter(l => {
+            // 1. Número da Nota / Documento (Lançado no Financeiro ou vindo de Compras)
+            const numNf = getLancamentoNumNF(l);
+            let matchNf = false;
+            if (numNf) {
+                const nfLower = numNf.toLowerCase();
+                const nfCleanAlphanum = nfLower.replace(/[^a-z0-9]/g, '');
+                const nfCleanDigits = nfLower.replace(/\D/g, '');
 
-            filtered = filtered.filter(l => {
-                const entidade = (l.entidade_nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                const numNf = (l.num_nf || '').toLowerCase().trim();
+                if (nfLower.includes(b) || b.includes(nfLower)) {
+                    matchNf = true;
+                } else if (searchCleanAlphanum.length >= 2 && nfCleanAlphanum.includes(searchCleanAlphanum)) {
+                    matchNf = true;
+                } else if (searchCleanDigits.length >= 2 && (nfCleanDigits.includes(searchCleanDigits) || searchCleanDigits.includes(nfCleanDigits))) {
+                    matchNf = true;
+                } else {
+                    const parts = numNf.split(/[\/\-\s\.]+/);
+                    if (parts.some(p => p.toLowerCase().trim() === b || (searchCleanDigits && p.replace(/\D/g, '') === searchCleanDigits))) {
+                        matchNf = true;
+                    }
+                }
+            }
+
+            // 2. Descrição Principal (onde notas de compras frequentemente constam: "Referente NF 11402/1842...", etc.)
+            const descNorm = (l.descricao || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            let matchDesc = descNorm.includes(b);
+            if (!matchDesc && searchCleanDigits.length >= 3) {
+                matchDesc = descNorm.replace(/\D/g, '').includes(searchCleanDigits);
+            }
+
+            // 3. Fornecedor / Favorecido / Cliente
+            const entidade = (l.entidade_nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const matchEntidade = entidade.includes(b);
+
+            // 4. Código Sequencial (ex: CAP-0589, REC-0010, ou 0589)
+            const codSeq = (l.codigo_sequencial || '').toLowerCase();
+            const matchCod = codSeq.includes(b) || (searchCleanDigits.length >= 2 && codSeq.replace(/\D/g, '').includes(searchCleanDigits));
+
+            // 5. Placas de Veículos vinculadas
+            let matchPlaca = false;
+            if (searchCleanPlate.length >= 2) {
+                const lPlacas = getPlacasLancamento(l);
+                matchPlaca = lPlacas.some(p => {
+                    const cleanP = (p.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    return cleanP.includes(searchCleanPlate);
+                });
+            }
+
+            // 6. Cheque
+            const matchCheque = (l.numero_cheque || '').toLowerCase().includes(b);
+
+            // 7. Observações
+            const obsNorm = (l.observacoes || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const matchObs = obsNorm.includes(b);
+
+            // 8. Valor Monetário Total ou Pago
+            let matchValor = false;
+            if (!isNaN(numVal) && numSearch !== '') {
+                const vt = parseFloat(l.valor_total) || 0;
+                const vp = parseFloat(l.valor_pago) || 0;
                 const vTotalStr = (l.valor_total != null ? String(l.valor_total) : '').replace('.', ',');
                 const vPagoStr = (l.valor_pago != null ? String(l.valor_pago) : '').replace('.', ',');
-                
-                let matchPlaca = false;
-                if (searchCleanPlate.length >= 2) {
-                    const lPlacas = getPlacasLancamento(l);
-                    matchPlaca = lPlacas.some(p => {
-                        const cleanP = (p.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-                        return cleanP.includes(searchCleanPlate);
-                    });
-                }
 
-                const matchCheque = (l.numero_cheque || '').toLowerCase().includes(b);
-                const matchTexto = entidade.includes(b) || (numNf && numNf.includes(b)) || matchPlaca || matchCheque;
-                
-                let matchValor = false;
-                if (!isNaN(numVal) && numSearch !== '') {
-                    const vt = parseFloat(l.valor_total) || 0;
-                    const vp = parseFloat(l.valor_pago) || 0;
-                    matchValor = Math.abs(vt - numVal) < 0.009 || Math.abs(vp - numVal) < 0.009 ||
-                                 String(l.valor_total || '').includes(numSearch) ||
-                                 String(l.valor_pago || '').includes(numSearch) ||
-                                 vTotalStr.includes(rawSearch) ||
-                                 vPagoStr.includes(rawSearch);
-                }
+                matchValor = Math.abs(vt - numVal) < 0.009 || Math.abs(vp - numVal) < 0.009 ||
+                             String(l.valor_total || '').includes(numSearch) ||
+                             String(l.valor_pago || '').includes(numSearch) ||
+                             vTotalStr.includes(rawSearch) ||
+                             vPagoStr.includes(rawSearch);
+            }
 
-                return matchTexto || matchValor;
-            });
-        } else {
-            // Contas a Receber / Outros
-            const searchCleanPlate = rawSearch.toUpperCase().replace(/[^A-Z0-9]/g, '');
-
-            filtered = filtered.filter(l => {
-                let matchPlaca = false;
-                if (searchCleanPlate.length >= 2) {
-                    const lPlacas = getPlacasLancamento(l);
-                    matchPlaca = lPlacas.some(p => {
-                        const cleanP = (p.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-                        return cleanP.includes(searchCleanPlate);
-                    });
-                }
-
-                return (l.descricao || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(b) ||
-                    (l.entidade_nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(b) ||
-                    (l.codigo_sequencial || '').toLowerCase().includes(b) ||
-                    (l.num_nf || '').toLowerCase().includes(b) ||
-                    (l.numero_cheque || '').toLowerCase().includes(b) ||
-                    matchPlaca;
-            });
-        }
+            return matchNf || matchDesc || matchEntidade || matchCod || matchPlaca || matchCheque || matchObs || matchValor;
+        });
     }
 
     filtered.sort((a, b) => {
@@ -770,7 +855,7 @@ function renderLancamentos(tipo) {
                         <div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-weight:700; cursor:pointer;" title="Clique para visualizar os detalhes">${l.entidade_nome || '-'}</div>
                     </td>
                     <td data-label="Descrição">
-                        ${l.num_nf ? `<div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px; cursor:pointer;" title="Clique para visualizar os detalhes">NF/Doc: ${l.num_nf}</div>` : ''}
+                        ${(l.num_nf || getLancamentoNumNF(l)) ? `<div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px; cursor:pointer;" title="Clique para visualizar os detalhes">NF/Doc: ${l.num_nf || getLancamentoNumNF(l)}</div>` : ''}
                         <div style="font-size:0.85rem">${l.descricao}</div>
                     </td>
                     <td data-label="Tipo/Pgto">
@@ -844,7 +929,7 @@ function renderLancamentos(tipo) {
                     <div style="font-size:0.7rem; color:var(--text-muted)">${l.recorrencia !== 'NAO' ? '<i data-lucide="repeat" style="width:10px"></i> Recorrência' : ''}</div>
                 </td>
                 <td data-label="Descrição">
-                    ${l.num_nf ? `<div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px; cursor:pointer;" title="Clique para visualizar os detalhes">NF/Doc: ${l.num_nf}</div>` : ''}
+                    ${(l.num_nf || getLancamentoNumNF(l)) ? `<div onclick="viewEntry('${l.id}')" class="clickable-view-link" style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom:2px; cursor:pointer;" title="Clique para visualizar os detalhes">NF/Doc: ${l.num_nf || getLancamentoNumNF(l)}</div>` : ''}
                     <div>${l.descricao}</div>
                     ${(() => {
                         const lPlacas = getPlacasLancamento(l);
@@ -1892,14 +1977,25 @@ function populateForm(form, item) {
 
 // --- Filters ---
 function filterFinancial(tipo, val) {
-    state.filtros[tipo].busca = val;
+    if (!state.filtros[tipo]) return;
+    state.filtros[tipo].busca = val || '';
     renderLancamentos(tipo);
 }
+window.filterFinancial = filterFinancial;
+
+function filterFornecedor(tipo, val) {
+    if (!state.filtros[tipo]) return;
+    state.filtros[tipo].fornecedor = val || '';
+    renderLancamentos(tipo);
+}
+window.filterFornecedor = filterFornecedor;
 
 function filterOrigem(tipo, val) {
+    if (!state.filtros[tipo]) return;
     state.filtros[tipo].origem = val;
     renderLancamentos(tipo);
 }
+window.filterOrigem = filterOrigem;
 
 
 let pinCallback = null;
@@ -4419,9 +4515,18 @@ function handleSort(tipo, key) {
 function sortFinancial(tipo, key) { handleSort(tipo, key); }
 
 function filterFinancial(tipo, val) {
-    state.filtros[tipo].busca = val;
+    if (!state.filtros[tipo]) return;
+    state.filtros[tipo].busca = val || '';
     renderLancamentos(tipo);
 }
+window.filterFinancial = filterFinancial;
+
+function filterFornecedor(tipo, val) {
+    if (!state.filtros[tipo]) return;
+    state.filtros[tipo].fornecedor = val || '';
+    renderLancamentos(tipo);
+}
+window.filterFornecedor = filterFornecedor;
 
 async function filterStatus(tipo, val) {
     state.filtros[tipo].status = val;
@@ -4489,7 +4594,7 @@ window.handleCustomDateChange = function(tipo) {
 };
 
 function clearFilters(tipo) {
-    state.filtros[tipo] = { status: '', busca: '', categoria: '', origem: '', periodoTipo: 'VENCIMENTO', periodo: '', dataIni: '', dataFim: '' };
+    state.filtros[tipo] = { status: '', busca: '', fornecedor: '', categoria: '', origem: '', periodoTipo: 'VENCIMENTO', periodo: '', dataIni: '', dataFim: '' };
 
     // Reset inputs
     if (tipo === 'PAGAR') {
@@ -5293,17 +5398,31 @@ function setupEventListeners() {
         document.getElementById('viewCod').innerText = l.codigo_sequencial || (compraData ? `NC-${compraData.numero_nota || compraData.id.slice(0,6)}` : '-');
         
         const parentLancamentoId = l.pai_id || l.id;
-        const grupoParcelas = (state.lancamentos || []).filter(item => 
-            item.id === parentLancamentoId || item.pai_id === parentLancamentoId
-        );
-        const totalNotaCalculado = grupoParcelas.length > 1
-            ? grupoParcelas.reduce((acc, curr) => acc + (parseFloat(curr.valor_total) || 0), 0)
-            : (parseFloat(l.valor_total) || 0);
+        const grupoParcelas = (state.lancamentos || []).filter(item => {
+            if (l.compra_id && item.compra_id) return item.compra_id === l.compra_id;
+            if (l.manutencao_id && item.manutencao_id) return item.manutencao_id === l.manutencao_id;
+            return item.id === parentLancamentoId || item.pai_id === parentLancamentoId;
+        });
+
+        // Ordenar grupo de parcelas por número ou data de vencimento
+        grupoParcelas.sort((a, b) => {
+            const mA = (a.descricao || '').match(/Parc\s*(\d+)\//i);
+            const mB = (b.descricao || '').match(/Parc\s*(\d+)\//i);
+            if (mA && mB) return parseInt(mA[1]) - parseInt(mB[1]);
+            return new Date(a.data_vencimento || 0) - new Date(b.data_vencimento || 0);
+        });
+
+        const totalNotaCalculado = (compraData && compraData.valor_total)
+            ? parseFloat(compraData.valor_total)
+            : (grupoParcelas.length > 1
+                ? grupoParcelas.reduce((acc, curr) => acc + (parseFloat(curr.valor_total) || 0), 0)
+                : (parseFloat(l.valor_total) || 0));
 
         const viewValorEl = document.getElementById('viewValor');
         if (viewValorEl) {
-            if (l.is_parcelado || l.pai_id || grupoParcelas.length > 1) {
-                const qtdP = l.qtd_parcelas || grupoParcelas.length;
+            const isParceladoEntry = l.is_parcelado || l.pai_id || grupoParcelas.length > 1 || (compraData && compraData.qtd_parcelas > 1);
+            if (isParceladoEntry) {
+                const qtdP = (compraData && compraData.qtd_parcelas) || l.qtd_parcelas || grupoParcelas.length;
                 viewValorEl.innerHTML = `
                     <div>${formatCurrency(l.valor_total)}</div>
                     <div style="font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-top:3px;">
@@ -5507,18 +5626,66 @@ function setupEventListeners() {
             const descontos = discsRes.data || [];
             let parcelas = parcsRes.data || [];
 
-            // Se fin_lancamento_parcelas estiver vazio mas for parcelado, monta dinamicamente com base nas irmãs do grupo
-            if (parcelas.length === 0 && (l.is_parcelado || l.pai_id || grupoParcelas.length > 1)) {
-                parcelas = grupoParcelas.map((gp, idx) => ({
-                    id: gp.id,
-                    lancamento_id: gp.id,
-                    numero_parcela: idx + 1,
-                    data_vencimento: gp.data_vencimento,
-                    valor: gp.valor_total,
-                    numero_cheque: gp.numero_cheque || null,
-                    conta_bancaria_id: gp.conta_bancaria_id || null,
-                    status: gp.status || 'ABERTO'
-                }));
+            // Se fin_lancamento_parcelas estiver vazio mas for parcelado ou integrado com múltiplas parcelas
+            if (parcelas.length === 0) {
+                let todasParcelasGrupo = [...grupoParcelas];
+
+                // Para lançamentos integrados de Compras ou Manutenção, busca todas as parcelas no banco
+                // caso algumas estejam em outro mês/status ou não tenham sido carregadas em state.lancamentos
+                if (l.compra_id) {
+                    try {
+                        const { data: dbCompParcs } = await supabaseClient
+                            .from('fin_lancamentos')
+                            .select('*')
+                            .eq('compra_id', l.compra_id)
+                            .order('data_vencimento', { ascending: true });
+                        if (dbCompParcs && dbCompParcs.length > 0) {
+                            todasParcelasGrupo = dbCompParcs;
+                        }
+                    } catch (errDbParcs) {
+                        console.warn("Aviso ao carregar parcelas da compra vinculada:", errDbParcs);
+                    }
+                } else if (l.manutencao_id) {
+                    try {
+                        const { data: dbManutParcs } = await supabaseClient
+                            .from('fin_lancamentos')
+                            .select('*')
+                            .eq('manutencao_id', l.manutencao_id)
+                            .order('data_vencimento', { ascending: true });
+                        if (dbManutParcs && dbManutParcs.length > 0) {
+                            todasParcelasGrupo = dbManutParcs;
+                        }
+                    } catch (errDbParcs) {
+                        console.warn("Aviso ao carregar parcelas da manutenção vinculada:", errDbParcs);
+                    }
+                }
+
+                // Ordenar por número de parcela (extraído de "Parc X/Y") ou vencimento
+                todasParcelasGrupo.sort((a, b) => {
+                    const mA = (a.descricao || '').match(/Parc\s*(\d+)\//i);
+                    const mB = (b.descricao || '').match(/Parc\s*(\d+)\//i);
+                    if (mA && mB) return parseInt(mA[1]) - parseInt(mB[1]);
+                    return new Date(a.data_vencimento || 0) - new Date(b.data_vencimento || 0);
+                });
+
+                const isParceladoGrupo = l.is_parcelado || l.pai_id || todasParcelasGrupo.length > 1 || (compraData && compraData.qtd_parcelas > 1);
+
+                if (isParceladoGrupo && todasParcelasGrupo.length > 1) {
+                    parcelas = todasParcelasGrupo.map((gp, idx) => {
+                        const matchNum = (gp.descricao || '').match(/Parc\s*(\d+)\//i);
+                        const numParc = matchNum ? parseInt(matchNum[1]) : (idx + 1);
+                        return {
+                            id: gp.id,
+                            lancamento_id: gp.id,
+                            numero_parcela: numParc,
+                            data_vencimento: gp.data_vencimento,
+                            valor: gp.valor_total,
+                            numero_cheque: gp.numero_cheque || null,
+                            conta_bancaria_id: gp.conta_bancaria_id || null,
+                            status: gp.status || 'ABERTO'
+                        };
+                    });
+                }
             }
 
             const itemsList = document.getElementById('viewItemsList');
@@ -5637,7 +5804,7 @@ function setupEventListeners() {
                 }
 
                 parcList.innerHTML = parcelas.map(p => {
-                    const isCurrentParc = (numParcAtual !== null && p.numero_parcela === numParcAtual);
+                    const isCurrentParc = (p.id === l.id || p.lancamento_id === l.id) || (numParcAtual !== null && p.numero_parcela === numParcAtual);
                     const chequeInfo = p.numero_cheque ? `<div style="font-size:0.75rem; color:#6366f1; font-weight:700; margin-top:2px;"><i data-lucide="ticket" style="width:11px; height:11px; display:inline-block; vertical-align:middle;"></i> Cheque nº ${p.numero_cheque}</div>` : '';
                     const contaObj = p.conta_bancaria_id ? (state.contas || []).find(c => c.id === p.conta_bancaria_id) : null;
                     const bancoInfo = contaObj ? `<div style="font-size:0.72rem; color:var(--text-muted); margin-top:2px;"><i data-lucide="landmark" style="width:10px; height:10px; display:inline-block; vertical-align:middle;"></i> ${contaObj.nome}</div>` : '';

@@ -210,16 +210,20 @@
                             id="count-OUTRO">0</span></button>
                 </div>
                 <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                    <div id="selectionBadge-vehicles" style="display:none; align-items:center; gap:0.5rem; background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.3); padding:0.35rem 0.8rem; border-radius:8px; font-size:0.78rem; font-weight:700; color:#818cf8;">
+                        <span id="selectionCountText-vehicles">0 selecionados</span>
+                        <button type="button" onclick="clearVehicleSelection()" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:800; font-size:0.75rem; padding:0 2px; margin-left:4px; transition: opacity 0.2s;" title="Limpar seleção">&times; Limpar</button>
+                    </div>
                     <button class="btn-col-config" onclick="toggleColPanel('vehicles')">
                         <i data-lucide="settings-2" style="width:14px;"></i> Colunas
                     </button>
                     <button class="btn" onclick="exportFleetToExcel()"
                         style="padding: 0.5rem 1rem; background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2); font-size: 0.8rem;">
-                        <i data-lucide="file-spreadsheet" style="width: 14px;"></i> Excel
+                        <span id="excelBtnLabel" style="display: inline-flex; align-items: center; gap: 0.4rem;"><i data-lucide="file-spreadsheet" style="width: 14px;"></i> Excel</span>
                     </button>
                     <button class="btn" onclick="exportFleetToPDF()"
                         style="padding: 0.5rem 1rem; background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2); font-size: 0.8rem;">
-                        <i data-lucide="file-text" style="width: 14px;"></i> PDF
+                        <span id="pdfBtnLabel" style="display: inline-flex; align-items: center; gap: 0.4rem;"><i data-lucide="file-text" style="width: 14px;"></i> PDF</span>
                     </button>
                     <button class="btn btn-primary" id="btnImport"
                         onclick="document.getElementById('importExcel').click()"
@@ -937,7 +941,7 @@
             </div>
         </div>
     </div>
-    <script src="app.js"></script>
+    <script src="app.js?v=20260923_aloc_sort"></script>
     <script src="orb_menu.js"></script>
 </body>
 

@@ -47,6 +47,99 @@ let whatsappConfig = { api_type: 'evolution', api_url: '', instance: '', apikey:
 let whatsappDestinatarios = [];
 let inativoMotivos = [];
 
+// --- Seleção de Veículos para Exportação (PDF / Excel) ---
+let selectedVehicleIds = new Set();
+window.selectedVehicleIds = selectedVehicleIds;
+
+function updateVehicleSelectionUI() {
+    const count = selectedVehicleIds.size;
+    const pdfLabel = document.getElementById('pdfBtnLabel');
+    if (pdfLabel) {
+        pdfLabel.innerHTML = count > 0 
+            ? `<i data-lucide="file-text" style="width: 14px;"></i> PDF (${count})` 
+            : `<i data-lucide="file-text" style="width: 14px;"></i> PDF`;
+    }
+
+    const excelLabel = document.getElementById('excelBtnLabel');
+    if (excelLabel) {
+        excelLabel.innerHTML = count > 0 
+            ? `<i data-lucide="file-spreadsheet" style="width: 14px;"></i> Excel (${count})` 
+            : `<i data-lucide="file-spreadsheet" style="width: 14px;"></i> Excel`;
+    }
+
+    const badge = document.getElementById('selectionBadge-vehicles');
+    const badgeText = document.getElementById('selectionCountText-vehicles');
+    if (badge && badgeText) {
+        if (count > 0) {
+            badge.style.display = 'inline-flex';
+            badgeText.innerText = `${count} ${count === 1 ? 'veículo selecionado' : 'veículos selecionados'}`;
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    // Atualizar estado do checkbox do cabeçalho
+    const selectAll = document.getElementById('selectAllVehicles');
+    if (selectAll) {
+        const visibleVehicles = typeof getFilteredVehicles === 'function' ? getFilteredVehicles() : [];
+        if (visibleVehicles.length === 0) {
+            selectAll.checked = false;
+            selectAll.indeterminate = false;
+        } else {
+            const allVisibleSelected = visibleVehicles.every(v => selectedVehicleIds.has(String(v.id)));
+            const someVisibleSelected = visibleVehicles.some(v => selectedVehicleIds.has(String(v.id)));
+            
+            selectAll.checked = allVisibleSelected;
+            selectAll.indeterminate = !allVisibleSelected && someVisibleSelected;
+        }
+    }
+
+    if (window.lucide) lucide.createIcons();
+}
+window.updateVehicleSelectionUI = updateVehicleSelectionUI;
+
+function toggleVehicleSelection(id, isChecked) {
+    const sId = String(id);
+    if (isChecked) {
+        selectedVehicleIds.add(sId);
+    } else {
+        selectedVehicleIds.delete(sId);
+    }
+    
+    const cb = document.querySelector(`.vehicle-checkbox[value="${id}"]`);
+    if (cb) {
+        const row = cb.closest('tr');
+        if (row) {
+            if (isChecked) row.classList.add('row-selected');
+            else row.classList.remove('row-selected');
+        }
+    }
+
+    updateVehicleSelectionUI();
+}
+window.toggleVehicleSelection = toggleVehicleSelection;
+
+function toggleSelectAllVehicles(isChecked) {
+    const visibleVehicles = typeof getFilteredVehicles === 'function' ? getFilteredVehicles() : [];
+    visibleVehicles.forEach(v => {
+        const sId = String(v.id);
+        if (isChecked) {
+            selectedVehicleIds.add(sId);
+        } else {
+            selectedVehicleIds.delete(sId);
+        }
+    });
+
+    renderFullVehicles();
+}
+window.toggleSelectAllVehicles = toggleSelectAllVehicles;
+
+function clearVehicleSelection() {
+    selectedVehicleIds.clear();
+    renderFullVehicles();
+}
+window.clearVehicleSelection = clearVehicleSelection;
+
 // ============================================================
 //  COLUMN MANAGER
 // ============================================================
@@ -297,7 +390,15 @@ function renderThead(tab) {
     const active = getActiveCols(tab);
     const sort = currentSort[tab];
 
-    thead.innerHTML = '<tr>' + active.map(c => {
+    let checkCol = '';
+    if (tab === 'vehicles') {
+        checkCol = `
+            <th class="col-checkbox" style="width: 44px; text-align: center;">
+                <input type="checkbox" id="selectAllVehicles" class="checkbox-custom" onchange="toggleSelectAllVehicles(this.checked)" title="Selecionar todos os veículos visíveis">
+            </th>`;
+    }
+
+    thead.innerHTML = '<tr>' + checkCol + active.map(c => {
         const isSorted = sort.key === c.key;
         const icon = isSorted ? (sort.dir === 'asc' ? 'chevron-up' : 'chevron-down') : 'chevrons-up-down';
         const isSortable = c.key !== 'actions';
@@ -322,6 +423,55 @@ function handleSort(tab, key) {
         currentSort[tab].dir = 'asc';
     }
     renderAll();
+}
+
+function getVehicleAllocationDisplay(v) {
+    if (!v) return '';
+    const d1 = v.motorista_alocado?.nome_completo;
+    const d2 = v.motorista_alocado_2?.nome_completo;
+    if (d1 && d2) return `${d1} / ${d2}`;
+    if (d1) return d1;
+    if (d2) return d2;
+
+    const statusAlocUpper = (v.status_alocacao || '').toUpperCase().trim();
+    if (['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes(statusAlocUpper)) {
+        return statusAlocUpper;
+    }
+    return 'DISPONÍVEL';
+}
+
+function sortVehiclesList(list, sort) {
+    if (!list || !Array.isArray(list)) return [];
+    if (!sort) return list;
+    return list.sort((a, b) => {
+        let valA, valB;
+        if (sort.key === 'condutor_principal') {
+            valA = (a.motoristas?.nome_completo || '').toLowerCase();
+            valB = (b.motoristas?.nome_completo || '').toLowerCase();
+        } else if (sort.key === 'motorista_alocado') {
+            valA = getVehicleAllocationDisplay(a).toLowerCase();
+            valB = getVehicleAllocationDisplay(b).toLowerCase();
+        } else if (sort.key === 'marca_modelo') {
+            valA = ((a.marca || '') + ' ' + (a.modelo || '')).toLowerCase();
+            valB = ((b.marca || '') + ' ' + (b.modelo || '')).toLowerCase();
+        } else if (sort.key === 'venc_seguro') {
+            valA = a.vencimento_seguro ? new Date(a.vencimento_seguro).getTime() : 0;
+            valB = b.vencimento_seguro ? new Date(b.vencimento_seguro).getTime() : 0;
+            return sort.dir === 'asc' ? valA - valB : valB - valA;
+        } else if (typeof a[sort.key] === 'number') {
+            valA = a[sort.key] || 0;
+            valB = b[sort.key] || 0;
+            return sort.dir === 'asc' ? valA - valB : valB - valA;
+        } else {
+            valA = (a[sort.key] || '').toString().toLowerCase();
+            valB = (b[sort.key] || '').toString().toLowerCase();
+        }
+        const cmp = sort.dir === 'asc'
+            ? valA.localeCompare(valB, 'pt-BR', { sensitivity: 'base' })
+            : valB.localeCompare(valA, 'pt-BR', { sensitivity: 'base' });
+        if (cmp !== 0) return cmp;
+        return (a.placa || '').localeCompare(b.placa || '');
+    });
 }
 
 // --- Funções de UI ---
@@ -488,16 +638,13 @@ function updateUnlinkedDrivers() {
     const list = document.getElementById('unlinkedList');
     if (!badge || !list) return;
 
-    // Motoristas ativos que não estão em NENHUMA alocação de veículo (incluindo principal se o carro não estiver em status especial)
+    // Motoristas ativos que não estão em NENHUMA alocação operacional de veículo ativo (1º ou 2º condutor)
     const occupiedDriverIds = vehicles
         .filter(v => v.status === 'ATIVO' || !v.status)
         .flatMap(v => {
             const ids = [];
             if (v.motorista_alocado_id) ids.push(v.motorista_alocado_id);
             if (v.motorista_alocado_2_id) ids.push(v.motorista_alocado_2_id);
-            if (!['MANUTENCAO', 'GARAGEM', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase()) && v.condutor_principal_id) {
-                ids.push(v.condutor_principal_id);
-            }
             return ids;
         })
         .filter(id => id);
@@ -803,17 +950,8 @@ function renderVehicles() {
     filtered.sort((a, b) => {
         let valA, valB;
         if (sort.key === 'condutor') {
-            const getCondutorName = (veh) => {
-                const isMain = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((veh.status_alocacao || '').toUpperCase());
-                const d1 = veh.motorista_alocado ? veh.motorista_alocado.nome_completo : '';
-                const d2 = veh.motorista_alocado_2 ? veh.motorista_alocado_2.nome_completo : '';
-                if (d1 && d2) return `${d1} / ${d2}`;
-                if (d1) return d1;
-                if (d2) return d2;
-                return isMain ? veh.status_alocacao : 'DISPONÍVEL';
-            };
-            valA = (getCondutorName(a) || '').toLowerCase();
-            valB = (getCondutorName(b) || '').toLowerCase();
+            valA = getVehicleAllocationDisplay(a).toLowerCase();
+            valB = getVehicleAllocationDisplay(b).toLowerCase();
         } else if (typeof a[sort.key] === 'number') {
             valA = a[sort.key] || 0;
             valB = b[sort.key] || 0;
@@ -822,9 +960,11 @@ function renderVehicles() {
             valA = (a[sort.key] || '').toString().toLowerCase();
             valB = (b[sort.key] || '').toString().toLowerCase();
         }
-        if (valA < valB) return sort.dir === 'asc' ? -1 : 1;
-        if (valA > valB) return sort.dir === 'asc' ? 1 : -1;
-        return 0;
+        const cmp = sort.dir === 'asc'
+            ? valA.localeCompare(valB, 'pt-BR', { sensitivity: 'base' })
+            : valB.localeCompare(valA, 'pt-BR', { sensitivity: 'base' });
+        if (cmp !== 0) return cmp;
+        return (a.placa || '').localeCompare(b.placa || '');
     });
 
     if (activeVehicles.length === 0) {
@@ -1645,6 +1785,8 @@ function renderFullVehicles() {
             v.chassi,
             v.motoristas?.nome_completo,
             v.motorista_alocado?.nome_completo,
+            v.motorista_alocado_2?.nome_completo,
+            v.status_alocacao,
             v.seguradora,
             v.numero_apolice,
             v.corretor_seguro
@@ -1657,26 +1799,7 @@ function renderFullVehicles() {
     const sort = currentSort.vehicles;
 
     // Sorteia os dados filtrados
-    filtered.sort((a, b) => {
-        let valA, valB;
-        if (sort.key === 'condutor_principal') {
-            valA = (a.motoristas?.nome_completo || '').toLowerCase();
-            valB = (b.motoristas?.nome_completo || '').toLowerCase();
-        } else if (sort.key === 'motorista_alocado') {
-            valA = (a.motorista_alocado?.nome_completo || '').toLowerCase();
-            valB = (b.motorista_alocado?.nome_completo || '').toLowerCase();
-        } else if (sort.key === 'marca_modelo') {
-            valA = (a.marca || '') + (a.modelo || '');
-            valB = (b.marca || '') + (b.modelo || '');
-            valA = valA.toLowerCase(); valB = valB.toLowerCase();
-        } else {
-            valA = (a[sort.key] || '').toString().toLowerCase();
-            valB = (b[sort.key] || '').toString().toLowerCase();
-        }
-        if (valA < valB) return sort.dir === 'asc' ? -1 : 1;
-        if (valA > valB) return sort.dir === 'asc' ? 1 : -1;
-        return 0;
-    });
+    sortVehiclesList(filtered, sort);
 
     const actionsHtml = (v) => {
         const driveUrl = v.drive_folder_url || '';
@@ -1709,7 +1832,19 @@ function renderFullVehicles() {
         </div>`;
     };
 
+    if (filtered.length === 0) {
+        list.innerHTML = `<tr><td colspan="${activeCols.length + 1}" style="text-align: center; padding: 3rem; color: var(--text-muted);">Nenhum veículo encontrado.</td></tr>`;
+        if (window.lucide) lucide.createIcons();
+        updateVehicleSelectionUI();
+        return;
+    }
+
     list.innerHTML = filtered.map(v => {
+        const isSelected = selectedVehicleIds.has(String(v.id));
+        const checkCell = `<td class="col-checkbox" style="text-align: center;">
+            <input type="checkbox" class="checkbox-custom vehicle-checkbox" value="${v.id}" ${isSelected ? 'checked' : ''} onchange="toggleVehicleSelection('${v.id}', this.checked)">
+        </td>`;
+
         const cells = activeCols.map(col => {
             switch (col.key) {
                 case 'placa': return `<td><span class="plate">${v.placa}</span></td>`;
@@ -1730,9 +1865,7 @@ function renderFullVehicles() {
                 case 'tipo_combustivel': return `<td><span style="font-size: 0.75rem; font-weight: 600; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">${v.tipo_combustivel || '-'}</span></td>`;
                 case 'condutor_principal': return `<td><span style="font-size:0.85rem; font-weight:600;">${v.motoristas ? v.motoristas.nome_completo : '-'}</span></td>`;
                 case 'motorista_alocado': 
-                    const statusAlocUpper = (v.status_alocacao || '').toUpperCase();
-                    const isMain = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes(statusAlocUpper);
-                    const dName = v.motorista_alocado ? v.motorista_alocado.nome_completo : (isMain ? statusAlocUpper : 'DISPONÍVEL');
+                    const dName = getVehicleAllocationDisplay(v);
                     return `<td><span style="font-size:0.85rem; font-weight:600; color: var(--primary);">${dName}</span></td>`;
                 case 'status': 
                     let bClass = 'danger';
@@ -1757,9 +1890,10 @@ function renderFullVehicles() {
                 default: return `<td>-</td>`;
             }
         }).join('');
-        return `<tr>${cells}</tr>`;
+        return `<tr class="${isSelected ? 'row-selected' : ''}">${checkCell}${cells}</tr>`;
     }).join('');
     if (window.lucide) lucide.createIcons();
+    updateVehicleSelectionUI();
 }
 
 function renderFullDrivers() {
@@ -2048,6 +2182,8 @@ function getFilteredVehicles() {
             v.chassi,
             v.motoristas?.nome_completo,
             v.motorista_alocado?.nome_completo,
+            v.motorista_alocado_2?.nome_completo,
+            v.status_alocacao,
             v.seguradora,
             v.numero_apolice,
             v.corretor_seguro
@@ -2057,26 +2193,7 @@ function getFilteredVehicles() {
     });
 
     const sort = currentSort.vehicles;
-    filtered.sort((a, b) => {
-        let valA, valB;
-        if (sort.key === 'condutor_principal') {
-            valA = (a.motoristas?.nome_completo || '').toLowerCase();
-            valB = (b.motoristas?.nome_completo || '').toLowerCase();
-        } else if (sort.key === 'motorista_alocado') {
-            valA = (a.motorista_alocado?.nome_completo || '').toLowerCase();
-            valB = (b.motorista_alocado?.nome_completo || '').toLowerCase();
-        } else if (sort.key === 'marca_modelo') {
-            valA = (a.marca || '') + (a.modelo || '');
-            valB = (b.marca || '') + (b.modelo || '');
-            valA = valA.toLowerCase(); valB = valB.toLowerCase();
-        } else {
-            valA = (a[sort.key] || '').toString().toLowerCase();
-            valB = (b[sort.key] || '').toString().toLowerCase();
-        }
-        if (valA < valB) return sort.dir === 'asc' ? -1 : 1;
-        if (valA > valB) return sort.dir === 'asc' ? 1 : -1;
-        return 0;
-    });
+    sortVehiclesList(filtered, sort);
 
     return filtered;
 }
@@ -2130,17 +2247,8 @@ function getFilteredAllocations() {
     filtered.sort((a, b) => {
         let valA, valB;
         if (sort.key === 'condutor') {
-            const getCondutorName = (veh) => {
-                const isMain = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((veh.status_alocacao || '').toUpperCase());
-                const d1 = veh.motorista_alocado ? veh.motorista_alocado.nome_completo : '';
-                const d2 = veh.motorista_alocado_2 ? veh.motorista_alocado_2.nome_completo : '';
-                if (d1 && d2) return `${d1} / ${d2}`;
-                if (d1) return d1;
-                if (d2) return d2;
-                return isMain ? veh.status_alocacao : 'DISPONÍVEL';
-            };
-            valA = (getCondutorName(a) || '').toLowerCase();
-            valB = (getCondutorName(b) || '').toLowerCase();
+            valA = getVehicleAllocationDisplay(a).toLowerCase();
+            valB = getVehicleAllocationDisplay(b).toLowerCase();
         } else if (typeof a[sort.key] === 'number') {
             valA = a[sort.key] || 0;
             valB = b[sort.key] || 0;
@@ -2149,9 +2257,11 @@ function getFilteredAllocations() {
             valA = (a[sort.key] || '').toString().toLowerCase();
             valB = (b[sort.key] || '').toString().toLowerCase();
         }
-        if (valA < valB) return sort.dir === 'asc' ? -1 : 1;
-        if (valA > valB) return sort.dir === 'asc' ? 1 : -1;
-        return 0;
+        const cmp = sort.dir === 'asc'
+            ? valA.localeCompare(valB, 'pt-BR', { sensitivity: 'base' })
+            : valB.localeCompare(valA, 'pt-BR', { sensitivity: 'base' });
+        if (cmp !== 0) return cmp;
+        return (a.placa || '').localeCompare(b.placa || '');
     });
 
     return filtered;
@@ -2263,10 +2373,22 @@ function exportAllocationsToPDF() {
 }
 
 function exportFleetToExcel() {
-    const filtered = getFilteredVehicles();
-    if (filtered.length === 0) return alert('Nenhum veículo encontrado com os filtros atuais.');
+    let filtered;
+    let isManualSelection = false;
 
-    // Exportar apenas os registros filtrados na tela
+    if (selectedVehicleIds && selectedVehicleIds.size > 0) {
+        filtered = vehicles.filter(v => selectedVehicleIds.has(String(v.id)));
+        isManualSelection = true;
+    } else {
+        filtered = getFilteredVehicles();
+    }
+
+    if (filtered.length === 0) return alert('Nenhum veículo encontrado para exportação.');
+
+    // Ordenar de acordo com a ordenação da tela
+    const sort = currentSort.vehicles;
+    sortVehiclesList(filtered, sort);
+
     const exportData = filtered.map(v => ({
         'Placa': v.placa,
         'Marca': v.marca,
@@ -2296,22 +2418,33 @@ function exportFleetToExcel() {
         'Data Aquisição': formatDate(v.data_aquisicao_nf),
         'Data Saída': formatDate(v.data_saida_nf),
         'Classificação': v.classificacao,
-        'Alocação Atual': v.motorista_alocado 
-            ? (v.motorista_alocado.nome_completo + (v.motorista_alocado_2 ? ' / ' + v.motorista_alocado_2.nome_completo : ''))
-            : (['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase()) 
-                ? v.status_alocacao 
-                : (v.motoristas ? v.motoristas.nome_completo : 'DISPONÍVEL'))
+        'Alocação Atual': getVehicleAllocationDisplay(v)
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Frota_Filtrada");
-    XLSX.writeFile(wb, `Frota_Veritas_Filtrada_${new Date().toLocaleDateString()}.xlsx`);
+    const sheetName = isManualSelection ? "Frota_Selecionados" : "Frota_Filtrada";
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    const fileSuffix = isManualSelection ? "Selecionados" : "Filtrada";
+    XLSX.writeFile(wb, `Frota_${fileSuffix}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
 }
 
 function exportFleetToPDF() {
-    const filtered = getFilteredVehicles();
-    if (filtered.length === 0) return alert('Nenhum veículo encontrado com os filtros atuais.');
+    let filtered;
+    let isManualSelection = false;
+
+    if (selectedVehicleIds && selectedVehicleIds.size > 0) {
+        filtered = vehicles.filter(v => selectedVehicleIds.has(String(v.id)));
+        isManualSelection = true;
+    } else {
+        filtered = getFilteredVehicles();
+    }
+
+    if (filtered.length === 0) return alert('Nenhum veículo encontrado para exportação.');
+
+    // Ordenar de acordo com a ordenação da tela
+    const sort = currentSort.vehicles;
+    sortVehiclesList(filtered, sort);
 
     const { jsPDF } = window.jspdf;
     
@@ -2324,14 +2457,20 @@ function exportFleetToPDF() {
     const searchTerm = searchInput ? searchInput.value.trim() : '';
 
     doc.setFontSize(16);
-    doc.text("Relatório da Frota - VERITAS", 14, 18);
+    doc.text("Relatório da Frota", 14, 18);
     doc.setFontSize(9);
     doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 25);
     
-    let subTitle = `Total de veículos: ${filtered.length}`;
-    if (searchTerm) subTitle += ` | Busca: "${searchTerm}"`;
-    if (typeof currentClassificationFilters !== 'undefined' && currentClassificationFilters.length > 0) {
-        subTitle += ` | Filtro: ${currentClassificationFilters.join(', ')}`;
+    let subTitle = `Total: ${filtered.length} ${filtered.length === 1 ? 'veículo' : 'veículos'}`;
+    if (isManualSelection) {
+        subTitle += ` (Seleção manual de ${filtered.length} ${filtered.length === 1 ? 'item' : 'itens'})`;
+        const distinctClasses = [...new Set(filtered.map(v => v.classificacao || 'OUTRO'))];
+        if (distinctClasses.length > 0) subTitle += ` | Classificação: ${distinctClasses.join(', ')}`;
+    } else {
+        if (searchTerm) subTitle += ` | Busca: "${searchTerm}"`;
+        if (typeof currentClassificationFilters !== 'undefined' && currentClassificationFilters.length > 0) {
+            subTitle += ` | Filtro: ${currentClassificationFilters.join(', ')}`;
+        }
     }
     doc.text(subTitle, 14, 30);
 
@@ -2360,9 +2499,7 @@ function exportFleetToPDF() {
                 case 'codigo_fipe': return v.codigo_fipe || '-';
                 case 'condutor_principal': return v.motoristas ? v.motoristas.nome_completo : '-';
                 case 'motorista_alocado': 
-                    const statusAlocUpper = (v.status_alocacao || '').toUpperCase();
-                    const isMain = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes(statusAlocUpper);
-                    return v.motorista_alocado ? v.motorista_alocado.nome_completo : (isMain ? statusAlocUpper : (v.motoristas ? v.motoristas.nome_completo : 'DISPONÍVEL'));
+                    return getVehicleAllocationDisplay(v);
                 case 'data_aquisicao_nf': return formatDate(v.data_aquisicao_nf);
                 case 'data_saida_nf': return formatDate(v.data_saida_nf);
                 case 'numero_motor': return v.numero_motor || '-';
@@ -2388,7 +2525,8 @@ function exportFleetToPDF() {
         styles: { fontSize: 8, cellPadding: 2 }
     });
 
-    doc.save(`Frota_Veritas_Filtrada_${new Date().toISOString().split('T')[0]}.pdf`);
+    const fileSuffix = isManualSelection ? "Selecionados" : "Filtrada";
+    doc.save(`Frota_${fileSuffix}_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
 function exportDriversToExcel() {

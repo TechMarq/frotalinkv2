@@ -427,6 +427,7 @@ async function loadCompras(startDate, endDate) {
                 parentFaturamentoId: c.parent_faturamento_id,
                 consolidadoVales: c.consolidado_vales || false,
                 itens: (cloudItens || []).filter(it => it.compra_id === c.id).map(it => ({
+                    id: it.id,
                     tipo: it.tipo,
                     produto: it.produto,
                     marca: it.marca,
@@ -1389,7 +1390,7 @@ window.openViewModal = (id) => {
 
     // Items List
     const itemsList = document.getElementById('viewItemsList');
-    itemsList.innerHTML = (c.itens || c.items || []).map(it => {
+    itemsList.innerHTML = (c.itens || c.items || []).map((it, idx) => {
         const isS = it.tipo === 'servico';
         const label = isS ? 'S' : 'P';
         const color = isS ? '#d97706' : '#059669';
@@ -1404,6 +1405,12 @@ window.openViewModal = (id) => {
         } else if (it.pessoa || it.vinculo_pessoa) {
             linkInfo = `<span class="placa-badge" style="font-size:0.65rem; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 6px; border-radius:4px; font-weight:700;">👤 ${it.pessoa || it.vinculo_pessoa}</span>`;
         }
+
+        const isStockLinked = (it.estoque === true || it.estoque === 'true') && it.produtoId;
+        const stockAction = isStockLinked ? `
+            <span style="color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;">📦 ESTOQUE</span>
+            <button type="button" class="btn-subst-view" onclick="openSubstituirProdutoModal('${c.id}', ${idx})" style="padding: 2px 8px; border-radius: 4px; border: 1px solid #93c5fd; background: #ffffff; color: #1d4ed8; font-size: 0.7rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; transition: all 0.2s;" title="Substituir produto vinculado no estoque"><i data-lucide="refresh-cw" style="width:11px; height:11px;"></i> Substituir Produto</button>
+        ` : '';
 
         // Maintenance Linkage Details
         const hasMaint = it.maintControl || it.maint_control;
@@ -1448,6 +1455,7 @@ window.openViewModal = (id) => {
                                 <span style="font-size: 0.72rem; color: #475569; font-weight: 700; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; border: 1px solid #e2e8f0;">Unit: R$ ${unit.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
                                 <span style="color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 4px;">${ccName}</span>
                                 ${linkInfo}
+                                ${stockAction}
                             </div>
                         </div>
                     </div>
@@ -1651,8 +1659,10 @@ function applyStockItemLock(isLocked) {
                     Itens Vinculados ao Estoque (Edição Protegida)
                 </div>
                 <div style="color: #334155; font-size: 0.82rem;">
-                    Os itens desta nota já deram entrada no módulo de estoque. Para assegurar a consistência das saídas e do saldo atual, a alteração direta dos itens está bloqueada.
-                    <span style="color: #1d4ed8; font-weight: 700; display: block; margin-top: 0.25rem;">Você pode alterar normalmente todos os outros campos da nota (Espécie, Fornecedor, Datas, Categoria, Forma de Pagamento, etc.).</span>
+                    Os itens desta nota já deram entrada no módulo de estoque. Para assegurar a consistência das saídas e do saldo atual, a alteração direta dos campos está bloqueada.
+                    <span style="color: #1d4ed8; font-weight: 700; display: block; margin-top: 0.25rem;">
+                        💡 <strong>Vinculou o produto errado?</strong> Utilize o botão <u>"Substituir Produto Vinculado"</u> na linha do item para transferir a entrada para o produto correto com PIN de segurança.
+                    </span>
                 </div>
             </div>
         `;
@@ -1661,13 +1671,14 @@ function applyStockItemLock(isLocked) {
         }
 
         const rows = document.querySelectorAll('.item-row');
-        rows.forEach(row => {
+        rows.forEach((row, idx) => {
             row.style.background = '#f8fafc';
             row.style.borderColor = '#cbd5e1';
             row.style.opacity = '1';
             
             const interactives = row.querySelectorAll('input, select, button, .stock-toggle');
             interactives.forEach(el => {
+                if (el.classList.contains('btn-substituir-produto')) return;
                 el.style.pointerEvents = 'none';
                 if (el.tagName === 'INPUT') {
                     el.readOnly = true;
@@ -1702,6 +1713,29 @@ function applyStockItemLock(isLocked) {
 
             const actionsGroup = row.querySelector('.product-actions-group');
             if (actionsGroup) actionsGroup.style.display = 'none';
+
+            // Injeta botão de substituição caso seja item de estoque
+            const hiddenProdInput = row.querySelector('.item-produto');
+            const stockToggle = row.querySelector('.stock-toggle');
+            const isStockLinked = (stockToggle && stockToggle.classList.contains('active')) && hiddenProdInput && hiddenProdInput.value;
+            
+            let substBtnWrapper = row.querySelector('.subst-btn-wrapper');
+            if (isStockLinked && editId) {
+                if (!substBtnWrapper) {
+                    substBtnWrapper = document.createElement('div');
+                    substBtnWrapper.className = 'subst-btn-wrapper';
+                    substBtnWrapper.style = "margin-top: 0.65rem; padding-top: 0.65rem; border-top: 1px dashed #cbd5e1; display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem; pointer-events: auto !important;";
+                    substBtnWrapper.innerHTML = `
+                        <span style="font-size: 0.75rem; color: #64748b; font-weight: 600;">Produto incorreto nesta nota?</span>
+                        <button type="button" class="btn-substituir-produto" onclick="openSubstituirProdutoModal('${editId}', ${idx})" style="padding: 0.45rem 1rem; border-radius: 8px; border: 1px solid #3b82f6; background: #2563eb; color: #ffffff; font-size: 0.76rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 5px rgba(37,99,235,0.25); pointer-events: auto !important; transition: all 0.2s;">
+                            <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Substituir Produto Vinculado
+                        </button>
+                    `;
+                    row.appendChild(substBtnWrapper);
+                }
+            } else if (substBtnWrapper) {
+                substBtnWrapper.remove();
+            }
         });
 
         if (window.lucide) lucide.createIcons();
@@ -1710,6 +1744,9 @@ function applyStockItemLock(isLocked) {
 
         const rows = document.querySelectorAll('.item-row');
         rows.forEach(row => {
+            const substBtnWrapper = row.querySelector('.subst-btn-wrapper');
+            if (substBtnWrapper) substBtnWrapper.remove();
+
             row.style.background = '';
             row.style.borderColor = '';
             row.style.opacity = '';
@@ -1769,8 +1806,8 @@ function populateModal(c) {
     document.getElementById('vencimentoNota').value = c.vencimento || '';
 
     const itns = c.items || c.itens || [];
-    if (itns.length > 0) itns.forEach(it => addItemRow(it, false));
-    else addItemRow(null, false);
+    if (itns.length > 0) itns.forEach((it, idx) => addItemRow(it, false, idx));
+    else addItemRow(null, false, 0);
 
     if (c.adicionais?.length > 0) {
         c.adicionais.forEach(ad => {
@@ -1833,7 +1870,7 @@ function populateModal(c) {
     applyStockItemLock(hasLinkedStock);
 }
 
-function addItemRow(data = {}, shouldFocus = true) {
+function addItemRow(data = {}, shouldFocus = true, itemIndex = null) {
     if (!data) data = {};
     const container = document.getElementById('itemsContainer');
     const rowId = 'row_' + Date.now() + Math.random().toString(36).substr(2, 5);
@@ -1845,6 +1882,7 @@ function addItemRow(data = {}, shouldFocus = true) {
     const row = document.createElement('div');
     row.className = 'item-row';
     row.id = rowId;
+    if (itemIndex !== null && itemIndex !== undefined) row.dataset.itemIndex = itemIndex;
 
     const selectedProd = inventoryProducts.find(p => p.id == data.produtoId) || null;
     let prodDisplay = selectedProd ? `${selectedProd.nome} (${selectedProd.marca || ''})` : (data.produto || '');
@@ -4401,10 +4439,6 @@ window.clearSearch = () => {
 };
 
 window.clearAllFilters = () => {
-    if (document.getElementById('filterDatePreset')) {
-        document.getElementById('filterDatePreset').value = 'all';
-        handleDatePresetChange(document.getElementById('filterDatePreset'));
-    }
     document.getElementById('filterEspecie').value = '';
     document.getElementById('filterFornecedor').value = '';
     document.getElementById('filterPlaca').value = '';
@@ -4415,10 +4449,17 @@ window.clearAllFilters = () => {
     const clearBtn = document.getElementById('clearSearchBtn');
     if (clearBtn) clearBtn.style.display = 'none';
     currentPage = 1;
-    
+
     // Reset dropdowns to initial state
-    updateDropdowns(); 
-    renderCompras();
+    updateDropdowns();
+
+    const datePresetEl = document.getElementById('filterDatePreset');
+    if (datePresetEl) {
+        datePresetEl.value = 'month';
+        handleDatePresetChange(datePresetEl, true);
+    } else {
+        renderCompras();
+    }
 };
 
 window.handleIntelligentFilter = (originId) => {
@@ -5837,7 +5878,7 @@ window.checkSimilarRecentItem = checkSimilarRecentItem;
 let pinCallback = null;
 let currentPinChallenge = "";
 
-window.openPinModal = function(callback) {
+window.openPinModal = function(callback, options = {}) {
     pinCallback = callback;
     const modal = document.getElementById('pinModal');
     if (!modal) return;
@@ -5852,6 +5893,14 @@ window.openPinModal = function(callback) {
     currentPinChallenge = Math.floor(100000 + Math.random() * 900000).toString();
     const display = document.getElementById('pinChallengeValue');
     if (display) display.innerText = currentPinChallenge;
+
+    // Custom labels if provided
+    const titleEl = modal.querySelector('h2');
+    const msgEl = modal.querySelector('p');
+    const confirmBtn = modal.querySelector('button[onclick="confirmPin()"]');
+    if (titleEl) titleEl.innerText = options.title || 'Confirmação de Segurança';
+    if (msgEl) msgEl.innerText = options.msg || 'Insira o código abaixo para confirmar a exclusão:';
+    if (confirmBtn) confirmBtn.innerText = options.btnText || 'CONFIRMAR EXCLUSÃO';
 
     modal.classList.add('active');
     setTimeout(() => {
@@ -6816,3 +6865,363 @@ document.addEventListener('focusin', (e) => {
         }
     });
 });
+
+// ============================================================================
+// RECURSO ADMINISTRATIVO: SUBSTITUIÇÃO DE PRODUTO VINCULADO AO ESTOQUE NA NOTA
+// ============================================================================
+let currentSubstContext = null;
+
+window.openSubstituirProdutoModal = async function(compraId, itemIndex) {
+    try {
+        if (!compraId) return;
+        const c = compras.find(x => String(x.id) === String(compraId));
+        if (!c) {
+            alert('Nota de compra não localizada.');
+            return;
+        }
+
+        const items = c.items || c.itens || [];
+        const it = items[itemIndex];
+        if (!it) {
+            alert('Item da compra não localizado.');
+            return;
+        }
+
+        if (typeof window.showLoader === 'function') window.showLoader();
+
+        // 1. Obter dados frescos do produto atual no banco de dados
+        let prodOrigemDb = null;
+        if (supabaseClient && it.produtoId) {
+            const { data, error } = await supabaseClient.from('estoque').select('*').eq('id', it.produtoId).single();
+            if (!error && data) prodOrigemDb = data;
+        }
+        if (!prodOrigemDb) {
+            prodOrigemDb = inventoryProducts.find(p => p.id == it.produtoId) || {
+                id: it.produtoId,
+                nome: it.produto,
+                marca: it.marca || '',
+                ref: '',
+                unidade: 'UN',
+                estoque_atual: 0
+            };
+        }
+
+        // 2. Preencher dados no modal
+        const numNota = c.numeroNota || c.numero_nota || 'S/N';
+        const numBadge = document.getElementById('substNumNotaBadge');
+        if (numBadge) numBadge.innerText = `#${numNota}`;
+
+        document.getElementById('substProdOrigemNome').innerText = prodOrigemDb.nome || it.produto;
+        document.getElementById('substProdOrigemMeta').innerText = `${prodOrigemDb.marca || 'SEM MARCA'} | SKU/Ref: ${prodOrigemDb.ref || '---'} | Unidade: ${prodOrigemDb.unidade || 'UN'}`;
+        
+        const qtdNota = parseFloat(it.quantidade) || 0;
+        const saldoA = parseFloat(prodOrigemDb.estoque_atual) || 0;
+        const novoSaldoA = saldoA - qtdNota;
+
+        document.getElementById('substProdOrigemQtd').innerText = `${qtdNota} ${prodOrigemDb.unidade || ''}`;
+        document.getElementById('substProdOrigemSaldoAtual').innerText = `${saldoA} ${prodOrigemDb.unidade || ''}`;
+        
+        const elNovoSaldoA = document.getElementById('substProdOrigemNovoSaldo');
+        elNovoSaldoA.innerText = `${novoSaldoA.toFixed(2).replace(/\.00$/, '')} ${prodOrigemDb.unidade || ''}`;
+        elNovoSaldoA.style.color = novoSaldoA < 0 ? '#dc2626' : '#b91c1c';
+
+        // Alerta de Saldo Negativo
+        const alertaSaldoNeg = document.getElementById('substAlertaSaldoNegativo');
+        if (novoSaldoA < 0) {
+            alertaSaldoNeg.style.display = 'block';
+            document.getElementById('substAlertaSaldoVal').innerText = `${novoSaldoA.toFixed(2).replace(/\.00$/, '')} ${prodOrigemDb.unidade || ''}`;
+        } else {
+            alertaSaldoNeg.style.display = 'none';
+        }
+
+        // 3. Resetar campos do novo produto
+        document.getElementById('substInputBuscaNovoProd').value = '';
+        document.getElementById('substNovoProdId').value = '';
+        document.getElementById('substCardDestinoInfo').style.display = 'none';
+        const btnConfirm = document.getElementById('btnConfirmarSubstProd');
+        if (btnConfirm) btnConfirm.disabled = true;
+
+        // Salvar contexto
+        currentSubstContext = {
+            compraId,
+            itemIndex,
+            compra: c,
+            item: it,
+            prodOrigem: prodOrigemDb,
+            qtdNota,
+            novoSaldoA,
+            prodDestino: null
+        };
+
+        // Abrir modal
+        const modal = document.getElementById('modalSubstituirProdutoEstoque');
+        if (modal) modal.classList.add('active');
+
+        if (window.lucide) lucide.createIcons();
+
+        setTimeout(() => {
+            document.getElementById('substInputBuscaNovoProd')?.focus();
+        }, 120);
+
+    } catch (err) {
+        console.error("Erro ao abrir modal de substituição:", err);
+        alert("Ocorreu um erro ao carregar os dados para substituição: " + err.message);
+    } finally {
+        if (typeof window.hideLoader === 'function') window.hideLoader();
+    }
+};
+
+window.closeSubstituirProdutoModal = function() {
+    const modal = document.getElementById('modalSubstituirProdutoEstoque');
+    if (modal) modal.classList.remove('active');
+    currentSubstContext = null;
+};
+
+window.handleSubstNovoProdSearch = function(el) {
+    const query = el.value.toLowerCase().trim();
+    const resultsDiv = document.getElementById('substAutocompleteResults');
+    if (!resultsDiv) return;
+
+    if (query.length === 0) {
+        resultsDiv.innerHTML = '';
+        resultsDiv.style.display = 'none';
+        return;
+    }
+
+    const origemId = currentSubstContext?.prodOrigem?.id;
+    const matches = inventoryProducts.filter(p => {
+        if (origemId && String(p.id) === String(origemId)) return false; // Não exibir o mesmo produto
+        return p.nome.toLowerCase().includes(query) || 
+            (p.ref && p.ref.toLowerCase().includes(query)) ||
+            (p.marca && p.marca.toLowerCase().includes(query)) ||
+            (p.codigo_barras && p.codigo_barras.toLowerCase().includes(query)) ||
+            (p.codigo_interno && p.codigo_interno.toLowerCase().includes(query));
+    }).slice(0, 10);
+
+    if (matches.length === 0) {
+        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.75rem; padding:0.8rem;">Nenhum outro produto encontrado...</div>';
+    } else {
+        resultsDiv.innerHTML = matches.map(p => `
+            <div class="autocomplete-item" onclick="selectSubstNovoProd('${p.id}')" style="padding:0.6rem 0.9rem; border-bottom:1px solid #f1f5f9; cursor:pointer;">
+                <div style="font-weight:700; color:#0f172a; font-size:0.85rem;">${p.nome}</div>
+                <div style="font-size:0.72rem; color:#64748b;">${p.marca || 'SEM MARCA'} | SKU: ${p.ref || '---'} | Saldo Atual: <strong>${p.estoque_atual} ${p.unidade || ''}</strong></div>
+            </div>
+        `).join('');
+    }
+    resultsDiv.style.display = 'block';
+};
+
+window.selectSubstNovoProd = async function(prodId) {
+    try {
+        const resultsDiv = document.getElementById('substAutocompleteResults');
+        if (resultsDiv) {
+            resultsDiv.innerHTML = '';
+            resultsDiv.style.display = 'none';
+        }
+
+        let p = inventoryProducts.find(x => String(x.id) === String(prodId));
+        if (supabaseClient) {
+            const { data } = await supabaseClient.from('estoque').select('*').eq('id', prodId).single();
+            if (data) p = data;
+        }
+        if (!p) return;
+
+        if (currentSubstContext) {
+            currentSubstContext.prodDestino = p;
+        }
+
+        const inputSearch = document.getElementById('substInputBuscaNovoProd');
+        if (inputSearch) inputSearch.value = `${p.nome} (${p.marca || 'SEM MARCA'})`;
+
+        const hiddenId = document.getElementById('substNovoProdId');
+        if (hiddenId) hiddenId.value = p.id;
+
+        const cardDestino = document.getElementById('substCardDestinoInfo');
+        if (cardDestino) {
+            document.getElementById('substProdDestinoNome').innerText = p.nome;
+            document.getElementById('substProdDestinoMeta').innerText = `${p.marca || 'SEM MARCA'} | SKU/Ref: ${p.ref || '---'} | Unidade: ${p.unidade || 'UN'}`;
+            
+            const qtd = currentSubstContext?.qtdNota || 0;
+            const saldoB = parseFloat(p.estoque_atual) || 0;
+            const novoSaldoB = saldoB + qtd;
+
+            document.getElementById('substProdDestinoQtd').innerText = `+${qtd} ${p.unidade || ''}`;
+            document.getElementById('substProdDestinoSaldoAtual').innerText = `${saldoB} ${p.unidade || ''}`;
+            document.getElementById('substProdDestinoNovoSaldo').innerText = `${novoSaldoB.toFixed(2).replace(/\.00$/, '')} ${p.unidade || ''}`;
+            
+            cardDestino.style.display = 'block';
+        }
+
+        const btnConfirm = document.getElementById('btnConfirmarSubstProd');
+        if (btnConfirm) btnConfirm.disabled = false;
+
+        if (window.lucide) lucide.createIcons();
+
+    } catch (err) {
+        console.error("Erro ao selecionar novo produto:", err);
+    }
+};
+
+window.iniciarConfirmacaoSubstituicao = function() {
+    if (!currentSubstContext || !currentSubstContext.prodDestino) {
+        alert('Selecione o novo produto correto antes de prosseguir.');
+        return;
+    }
+
+    const nomeOrigem = currentSubstContext.prodOrigem.nome;
+    const nomeDestino = currentSubstContext.prodDestino.nome;
+    const numNota = currentSubstContext.compra.numeroNota || currentSubstContext.compra.numero_nota || 'S/N';
+
+    window.openPinModal(async () => {
+        await window.executarSubstituicaoProdutoEstoque();
+    }, {
+        title: 'Autorização de Substituição',
+        msg: `Insira o código de segurança para confirmar a substituição na Nota #${numNota} de "${nomeOrigem}" para "${nomeDestino}":`,
+        btnText: 'AUTORIZAR SUBSTITUIÇÃO'
+    });
+};
+
+window.executarSubstituicaoProdutoEstoque = async function() {
+    if (!currentSubstContext || !currentSubstContext.prodDestino) return;
+    
+    if (!supabaseClient) {
+        alert('Conexão com o banco de dados não disponível.');
+        return;
+    }
+
+    try {
+        if (typeof window.showLoader === 'function') window.showLoader();
+
+        const ctx = currentSubstContext;
+        const compra = ctx.compra;
+        const item = ctx.item;
+        const prodA = ctx.prodOrigem;
+        const prodB = ctx.prodDestino;
+        const qtd = parseFloat(ctx.qtdNota) || 0;
+        const valUnit = parseFloat(item.valorUnitario || item.valor_unitario || 0);
+
+        const numNota = compra.numeroNota || compra.numero_nota || 'S/N';
+        const fornObj = config.fornecedores.find(f => f.id == compra.fornecedorId) || {};
+        const fornNome = fornObj.nome || 'Fornecedor';
+        const activeUser = (window.currentUserAccess?.nome_completo || window.currentUserAccess?.nome || window.currentUser?.email || localStorage.getItem('user_email') || 'ADMINISTRADOR').toUpperCase();
+
+        // 1. Obter saldos em tempo real do banco
+        const { data: dbA, error: errFetchA } = await supabaseClient.from('estoque').select('*').eq('id', prodA.id).single();
+        if (errFetchA) throw new Error("Erro ao consultar produto de origem: " + errFetchA.message);
+
+        const { data: dbB, error: errFetchB } = await supabaseClient.from('estoque').select('*').eq('id', prodB.id).single();
+        if (errFetchB) throw new Error("Erro ao consultar produto de destino: " + errFetchB.message);
+
+        const saldoFinalA = (parseFloat(dbA.estoque_atual) || 0) - qtd;
+        const saldoFinalB = (parseFloat(dbB.estoque_atual) || 0) + qtd;
+
+        console.log(`🔄 Substituição Estoque: Estornando ${qtd} de "${dbA.nome}" (Saldo ${dbA.estoque_atual} -> ${saldoFinalA}) e creditando em "${dbB.nome}" (Saldo ${dbB.estoque_atual} -> ${saldoFinalB})`);
+
+        // 2. Registrar Movimentação de ESTORNO no Produto A
+        const motivoEstorno = `ESTORNO (SUBSTITUIÇÃO NOTA #${numNota}): Transferido para ${dbB.nome}`;
+        const { error: errEstorno } = await supabaseClient.from('estoque_movimentacoes').insert([{
+            item_id: dbA.id,
+            tipo: 'ESTORNO',
+            quantidade: qtd,
+            motivo: motivoEstorno,
+            responsavel: activeUser,
+            valor_unitario: valUnit,
+            data: new Date().toISOString(),
+            empresa_id: window.currentEmpresaId || null
+        }]);
+        if (errEstorno) throw new Error("Erro ao registrar estorno no estoque: " + errEstorno.message);
+
+        // 3. Atualizar saldo do Produto A
+        const { error: errUpA } = await supabaseClient.from('estoque').update({
+            estoque_atual: saldoFinalA
+        }).eq('id', dbA.id);
+        if (errUpA) throw new Error("Erro ao atualizar saldo do produto de origem: " + errUpA.message);
+
+        // 4. Registrar Movimentação de ENTRADA no Produto B
+        const motivoEntrada = `COMPRA (CORREÇÃO DE VÍNCULO): Nota #${numNota} | ${fornNome}`;
+        const { error: errEntrada } = await supabaseClient.from('estoque_movimentacoes').insert([{
+            item_id: dbB.id,
+            tipo: 'ENTRADA',
+            quantidade: qtd,
+            motivo: motivoEntrada,
+            responsavel: activeUser,
+            valor_unitario: valUnit,
+            data: new Date().toISOString(),
+            empresa_id: window.currentEmpresaId || null
+        }]);
+        if (errEntrada) throw new Error("Erro ao registrar entrada no produto de destino: " + errEntrada.message);
+
+        // 5. Atualizar saldo e custo do Produto B
+        const { error: errUpB } = await supabaseClient.from('estoque').update({
+            estoque_atual: saldoFinalB,
+            valor_custo: valUnit
+        }).eq('id', dbB.id);
+        if (errUpB) throw new Error("Erro ao atualizar saldo do produto correto: " + errUpB.message);
+
+        // 6. Atualizar o item na tabela compra_itens
+        let updateQuery = supabaseClient.from('compra_itens').update({
+            produto_id: dbB.id,
+            produto: dbB.nome,
+            marca: dbB.marca || ''
+        });
+        if (item.id) {
+            updateQuery = updateQuery.eq('id', item.id);
+        } else {
+            updateQuery = updateQuery.eq('compra_id', compra.id).eq('produto_id', dbA.id);
+        }
+        const { error: errItemUp } = await updateQuery;
+        if (errItemUp) console.warn("Aviso ao atualizar compra_itens:", errItemUp);
+
+        // 7. Atualizar dados em memória local
+        item.produtoId = dbB.id;
+        item.produto = dbB.nome;
+        item.marca = dbB.marca || '';
+
+        const idxInvA = inventoryProducts.findIndex(p => String(p.id) === String(dbA.id));
+        if (idxInvA !== -1) inventoryProducts[idxInvA].estoque_atual = saldoFinalA;
+
+        const idxInvB = inventoryProducts.findIndex(p => String(p.id) === String(dbB.id));
+        if (idxInvB !== -1) {
+            inventoryProducts[idxInvB].estoque_atual = saldoFinalB;
+            inventoryProducts[idxInvB].valor_custo = valUnit;
+        }
+
+        // 8. Log de Auditoria
+        if (typeof window.registrarLog === 'function') {
+            window.registrarLog('compras', 'ALTERAÇÃO', `DETALHE: Substituiu produto na Nota #${numNota}: De "${dbA.nome}" (Estorno: ${qtd} un, Saldo final: ${saldoFinalA}) Para "${dbB.nome}" (Entrada: ${qtd} un, Saldo final: ${saldoFinalB})`);
+        }
+
+        // 9. Atualizar interface (modal de edição ou visualização)
+        const rowEl = document.querySelector(`.item-row[data-item-index="${ctx.itemIndex}"]`);
+        if (rowEl) {
+            const searchInput = rowEl.querySelector('.item-produto-search');
+            if (searchInput) searchInput.value = `${dbB.nome} (${dbB.marca || ''})`;
+            const hiddenId = rowEl.querySelector('.item-produto');
+            if (hiddenId) hiddenId.value = dbB.id;
+        }
+
+        // Se a modal de visualização estiver aberta, re-renderizar
+        const viewModal = document.getElementById('viewCompraModal');
+        if (viewModal && viewModal.classList.contains('active')) {
+            window.openViewModal(compra.id);
+        }
+
+        // Re-renderizar lista geral de compras
+        if (typeof renderCompras === 'function') renderCompras();
+        if (typeof updateDashboard === 'function') updateDashboard();
+
+        // 10. Fechar modal de substituição e notificar
+        window.closeSubstituirProdutoModal();
+
+        alert(`✅ PRODUTO SUBSTITUÍDO COM SUCESSO!\n\n` +
+              `• ${dbA.nome}:\n  Estornado: -${qtd} ${dbA.unidade || ''} (Novo Saldo: ${saldoFinalA})\n\n` +
+              `• ${dbB.nome}:\n  Creditado: +${qtd} ${dbB.unidade || ''} (Novo Saldo: ${saldoFinalB})\n\n` +
+              `O vínculo na Nota Fiscal #${numNota} e o histórico de movimentações foram atualizados com segurança.`);
+
+    } catch (err) {
+        console.error("Erro crítico ao executar substituição de produto:", err);
+        alert("Ocorreu um erro ao processar a substituição: " + err.message);
+    } finally {
+        if (typeof window.hideLoader === 'function') window.hideLoader();
+    }
+};

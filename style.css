@@ -2693,3 +2693,39 @@ textarea.field-error {
     border-color: rgba(45, 158, 107, 0.35) !important;
 }
 
+/* Checkbox Column and Row Selection */
+.col-checkbox {
+    width: 44px;
+    min-width: 44px;
+    text-align: center !important;
+    vertical-align: middle !important;
+    padding: 0.6rem 0.5rem !important;
+}
+
+.checkbox-custom {
+    width: 17px;
+    height: 17px;
+    accent-color: var(--primary, #6366f1);
+    cursor: pointer;
+    vertical-align: middle;
+    margin: 0 auto;
+    display: inline-block;
+}
+
+tr.row-selected {
+    background: rgba(99, 102, 241, 0.1) !important;
+}
+
+tr.row-selected:hover {
+    background: rgba(99, 102, 241, 0.16) !important;
+}
+
+[data-theme="green_pastel"] tr.row-selected {
+    background: rgba(16, 185, 129, 0.1) !important;
+}
+
+[data-theme="green_pastel"] tr.row-selected:hover {
+    background: rgba(16, 185, 129, 0.16) !important;
+}
+
+

@@ -135,7 +135,7 @@
                     <div class="filter-group flex-lg">
                         <label>Fornecedor</label>
                         <select id="filterFornecedorPagar" class="filter-select"
-                            onchange="filterFinancial('PAGAR', this.value)">
+                            onchange="filterFornecedor('PAGAR', this.value)">
                             <option value="">Todos os Fornecedores</option>
                         </select>
                     </div>
@@ -253,7 +253,7 @@
                 <div class="controls">
                     <div class="search-box">
                         <i data-lucide="search"></i>
-                        <input type="text" id="receberSearch" placeholder="Buscar por cliente, descrição..."
+                        <input type="text" id="receberSearch" placeholder="Buscar por cliente, NF/Doc, descrição ou valor..."
                             oninput="filterFinancial('RECEBER', this.value)">
                     </div>
                     <div class="admin-actions" style="display:flex; gap:1rem; align-items:center;">
@@ -283,7 +283,7 @@
                     <div class="filter-group flex-lg">
                         <label>Cliente</label>
                         <select id="filterClienteReceber" class="filter-select"
-                            onchange="filterFinancial('RECEBER', this.value)">
+                            onchange="filterFornecedor('RECEBER', this.value)">
                             <option value="">Todos os Clientes</option>
                         </select>
                     </div>
