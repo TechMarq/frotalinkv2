@@ -869,7 +869,7 @@ function renderLancamentos(tipo) {
                         <div style="color:#10b981; font-weight:700;">${formatCurrency(vLiquido)}</div>
                         ${(() => {
                             const contaObj = (state.contas || []).find(c => c.id === l.conta_bancaria_id);
-                            if (contaObj && (vPago > 0 || l.status === 'PAGO')) {
+                            if (contaObj && (vPago > 0 || l.status === 'PAGO' || l.status === 'RECEBIDO')) {
                                 return `<div class="bank-paid-badge" title="Conta bancária de recebimento: ${contaObj.nome}">
                                     <i data-lucide="landmark" style="width:11px; height:11px; flex-shrink:0;"></i>
                                     <span class="bank-paid-name">${contaObj.nome}</span>
@@ -878,6 +878,7 @@ function renderLancamentos(tipo) {
                             return '';
                         })()}
                         ${l.status === 'PARCIAL' ? `<div style="font-size:0.72rem; font-weight:800; color:#ef4444; margin-top:2px;" title="Valor restante a receber">Falta: ${formatCurrency(vFalta)}</div>` : ''}
+                        ${((l.status === 'PAGO' || l.status === 'RECEBIDO') && parseFloat(l.valor_desconto) > 0) ? `<div style="font-size:0.68rem; font-weight:800; color:#1d4ed8; margin-top:1px;" title="Abatimento/desconto concedido na baixa da nota">(-${formatCurrency(l.valor_desconto)} desconto)</div>` : ''}
                     </td>
                     <td data-label="Status">
                         <span class="status-badge ${statusClass}">${displayStatus}</span>
@@ -886,7 +887,7 @@ function renderLancamentos(tipo) {
                     <td class="actions-cell">
                         <div class="actions-wrapper">
                             <button class="btn-action history" onclick="showRecordHistory('${l.id}')" title="Histórico de Alterações"><i data-lucide="history"></i></button>
-                            ${l.status === 'PAGO'
+                            ${(l.status === 'PAGO' || l.status === 'RECEBIDO')
                                 ? `<button class="btn-action edit-pay" onclick="openEditPaymentModal('${l.id}')" title="Alterar Recebimento (Banco, Forma ou Valor)"><i data-lucide="credit-card"></i></button>
                                    <button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar / Voltar para Pendente"><i data-lucide="rotate-ccw"></i></button>`
                                 : l.status === 'PARCIAL'
@@ -982,6 +983,7 @@ function renderLancamentos(tipo) {
                         return '';
                     })()}
                     ${l.status === 'PARCIAL' ? `<div style="font-size:0.72rem; font-weight:800; color:#ef4444; margin-top:2px;" title="Valor restante a pagar">Falta: ${formatCurrency(vFaltaPagar)}</div>` : ''}
+                    ${((l.status === 'PAGO' || l.status === 'RECEBIDO') && parseFloat(l.valor_desconto) > 0) ? `<div style="font-size:0.68rem; font-weight:800; color:#1d4ed8; margin-top:1px;" title="Abatimento/desconto obtido na baixa da nota">(-${formatCurrency(l.valor_desconto)} desconto)</div>` : ''}
                 </td>
                 <td data-label="Status">
                     <span class="status-badge ${statusClass}">${displayStatus}</span>
@@ -1385,14 +1387,7 @@ async function renderFluxo() {
             if (bancoId && l.conta_bancaria_id !== bancoId) return;
 
             const isPago = (l.status === 'PAGO' || l.status === 'RECEBIDO');
-            // Regime de Caixa: Para contas PAGAS, utiliza a Data de Pagamento (l.data_pagamento) em 1º lugar!
-            const dateStr = isPago
-                ? (l.data_pagamento || l.data_vencimento || l.data_competencia)
-                : (l.data_vencimento || l.data_competencia || l.data_pagamento);
-            if (!dateStr) return;
-
-            const anoMes = dateStr.substring(0, 7);
-            if (anoMes !== keyAnt && anoMes !== keyAtual && anoMes !== keyPost) return;
+            const isParcial = (l.status === 'PARCIAL');
 
             const catId = l.categoria_id;
             if (!totalsByCat[catId]) {
@@ -1403,7 +1398,7 @@ async function renderFluxo() {
                 };
             }
 
-            // Cálculo do valor a considerar para RECEBER (Valor Líquido = Bruto - Tributos) vs PAGAR
+            // Cálculo da base (Valor Líquido para RECEBER vs Bruto para PAGAR)
             let valValido = 0;
             let valPrevisao = 0;
 
@@ -1418,12 +1413,43 @@ async function renderFluxo() {
                 valPrevisao = parseFloat(l.valor_total) || parseFloat(l.valor_pago) || 0;
             }
 
-            const targetMonth = (anoMes === keyAnt) ? totalsByCat[catId].ant : ((anoMes === keyAtual) ? totalsByCat[catId].atual : totalsByCat[catId].post);
+            if (isParcial) {
+                const pagoVal = parseFloat(l.valor_pago) || 0;
+                const prevVal = Math.max(0, valPrevisao - pagoVal);
 
-            if (isPago) {
-                targetMonth.pago += valValido;
+                // 1. Realizado no mês do pagamento (Regime de Caixa)
+                if (pagoVal > 0) {
+                    const datePagStr = l.data_pagamento || l.data_vencimento || l.data_competencia;
+                    const anoMesPag = datePagStr ? datePagStr.substring(0, 7) : null;
+                    if (anoMesPag === keyAnt) totalsByCat[catId].ant.pago += pagoVal;
+                    else if (anoMesPag === keyAtual) totalsByCat[catId].atual.pago += pagoVal;
+                    else if (anoMesPag === keyPost) totalsByCat[catId].post.pago += pagoVal;
+                }
+
+                // 2. Previsão restante no mês do vencimento (Saldo a Quitar)
+                if (prevVal > 0) {
+                    const dateVencStr = l.data_vencimento || l.data_competencia || l.data_pagamento;
+                    const anoMesVenc = dateVencStr ? dateVencStr.substring(0, 7) : null;
+                    if (anoMesVenc === keyAnt) totalsByCat[catId].ant.prev += prevVal;
+                    else if (anoMesVenc === keyAtual) totalsByCat[catId].atual.prev += prevVal;
+                    else if (anoMesVenc === keyPost) totalsByCat[catId].post.prev += prevVal;
+                }
             } else {
-                targetMonth.prev += valPrevisao;
+                const dateStr = isPago
+                    ? (l.data_pagamento || l.data_vencimento || l.data_competencia)
+                    : (l.data_vencimento || l.data_competencia || l.data_pagamento);
+                if (!dateStr) return;
+
+                const anoMes = dateStr.substring(0, 7);
+                if (anoMes !== keyAnt && anoMes !== keyAtual && anoMes !== keyPost) return;
+
+                const targetMonth = (anoMes === keyAnt) ? totalsByCat[catId].ant : ((anoMes === keyAtual) ? totalsByCat[catId].atual : totalsByCat[catId].post);
+
+                if (isPago) {
+                    targetMonth.pago += valValido;
+                } else {
+                    targetMonth.prev += valPrevisao;
+                }
             }
         });
     }
@@ -3474,47 +3500,129 @@ let currentModalParcelas = [];
 let currentPayExpectedValue = 0;
 
 window.selectPaymentDivergenceType = function(type) {
-    const inputTipo = document.getElementById('payTipoDivergencia');
-    if (inputTipo) inputTipo.value = type;
+    const valorInput = parseFloat(document.getElementById('payValor')?.value) || 0;
+    const rawDiff = Math.round((valorInput - currentPayExpectedValue) * 100) / 100;
+    const absDiff = Math.abs(rawDiff);
 
-    const btnJuros = document.getElementById('btnPayDivJuros');
-    const btnOutros = document.getElementById('btnPayDivOutros');
-    const checkJuros = document.getElementById('btnPayDivJurosCheck');
-    const checkOutros = document.getElementById('btnPayDivOutrosCheck');
+    // Mapeamento semântico dinâmico baseado na direção da diferença:
+    // Se valor pago for MENOR: 'JUROS' mapeia para 'DESCONTO' (Botão 1) e 'OUTROS' mapeia para 'PARCIAL' (Botão 2)
+    // Se valor pago for MAIOR: 'DESCONTO' mapeia para 'JUROS' (Botão 1) e 'PARCIAL' mapeia para 'OUTROS' (Botão 2)
+    let effectiveType = type;
+    if (rawDiff < -0.05) {
+        if (type === 'JUROS') effectiveType = 'DESCONTO';
+        else if (type === 'OUTROS') effectiveType = 'PARCIAL';
+    } else if (rawDiff > 0.05) {
+        if (type === 'DESCONTO') effectiveType = 'JUROS';
+        else if (type === 'PARCIAL') effectiveType = 'OUTROS';
+    }
+
+    const inputTipo = document.getElementById('payTipoDivergencia');
+    if (inputTipo) inputTipo.value = effectiveType;
+
+    const btn1 = document.getElementById('btnPayDivJuros');
+    const btn2 = document.getElementById('btnPayDivOutros');
+    const check1 = document.getElementById('btnPayDivJurosCheck');
+    const check2 = document.getElementById('btnPayDivOutrosCheck');
     const notice = document.getElementById('payDivergenciaNotice');
     const noticeText = document.getElementById('payDivergenciaNoticeText');
+    const novoVencGroup = document.getElementById('payNovoVencimentoGroup');
+    const saldoBadge = document.getElementById('paySaldoRestanteBadge');
     const motivoInput = document.getElementById('payMotivo');
     const motivoLabel = document.getElementById('payMotivoLabel');
 
-    const valorInput = parseFloat(document.getElementById('payValor')?.value) || 0;
-    const rawDiff = valorInput - currentPayExpectedValue;
-
-    if (type === 'JUROS' || type === 'DESCONTO') {
-        if (btnJuros) {
-            btnJuros.style.borderColor = '#059669';
-            btnJuros.style.background = '#ecfdf5';
-            btnJuros.style.color = '#065f46';
+    if (effectiveType === 'DESCONTO') {
+        // Botão 1 Ativo (Verde: Quitação total da nota com desconto)
+        if (btn1) {
+            btn1.style.borderColor = '#059669';
+            btn1.style.background = '#ecfdf5';
+            btn1.style.color = '#065f46';
         }
-        if (btnOutros) {
-            btnOutros.style.borderColor = '#d1d5db';
-            btnOutros.style.background = '#ffffff';
-            btnOutros.style.color = '#4b5563';
+        if (btn2) {
+            btn2.style.borderColor = '#d1d5db';
+            btn2.style.background = '#ffffff';
+            btn2.style.color = '#4b5563';
         }
-        if (checkJuros) {
-            checkJuros.setAttribute('data-lucide', 'check-circle-2');
-            checkJuros.style.color = '#059669';
+        if (check1) {
+            check1.setAttribute('data-lucide', 'check-circle-2');
+            check1.style.color = '#059669';
         }
-        if (checkOutros) {
-            checkOutros.setAttribute('data-lucide', 'circle');
-            checkOutros.style.color = '#9ca3af';
+        if (check2) {
+            check2.setAttribute('data-lucide', 'circle');
+            check2.style.color = '#9ca3af';
+        }
+        if (novoVencGroup) novoVencGroup.style.display = 'none';
+        if (notice) notice.style.display = 'flex';
+        if (noticeText) {
+            noticeText.innerText = `A nota será liquidada integralmente considerando o desconto/abatimento de -${formatCurrency(absDiff)}. Não restará saldo pendente.`;
+        }
+        if (motivoInput) {
+            motivoInput.removeAttribute('required');
+            motivoInput.placeholder = 'Observações adicionais sobre o abatimento/desconto (opcional)...';
+        }
+        if (motivoLabel) {
+            motivoLabel.innerText = 'Observação Adicional (Opcional)';
+            motivoLabel.style.color = '#374151';
+        }
+    } else if (effectiveType === 'PARCIAL') {
+        // Botão 2 Ativo (Azul: Pagamento parcial, gerando saldo restante)
+        if (btn1) {
+            btn1.style.borderColor = '#d1d5db';
+            btn1.style.background = '#ffffff';
+            btn1.style.color = '#4b5563';
+        }
+        if (btn2) {
+            btn2.style.borderColor = '#0284c7';
+            btn2.style.background = '#f0f9ff';
+            btn2.style.color = '#0369a1';
+        }
+        if (check1) {
+            check1.setAttribute('data-lucide', 'circle');
+            check1.style.color = '#9ca3af';
+        }
+        if (check2) {
+            check2.setAttribute('data-lucide', 'check-circle-2');
+            check2.style.color = '#0284c7';
+        }
+        if (novoVencGroup) {
+            novoVencGroup.style.display = 'block';
+            if (saldoBadge) saldoBadge.innerText = `Saldo: ${formatCurrency(absDiff)}`;
         }
         if (notice) notice.style.display = 'flex';
         if (noticeText) {
-            if (rawDiff > 0) {
-                noticeText.innerText = `O valor do juros (+${formatCurrency(Math.abs(rawDiff))}) será contabilizado em Juros Pagos a Fornecedores no Plano de Contas e Conciliação.`;
-            } else {
-                noticeText.innerText = `O valor do desconto (-${formatCurrency(Math.abs(rawDiff))}) será considerado no cálculo contábil.`;
-            }
+            noticeText.innerText = `O valor pago de ${formatCurrency(valorInput)} será registrado no fluxo de caixa e o saldo restante de ${formatCurrency(absDiff)} permanecerá pendente.`;
+        }
+        if (motivoInput) {
+            motivoInput.removeAttribute('required');
+            motivoInput.placeholder = 'Observações adicionais sobre este pagamento parcial (opcional)...';
+        }
+        if (motivoLabel) {
+            motivoLabel.innerText = 'Observação Adicional (Opcional)';
+            motivoLabel.style.color = '#374151';
+        }
+    } else if (effectiveType === 'JUROS') {
+        // Botão 1 Ativo (Verde: Acréscimo / Juros)
+        if (btn1) {
+            btn1.style.borderColor = '#059669';
+            btn1.style.background = '#ecfdf5';
+            btn1.style.color = '#065f46';
+        }
+        if (btn2) {
+            btn2.style.borderColor = '#d1d5db';
+            btn2.style.background = '#ffffff';
+            btn2.style.color = '#4b5563';
+        }
+        if (check1) {
+            check1.setAttribute('data-lucide', 'check-circle-2');
+            check1.style.color = '#059669';
+        }
+        if (check2) {
+            check2.setAttribute('data-lucide', 'circle');
+            check2.style.color = '#9ca3af';
+        }
+        if (novoVencGroup) novoVencGroup.style.display = 'none';
+        if (notice) notice.style.display = 'flex';
+        if (noticeText) {
+            noticeText.innerText = `O valor do juros (+${formatCurrency(absDiff)}) será contabilizado em Juros Pagos a Fornecedores no Plano de Contas e Conciliação.`;
         }
         if (motivoInput) {
             motivoInput.removeAttribute('required');
@@ -3525,24 +3633,26 @@ window.selectPaymentDivergenceType = function(type) {
             motivoLabel.style.color = '#374151';
         }
     } else { // 'OUTROS'
-        if (btnJuros) {
-            btnJuros.style.borderColor = '#d1d5db';
-            btnJuros.style.background = '#ffffff';
-            btnJuros.style.color = '#4b5563';
+        // Botão 2 Ativo (Amarelo: Justificativa informativa)
+        if (btn1) {
+            btn1.style.borderColor = '#d1d5db';
+            btn1.style.background = '#ffffff';
+            btn1.style.color = '#4b5563';
         }
-        if (btnOutros) {
-            btnOutros.style.borderColor = '#d97706';
-            btnOutros.style.background = '#fffbeb';
-            btnOutros.style.color = '#92400e';
+        if (btn2) {
+            btn2.style.borderColor = '#d97706';
+            btn2.style.background = '#fffbeb';
+            btn2.style.color = '#92400e';
         }
-        if (checkJuros) {
-            checkJuros.setAttribute('data-lucide', 'circle');
-            checkJuros.style.color = '#9ca3af';
+        if (check1) {
+            check1.setAttribute('data-lucide', 'circle');
+            check1.style.color = '#9ca3af';
         }
-        if (checkOutros) {
-            checkOutros.setAttribute('data-lucide', 'check-circle-2');
-            checkOutros.style.color = '#d97706';
+        if (check2) {
+            check2.setAttribute('data-lucide', 'check-circle-2');
+            check2.style.color = '#d97706';
         }
+        if (novoVencGroup) novoVencGroup.style.display = 'none';
         if (notice) notice.style.display = 'none';
         if (motivoInput) {
             motivoInput.setAttribute('required', 'required');
@@ -3566,8 +3676,11 @@ function checkPaymentDivergence() {
     const diffBadge = document.getElementById('payDiffBadge');
     const diffInput = document.getElementById('payValorDiferenca');
     const tipoInput = document.getElementById('payTipoDivergencia');
-    const jurosTitle = document.getElementById('btnPayDivJurosTitle');
-    const jurosSub = document.getElementById('btnPayDivJurosSub');
+    const btn1Title = document.getElementById('btnPayDivJurosTitle');
+    const btn1Sub = document.getElementById('btnPayDivJurosSub');
+    const btn2Title = document.getElementById('btnPayDivOutrosTitle');
+    const btn2Sub = document.getElementById('btnPayDivOutrosSub');
+    const novoVencGroup = document.getElementById('payNovoVencimentoGroup');
 
     if (!motivoGroup) return;
 
@@ -3576,34 +3689,40 @@ function checkPaymentDivergence() {
         if (diffInput) diffInput.value = absDiff.toFixed(2);
 
         if (rawDiff > 0) {
-            // Valor pago maior (Juros / Encargos)
+            // Valor pago maior (Acréscimo / Juros vs Outros)
             if (diffBadge) {
                 diffBadge.style.background = '#fef2f2';
                 diffBadge.style.borderColor = '#fecaca';
                 diffBadge.style.color = '#dc2626';
                 diffBadge.innerText = `Diferença: +${formatCurrency(absDiff)} (Acréscimo)`;
             }
-            if (jurosTitle) jurosTitle.innerText = 'Juros / Encargos';
-            if (jurosSub) jurosSub.innerText = 'Calcula no Plano de Contas e Conciliação';
+            if (btn1Title) btn1Title.innerText = 'Juros / Encargos';
+            if (btn1Sub) btn1Sub.innerText = 'Calcula no Plano de Contas e Conciliação';
+            if (btn2Title) btn2Title.innerText = 'Outros (Informativo)';
+            if (btn2Sub) btn2Sub.innerText = 'Apenas justificativa informativa na nota';
             
             const curType = tipoInput?.value === 'OUTROS' ? 'OUTROS' : 'JUROS';
             selectPaymentDivergenceType(curType);
         } else {
-            // Valor pago menor (Desconto / Abatimento)
+            // Valor pago menor (Desconto / Abatimento vs Pagamento Parcial)
             if (diffBadge) {
                 diffBadge.style.background = '#eff6ff';
                 diffBadge.style.borderColor = '#bfdbfe';
                 diffBadge.style.color = '#1d4ed8';
-                diffBadge.innerText = `Diferença: -${formatCurrency(absDiff)} (Desconto)`;
+                diffBadge.innerText = `Diferença: -${formatCurrency(absDiff)} (Menor que o devido)`;
             }
-            if (jurosTitle) jurosTitle.innerText = 'Desconto / Abatimento';
-            if (jurosSub) jurosSub.innerText = 'Calcula abatimento no Plano de Contas';
+            if (btn1Title) btn1Title.innerText = 'Desconto / Abatimento (Liquidar Total)';
+            if (btn1Sub) btn1Sub.innerText = 'Quita a nota integralmente sem gerar pendência';
+            if (btn2Title) btn2Title.innerText = 'Pagamento Parcial';
+            if (btn2Sub) btn2Sub.innerText = 'Mantém saldo restante pendente com novo vencimento';
 
-            const curType = tipoInput?.value === 'OUTROS' ? 'OUTROS' : 'DESCONTO';
+            // Mantém a seleção anterior se já era DESCONTO ou PARCIAL, caso contrário inicia como DESCONTO
+            const curType = (tipoInput?.value === 'PARCIAL') ? 'PARCIAL' : 'DESCONTO';
             selectPaymentDivergenceType(curType);
         }
     } else {
         motivoGroup.style.display = 'none';
+        if (novoVencGroup) novoVencGroup.style.display = 'none';
         if (diffInput) diffInput.value = '0';
         if (tipoInput) tipoInput.value = 'NENHUM';
         if (motivoInput) {
@@ -3634,11 +3753,17 @@ async function openPaymentModal(id) {
         document.getElementById('payMotivoGroup').style.display = 'none';
     }
     if (document.getElementById('payTipoDivergencia')) {
-        document.getElementById('payTipoDivergencia').value = 'JUROS';
+        document.getElementById('payTipoDivergencia').value = 'NENHUM';
     }
     if (document.getElementById('payValorDiferenca')) {
         document.getElementById('payValorDiferenca').value = '0';
     }
+    const novoVencInput = document.getElementById('payNovoVencimento');
+    if (novoVencInput) {
+        novoVencInput.value = l.data_vencimento || new Date().toISOString().split('T')[0];
+    }
+    const novoVencGroup = document.getElementById('payNovoVencimentoGroup');
+    if (novoVencGroup) novoVencGroup.style.display = 'none';
 
     // 1. Bloqueia a Forma de Pagamento e garante que ela reflete exatamente o que foi lançado
     const selectForma = document.getElementById('payForma');
@@ -3728,6 +3853,8 @@ async function openPaymentModal(id) {
     const payValBrutoText = document.getElementById('payValBrutoText');
     const payRetencoesWrapper = document.getElementById('payRetencoesWrapper');
     const payRetencoesText = document.getElementById('payRetencoesText');
+    const payJaPagoWrapper = document.getElementById('payJaPagoWrapper');
+    const payJaPagoText = document.getElementById('payJaPagoText');
     const payValEsperadoLabel = document.getElementById('payValEsperadoLabel');
     const payValEsperadoText = document.getElementById('payValEsperadoText');
 
@@ -3740,7 +3867,15 @@ async function openPaymentModal(id) {
         if (payRetencoesWrapper) payRetencoesWrapper.style.display = 'none';
     }
 
-    if (payValEsperadoLabel) payValEsperadoLabel.innerText = l.tipo === 'RECEBER' ? 'Valor Líquido a Receber:' : 'Valor a Pagar:';
+    if (valorJaPago > 0) {
+        if (payJaPagoWrapper) payJaPagoWrapper.style.display = 'flex';
+        if (payJaPagoText) payJaPagoText.innerText = `- ${formatCurrency(valorJaPago)}`;
+        if (payValEsperadoLabel) payValEsperadoLabel.innerText = l.tipo === 'RECEBER' ? 'Saldo Restante a Receber:' : 'Saldo Restante a Pagar:';
+    } else {
+        if (payJaPagoWrapper) payJaPagoWrapper.style.display = 'none';
+        if (payValEsperadoLabel) payValEsperadoLabel.innerText = l.tipo === 'RECEBER' ? 'Valor Líquido a Receber:' : 'Valor a Pagar:';
+    }
+
     if (payValEsperadoText) payValEsperadoText.innerText = formatCurrency(currentPayExpectedValue);
 
     // Ocultar sempre o seletor de parcelas: cada linha da tabela já representa sua parcela individual
@@ -3825,27 +3960,44 @@ async function handlePayment(e) {
         const tipoDivergencia = (document.getElementById('payTipoDivergencia')?.value || 'NENHUM').toUpperCase();
         
         let valorJurosBaixa = 0;
+        let valorDescontoBaixa = 0;
         let finalTipoDivergencia = 'NENHUM';
+        let novoStatus = l.tipo === 'RECEBER' ? 'RECEBIDO' : 'PAGO';
 
         if (absDiff > 0.05) {
-            if (tipoDivergencia === 'OUTROS') {
-                if (!motivoText) {
-                    showToast('Divergência de valor: Informe o motivo da diferença para confirmar a baixa.', 'error');
-                    alert(`Não é possível salvar a baixa:\n\nO valor digitado (${formatCurrency(valorPagoInput)}) é diferente do valor líquido esperado (${formatCurrency(currentPayExpectedValue)}).\n\nComo você selecionou "Outros", por favor, preencha o campo "Motivo da Divergência" informando a justificativa da diferença.`);
-                    document.getElementById('payMotivo')?.focus();
-                    return;
+            if (rawDiff > 0) {
+                // Acréscimo / Juros ou Outros
+                if (tipoDivergencia === 'OUTROS') {
+                    if (!motivoText) {
+                        showToast('Divergência de valor: Informe o motivo da diferença para confirmar a baixa.', 'error');
+                        alert(`Não é possível salvar a baixa:\n\nO valor digitado (${formatCurrency(valorPagoInput)}) é maior do que o esperado (${formatCurrency(currentPayExpectedValue)}).\n\nComo você selecionou "Outros", por favor, preencha a observação informando a justificativa.`);
+                        document.getElementById('payMotivo')?.focus();
+                        return;
+                    }
+                    finalTipoDivergencia = 'OUTROS';
+                } else {
+                    finalTipoDivergencia = 'JUROS';
+                    valorJurosBaixa = absDiff;
                 }
-                finalTipoDivergencia = 'OUTROS';
-            } else if (tipoDivergencia === 'JUROS' || (rawDiff > 0 && tipoDivergencia !== 'OUTROS')) {
-                finalTipoDivergencia = 'JUROS';
-                valorJurosBaixa = absDiff;
-            } else if (tipoDivergencia === 'DESCONTO' || (rawDiff < 0 && tipoDivergencia !== 'OUTROS')) {
-                finalTipoDivergencia = 'DESCONTO';
+                novoStatus = l.tipo === 'RECEBER' ? 'RECEBIDO' : 'PAGO';
+            } else {
+                // Valor pago menor
+                if (tipoDivergencia === 'PARCIAL') {
+                    finalTipoDivergencia = 'PARCIAL';
+                    novoStatus = 'PARCIAL';
+                } else {
+                    // DESCONTO / ABATIMENTO (Liquidação Total da nota)
+                    finalTipoDivergencia = 'DESCONTO';
+                    valorDescontoBaixa = absDiff;
+                    novoStatus = l.tipo === 'RECEBER' ? 'RECEBIDO' : 'PAGO';
+                }
             }
+        } else {
+            // Pagamento integral do saldo esperado
+            novoStatus = l.tipo === 'RECEBER' ? 'RECEBIDO' : 'PAGO';
         }
 
         const novoValorPago = (parseFloat(l.valor_pago) || 0) + valorPagoInput;
-        const novoStatus = novoValorPago >= (l.valor_total - (l.valor_tributo_total || 0) - 0.01) ? 'PAGO' : 'PARCIAL';
 
         // 1. Sincroniza o status da parcela correspondente em fin_lancamento_parcelas
         try {
@@ -3896,6 +4048,13 @@ async function handlePayment(e) {
             updateObj.tipo_divergencia = finalTipoDivergencia;
             if (finalTipoDivergencia === 'JUROS') {
                 updateObj.valor_juros = (parseFloat(l.valor_juros) || 0) + valorJurosBaixa;
+            } else if (finalTipoDivergencia === 'DESCONTO') {
+                updateObj.valor_desconto = (parseFloat(l.valor_desconto) || 0) + valorDescontoBaixa;
+            } else if (finalTipoDivergencia === 'PARCIAL') {
+                const novoVenc = document.getElementById('payNovoVencimento')?.value;
+                if (novoVenc) {
+                    updateObj.data_vencimento = novoVenc;
+                }
             }
         }
 
@@ -3907,7 +4066,11 @@ async function handlePayment(e) {
             if (finalTipoDivergencia === 'JUROS') {
                 infoLog = `[BAIXA COM JUROS (+${formatCurrency(valorJurosBaixa)}) em ${formatDate(dataPagamento)} por ${loggedUser}]${motivoText ? ': ' + motivoText : ''}`;
             } else if (finalTipoDivergencia === 'DESCONTO') {
-                infoLog = `[BAIXA COM DESCONTO (-${formatCurrency(absDiff)}) em ${formatDate(dataPagamento)} por ${loggedUser}]${motivoText ? ': ' + motivoText : ''}`;
+                infoLog = `[BAIXA TOTAL COM DESCONTO (-${formatCurrency(valorDescontoBaixa)}) em ${formatDate(dataPagamento)} por ${loggedUser}]${motivoText ? ': ' + motivoText : ''}`;
+            } else if (finalTipoDivergencia === 'PARCIAL') {
+                const novoVenc = document.getElementById('payNovoVencimento')?.value;
+                const vencLog = (novoVenc && novoVenc !== l.data_vencimento) ? ` | Próximo Vencimento: ${formatDate(novoVenc)}` : ` | Vencimento mantido: ${formatDate(l.data_vencimento)}`;
+                infoLog = `[BAIXA PARCIAL (Pago: ${formatCurrency(valorPagoInput)} | Saldo Restante: ${formatCurrency(absDiff)}${vencLog}) em ${formatDate(dataPagamento)} por ${loggedUser}]${motivoText ? ': ' + motivoText : ''}`;
             } else if (motivoText) {
                 infoLog = `[MOTIVO DIVERGÊNCIA BAIXA (${formatDate(dataPagamento)}) por ${loggedUser}]: ${motivoText}`;
             }
@@ -3917,15 +4080,29 @@ async function handlePayment(e) {
         }
 
         let { error: errL } = await supabaseClient.from('fin_lancamentos').update(updateObj).eq('id', id);
-        if (errL && (errL.message?.includes('valor_juros') || errL.message?.includes('tipo_divergencia') || errL.message?.includes('motivo_divergencia'))) {
-            console.warn("Alguma coluna de juros/divergência não encontrada no banco. Salvando com payload seguro:", errL.message);
+        if (errL && (errL.message?.includes('valor_juros') || errL.message?.includes('valor_desconto') || errL.message?.includes('tipo_divergencia') || errL.message?.includes('motivo_divergencia'))) {
+            console.warn("Alguma coluna de juros/divergência/desconto não encontrada no banco. Salvando com payload seguro:", errL.message);
             delete updateObj.valor_juros;
+            delete updateObj.valor_desconto;
             delete updateObj.tipo_divergencia;
             delete updateObj.motivo_divergencia;
             const { error: retryErr } = await supabaseClient.from('fin_lancamentos').update(updateObj).eq('id', id);
             if (retryErr) throw retryErr;
         } else if (errL) {
             throw errL;
+        }
+
+        // Se foi liquidado com desconto, registra também na tabela fin_lancamento_descontos se existir
+        if (finalTipoDivergencia === 'DESCONTO') {
+            try {
+                await supabaseClient.from('fin_lancamento_descontos').insert({
+                    lancamento_id: id,
+                    descricao: motivoText ? `Desconto na baixa: ${motivoText}` : 'Desconto / Abatimento concedido na baixa',
+                    valor: valorDescontoBaixa
+                });
+            } catch (errDesc) {
+                console.warn('Aviso ao registrar desconto em fin_lancamento_descontos:', errDesc);
+            }
         }
 
         // 3. Atualiza Saldo da Conta Bancária
@@ -7055,31 +7232,59 @@ window.renderConciliacao = function() {
     const valorAbs = Math.abs(selected.valor);
     const targetTipo = selected.valor < 0 ? 'PAGAR' : 'RECEBER';
 
-    // Algoritmo de Busca Inteligente de Matches
+    // Algoritmo de Busca Inteligente de Matches (suporta notas pendentes, saldos parciais e notas já baixadas)
     const suggestions = state.lancamentos.filter(l => {
-        if (l.status === 'PAGO' || l.status === 'CANCELADO') return false;
+        if (l.status === 'CANCELADO') return false;
         if (l.tipo !== targetTipo) return false;
         
-        const valDiff = Math.abs(parseFloat(l.valor_total) - valorAbs);
-        if (valDiff > 1.5) return false; // Diferença máxima de 1.50 R$
+        const vTotal = parseFloat(l.valor_total) || 0;
+        const vPago = parseFloat(l.valor_pago) || 0;
+        const vTrib = l.tipo === 'RECEBER' ? (parseFloat(l.valor_tributo_total) || 0) : 0;
+        const vLiquidoEsperado = Math.max(0, vTotal - vTrib);
+        const vSaldoPendente = Math.max(0, vLiquidoEsperado - vPago);
 
-        // Margem de data de até 15 dias
-        const lDate = new Date(l.data_vencimento + 'T12:00:00');
+        const candidateDiffs = [];
+        if (l.status === 'PAGO' || l.status === 'RECEBIDO') {
+            candidateDiffs.push(Math.abs(vPago - valorAbs));
+            candidateDiffs.push(Math.abs(vTotal - valorAbs));
+        } else if (l.status === 'PARCIAL') {
+            candidateDiffs.push(Math.abs(vSaldoPendente - valorAbs));
+            if (vPago > 0) candidateDiffs.push(Math.abs(vPago - valorAbs));
+            candidateDiffs.push(Math.abs(vTotal - valorAbs));
+        } else {
+            candidateDiffs.push(Math.abs(vLiquidoEsperado - valorAbs));
+            candidateDiffs.push(Math.abs(vTotal - valorAbs));
+        }
+
+        const minDiff = Math.min(...candidateDiffs);
+        if (minDiff > 1.5) return false; // Diferença máxima de R$ 1,50
+
+        // Margem de data de até 20 dias
+        const refDateStr = (l.data_pagamento && (l.status === 'PAGO' || l.status === 'RECEBIDO' || l.status === 'PARCIAL'))
+            ? l.data_pagamento
+            : l.data_vencimento;
+        const lDate = new Date((refDateStr || selected.data) + 'T12:00:00');
         const extDate = new Date(selected.data + 'T12:00:00');
         const dayDiff = Math.abs(lDate - extDate) / (1000 * 60 * 60 * 24);
         
-        return dayDiff <= 15;
+        return dayDiff <= 20;
     });
 
-    // Ordena por maior relevância (diferença de valor e data)
+    // Ordena por maior relevância (diferença de valor e proximidade de data)
     suggestions.sort((a, b) => {
-        const valDiffA = Math.abs(parseFloat(a.valor_total) - valorAbs);
-        const valDiffB = Math.abs(parseFloat(b.valor_total) - valorAbs);
-        if (valDiffA !== valDiffB) return valDiffA - valDiffB;
+        const getMinDiff = (item) => {
+            const vt = parseFloat(item.valor_total) || 0;
+            const vp = parseFloat(item.valor_pago) || 0;
+            const sp = Math.max(0, vt - vp);
+            return Math.min(Math.abs(vt - valorAbs), Math.abs(vp - valorAbs), Math.abs(sp - valorAbs));
+        };
+        const diffA = getMinDiff(a);
+        const diffB = getMinDiff(b);
+        if (diffA !== diffB) return diffA - diffB;
 
-        const dateDiffA = Math.abs(new Date(a.data_vencimento + 'T12:00:00') - new Date(selected.data + 'T12:00:00'));
-        const dateDiffB = Math.abs(new Date(b.data_vencimento + 'T12:00:00') - new Date(selected.data + 'T12:00:00'));
-        return dateDiffA - dateDiffB;
+        const dateA = new Date((a.data_pagamento || a.data_vencimento || selected.data) + 'T12:00:00');
+        const dateB = new Date((b.data_pagamento || b.data_vencimento || selected.data) + 'T12:00:00');
+        return Math.abs(dateA - new Date(selected.data + 'T12:00:00')) - Math.abs(dateB - new Date(selected.data + 'T12:00:00'));
     });
 
     if (suggestions.length === 0) {
@@ -7095,21 +7300,37 @@ window.renderConciliacao = function() {
         `;
     } else {
         matchList.innerHTML = suggestions.map((s, idx) => {
-            const isPerfect = Math.abs(parseFloat(s.valor_total) - valorAbs) < 0.01;
+            const isJaPago = (s.status === 'PAGO' || s.status === 'RECEBIDO');
+            const isParc = (s.status === 'PARCIAL');
+            const sPago = parseFloat(s.valor_pago) || 0;
+            const sTotal = parseFloat(s.valor_total) || 0;
+            const sFalta = Math.max(0, sTotal - sPago);
+            const isPerfect = Math.abs(sTotal - valorAbs) < 0.01 || Math.abs(sPago - valorAbs) < 0.01 || Math.abs(sFalta - valorAbs) < 0.01;
+            
+            let statusBadgeHtml = '';
+            if (isJaPago) {
+                statusBadgeHtml = `<span class="status-badge status-pago" style="font-size: 0.65rem; padding: 2px 6px; background: rgba(16, 185, 129, 0.15); color: #10b981;">Já Baixado (${formatCurrency(sPago)})</span>`;
+            } else if (isParc) {
+                statusBadgeHtml = `<span class="status-badge status-aberto" style="font-size: 0.65rem; padding: 2px 6px; background: rgba(2, 132, 199, 0.15); color: #0284c7;">Parcial (Falta: ${formatCurrency(sFalta)})</span>`;
+            } else if (isPerfect) {
+                statusBadgeHtml = `<span class="status-badge status-pago" style="font-size: 0.65rem; padding: 2px 6px; background: rgba(16, 185, 129, 0.15); color: #10b981;">Sugestão Ideal</span>`;
+            }
             
             return `
                 <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 1.2rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
                     <div>
                         <div style="display: flex; align-items: center; gap: 0.6rem;">
                             <span style="font-weight: 800; font-family: 'JetBrains Mono'; color: var(--primary); font-size: 0.85rem;">#${s.codigo_sequencial || s.id.substring(0,8)}</span>
-                            ${isPerfect ? '<span class="status-badge status-pago" style="font-size: 0.65rem; padding: 2px 6px; background: rgba(16, 185, 129, 0.15); color: #10b981;">Sugestão Ideal</span>' : ''}
+                            ${statusBadgeHtml}
                         </div>
                         <div style="font-weight: 700; font-size: 1rem; color: white; margin-top: 6px;">${s.entidade_nome || 'Lançamento Geral'}</div>
                         <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 4px;">${s.descricao || ''}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">Vencimento: ${formatDate(s.data_vencimento)} | Valor: ${formatCurrency(s.valor_total)}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">
+                            ${isJaPago ? `Data Baixa: ${formatDate(s.data_pagamento || s.data_vencimento)} | Pago: ${formatCurrency(sPago)}` : `Vencimento: ${formatDate(s.data_vencimento)} | Total: ${formatCurrency(sTotal)}${isParc ? ` (Falta: ${formatCurrency(sFalta)})` : ''}`}
+                        </div>
                     </div>
                     <button class="btn-primary" onclick="vincularConciliacao('${s.id}')" style="background: #10b981; border: none; border-radius: 8px; padding: 0.6rem 1.2rem; font-weight: 800; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
-                        <i data-lucide="link"></i> Conciliar
+                        <i data-lucide="link"></i> ${isJaPago ? 'Conciliar Baixa' : 'Conciliar e Baixar'}
                     </button>
                 </div>
             `;
@@ -7142,32 +7363,51 @@ window.vincularConciliacao = async function(lancamentoId) {
         
         if (!l || !conta) throw new Error("Lançamento ou conta não encontrada.");
 
-        // Atualizar lançamento para PAGO
-        const { error: errL } = await supabaseClient.from('fin_lancamentos').update({
-            status: 'PAGO',
-            valor_pago: l.valor_total,
-            data_pagamento: selected.data,
-            conta_bancaria_id: contaId,
-            forma_pagamento: 'TRANSFERENCIA'
-        }).eq('id', lancamentoId);
+        const valorAbs = Math.abs(selected.valor);
+        const jaEstavaLiquidado = (l.status === 'PAGO' || l.status === 'RECEBIDO');
 
-        if (errL) throw errL;
+        if (!jaEstavaLiquidado) {
+            // Se ainda não estava quitado, efetua a baixa correspondente
+            const valorJaPago = parseFloat(l.valor_pago) || 0;
+            const novoValorPago = valorJaPago + valorAbs;
+            const valorEsperadoTotal = l.tipo === 'RECEBER'
+                ? Math.max(0, (parseFloat(l.valor_total) || 0) - (parseFloat(l.valor_tributo_total) || 0))
+                : (parseFloat(l.valor_total) || 0);
+            const isTotal = novoValorPago >= (valorEsperadoTotal - 0.05);
+            const novoStatus = isTotal ? (l.tipo === 'RECEBER' ? 'RECEBIDO' : 'PAGO') : 'PARCIAL';
 
-        // Atualizar saldo da conta
-        const fator = l.tipo === 'PAGAR' ? -1 : 1;
-        const novoSaldo = parseFloat(conta.saldo_atual) + (parseFloat(l.valor_total) * fator);
-        const { error: errC } = await supabaseClient.from('fin_contas_bancarias').update({
-            saldo_atual: novoSaldo
-        }).eq('id', contaId);
+            const updatePayload = {
+                status: novoStatus,
+                valor_pago: novoValorPago,
+                data_pagamento: selected.data,
+                conta_bancaria_id: contaId,
+                forma_pagamento: l.forma_pagamento || 'TRANSFERENCIA'
+            };
 
-        if (errC) throw errC;
+            const { error: errL } = await supabaseClient.from('fin_lancamentos').update(updatePayload).eq('id', lancamentoId);
+            if (errL) throw errL;
+
+            // Atualizar saldo da conta apenas para valores que ainda não tinham sido baixados manualmente
+            const fator = l.tipo === 'PAGAR' ? -1 : 1;
+            const novoSaldo = parseFloat(conta.saldo_atual) + (valorAbs * fator);
+            const { error: errC } = await supabaseClient.from('fin_contas_bancarias').update({
+                saldo_atual: novoSaldo
+            }).eq('id', contaId);
+            if (errC) throw errC;
+        } else {
+            // Já estava quitado previamente no sistema: vincula a conta bancária sem duplicar débito de saldo
+            const { error: errL } = await supabaseClient.from('fin_lancamentos').update({
+                conta_bancaria_id: contaId
+            }).eq('id', lancamentoId);
+            if (errL) throw errL;
+        }
 
         // Remover do extrato temporário local
         state.extratoParsed = state.extratoParsed.filter(x => x.id !== selected.id);
         state.selectedExtratoItem = state.extratoParsed[0] || null;
 
-        showToast("Conciliação efetuada com sucesso!", "success");
-        if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Conciliou lançamento (${l.tipo}): ${l.descricao} (Valor: R$ ${l.valor_total})`);
+        showToast("Conciliação vinculada com sucesso!", "success");
+        if (typeof registrarLog === 'function') registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Conciliou lançamento (${l.tipo}): ${l.descricao} com extrato bancário (Valor: R$ ${valorAbs})`);
         await loadInitialData();
         renderAll();
         renderConciliacao();
