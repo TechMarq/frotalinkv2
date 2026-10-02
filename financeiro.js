@@ -44,6 +44,22 @@ let currentPageReceber = 1;
 let currentPageFhist = 1;
 const financialPageSize = 50;
 
+// --- Helper de Data Local (Seguro contra fuso horário UTC) ---
+function getLocalDateStr(d = new Date()) {
+    if (!d) return '';
+    if (typeof d === 'string') {
+        const clean = d.split('T')[0].trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+        d = new Date(d);
+    }
+    if (isNaN(d.getTime())) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+window.getLocalDateStr = getLocalDateStr;
+
 // --- Inicialização ---
 document.addEventListener('DOMContentLoaded', async () => {
     if (typeof window.showLoader === 'function') window.showLoader();
@@ -599,20 +615,21 @@ function renderLancamentos(tipo) {
     let filtered = state.lancamentos.filter(l => l.tipo === tipo);
 
     if (filter.status) {
-        const hoje = new Date();
-        hoje.setHours(0, 0, 0, 0);
+        const todayStr = getLocalDateStr();
 
         if (filter.status === 'UNPAID') {
             filtered = filtered.filter(l => l.status !== 'PAGO' && l.status !== 'CANCELADO');
         } else if (filter.status === 'ATRASADO') {
             filtered = filtered.filter(l => {
-                const dataVenc = new Date((l.data_vencimento || l.previsao_pagamento || l.data_emissao) + 'T00:00:00');
-                return dataVenc < hoje && l.status === 'ABERTO';
+                if (l.status === 'PAGO' || l.status === 'CANCELADO') return false;
+                const dVenc = (l.data_vencimento || l.previsao_pagamento || l.data_emissao || '').substring(0, 10);
+                return dVenc && dVenc < todayStr;
             });
         } else if (filter.status === 'ABERTO') {
             filtered = filtered.filter(l => {
-                const dataVenc = new Date((l.data_vencimento || l.previsao_pagamento || l.data_emissao) + 'T00:00:00');
-                return dataVenc >= hoje && l.status === 'ABERTO';
+                if (l.status === 'PAGO' || l.status === 'CANCELADO') return false;
+                const dVenc = (l.data_vencimento || l.previsao_pagamento || l.data_emissao || '').substring(0, 10);
+                return !dVenc || dVenc >= todayStr;
             });
         } else {
             filtered = filtered.filter(l => l.status === filter.status);
@@ -621,30 +638,27 @@ function renderLancamentos(tipo) {
 
     // Filtro de Período (Vencimento ou Pagamento)
     if (filter.periodo) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const todayStr = getLocalDateStr();
 
         function matchPeriodDate(dateStr) {
             if (!dateStr) return false;
             const dStr = dateStr.slice(0, 10);
-            const d = new Date(dStr + 'T00:00:00');
 
             if (filter.periodo === 'today') {
-                const todayStr = today.toISOString().slice(0, 10);
                 return dStr === todayStr;
             }
             if (filter.periodo === 'yesterday') {
-                const yest = new Date(today);
+                const yest = new Date();
                 yest.setDate(yest.getDate() - 1);
-                const yestStr = yest.toISOString().slice(0, 10);
-                return dStr === yestStr;
+                return dStr === getLocalDateStr(yest);
             }
             if (filter.periodo === 'current_month') {
-                return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth();
+                return dStr.substring(0, 7) === todayStr.substring(0, 7);
             }
             if (filter.periodo === 'last_month') {
-                const lm = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-                return d.getFullYear() === lm.getFullYear() && d.getMonth() === lm.getMonth();
+                const lm = new Date();
+                lm.setMonth(lm.getMonth() - 1);
+                return dStr.substring(0, 7) === getLocalDateStr(lm).substring(0, 7);
             }
             if (filter.periodo === 'custom') {
                 if (filter.dataIni && dStr < filter.dataIni) return false;
@@ -804,15 +818,13 @@ function renderLancamentos(tipo) {
         const cc = state.centrosCusto.find(c => c.id === l.centro_custo_id);
         
         // Lógica de Vencimento e Status
-        const hoje = new Date();
-        hoje.setHours(0, 0, 0, 0);
-        const dateStr = l.previsao_pagamento || l.data_vencimento || l.data_emissao;
-        const dataVenc = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
-        const isDatePast = dataVenc < hoje;
+        const todayStr = getLocalDateStr();
+        const dateStr = (l.data_vencimento || l.previsao_pagamento || l.data_emissao || '').substring(0, 10);
+        const isDatePast = dateStr ? dateStr < todayStr : false;
         
         let isOverdue = false;
         let displayStatus = l.status;
-        let statusClass = `status-${l.status.toLowerCase()}`;
+        let statusClass = `status-${(l.status || '').toLowerCase()}`;
         
         if (l.status === 'ABERTO') {
             if (isDatePast) {
@@ -898,7 +910,7 @@ function renderLancamentos(tipo) {
                             ${(() => {
                                 const isIntegrado = l.origem_modulo && l.origem_modulo !== 'MANUAL' && l.origem_modulo !== 'FINANCEIRO';
                                 if (isIntegrado) {
-                                    return `<button class="btn-action edit is-locked" onclick="editEntry('${l.id}', '${tipo}')" title="Edição bloqueada: Integrado via ${l.origem_modulo}. Clique para instruções."><i data-lucide="edit-2"></i></button>`;
+                                    return `<button class="btn-action edit is-integrado" onclick="editEntry('${l.id}', '${tipo}')" title="Ajustar Vencimentos e Parcelas (Integrado via ${l.origem_modulo})"><i data-lucide="calendar-clock"></i></button>`;
                                 }
                                 return `<button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>`;
                             })()}
@@ -1004,7 +1016,7 @@ function renderLancamentos(tipo) {
                             const isCompraOuManut = l.compra_id || l.manutencao_id;
                             if (isIntegrado || isCompraOuManut) {
                                 const mod = l.origem_modulo === 'COMPRAS' || l.compra_id ? 'Compras' : l.origem_modulo === 'MANUTENCAO' || l.manutencao_id ? 'Manutenção' : (l.origem_modulo || 'outro setor');
-                                return `<button class="btn-action edit is-locked" onclick="editEntry('${l.id}', '${tipo}')" title="Edição bloqueada: Integrado via ${mod}. Clique para instruções."><i data-lucide="edit-2"></i></button>`;
+                                return `<button class="btn-action edit is-integrado" onclick="editEntry('${l.id}', '${tipo}')" title="Ajustar Vencimentos e Parcelas (Integrado via ${mod})"><i data-lucide="calendar-clock"></i></button>`;
                             }
                             return `<button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>`;
                         })()}
@@ -1944,38 +1956,13 @@ async function editEntry(id, tipo) {
         }
     }
 
-    // Bloqueio de segurança: Lançamentos integrados de outros módulos (Compras, Manutenção, etc.)
+    // Lançamentos integrados de outros módulos (Compras, Manutenção, etc.):
+    // Permite ajustar exclusivamente prazos/vencimentos e valores das parcelas
     const isIntegrado = item.origem_modulo && item.origem_modulo !== 'MANUAL' && item.origem_modulo !== 'FINANCEIRO';
     const isCompraOuManut = item.compra_id || item.manutencao_id;
 
     if (isIntegrado || isCompraOuManut) {
-        const moduloNome = item.origem_modulo === 'COMPRAS' || item.compra_id ? 'Módulo de Compras' 
-                         : item.origem_modulo === 'MANUTENCAO' || item.manutencao_id ? 'Módulo de Manutenção'
-                         : `Módulo ${item.origem_modulo || 'de Origem'}`;
-
-        const msgHtml = `
-            <div style="text-align: left; font-size: 0.88rem; line-height: 1.5; color: #cbd5e1;">
-                <p style="margin-bottom: 0.8rem;">Este lançamento financeiro foi <strong>integrado automaticamente pelo ${moduloNome}</strong>.</p>
-                <div style="background: rgba(239, 68, 68, 0.1); border-left: 3px solid #ef4444; padding: 0.75rem 0.9rem; border-radius: 6px; margin-bottom: 0.8rem; font-size: 0.82rem; color: #fca5a5;">
-                    <strong>Regra de Integridade:</strong> Não é permitido alterar dados fiscais ou itens diretamente pelo Financeiro.
-                </div>
-                <p style="font-size: 0.82rem; color: #94a3b8;">
-                    <strong>Como proceder:</strong> Se for necessário alterar valores, fornecedor ou itens, você deve <strong>excluir este lançamento no Financeiro</strong> e solicitar a alteração/reintegração diretamente ao setor responsável (<strong>${moduloNome}</strong>).
-                </p>
-            </div>
-        `;
-
-        if (typeof showAlertModal === 'function') {
-            await showAlertModal({
-                title: 'Alteração Bloqueada',
-                message: msgHtml,
-                type: 'warning',
-                confirmText: 'ENTENDIDO'
-            });
-        } else {
-            alert(`⚠️ Alteração Bloqueada: Este lançamento foi integrado pelo ${moduloNome}.\n\nPara alterar, exclua a nota no Financeiro e comunique o setor responsável (${moduloNome}) para que faça o ajuste.`);
-        }
-        return;
+        return openEditParcelasIntegradasModal(id, tipo);
     }
 
     await openEntryModal(tipo, id);
@@ -4383,6 +4370,400 @@ window.handleViewAlterarPagamentoClick = function() {
 };
 
 /**
+ * Handler acionado pelo botão "Ajustar Vencimentos / Parcelas" de dentro do viewModal
+ */
+window.handleViewAjustarParcelasClick = function() {
+    const btn = document.getElementById('btnViewAjustarParcelas');
+    const lancamentoId = btn ? btn.dataset.lancamentoId : null;
+    const tipo = btn ? (btn.dataset.tipo || 'PAGAR') : 'PAGAR';
+    if (!lancamentoId) return;
+    closeModal('viewModal');
+    openEditParcelasIntegradasModal(lancamentoId, tipo);
+};
+
+/**
+ * Modal Dedicado: Ajustar Vencimentos e Parcelas de Notas Integradas (Compras, Manutenção, etc.)
+ * Permite ajustar datas de vencimento e valores das parcelas em aberto, exigindo que a soma
+ * coincida exatamente com o valor total original da nota. Registros de origem permanecem intactos.
+ */
+async function openEditParcelasIntegradasModal(id, tipo = 'PAGAR') {
+    let item = (state.lancamentos || []).find(l => l.id === id);
+    if (!item) {
+        try {
+            const { data: dbItem } = await supabaseClient.from('fin_lancamentos').select('*').eq('id', id).maybeSingle();
+            item = dbItem;
+        } catch (e) {
+            console.error('Erro ao buscar lançamento:', e);
+        }
+    }
+    if (!item) {
+        showToast('Lançamento não encontrado.', 'error');
+        return;
+    }
+
+    const permMod = (tipo === 'RECEBER' || item.tipo === 'RECEBER') ? 'financeiro_receber' : 'financeiro_pagar';
+    if (typeof canDo === 'function' && !canDo(permMod, 'edit')) {
+        showToast('Você não tem permissão para editar lançamentos.', 'error');
+        return;
+    }
+
+    // Buscar todas as parcelas vinculadas à mesma nota
+    let sisters = [];
+    try {
+        if (item.compra_id) {
+            const { data } = await supabaseClient
+                .from('fin_lancamentos')
+                .select('*')
+                .eq('compra_id', item.compra_id);
+            if (data && data.length > 0) sisters = data;
+        } else if (item.manutencao_id) {
+            const { data } = await supabaseClient
+                .from('fin_lancamentos')
+                .select('*')
+                .eq('manutencao_id', item.manutencao_id);
+            if (data && data.length > 0) sisters = data;
+        } else if (item.pai_id || item.is_parcelado) {
+            const parentId = item.pai_id || item.id;
+            const { data } = await supabaseClient
+                .from('fin_lancamentos')
+                .select('*')
+                .or(`id.eq.${parentId},pai_id.eq.${parentId}`);
+            if (data && data.length > 0) sisters = data;
+        }
+    } catch (errQuery) {
+        console.warn('Erro ao consultar parcelas da nota integrada:', errQuery);
+    }
+
+    if (!sisters || sisters.length === 0) {
+        sisters = [item];
+    }
+
+    // Ordenar parcelas pelo número (ex: Parc 1/3) ou data de vencimento
+    sisters.sort((a, b) => {
+        const mA = (a.descricao || '').match(/Parc\s*(\d+)\//i);
+        const mB = (b.descricao || '').match(/Parc\s*(\d+)\//i);
+        if (mA && mB) return parseInt(mA[1]) - parseInt(mB[1]);
+        return new Date(a.data_vencimento || 0) - new Date(b.data_vencimento || 0);
+    });
+
+    // Validar se todas as parcelas já foram quitadas
+    const openParcs = sisters.filter(s => s.status !== 'PAGO' && s.status !== 'RECEBIDO');
+    if (openParcs.length === 0) {
+        if (typeof showAlertModal === 'function') {
+            await showAlertModal({
+                title: 'Todas as Parcelas Estão Pagas',
+                message: 'Todas as parcelas desta nota já foram quitadas/baixadas. Não há parcelas em aberto disponíveis para alteração.',
+                type: 'info',
+                confirmText: 'ENTENDIDO'
+            });
+        } else {
+            alert('Todas as parcelas desta nota já foram quitadas.');
+        }
+        return;
+    }
+
+    // Salvar estado em escopo do modal
+    window._editingIntegratedState = {
+        mainItem: item,
+        sisters: sisters,
+        tipo: tipo
+    };
+
+    const totalNota = sisters.reduce((acc, s) => acc + (parseFloat(s.valor_total) || 0), 0);
+    const totalPago = sisters.filter(s => s.status === 'PAGO' || s.status === 'RECEBIDO').reduce((acc, s) => acc + (parseFloat(s.valor_total) || 0), 0);
+    const saldoRestante = Math.max(0, totalNota - totalPago);
+
+    const modNome = item.origem_modulo === 'COMPRAS' || item.compra_id ? 'Compras'
+                  : item.origem_modulo === 'MANUTENCAO' || item.manutencao_id ? 'Manutenção'
+                  : (item.origem_modulo || 'Outro Módulo');
+
+    // Preencher cabeçalho com resumo da nota
+    const resumoEl = document.getElementById('editParcResumoNota');
+    if (resumoEl) {
+        resumoEl.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.75rem;">
+                <div>
+                    <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.25rem;">
+                        <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; color:#5a7a6a; letter-spacing:0.04em;">Favorecido / Fornecedor</span>
+                        <span style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:12px; background:rgba(45, 158, 107, 0.12); color:#1a7a50; border:1px solid rgba(45, 158, 107, 0.25);">
+                            <i data-lucide="link" style="width:11px; height:11px;"></i> Integrado via ${modNome}
+                        </span>
+                    </div>
+                    <div style="font-size:1.05rem; font-weight:800; color:#1a2e25;">${item.entidade_nome || 'Não informado'}</div>
+                    <div style="font-size:0.8rem; color:#5a7a6a; margin-top:2px;">
+                        NF / Doc: <strong style="color:#1a2e25;">${item.num_nf || 'S/N'}</strong>
+                        ${item.data_emissao ? ` • Emissão: <strong style="color:#1a2e25;">${formatDate(item.data_emissao)}</strong>` : ''}
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase; color:#5a7a6a; letter-spacing:0.04em;">Total da Nota</div>
+                    <div style="font-size:1.3rem; font-weight:800; color:#1a7a50;">${formatCurrency(totalNota)}</div>
+                    <div style="font-size:0.75rem; color:#5a7a6a; margin-top:2px;">${sisters.length} parcela(s) • Saldo em Aberto: <strong style="color:#1a2e25;">${formatCurrency(saldoRestante)}</strong></div>
+                </div>
+            </div>
+        `;
+    }
+
+    const qtdInfo = document.getElementById('editParcInfoQtd');
+    if (qtdInfo) qtdInfo.textContent = `${sisters.length} parcela(s) no total (${openParcs.length} em aberto)`;
+
+    // Renderizar tabela de parcelas
+    const listContainer = document.getElementById('editParcListContainer');
+    if (listContainer) {
+        listContainer.innerHTML = sisters.map((s, idx) => {
+            const isPago = s.status === 'PAGO' || s.status === 'RECEBIDO';
+            const matchNum = (s.descricao || '').match(/Parc\s*(\d+)\//i);
+            const numDisplay = matchNum ? `#${matchNum[1]}` : `#${idx + 1}`;
+            const valNum = parseFloat(s.valor_total) || 0;
+            const valInputFormatted = valNum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            return `
+                <div class="edit-parc-row ${isPago ? 'is-paid' : 'is-open'}" data-id="${s.id}" data-pago="${isPago ? '1' : '0'}"
+                    style="display:grid; grid-template-columns: 55px 1.4fr 1.3fr 90px; gap:0.6rem; align-items:center; background:${isPago ? 'rgba(45,158,107,0.06)' : '#ffffff'}; border:1px solid ${isPago ? 'rgba(45,158,107,0.25)' : 'rgba(45,158,107,0.2)'}; border-radius:8px; padding:0.6rem 0.8rem;">
+                    <div style="font-weight:800; color:${isPago ? '#15803d' : '#1a7a50'}; font-size:0.88rem;">
+                        ${numDisplay}
+                    </div>
+                    <div>
+                        <input type="date" class="financeiro-input parc-int-date" data-id="${s.id}" value="${s.data_vencimento || ''}"
+                            ${isPago ? 'disabled title="Parcela já baixada (somente leitura)" style="opacity:0.7; cursor:not-allowed; background:#f4f8f5; border:1px solid rgba(45,158,107,0.2); color:#5a7a6a;"' : 'required style="background:#ffffff; border:1px solid rgba(45,158,107,0.25); color:#1a2e25;"'}
+                            oninput="window.recalcEditParcIntegradas()" onchange="window.recalcEditParcIntegradas()">
+                    </div>
+                    <div>
+                        <div class="input-money" style="margin:0; ${isPago ? 'opacity:0.7; cursor:not-allowed;' : ''}">
+                            <span style="color:#5a7a6a;">R$</span>
+                            <input type="text" inputmode="decimal" class="financeiro-input parc-int-val" data-id="${s.id}" value="${valInputFormatted}" placeholder="0,00"
+                                ${isPago ? 'disabled title="Parcela já baixada (somente leitura)" style="border:none; background:transparent; cursor:not-allowed; color:#5a7a6a;"' : 'required style="border:none; background:transparent; color:#1a2e25;"'}
+                                oninput="window.recalcEditParcIntegradas()" onchange="window.recalcEditParcIntegradas()">
+                        </div>
+                    </div>
+                    <div style="text-align:center;">
+                        ${isPago 
+                            ? `<span style="display:inline-flex; align-items:center; gap:3px; font-size:0.68rem; font-weight:800; padding:2px 8px; border-radius:12px; background:rgba(45,158,107,0.15); color:#15803d; border:1px solid rgba(45,158,107,0.3);"><i data-lucide="check" style="width:11px;height:11px;"></i> PAGO</span>`
+                            : `<span style="display:inline-flex; align-items:center; gap:3px; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:12px; background:rgba(45,158,107,0.12); color:#1a7a50; border:1px solid rgba(45,158,107,0.25);"><i data-lucide="clock" style="width:11px;height:11px;"></i> ABERTO</span>`
+                        }
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Painel de totais
+    const totalNotaEl = document.getElementById('editParcValTotalNota');
+    const totalPagoEl = document.getElementById('editParcValTotalPago');
+    if (totalNotaEl) totalNotaEl.textContent = formatCurrency(totalNota);
+    if (totalPagoEl) totalPagoEl.textContent = formatCurrency(totalPago);
+
+    window.recalcEditParcIntegradas();
+
+    const modal = document.getElementById('modalEditParcelasIntegradas');
+    if (modal) {
+        modal.classList.add('active');
+        if (window.lucide) lucide.createIcons();
+    }
+}
+window.openEditParcelasIntegradasModal = openEditParcelasIntegradasModal;
+
+window.recalcEditParcIntegradas = function() {
+    const st = window._editingIntegratedState;
+    if (!st || !st.sisters) return;
+
+    const totalNota = st.sisters.reduce((acc, s) => acc + (parseFloat(s.valor_total) || 0), 0);
+    const rows = document.querySelectorAll('#editParcListContainer .edit-parc-row');
+
+    let somaAtual = 0;
+    rows.forEach(r => {
+        const isPago = r.getAttribute('data-pago') === '1';
+        if (isPago) {
+            const sisterId = r.getAttribute('data-id');
+            const sister = st.sisters.find(s => s.id === sisterId);
+            somaAtual += parseFloat(sister?.valor_total) || 0;
+        } else {
+            const valInput = r.querySelector('.parc-int-val');
+            somaAtual += parseFinNumber(valInput?.value) || 0;
+        }
+    });
+
+    somaAtual = Number(somaAtual.toFixed(2));
+    const diff = Number((somaAtual - totalNota).toFixed(2));
+
+    const somaEl = document.getElementById('editParcValSomaDigitada');
+    const diffEl = document.getElementById('editParcValDiferenca');
+    const statusMsg = document.getElementById('editParcStatusMsg');
+    const btnSave = document.getElementById('btnSalvarParcelasIntegradas');
+
+    if (somaEl) somaEl.textContent = formatCurrency(somaAtual);
+    if (diffEl) {
+        diffEl.textContent = (diff > 0 ? '+ ' : '') + formatCurrency(diff);
+        if (Math.abs(diff) < 0.009) {
+            diffEl.style.color = '#15803d';
+        } else {
+            diffEl.style.color = '#dc2626';
+        }
+    }
+
+    if (statusMsg) {
+        if (Math.abs(diff) < 0.009) {
+            statusMsg.innerHTML = `<i data-lucide="check-circle" style="width:14px;height:14px;color:#15803d;"></i> <span style="color:#15803d;">Os valores das parcelas coincidem perfeitamente com o total da nota.</span>`;
+            if (btnSave) {
+                btnSave.disabled = false;
+                btnSave.style.opacity = '1';
+                btnSave.style.cursor = 'pointer';
+            }
+        } else if (diff > 0) {
+            statusMsg.innerHTML = `<i data-lucide="alert-circle" style="width:14px;height:14px;color:#dc2626;"></i> <span style="color:#dc2626;">A soma das parcelas ultrapassa o total da nota em <strong>${formatCurrency(diff)}</strong>.</span>`;
+            if (btnSave) {
+                btnSave.disabled = true;
+                btnSave.style.opacity = '0.5';
+                btnSave.style.cursor = 'not-allowed';
+            }
+        } else {
+            statusMsg.innerHTML = `<i data-lucide="alert-circle" style="width:14px;height:14px;color:#d97706;"></i> <span style="color:#b45309;">Falta distribuir <strong>${formatCurrency(Math.abs(diff))}</strong> para bater o total da nota.</span>`;
+            if (btnSave) {
+                btnSave.disabled = true;
+                btnSave.style.opacity = '0.5';
+                btnSave.style.cursor = 'not-allowed';
+            }
+        }
+        if (window.lucide) lucide.createIcons();
+    }
+};
+
+window.handleSalvarParcelasIntegradas = async function(e) {
+    if (e) e.preventDefault();
+
+    const st = window._editingIntegratedState;
+    if (!st || !st.sisters || st.sisters.length === 0) {
+        showToast('Nenhum dado selecionado para salvar.', 'error');
+        return;
+    }
+
+    const totalNota = st.sisters.reduce((acc, s) => acc + (parseFloat(s.valor_total) || 0), 0);
+    const rows = document.querySelectorAll('#editParcListContainer .edit-parc-row');
+
+    const updates = [];
+    let somaAtual = 0;
+    let hasEmptyDate = false;
+    let hasInvalidVal = false;
+
+    rows.forEach(r => {
+        const isPago = r.getAttribute('data-pago') === '1';
+        const id = r.getAttribute('data-id');
+        const sister = st.sisters.find(s => s.id === id);
+
+        if (isPago) {
+            somaAtual += parseFloat(sister?.valor_total) || 0;
+        } else {
+            const dateInput = r.querySelector('.parc-int-date');
+            const valInput = r.querySelector('.parc-int-val');
+
+            const dateVal = dateInput?.value;
+            const numVal = parseFinNumber(valInput?.value) || 0;
+
+            if (!dateVal) hasEmptyDate = true;
+            if (numVal <= 0) hasInvalidVal = true;
+
+            somaAtual += numVal;
+            updates.push({
+                id: id,
+                data_vencimento: dateVal,
+                valor_total: numVal,
+                sister: sister
+            });
+        }
+    });
+
+    if (hasEmptyDate) {
+        showToast('Preencha a data de vencimento de todas as parcelas em aberto.', 'error');
+        return;
+    }
+
+    if (hasInvalidVal) {
+        showToast('O valor de cada parcela em aberto deve ser maior que zero.', 'error');
+        return;
+    }
+
+    somaAtual = Number(somaAtual.toFixed(2));
+    const diff = Number((somaAtual - totalNota).toFixed(2));
+    if (Math.abs(diff) >= 0.01) {
+        showToast(`A soma das parcelas (${formatCurrency(somaAtual)}) deve coincidir com o total da nota (${formatCurrency(totalNota)})!`, 'error');
+        return;
+    }
+
+    const btnSave = document.getElementById('btnSalvarParcelasIntegradas');
+    const originalBtnHtml = btnSave ? btnSave.innerHTML : '';
+    if (btnSave) {
+        btnSave.disabled = true;
+        btnSave.innerHTML = `<i data-lucide="loader" class="spin" style="width:16px;height:16px;"></i> Salvando...`;
+    }
+
+    try {
+        if (typeof window.showLoader === 'function') window.showLoader();
+
+        const alteracoesDetalhadas = [];
+        const loggedUser = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
+        const hojeStr = formatDate(getLocalDateStr());
+
+        for (const up of updates) {
+            const oldVenc = (up.sister.data_vencimento || '').substring(0, 10);
+            const newVenc = (up.data_vencimento || '').substring(0, 10);
+            const oldVal = parseFloat(up.sister.valor_total) || 0;
+            const newVal = parseFloat(up.valor_total) || 0;
+
+            const mudouVenc = oldVenc !== newVenc;
+            const mudouVal = Math.abs(oldVal - newVal) >= 0.01;
+
+            if (mudouVenc || mudouVal) {
+                const parts = [];
+                if (mudouVenc) parts.push(`Vencimento: ${formatDate(oldVenc)} -> ${formatDate(newVenc)}`);
+                if (mudouVal) parts.push(`Valor: ${formatCurrency(oldVal)} -> ${formatCurrency(newVal)}`);
+                alteracoesDetalhadas.push(`Parcela (${up.sister.codigo_sequencial || up.id.substring(0, 8)}): ${parts.join(', ')}`);
+            }
+
+            const payload = {
+                data_vencimento: up.data_vencimento,
+                valor_total: up.valor_total
+            };
+
+            // Se houve alteração, grava na observação da própria parcela
+            if (mudouVenc || mudouVal) {
+                const logItem = `[AJUSTE DE PARCELA (${hojeStr}) por ${loggedUser}]: ${mudouVenc ? `Vencimento ${formatDate(oldVenc)} -> ${formatDate(newVenc)}. ` : ''}${mudouVal ? `Valor ${formatCurrency(oldVal)} -> ${formatCurrency(newVal)}` : ''}`;
+                payload.observacoes = up.sister.observacoes ? `${up.sister.observacoes}\n${logItem}` : logItem;
+            }
+
+            const { error: updErr } = await supabaseClient
+                .from('fin_lancamentos')
+                .update(payload)
+                .eq('id', up.id);
+
+            if (updErr) throw updErr;
+        }
+
+        // Registrar em logs_atividade para auditoria geral
+        if (alteracoesDetalhadas.length > 0 && typeof registrarLog === 'function') {
+            const mainSister = updates[0]?.sister;
+            await registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Ajustou parcelas integradas ${mainSister?.codigo_sequencial ? '(' + mainSister.codigo_sequencial + ')' : ''} [${mainSister?.id}]: ${alteracoesDetalhadas.join(' | ')}`);
+        }
+
+        showToast('Parcelas e vencimentos atualizados com sucesso!', 'success');
+        closeModal('modalEditParcelasIntegradas');
+
+        if (typeof loadLancamentos === 'function') {
+            await loadLancamentos();
+        }
+    } catch (err) {
+        console.error('Erro ao salvar parcelas integradas:', err);
+        showToast('Erro ao salvar alterações: ' + (err.message || err), 'error');
+    } finally {
+        if (typeof window.hideLoader === 'function') window.hideLoader();
+        if (btnSave) {
+            btnSave.disabled = false;
+            btnSave.innerHTML = originalBtnHtml;
+            if (window.lucide) lucide.createIcons();
+        }
+    }
+};
+
+/**
  * Salva as alterações de pagamento de um lançamento já pago, ajustando saldos bancários e gerando log
  */
 window.handleEditPaymentSubmit = async function(e) {
@@ -4500,13 +4881,53 @@ function renderDashboardPagar() {
     if (!elements.total) return;
 
     const pagarList = state.lancamentos.filter(l => l.tipo === 'PAGAR' && l.status !== 'CANCELADO');
-    const todayStr = new Date().toISOString().split('T')[0];
-    const monthNow = new Date().getMonth();
+    const todayStr = getLocalDateStr();
+    const currentYearMonth = todayStr.substring(0, 7);
 
-    const total = pagarList.filter(l => l.status !== 'PAGO').reduce((acc, l) => acc + (parseFloat(l.valor_total) - parseFloat(l.valor_pago)), 0);
-    const hoje = pagarList.filter(l => l.data_vencimento === todayStr && l.status !== 'PAGO').reduce((acc, l) => acc + parseFloat(l.valor_total), 0);
-    const atraso = pagarList.filter(l => new Date(l.data_vencimento) < new Date(todayStr) && l.status !== 'PAGO').reduce((acc, l) => acc + parseFloat(l.valor_total), 0);
-    const pagas = pagarList.filter(l => l.status === 'PAGO' && (l.data_pagamento && new Date(l.data_pagamento).getMonth() === monthNow)).reduce((acc, l) => acc + parseFloat(l.valor_total), 0);
+    // Total a Pagar (Apenas saldo restante das contas não quitadas)
+    const total = pagarList
+        .filter(l => l.status !== 'PAGO')
+        .reduce((acc, l) => {
+            const vTotal = parseFloat(l.valor_total) || 0;
+            const vPago = parseFloat(l.valor_pago) || 0;
+            return acc + Math.max(0, vTotal - vPago);
+        }, 0);
+
+    // Vencendo Hoje (Saldo restante das contas não pagas que vencem hoje)
+    const hoje = pagarList
+        .filter(l => {
+            const dVenc = (l.data_vencimento || l.previsao_pagamento || '').substring(0, 10);
+            return dVenc === todayStr && l.status !== 'PAGO';
+        })
+        .reduce((acc, l) => {
+            const vTotal = parseFloat(l.valor_total) || 0;
+            const vPago = parseFloat(l.valor_pago) || 0;
+            return acc + Math.max(0, vTotal - vPago);
+        }, 0);
+
+    // Atrasadas (Saldo restante das contas não pagas vencidas antes de hoje)
+    const atraso = pagarList
+        .filter(l => {
+            const dVenc = (l.data_vencimento || l.previsao_pagamento || '').substring(0, 10);
+            return dVenc && dVenc < todayStr && l.status !== 'PAGO';
+        })
+        .reduce((acc, l) => {
+            const vTotal = parseFloat(l.valor_total) || 0;
+            const vPago = parseFloat(l.valor_pago) || 0;
+            return acc + Math.max(0, vTotal - vPago);
+        }, 0);
+
+    // Pagas no Mês (Total liquidado ou valor pago com pagamento no mês atual)
+    const pagas = pagarList
+        .filter(l => {
+            const dPgto = (l.data_pagamento || '').substring(0, 7);
+            return dPgto === currentYearMonth && (l.status === 'PAGO' || (parseFloat(l.valor_pago) || 0) > 0);
+        })
+        .reduce((acc, l) => {
+            const vPago = parseFloat(l.valor_pago);
+            if (!isNaN(vPago) && vPago > 0) return acc + vPago;
+            return acc + (parseFloat(l.valor_total) || 0);
+        }, 0);
 
     elements.total.innerText = formatCurrency(total);
     elements.hoje.innerText = formatCurrency(hoje);
@@ -4524,23 +4945,53 @@ function renderDashboardReceber() {
     if (!elements.total) return;
 
     const receberList = state.lancamentos.filter(l => l.tipo === 'RECEBER' && l.status !== 'CANCELADO');
-    const todayStr = new Date().toISOString().split('T')[0];
-    const monthNow = new Date().getMonth();
+    const todayStr = getLocalDateStr();
+    const currentYearMonth = todayStr.substring(0, 7);
 
-    // Total a Receber (Bruto - Já Recebido)
-    const total = receberList.filter(l => l.status !== 'PAGO').reduce((acc, l) => acc + (parseFloat(l.valor_total) - parseFloat(l.valor_pago || 0)), 0);
+    // Total a Receber (Saldo restante: Valor Total - Já Recebido)
+    const total = receberList
+        .filter(l => l.status !== 'PAGO')
+        .reduce((acc, l) => {
+            const vTotal = parseFloat(l.valor_total) || 0;
+            const vPago = parseFloat(l.valor_pago) || 0;
+            return acc + Math.max(0, vTotal - vPago);
+        }, 0);
     
-    // Recebendo Hoje
-    const hoje = receberList.filter(l => (l.previsao_pagamento === todayStr || l.data_vencimento === todayStr) && l.status !== 'PAGO').reduce((acc, l) => acc + parseFloat(l.valor_total), 0);
+    // Recebendo Hoje (Saldo restante com vencimento/previsão hoje)
+    const hoje = receberList
+        .filter(l => {
+            const dVenc = (l.data_vencimento || l.previsao_pagamento || '').substring(0, 10);
+            return dVenc === todayStr && l.status !== 'PAGO';
+        })
+        .reduce((acc, l) => {
+            const vTotal = parseFloat(l.valor_total) || 0;
+            const vPago = parseFloat(l.valor_pago) || 0;
+            return acc + Math.max(0, vTotal - vPago);
+        }, 0);
     
-    // Atraso (Data de vencimento menor que hoje e ainda aberto)
-    const atraso = receberList.filter(l => {
-        const dVenc = l.data_vencimento || l.previsao_pagamento;
-        return dVenc && dVenc < todayStr && l.status === 'ABERTO';
-    }).reduce((acc, l) => acc + parseFloat(l.valor_total), 0);
+    // Atrasadas (Saldo restante com vencimento antes de hoje e ainda não liquidado)
+    const atraso = receberList
+        .filter(l => {
+            const dVenc = (l.data_vencimento || l.previsao_pagamento || '').substring(0, 10);
+            return dVenc && dVenc < todayStr && l.status !== 'PAGO';
+        })
+        .reduce((acc, l) => {
+            const vTotal = parseFloat(l.valor_total) || 0;
+            const vPago = parseFloat(l.valor_pago) || 0;
+            return acc + Math.max(0, vTotal - vPago);
+        }, 0);
 
-    // Recebidas no mês
-    const recebidas = receberList.filter(l => l.status === 'PAGO' && (l.data_pagamento && new Date(l.data_pagamento).getMonth() === monthNow)).reduce((acc, l) => acc + parseFloat(l.valor_total), 0);
+    // Recebidas no mês (Valor recebido no mês atual)
+    const recebidas = receberList
+        .filter(l => {
+            const dPgto = (l.data_pagamento || '').substring(0, 7);
+            return dPgto === currentYearMonth && (l.status === 'PAGO' || (parseFloat(l.valor_pago) || 0) > 0);
+        })
+        .reduce((acc, l) => {
+            const vPago = parseFloat(l.valor_pago);
+            if (!isNaN(vPago) && vPago > 0) return acc + vPago;
+            return acc + (parseFloat(l.valor_total) || 0);
+        }, 0);
 
     elements.total.innerText = formatCurrency(total);
     elements.hoje.innerText = formatCurrency(hoje);
@@ -5752,6 +6203,18 @@ function setupEventListeners() {
         } else {
             dataPgtoWrapper.style.display = 'none';
             if (btnAlterarPgto) btnAlterarPgto.style.display = 'none';
+        }
+
+        const btnAjustarParc = document.getElementById('btnViewAjustarParcelas');
+        const isIntegradoNota = (l.origem_modulo && l.origem_modulo !== 'MANUAL' && l.origem_modulo !== 'FINANCEIRO') || l.compra_id || l.manutencao_id;
+        if (btnAjustarParc) {
+            if (isIntegradoNota) {
+                btnAjustarParc.style.display = 'inline-flex';
+                btnAjustarParc.dataset.lancamentoId = l.id;
+                btnAjustarParc.dataset.tipo = l.tipo || 'PAGAR';
+            } else {
+                btnAjustarParc.style.display = 'none';
+            }
         }
 
         // Observações
@@ -8986,19 +9449,33 @@ function fhistPdfExport() {
     showToast('PDF A4 Retrato gerado com sucesso!', 'success');
 }
 
-/** Exibe o modal de histórico de alterações da nota */
+/** Exibe o modal de histórico de alterações da nota com linha do tempo vertical */
 async function showRecordHistory(id) {
     const l = state.lancamentos.find(item => item.id === id);
     if (!l) return;
 
-    // Preencher Header Card
+    // 1. Preencher Header Card do Modal
     const refCode = document.getElementById('histRefCode');
     const desc = document.getElementById('histDesc');
     const entidade = document.getElementById('histEntidade');
     const valor = document.getElementById('histValor');
     const badge = document.getElementById('histStatusBadge');
+    const origemBadge = document.getElementById('histOrigemBadge');
 
     if (refCode) refCode.innerText = l.codigo_sequencial || ('Ref: ' + l.id.substring(0, 8));
+    if (origemBadge) {
+        origemBadge.innerText = (l.origem_modulo || 'FINANCEIRO').toUpperCase();
+        if (l.origem_modulo === 'COMPRAS') {
+            origemBadge.style.background = 'rgba(245, 158, 11, 0.12)';
+            origemBadge.style.color = '#d97706';
+        } else if (l.origem_modulo === 'MANUTENCAO' || l.origem_modulo === 'MANUTENÇÃO') {
+            origemBadge.style.background = 'rgba(239, 68, 68, 0.12)';
+            origemBadge.style.color = '#dc2626';
+        } else {
+            origemBadge.style.background = 'rgba(2, 132, 199, 0.12)';
+            origemBadge.style.color = '#0284c7';
+        }
+    }
     if (desc) desc.innerText = `${l.num_nf ? 'NF ' + l.num_nf + ' - ' : ''}${l.descricao || '-'}`;
     if (entidade) entidade.innerText = l.entidade_nome || '-';
     
@@ -9010,12 +9487,12 @@ async function showRecordHistory(id) {
 
     if (badge) {
         badge.innerText = l.status;
-        badge.className = `status-badge status-${l.status.toLowerCase()}`;
+        badge.className = `status-badge status-${(l.status || 'aberto').toLowerCase()}`;
     }
 
     const container = document.getElementById('histTimelineContainer');
     if (container) {
-        container.innerHTML = `<div style="text-align:center; padding:2rem; color:var(--text-muted);"><i data-lucide="loader" class="spin" style="width:24px;"></i> Carregando histórico de alterações...</div>`;
+        container.innerHTML = `<div style="text-align:center; padding:2.5rem 1rem; color:#64748b;"><i data-lucide="loader-2" class="spin-animation" style="width:26px; height:26px; vertical-align:middle; margin-bottom:8px; color:#10b981;"></i><br>Carregando histórico e montando a linha do tempo...</div>`;
     }
     if (window.lucide) lucide.createIcons();
 
@@ -9023,135 +9500,287 @@ async function showRecordHistory(id) {
     if (modal) modal.classList.add('active');
 
     try {
-        // Buscar logs do banco de dados na tabela logs_atividade
+        // 2. Buscar logs de auditoria no Supabase
         const orConditions = [
             `descricao.ilike.%${l.id}%`
         ];
         if (l.codigo_sequencial) orConditions.push(`descricao.ilike.%${l.codigo_sequencial}%`);
         if (l.num_nf) orConditions.push(`descricao.ilike.%${l.num_nf}%`);
-        if (l.descricao && l.descricao.length >= 4) {
-            orConditions.push(`descricao.ilike.%${l.descricao.substring(0, 15).replace(/'/g, "''")}%`);
-        }
 
         const { data: dbLogs } = await supabaseClient
             .from('logs_atividade')
             .select('*')
             .eq('modulo', 'financeiro')
             .or(orConditions.join(','))
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: true });
 
-        let historyItems = [];
+        const historyItems = [];
+        const loggedUserDefault = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
+        const catObj = (state.categorias || []).find(c => c.id === l.categoria_id);
+        const ccObj = (state.centrosCusto || []).find(c => c.id === l.centro_custo_id);
+        const contaObj = (state.contas || []).find(c => c.id === l.conta_bancaria_id);
 
+        // 3. BLOCO INICIAL (Topo da timeline): Criação / Lançamento da Nota
+        const inclusaoLog = (dbLogs || []).find(log => {
+            const act = (log.acao || '').toUpperCase();
+            const dUpper = (log.descricao || '').toUpperCase();
+            return act === 'INCLUSÃO' || act === 'INCLUSAO' || dUpper.includes('LANÇOU') || dUpper.includes('CADASTROU') || dUpper.includes('CRIOU');
+        });
+
+        const dataCriacao = inclusaoLog ? new Date(inclusaoLog.created_at) : new Date(l.created_at || l.data_emissao || l.data_vencimento || Date.now());
+        const autorCriacao = inclusaoLog?.usuario_email || (l.origem_modulo ? `Integrado via ${l.origem_modulo}` : loggedUserDefault);
+
+        historyItems.push({
+            id: 'init_event',
+            date: dataCriacao,
+            user: autorCriacao,
+            action: 'NOTA LANÇADA',
+            icon: 'file-plus',
+            markerColor: '#10b981',
+            badgeBg: 'rgba(16, 185, 129, 0.12)',
+            badgeColor: '#059669',
+            title: l.tipo === 'PAGAR' ? 'Lançamento de Conta a Pagar' : 'Lançamento de Conta a Receber',
+            desc: inclusaoLog ? inclusaoLog.descricao : `Lançamento registrado no financeiro: ${l.descricao || 'Sem descrição informada'}`,
+            details: [
+                { label: 'Origem', value: l.origem_modulo || 'Lançamento Manual' },
+                { label: l.tipo === 'RECEBER' ? 'Cliente' : 'Fornecedor', value: l.entidade_nome || '—' },
+                { label: 'Documento / NF', value: l.num_nf || getLancamentoNumNF(l) || '—' },
+                { label: 'Valor Original', value: formatCurrency(l.valor_total) },
+                { label: 'Vencimento', value: formatDate(l.data_vencimento || l.previsao_pagamento) },
+                { label: 'Categoria', value: catObj ? catObj.nome : '—' }
+            ]
+        });
+
+        // 4. BLOCOS INTERMEDIÁRIOS: Alterações vindas de logs_atividade
         if (dbLogs && dbLogs.length > 0) {
-            historyItems = dbLogs.map(log => {
-                let displayAction = log.acao || 'ALTERAÇÃO';
-                const descUpper = (log.descricao || '').toUpperCase();
-                if (descUpper.includes('BAIXOU') || descUpper.includes('PAGAMENTO') || descUpper.includes('BAIXA')) {
-                    displayAction = descUpper.includes('EDITOU PAGAMENTO') || descUpper.includes('ALTEROU PAGAMENTO') ? 'ALTERAÇÃO DE PAGAMENTO' : 'PAGAMENTO / BAIXA';
-                } else if (descUpper.includes('ESTORNO') || descUpper.includes('REVERSÃO')) {
-                    displayAction = 'ESTORNO';
-                } else if (descUpper.includes('EDITOU') || descUpper.includes('ALTEROU')) {
-                    displayAction = 'ALTERAÇÃO';
-                } else if (descUpper.includes('LANÇOU') || descUpper.includes('CRIOU') || descUpper.includes('INCLUSÃO')) {
-                    displayAction = 'INCLUSÃO';
+            dbLogs.forEach(log => {
+                const act = (log.acao || '').toUpperCase();
+                const dUpper = (log.descricao || '').toUpperCase();
+
+                // Ignora o log de inclusão que já foi renderizado como marco inicial
+                if (inclusaoLog && log.id === inclusaoLog.id) return;
+                if (dUpper.includes('CRIOU') || dUpper.includes('LANÇOU') && act === 'INCLUSÃO') return;
+
+                let actionName = 'NOTA ALTERADA';
+                let iconName = 'edit-3';
+                let markerCol = '#0284c7';
+                let bBg = 'rgba(2, 132, 199, 0.12)';
+                let bCol = '#0284c7';
+                let eventTitle = 'Alteração Cadastral';
+                let customDetails = [];
+
+                if (dUpper.includes('AJUSTOU PARCELAS') || dUpper.includes('PARCELA')) {
+                    actionName = 'AJUSTE DE PARCELAS / VENCIMENTOS';
+                    iconName = 'calendar-clock';
+                    markerCol = '#0284c7';
+                    bBg = 'rgba(2, 132, 199, 0.12)';
+                    bCol = '#0284c7';
+                    eventTitle = 'Reajuste de Vencimento e Valores de Parcelas';
+                } else if (dUpper.includes('ALTEROU PAGAMENTO') || dUpper.includes('EDITOU PAGAMENTO')) {
+                    actionName = 'ALTERAÇÃO DE PAGAMENTO';
+                    iconName = 'file-pen-line';
+                    markerCol = '#8b5cf6';
+                    bBg = 'rgba(139, 92, 246, 0.12)';
+                    bCol = '#7c3aed';
+                    eventTitle = 'Ajuste nos Dados da Baixa';
+                } else if (dUpper.includes('ESTORNO') || dUpper.includes('REVERSÃO')) {
+                    actionName = 'ESTORNO REALIZADO';
+                    iconName = 'rotate-ccw';
+                    markerCol = '#dc2626';
+                    bBg = 'rgba(220, 38, 38, 0.12)';
+                    bCol = '#dc2626';
+                    eventTitle = 'Estorno de Pagamento';
+                } else if (dUpper.includes('BAIXOU') || dUpper.includes('PAGAMENTO') || dUpper.includes('LIQUIDOU')) {
+                    actionName = l.tipo === 'RECEBER' ? 'NOTA RECEBIDA' : 'NOTA PAGA';
+                    iconName = 'check-circle-2';
+                    markerCol = '#059669';
+                    bBg = 'rgba(5, 150, 105, 0.12)';
+                    bCol = '#059669';
+                    eventTitle = l.tipo === 'RECEBER' ? 'Liquidação / Recebimento da Nota' : 'Liquidação / Pagamento da Nota';
                 }
 
-                return {
+                historyItems.push({
+                    id: 'log_' + log.id,
                     date: new Date(log.created_at),
-                    user: log.usuario_email || 'Usuário',
-                    action: displayAction,
-                    desc: log.descricao || ''
-                };
+                    user: log.usuario_email || 'Operador',
+                    action: actionName,
+                    icon: iconName,
+                    markerColor: markerCol,
+                    badgeBg: bBg,
+                    badgeColor: bCol,
+                    title: eventTitle,
+                    desc: log.descricao || '',
+                    details: customDetails
+                });
             });
         }
 
-        const loggedUser = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
-
-        // Se houver registros específicos em observações (ex: estornos, divergências, alteração de pagamento), incorporar
+        // 5. BLOCOS EXTRAÍDOS DAS OBSERVAÇÕES ESTRUTURADAS (se não tiverem vindo do log)
         if (l.observacoes) {
-            const lines = l.observacoes.split('\n');
-            lines.forEach(line => {
-                if (line.includes('[MOTIVO DIVERGÊNCIA BAIXA') || line.includes('[MOTIVO ESTORNO/REVERSÃO') || line.includes('[ALTERAÇÃO DE PAGAMENTO')) {
-                    let parsedUser = loggedUser;
+            const obsLines = l.observacoes.split('\n');
+            obsLines.forEach((line, idx) => {
+                if (line.includes('[ALTERAÇÃO DE PAGAMENTO') || line.includes('[AJUSTE DE PARCELA') || line.includes('[MOTIVO DIVERGÊNCIA') || line.includes('[MOTIVO ESTORNO')) {
+                    let parsedUser = loggedUserDefault;
                     const matchUser = line.match(/por (.*?)]:/);
-                    if (matchUser && matchUser[1]) {
-                        parsedUser = matchUser[1].trim();
+                    if (matchUser && matchUser[1]) parsedUser = matchUser[1].trim();
+
+                    // Extrair data do texto se presente (ex: (01/10/2026))
+                    let eventDate = new Date(l.updated_at || l.created_at || Date.now());
+                    const matchDate = line.match(/\((\d{2}\/\d{2}\/\d{4})\)/);
+                    if (matchDate && matchDate[1]) {
+                        const [dd, mm, yyyy] = matchDate[1].split('/');
+                        eventDate = new Date(`${yyyy}-${mm}-${dd}T12:00:00`);
                     }
 
-                    let actionName = 'DIVERGÊNCIA BAIXA';
-                    if (line.includes('ESTORNO')) actionName = 'ESTORNO';
-                    else if (line.includes('ALTERAÇÃO DE PAGAMENTO')) actionName = 'ALTERAÇÃO DE PAGAMENTO';
+                    let act = 'ALTERAÇÃO DE PAGAMENTO';
+                    let ic = 'file-pen-line';
+                    let mCol = '#8b5cf6';
+                    let bgC = 'rgba(139, 92, 246, 0.12)';
+                    let fgC = '#7c3aed';
+                    let tit = 'Ajuste nos Dados da Baixa';
 
-                    historyItems.push({
-                        date: new Date(l.updated_at || l.created_at || Date.now()),
-                        user: parsedUser,
-                        action: actionName,
-                        desc: line
-                    });
+                    if (line.includes('[AJUSTE DE PARCELA')) {
+                        act = 'AJUSTE DE PARCELA';
+                        ic = 'calendar-clock';
+                        mCol = '#0284c7';
+                        bgC = 'rgba(2, 132, 199, 0.12)';
+                        fgC = '#0284c7';
+                        tit = 'Vencimento / Valor da Parcela Alterado';
+                    } else if (line.includes('ESTORNO')) {
+                        act = 'ESTORNO REALIZADO';
+                        ic = 'rotate-ccw';
+                        mCol = '#dc2626';
+                        bgC = 'rgba(220, 38, 38, 0.12)';
+                        fgC = '#dc2626';
+                        tit = 'Reversão de Baixa';
+                    } else if (line.includes('DIVERGÊNCIA')) {
+                        act = 'DIVERGÊNCIA NA BAIXA';
+                        ic = 'alert-triangle';
+                        mCol = '#ea580c';
+                        bgC = 'rgba(234, 88, 12, 0.12)';
+                        fgC = '#ea580c';
+                        tit = 'Divergência ou Acréscimo Registrado';
+                    }
+
+                    // Evita duplicar se já foi adicionado pelo log na mesma data/hora aproximada
+                    const isDup = historyItems.some(item => Math.abs(item.date - eventDate) < 60000 && item.desc.includes(line.substring(0, 30)));
+                    if (!isDup) {
+                        historyItems.push({
+                            id: 'obs_' + idx,
+                            date: eventDate,
+                            user: parsedUser,
+                            action: act,
+                            icon: ic,
+                            markerColor: mCol,
+                            badgeBg: bgC,
+                            badgeColor: fgC,
+                            title: tit,
+                            desc: line.replace(/^\[.*?\]:\s*/, ''),
+                            details: []
+                        });
+                    }
                 }
             });
         }
 
-        // Adicionar evento inicial de cadastro se não houver registros
-        if (historyItems.length === 0) {
+        // 6. BLOCO DE PAGAMENTO / BAIXA (Reconstrução Híbrida garantida para notas pagas ou parciais)
+        const isPagoOuParcial = l.status === 'PAGO' || l.status === 'RECEBIDO' || l.status === 'PARCIAL' || (parseFloat(l.valor_pago) > 0);
+        const hasPaymentEvent = historyItems.some(i => i.action.includes('PAG') || i.action.includes('BAIXA') || i.action.includes('RECEBIDA'));
+
+        if (isPagoOuParcial && !hasPaymentEvent) {
+            const dtPgto = l.data_pagamento ? new Date(l.data_pagamento + 'T12:00:00') : new Date(l.updated_at || Date.now());
+            const vPago = parseFloat(l.valor_pago) || parseFloat(l.valor_total) || 0;
+            const vDesc = parseFloat(l.valor_desconto) || 0;
+            const vJuros = parseFloat(l.valor_juros) || 0;
+            const isParc = l.status === 'PARCIAL';
+
             historyItems.push({
-                date: new Date(l.created_at || Date.now()),
-                user: loggedUser,
-                action: 'INCLUSÃO',
-                desc: `Lançamento ${l.tipo} criado: ${l.descricao} (Valor: ${formatCurrency(l.valor_total)})`
+                id: 'pay_event',
+                date: dtPgto,
+                user: loggedUserDefault,
+                action: isParc ? 'BAIXA PARCIAL' : (l.tipo === 'RECEBER' ? 'NOTA RECEBIDA' : 'NOTA PAGA'),
+                icon: isParc ? 'pie-chart' : 'check-circle-2',
+                markerColor: isParc ? '#d97706' : '#059669',
+                badgeBg: isParc ? 'rgba(217, 119, 6, 0.12)' : 'rgba(5, 150, 105, 0.12)',
+                badgeColor: isParc ? '#d97706' : '#059669',
+                title: isParc ? 'Pagamento Parcial Registrado' : (l.tipo === 'RECEBER' ? 'Recebimento Concluído' : 'Liquidação Total Concluída'),
+                desc: isParc 
+                    ? `Baixa parcial efetuada no valor de ${formatCurrency(vPago)}. Saldo devedor permanece em aberto.`
+                    : `Título liquidado integralmente no valor de ${formatCurrency(vPago)}.`,
+                details: [
+                    { label: 'Valor Baixado', value: formatCurrency(vPago) },
+                    { label: 'Conta / Banco', value: contaObj ? contaObj.nome : 'Conta Financeira' },
+                    { label: 'Forma de Pagamento', value: l.forma_pagamento || '—' },
+                    { label: 'Desconto Concedido', value: vDesc > 0 ? `-${formatCurrency(vDesc)}` : 'R$ 0,00' },
+                    { label: 'Juros / Encargos', value: vJuros > 0 ? `+${formatCurrency(vJuros)}` : 'R$ 0,00' },
+                    { label: 'Saldo Restante', value: isParc ? formatCurrency(Math.max(0, parseFloat(l.valor_total) - vPago)) : 'R$ 0,00 (Quitado)' }
+                ]
             });
         }
 
-        // Ordenar por data decrescente
-        historyItems.sort((a, b) => b.date - a.date);
+        // 7. ORDENAÇÃO CRONOLÓGICA (Top-down):
+        // Inicia com o lançamento da nota no topo e termina com a última alteração no rodapé da timeline!
+        historyItems.sort((a, b) => a.date.getTime() - b.date.getTime());
 
+        // 8. RENDERIZAÇÃO DA TIMELINE VERTICAL
         if (container) {
-            container.innerHTML = historyItems.map(item => {
-                const dateStr = item.date.toLocaleDateString('pt-BR') + ' às ' + item.date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                let iconName = 'edit-3';
-                let badgeBg = 'rgba(99, 102, 241, 0.15)';
-                let badgeColor = '#6366f1';
+            container.innerHTML = `
+                <div class="v-timeline">
+                    ${historyItems.map((item, index) => {
+                        const isLatest = index === historyItems.length - 1;
+                        const dateStr = item.date.toLocaleDateString('pt-BR') + ' às ' + item.date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-                if (item.action.includes('INCLUSÃO') || item.action.includes('CRIADO')) {
-                    iconName = 'plus-circle';
-                    badgeBg = 'rgba(16, 185, 129, 0.15)';
-                    badgeColor = '#10b981';
-                } else if (item.action.includes('ESTORNO') || item.action.includes('REVERSÃO')) {
-                    iconName = 'rotate-ccw';
-                    badgeBg = 'rgba(239, 68, 68, 0.15)';
-                    badgeColor = '#ef4444';
-                } else if (item.action.includes('ALTERAÇÃO DE PAGAMENTO')) {
-                    iconName = 'file-pen-line';
-                    badgeBg = 'rgba(2, 132, 199, 0.15)';
-                    badgeColor = '#0284c7';
-                } else if (item.action.includes('BAIXA') || item.action.includes('PAGAMENTO')) {
-                    iconName = 'check-circle';
-                    badgeBg = 'rgba(16, 185, 129, 0.15)';
-                    badgeColor = '#10b981';
-                }
-
-                return `
-                    <div style="display:flex; gap:0.9rem; align-items:flex-start; background:rgba(255,255,255,0.03); border:1px solid var(--border-card); border-radius:10px; padding:0.8rem 1rem;">
-                        <div style="background:${badgeBg}; color:${badgeColor}; border-radius:8px; padding:0.5rem; display:flex; align-items:center; justify-content:center; margin-top:2px;">
-                            <i data-lucide="${iconName}" style="width:18px; height:18px;"></i>
-                        </div>
-                        <div style="flex:1;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.2rem;">
-                                <span style="font-size:0.72rem; font-weight:800; color:${badgeColor}; background:${badgeBg}; padding:2px 8px; border-radius:12px;">${item.action}</span>
-                                <span style="font-size:0.75rem; opacity:0.8;">${dateStr}</span>
+                        const detailsHtml = (item.details && item.details.length > 0) ? `
+                            <div class="v-timeline-details-grid">
+                                ${item.details.map(f => `
+                                    <div class="v-timeline-field">
+                                        <span class="v-timeline-field-label">${f.label}</span>
+                                        <span class="v-timeline-field-value">${f.value}</span>
+                                    </div>
+                                `).join('')}
                             </div>
-                            <div style="font-size:0.82rem; font-weight:600; color:var(--text-main); margin-top:0.3rem; line-height:1.4;">${item.desc}</div>
-                            <div style="font-size:0.72rem; opacity:0.7; margin-top:0.3rem;">Usuário: <strong>${item.user}</strong></div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
+                        ` : '';
+
+                        return `
+                            <div class="v-timeline-item">
+                                <div class="v-timeline-marker" style="border-color:${item.markerColor}; color:${item.markerColor};">
+                                    <i data-lucide="${item.icon}" style="width:18px; height:18px;"></i>
+                                </div>
+                                <div class="v-timeline-card ${isLatest ? 'is-latest' : ''}">
+                                    <div class="v-timeline-header">
+                                        <span class="v-timeline-badge" style="background:${item.badgeBg}; color:${item.badgeColor};">
+                                            <i data-lucide="${item.icon}" style="width:13px; height:13px;"></i>
+                                            ${item.action}
+                                        </span>
+                                        <div style="display:flex; align-items:center; gap:8px;">
+                                            <span class="v-timeline-date">
+                                                <i data-lucide="clock" style="width:12px; height:12px;"></i> ${dateStr}
+                                            </span>
+                                            ${isLatest ? `<span class="v-timeline-current-pill"><i data-lucide="check" style="width:11px; height:11px;"></i> Situação Atual</span>` : ''}
+                                        </div>
+                                    </div>
+                                    <div class="v-timeline-title">
+                                        ${item.title}
+                                    </div>
+                                    ${item.desc ? `<div class="v-timeline-desc">${item.desc}</div>` : ''}
+                                    ${detailsHtml}
+                                    <div class="v-timeline-user">
+                                        <i data-lucide="user" style="width:12px; height:12px; opacity:0.8;"></i>
+                                        <span>Registrado por: <strong>${item.user}</strong></span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
             if (window.lucide) lucide.createIcons();
         }
     } catch (err) {
         console.error('Erro ao buscar histórico:', err);
         if (container) {
-            container.innerHTML = `<div style="color:#ef4444; font-size:0.85rem; padding:1rem; text-align:center;">Erro ao carregar histórico: ${err.message}</div>`;
+            container.innerHTML = `<div style="color:#ef4444; font-size:0.85rem; padding:1.5rem; text-align:center;"><i data-lucide="alert-octagon" style="width:22px; height:22px; vertical-align:middle; margin-bottom:6px;"></i><br>Erro ao carregar histórico da nota: ${err.message}</div>`;
+            if (window.lucide) lucide.createIcons();
         }
     }
 }
@@ -9658,29 +10287,27 @@ window.renderPagamentosPorBanco = async function() {
     if (window.lucide) lucide.createIcons();
 
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const todayStr = getLocalDateStr(today);
 
     function inPeriod(dateStr) {
         if (!dateStr) return false;
         const dStr = dateStr.slice(0, 10);
-        const d = new Date(dStr + 'T00:00:00');
 
         if (periodo === 'today') {
-            const todayStr = today.toISOString().slice(0, 10);
             return dStr === todayStr;
         }
         if (periodo === 'yesterday') {
-            const yest = new Date(today);
+            const yest = new Date();
             yest.setDate(yest.getDate() - 1);
-            const yestStr = yest.toISOString().slice(0, 10);
-            return dStr === yestStr;
+            return dStr === getLocalDateStr(yest);
         }
         if (periodo === 'current_month') {
-            return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth();
+            return dStr.substring(0, 7) === todayStr.substring(0, 7);
         }
         if (periodo === 'last_month') {
-            const lm = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            return d.getFullYear() === lm.getFullYear() && d.getMonth() === lm.getMonth();
+            const lm = new Date();
+            lm.setMonth(lm.getMonth() - 1);
+            return dStr.substring(0, 7) === getLocalDateStr(lm).substring(0, 7);
         }
         if (periodo === 'custom') {
             if (dataIni && dStr < dataIni) return false;
@@ -9693,19 +10320,23 @@ window.renderPagamentosPorBanco = async function() {
     // Calcula intervalo de datas para buscar no Supabase e garantir que dados antigos ou pagos sejam obtidos
     let queryMinDate = null, queryMaxDate = null;
     if (periodo === 'today') {
-        queryMinDate = today.toISOString().slice(0, 10);
-        queryMaxDate = today.toISOString().slice(0, 10);
+        queryMinDate = todayStr;
+        queryMaxDate = todayStr;
     } else if (periodo === 'yesterday') {
-        const yest = new Date(today);
+        const yest = new Date();
         yest.setDate(yest.getDate() - 1);
-        queryMinDate = yest.toISOString().slice(0, 10);
+        queryMinDate = getLocalDateStr(yest);
         queryMaxDate = queryMinDate;
     } else if (periodo === 'current_month') {
-        queryMinDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-        queryMaxDate = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+        const dIni = new Date(today.getFullYear(), today.getMonth(), 1);
+        const dFim = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        queryMinDate = getLocalDateStr(dIni);
+        queryMaxDate = getLocalDateStr(dFim);
     } else if (periodo === 'last_month') {
-        queryMinDate = new Date(today.getFullYear(), today.getMonth() - 1, 1).toISOString().slice(0, 10);
-        queryMaxDate = new Date(today.getFullYear(), today.getMonth(), 0).toISOString().slice(0, 10);
+        const dIni = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const dFim = new Date(today.getFullYear(), today.getMonth(), 0);
+        queryMinDate = getLocalDateStr(dIni);
+        queryMaxDate = getLocalDateStr(dFim);
     } else if (periodo === 'custom') {
         queryMinDate = dataIni || null;
         queryMaxDate = dataFim || null;

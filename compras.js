@@ -1644,9 +1644,14 @@ function applyStockItemLock(isLocked) {
     const addBtn = document.querySelector('.btn-add-item');
     const itemsContainer = document.getElementById('itemsContainer');
 
-    if (isLocked) {
-        if (addBtn) addBtn.style.display = 'none';
+    // O botão de adicionar novos itens deve permanecer SEMPRE visível e acessível
+    if (addBtn) {
+        addBtn.style.display = '';
+        addBtn.style.pointerEvents = 'auto';
+        addBtn.disabled = false;
+    }
 
+    if (isLocked) {
         const banner = document.createElement('div');
         banner.id = 'stockLockedBanner';
         banner.style = "display: flex; align-items: flex-start; gap: 0.85rem; background: #eff6ff; border: 1px solid #93c5fd; color: #1e293b; padding: 0.9rem 1.1rem; border-radius: 10px; margin-bottom: 1rem; font-size: 0.84rem; line-height: 1.5; box-shadow: 0 2px 6px rgba(0,0,0,0.04);";
@@ -1656,12 +1661,12 @@ function applyStockItemLock(isLocked) {
             </div>
             <div style="flex: 1;">
                 <div style="font-weight: 700; color: #1e3a8a; font-size: 0.92rem; margin-bottom: 0.25rem;">
-                    Itens Vinculados ao Estoque (Edição Protegida)
+                    Itens Anteriores Vinculados ao Estoque (Edição Protegida)
                 </div>
                 <div style="color: #334155; font-size: 0.82rem;">
-                    Os itens desta nota já deram entrada no módulo de estoque. Para assegurar a consistência das saídas e do saldo atual, a alteração direta dos campos está bloqueada.
+                    Os itens originais desta nota já deram entrada no módulo de estoque. Para assegurar a consistência dos saldos, a alteração direta dos itens anteriores está bloqueada. Você pode adicionar <strong>novos itens</strong> à nota livremente pelo botão <u>"Adicionar Novo Item"</u> abaixo.
                     <span style="color: #1d4ed8; font-weight: 700; display: block; margin-top: 0.25rem;">
-                        💡 <strong>Vinculou o produto errado?</strong> Utilize o botão <u>"Substituir Produto Vinculado"</u> na linha do item para transferir a entrada para o produto correto com PIN de segurança.
+                        💡 <strong>Vinculou o produto errado em um item anterior?</strong> Utilize o botão <u>"Substituir Produto Vinculado"</u> na linha correspondente com PIN de segurança.
                     </span>
                 </div>
             </div>
@@ -1672,6 +1677,9 @@ function applyStockItemLock(isLocked) {
 
         const rows = document.querySelectorAll('.item-row');
         rows.forEach((row, idx) => {
+            // Se for uma linha adicionada posteriormente durante a edição, ela não é bloqueada
+            if (row.dataset.isOriginal !== 'true') return;
+
             row.style.background = '#f8fafc';
             row.style.borderColor = '#cbd5e1';
             row.style.opacity = '1';
@@ -1882,7 +1890,10 @@ function addItemRow(data = {}, shouldFocus = true, itemIndex = null) {
     const row = document.createElement('div');
     row.className = 'item-row';
     row.id = rowId;
-    if (itemIndex !== null && itemIndex !== undefined) row.dataset.itemIndex = itemIndex;
+    if (itemIndex !== null && itemIndex !== undefined) {
+        row.dataset.itemIndex = itemIndex;
+        row.dataset.isOriginal = "true";
+    }
 
     const selectedProd = inventoryProducts.find(p => p.id == data.produtoId) || null;
     let prodDisplay = selectedProd ? `${selectedProd.nome} (${selectedProd.marca || ''})` : (data.produto || '');
@@ -2995,6 +3006,16 @@ async function handleSaveCompra(e) {
         const oldExistingItems = existingCompra ? (existingCompra.items || existingCompra.itens || []) : [];
         const hasLinkedStock = oldExistingItems.some(it => (it.estoque === true || it.estoque === 'true') && it.produtoId);
 
+        let finalItens = items;
+        if (editId && hasLinkedStock && oldExistingItems.length > 0) {
+            if (items.length > oldExistingItems.length) {
+                // Preserva os itens originais intactos e anexa os novos itens adicionados
+                finalItens = [...oldExistingItems, ...items.slice(oldExistingItems.length)];
+            } else {
+                finalItens = oldExistingItems;
+            }
+        }
+
         const compraData = {
             id: editId || codUnico, 
             codUnico,
@@ -3005,7 +3026,7 @@ async function handleSaveCompra(e) {
             formaPgtoId,
             categoriaId,
             vencimento,
-            itens: (editId && hasLinkedStock && oldExistingItems.length > 0) ? oldExistingItems : items,
+            itens: finalItens,
             parcelasData,
             valorTotal: finalTotal,
             financeiro: isParcelado,
@@ -3194,10 +3215,10 @@ async function handleSaveCompra(e) {
             const fornNome = fornObj.nome || 'Fornecedor';
     
             if (editId && hasLinkedStock) {
-                console.log("🔒 Nota em edição com estoque já movimentado: mantendo movimentações e saldos existentes.");
+                console.log("🔒 Nota em edição com estoque já movimentado: mantendo movimentações e saldos existentes para itens anteriores.");
                 // Se o número da nota ou fornecedor mudou, atualizamos o motivo da entrada original no estoque para manter a rastreabilidade perfeita
                 if (existingCompra && (compraData.numeroNota !== existingCompra.numeroNota || compraData.fornecedorId !== existingCompra.fornecedorId)) {
-                    for (const it of compraData.itens) {
+                    for (const it of oldExistingItems) {
                         if (it.estoque && it.produtoId) {
                             try {
                                 const newMotivo = `COMPRA: Nota #${compraData.numeroNota} | ${fornNome}`;
@@ -3211,6 +3232,40 @@ async function handleSaveCompra(e) {
                             } catch (err) {
                                 console.warn("⚠️ Não foi possível atualizar motivo no histórico do estoque:", err);
                             }
+                        }
+                    }
+                }
+
+                // PROCESSAR NOVOS ITENS ADICIONADOS À NOTA
+                const newlyAddedItems = compraData.itens.slice(oldExistingItems.length);
+                if (newlyAddedItems.length > 0) {
+                    console.log(`📦 Processando ${newlyAddedItems.length} novo(s) item(ns) adicionado(s) à nota existente...`);
+                    for (const it of newlyAddedItems) {
+                        if (it.estoque && it.produtoId) {
+                            try {
+                                const activeUser = (window.currentUserAccess?.nome_completo || window.currentUserAccess?.nome || window.currentUser?.email || localStorage.getItem('user_email') || 'SISTEMA COMPRAS').toUpperCase();
+                                await client.from('estoque_movimentacoes').insert([{
+                                    item_id: it.produtoId,
+                                    tipo: 'ENTRADA',
+                                    quantidade: it.quantidade,
+                                    motivo: `COMPRA: Nota #${compraData.numeroNota} | ${fornNome}`,
+                                    responsavel: activeUser,
+                                    valor_unitario: it.valorUnitario,
+                                    data: new Date().toISOString(),
+                                    empresa_id: window.currentEmpresaId || null
+                                }]);
+
+                                const { data: prod } = await client.from('estoque').select('estoque_atual').eq('id', it.produtoId).single();
+                                if (prod) {
+                                    const newStock = (parseFloat(prod.estoque_atual) || 0) + it.quantidade;
+                                    await client.from('estoque').update({ 
+                                        estoque_atual: newStock,
+                                        valor_custo: it.valorUnitario,
+                                        valor_venda: it.valorVenda || 0
+                                    }).eq('id', it.produtoId);
+                                    console.log(`✅ Estoque incrementado para novo item ${it.produtoId}: +${it.quantidade} (Novo saldo: ${newStock})`);
+                                }
+                            } catch (err) { console.error("❌ Erro Supabase Novo Item Estoque:", err); }
                         }
                     }
                 }
@@ -3245,9 +3300,13 @@ async function handleSaveCompra(e) {
             }
 
             // --- INTEGRATION: CREATE MAINTENANCE RECORDS ---
-            if (maintRecords.length > 0 && !(editId && hasLinkedStock)) {
-                console.log("🛠️ Criando registros de manutenção...");
-                for (const m of maintRecords) {
+            const targetMaintRecords = (editId && hasLinkedStock) 
+                ? maintRecords.filter((_, idx) => idx >= oldExistingItems.length)
+                : maintRecords;
+
+            if (targetMaintRecords.length > 0) {
+                console.log(`🛠️ Criando registros de manutenção (${targetMaintRecords.length} registro(s))...`);
+                for (const m of targetMaintRecords) {
                     try {
                         const isUuid = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
                         

@@ -1569,38 +1569,45 @@
         </div>
     </div>
 
-    <!-- MODAL: HISTÓRICO DE ALTERAÇÕES DA NOTA -->
+    <!-- MODAL: HISTÓRICO DE ALTERAÇÕES DA NOTA (Linha do Tempo Vertical) -->
     <div id="historyModal" class="modal-overlay">
-        <div class="modal-v2" style="max-width: 620px;">
-            <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.2rem;">
-                <h2 style="color: #6366f1; font-size:1.3rem; font-weight:800; margin:0; display:flex; align-items:center; gap:0.5rem;">
-                    <i data-lucide="history" style="width:22px;"></i> Histórico de Alterações
-                </h2>
-                <button onclick="closeModal('historyModal')" style="background:none; border:none; color:#64748b; cursor:pointer; padding:0.4rem;">
+        <div class="modal-v2" style="max-width: 680px; max-height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(45, 158, 107, 0.15);">
+                <div>
+                    <h2 style="color: #10b981; font-size:1.25rem; font-weight:800; margin:0; display:flex; align-items:center; gap:0.5rem;">
+                        <i data-lucide="history" style="width:22px;"></i> Histórico de Alterações
+                    </h2>
+                    <p style="font-size:0.75rem; color: #64748b; margin:3px 0 0 0;">Linha do tempo vertical com a trilha de auditoria completa da nota</p>
+                </div>
+                <button onclick="closeModal('historyModal')" style="background:none; border:none; color:#64748b; cursor:pointer; padding:0.4rem; border-radius:6px;" title="Fechar">
                     <i data-lucide="x" style="width:20px;"></i>
                 </button>
             </div>
 
             <!-- Card Cabeçalho do Lançamento -->
-            <div id="histHeaderCard" style="background: rgba(99, 102, 241, 0.06); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 12px; padding: 0.9rem; margin-bottom: 1.2rem; display:flex; justify-content:space-between; align-items:center;">
-                <div>
-                    <div id="histRefCode" style="font-weight:800; font-family:'JetBrains Mono'; color:#6366f1; font-size:0.95rem;">CAR-0000</div>
-                    <div id="histDesc" style="font-size:0.85rem; font-weight:700;">Descrição da nota</div>
-                    <div id="histEntidade" style="font-size:0.78rem; opacity:0.8;">Cliente / Fornecedor</div>
+            <div id="histHeaderCard" style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 12px; padding: 0.85rem 1rem; margin-bottom: 1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.6rem;">
+                <div style="flex: 1; min-width: 220px;">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom: 2px;">
+                        <span id="histRefCode" style="font-weight:800; font-family:'JetBrains Mono'; color:#059669; font-size:0.95rem;">CAR-0000</span>
+                        <span id="histOrigemBadge" style="font-size:0.68rem; font-weight:800; background:rgba(2, 132, 199, 0.12); color:#0284c7; padding:1px 6px; border-radius:4px;">FINANCEIRO</span>
+                    </div>
+                    <div id="histDesc" style="font-size:0.85rem; font-weight:700; color:#0f172a;">Descrição da nota</div>
+                    <div id="histEntidade" style="font-size:0.78rem; color:#475569;">Cliente / Fornecedor</div>
                 </div>
                 <div style="text-align:right;">
-                    <div id="histValor" style="font-weight:800; font-size:1.1rem; color:#10b981;">R$ 0,00</div>
+                    <div id="histValor" style="font-weight:800; font-size:1.15rem; color:#10b981;">R$ 0,00</div>
                     <div id="histStatusBadge" class="status-badge status-aberto" style="display:inline-block; margin-top:2px;">ABERTO</div>
                 </div>
             </div>
 
-            <!-- Timeline de Atividades -->
-            <div id="histTimelineContainer" style="max-height: 380px; overflow-y: auto; padding-right: 0.5rem; display:flex; flex-direction:column; gap:0.8rem;">
+            <!-- Timeline de Atividades (Scrollável) -->
+            <div id="histTimelineContainer" style="max-height: 430px; overflow-y: auto; padding-right: 0.6rem; margin-bottom: 0.5rem;">
                 <!-- Renderizado dinamicamente -->
             </div>
 
-            <div style="display:flex; justify-content:flex-end; margin-top:1.2rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
-                <button type="button" onclick="closeModal('historyModal')" style="background:#6366f1; color:white; border:none; border-radius:10px; padding:0.7rem 1.8rem; font-weight:800; cursor:pointer;">Fechar</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:auto; border-top: 1px solid rgba(45, 158, 107, 0.15); padding-top: 0.85rem;">
+                <span style="font-size:0.72rem; color:#64748b;"><i data-lucide="shield-check" style="width:13px; height:13px; vertical-align:middle;"></i> Auditoria sincronizada</span>
+                <button type="button" onclick="closeModal('historyModal')" style="background:#10b981; color:white; border:none; border-radius:8px; padding:0.6rem 1.6rem; font-weight:800; cursor:pointer; font-size:0.85rem; transition: background 0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">Fechar</button>
             </div>
         </div>
     </div>
@@ -2464,10 +2471,15 @@
                 </div>
             </div>
 
-            <div class="modal-footer" style="padding: 1rem 2rem; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
-                <button type="button" id="btnViewAlterarPagamento" onclick="handleViewAlterarPagamentoClick()" class="btn-primary" style="display:none; background: #0284c7; border-color: #0284c7; color: white; padding: 0.6rem 1.4rem; font-size: 0.85rem; border-radius: 10px; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;">
-                    <i data-lucide="credit-card" style="width:16px;height:16px;"></i> Alterar Pagamento
-                </button>
+            <div class="modal-footer" style="padding: 1rem 2rem; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                <div style="display:flex; align-items:center; gap:0.6rem;">
+                    <button type="button" id="btnViewAlterarPagamento" onclick="handleViewAlterarPagamentoClick()" class="btn-primary" style="display:none; background: #0284c7; border-color: #0284c7; color: white; padding: 0.6rem 1.4rem; font-size: 0.85rem; border-radius: 10px; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;">
+                        <i data-lucide="credit-card" style="width:16px;height:16px;"></i> Alterar Pagamento
+                    </button>
+                    <button type="button" id="btnViewAjustarParcelas" onclick="handleViewAjustarParcelasClick()" class="btn-primary" style="display:none; background: #4f46e5; border-color: #4f46e5; color: white; padding: 0.6rem 1.4rem; font-size: 0.85rem; border-radius: 10px; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;">
+                        <i data-lucide="calendar-clock" style="width:16px;height:16px;"></i> Ajustar Vencimentos / Parcelas
+                    </button>
+                </div>
                 <button onclick="closeModal('viewModal')" class="btn-cancel" style="padding: 0.6rem 1.6rem; font-size: 0.85rem; cursor: pointer; border-radius: 10px; font-weight: 800; margin-left: auto;">Fechar Detalhes</button>
             </div>
         </div>
@@ -2597,6 +2609,88 @@
                 </div>
             </form>
         </div>
+    </div>
+
+    <!-- MODAL: AJUSTAR VENCIMENTOS E PARCELAS (NOTAS INTEGRADAS) -->
+    <div id="modalEditParcelasIntegradas" class="modal-overlay">
+        <div class="modal-v2" style="max-width: 680px; width: 95%;">
+            <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+                <div style="display:flex; align-items:center; gap:0.6rem;">
+                    <div class="edit-parc-icon-badge" style="width:38px; height:38px; border-radius:10px; background:#ecfdf5; border:1px solid #a7f3d0; display:flex; align-items:center; justify-content:center; color:#059669;">
+                        <i data-lucide="calendar-clock" style="width:20px;height:20px;"></i>
+                    </div>
+                    <div>
+                        <h2 class="edit-parc-modal-title" style="color: #1a7a50; font-size:1.25rem; font-weight:800; margin:0; line-height:1.2;">
+                            Ajustar Vencimentos e Parcelas
+                        </h2>
+                        <span class="edit-parc-modal-subtitle" style="font-size:0.75rem; color:#5a7a6a;">Edição restrita a prazos e valores de parcelas para notas integradas</span>
+                    </div>
+                </div>
+                <button type="button" onclick="closeModal('modalEditParcelasIntegradas')" style="background:none; border:none; color:#64748b; cursor:pointer; padding:0.4rem;" title="Fechar">
+                    <i data-lucide="x" style="width:22px;height:22px;"></i>
+                </button>
+            </div>
+
+            <div id="editParcResumoNota" class="edit-parc-resumo-card" style="background: #f4f8f5; border: 1px solid rgba(45, 158, 107, 0.2); border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                <!-- Preenchido dinamicamente com Favorecido, NF, Módulo, Valor Total da Nota -->
+            </div>
+
+            <form id="formEditParcelasIntegradas" onsubmit="handleSalvarParcelasIntegradas(event)">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+                    <span style="font-size:0.8rem; font-weight:700; color:#2e5441; text-transform:uppercase; letter-spacing:0.04em;">Parcelas da Nota</span>
+                    <span id="editParcInfoQtd" style="font-size:0.75rem; color:#5a7a6a;"></span>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 55px 1.4fr 1.3fr 90px; gap:0.6rem; padding: 0.4rem 0.6rem; font-size:0.72rem; font-weight:700; color:#5a7a6a; text-transform:uppercase;">
+                    <div>Nº</div>
+                    <div>Vencimento</div>
+                    <div>Valor da Parcela</div>
+                    <div style="text-align:center;">Status</div>
+                </div>
+
+                <div id="editParcListContainer" style="max-height: 280px; overflow-y: auto; display:flex; flex-direction:column; gap:0.5rem; margin-bottom:1rem; padding-right:4px;">
+                    <!-- Linhas das parcelas inseridas via JS -->
+                </div>
+
+                <!-- Painel de Conferência / Validação em Tempo Real -->
+                <div id="editParcConferenciaPanel" style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 0.9rem 1.1rem; margin-bottom: 1.25rem; box-shadow: 0 2px 8px rgba(45, 158, 107, 0.04);">
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; font-size: 0.8rem;">
+                        <div>
+                            <span class="conf-label" style="color:#5a7a6a; font-size:0.72rem; font-weight:700; display:block;">Total da Nota:</span>
+                            <strong id="editParcValTotalNota" style="color:#1a2e25; font-size:1rem; font-weight:800;">R$ 0,00</strong>
+                        </div>
+                        <div>
+                            <span class="conf-label" style="color:#5a7a6a; font-size:0.72rem; font-weight:700; display:block;">Já Pago:</span>
+                            <strong id="editParcValTotalPago" style="color:#15803d; font-size:1rem; font-weight:800;">R$ 0,00</strong>
+                        </div>
+                        <div>
+                            <span class="conf-label" style="color:#5a7a6a; font-size:0.72rem; font-weight:700; display:block;">Soma das Parcelas:</span>
+                            <strong id="editParcValSomaDigitada" style="color:#1a7a50; font-size:1rem; font-weight:800;">R$ 0,00</strong>
+                        </div>
+                        <div>
+                            <span class="conf-label" style="color:#5a7a6a; font-size:0.72rem; font-weight:700; display:block;">Diferença:</span>
+                            <strong id="editParcValDiferenca" style="color:#15803d; font-size:1rem; font-weight:800;">R$ 0,00</strong>
+                        </div>
+                    </div>
+                    <div id="editParcStatusMsg" style="margin-top:0.5rem; font-size:0.78rem; font-weight:600; color:#15803d; display:flex; align-items:center; gap:5px;">
+                        <i data-lucide="check-circle" style="width:14px;height:14px;"></i>
+                        <span>Os valores das parcelas coincidem perfeitamente com o total da nota.</span>
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.8rem;">
+                    <button type="button" onclick="closeModal('modalEditParcelasIntegradas')" class="btn-cancel-edit-parc" style="background:#ffffff; border:1px solid rgba(45, 158, 107, 0.3); color:#2e5441; border-radius:10px; padding:0.75rem 1.4rem; font-weight:700; cursor:pointer;">
+                        Cancelar
+                    </button>
+                    <button type="submit" id="btnSalvarParcelasIntegradas" style="background:#2d9e6b; color:#ffffff; border:none; border-radius:10px; padding:0.75rem 1.75rem; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:0 4px 14px rgba(45, 158, 107, 0.25);">
+                        <i data-lucide="save" style="width:16px;height:16px;"></i>
+                        Salvar Alterações
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="financeiro.js?v=20260916_01"></script>
     <script src="orb_menu.js?v=20260910_02"></script>
 </body>

@@ -3115,6 +3115,18 @@ th.active-sort i {
     color: #cbd5e1;
 }
 
+.btn-action.edit.is-integrado {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.35);
+    color: #818cf8;
+}
+.btn-action.edit.is-integrado:hover {
+    background: #4f46e5;
+    color: #ffffff;
+    border-color: #4f46e5;
+    box-shadow: 0 0 10px rgba(79, 70, 229, 0.4);
+}
+
 .btn-action.delete {
     background: rgba(239, 68, 68, 0.1);
     border-color: rgba(239, 68, 68, 0.25);
@@ -3211,4 +3223,268 @@ th.active-sort i {
     background: rgba(45, 158, 107, 0.08);
     color: #1e293b;
     border-color: rgba(45, 158, 107, 0.22);
+}
+
+/* =========================================================================
+   🌿 TEMA CLEAN VERDE: MODAL AJUSTAR VENCIMENTOS E PARCELAS
+   ========================================================================= */
+#modalEditParcelasIntegradas .modal-v2 {
+    max-width: 680px;
+    width: 95%;
+}
+
+[data-theme="green_pastel"] #modalEditParcelasIntegradas .modal-v2 {
+    background: #ffffff !important;
+    border: 1px solid rgba(45, 158, 107, 0.25) !important;
+    box-shadow: 0 20px 60px rgba(45, 158, 107, 0.15) !important;
+}
+
+[data-theme="green_pastel"] .edit-parc-icon-badge {
+    background: rgba(45, 158, 107, 0.12) !important;
+    border: 1px solid rgba(45, 158, 107, 0.28) !important;
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .edit-parc-modal-title {
+    color: #1a7a50 !important;
+    -webkit-text-fill-color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .edit-parc-resumo-card {
+    background: #f4f8f5 !important;
+    border: 1px solid rgba(45, 158, 107, 0.2) !important;
+}
+
+[data-theme="green_pastel"] #editParcConferenciaPanel {
+    background: #f0fdf4 !important;
+    border: 1px solid rgba(45, 158, 107, 0.25) !important;
+    box-shadow: 0 2px 10px rgba(45, 158, 107, 0.05) !important;
+}
+
+[data-theme="green_pastel"] #editParcConferenciaPanel .conf-label {
+    color: #5a7a6a !important;
+}
+
+[data-theme="green_pastel"] #editParcValTotalNota {
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] #editParcValTotalPago {
+    color: #15803d !important;
+}
+
+[data-theme="green_pastel"] #editParcValSomaDigitada {
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .edit-parc-row {
+    background: #ffffff !important;
+    border: 1px solid rgba(45, 158, 107, 0.2) !important;
+}
+
+[data-theme="green_pastel"] .edit-parc-row.is-paid {
+    background: rgba(45, 158, 107, 0.05) !important;
+    border-color: rgba(45, 158, 107, 0.25) !important;
+}
+
+[data-theme="green_pastel"] .edit-parc-row:hover {
+    border-color: rgba(45, 158, 107, 0.4) !important;
+}
+
+[data-theme="green_pastel"] .btn-action.edit.is-integrado {
+    background: rgba(45, 158, 107, 0.12) !important;
+    border-color: rgba(45, 158, 107, 0.3) !important;
+    color: #1a7a50 !important;
+}
+
+[data-theme="green_pastel"] .btn-action.edit.is-integrado:hover {
+    background: #2d9e6b !important;
+    color: #ffffff !important;
+    border-color: #2d9e6b !important;
+}
+
+/* ==========================================================================
+   🕒 LINHA DO TEMPO VERTICAL DE HISTÓRICO (Clean Verde)
+   ========================================================================== */
+.v-timeline {
+    position: relative;
+    padding: 0.75rem 0.5rem 0.75rem 2.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.v-timeline::before {
+    content: '';
+    position: absolute;
+    top: 20px;
+    bottom: 24px;
+    left: 20px;
+    width: 3px;
+    background: linear-gradient(180deg, #10b981 0%, #0284c7 40%, #8b5cf6 70%, #10b981 100%);
+    border-radius: 3px;
+    opacity: 0.6;
+}
+
+.v-timeline-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.v-timeline-marker {
+    position: absolute;
+    left: -2.8rem;
+    top: 6px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    border: 2.5px solid #10b981;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+    z-index: 2;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.v-timeline-marker:hover {
+    transform: scale(1.12);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+}
+
+.v-timeline-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem 1.15rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+
+.v-timeline-card:hover {
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.07);
+    transform: translateY(-2px);
+    border-color: #cbd5e1;
+}
+
+.v-timeline-card.is-latest {
+    border-left: 4px solid #10b981;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.02) 0%, #ffffff 100%);
+}
+
+.v-timeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.55rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px dashed #e2e8f0;
+}
+
+.v-timeline-badge {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    padding: 3px 10px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    line-height: 1.2;
+}
+
+.v-timeline-date {
+    font-size: 0.76rem;
+    color: #64748b;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.v-timeline-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 0.35rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.v-timeline-desc {
+    font-size: 0.82rem;
+    color: #334155;
+    line-height: 1.45;
+    margin-bottom: 0.55rem;
+    word-break: break-word;
+}
+
+.v-timeline-details-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.55rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.65rem 0.85rem;
+    margin-top: 0.5rem;
+}
+
+.v-timeline-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.v-timeline-field-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 2px;
+}
+
+.v-timeline-field-value {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.v-timeline-user {
+    font-size: 0.73rem;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 0.5rem;
+}
+
+.v-timeline-current-pill {
+    font-size: 0.68rem;
+    font-weight: 800;
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+/* Modo Clean Verde Especial */
+[data-theme="green_pastel"] .v-timeline-card {
+    background: #ffffff;
+    border-color: rgba(45, 158, 107, 0.18);
+}
+[data-theme="green_pastel"] .v-timeline-card:hover {
+    border-color: rgba(45, 158, 107, 0.35);
+}
+[data-theme="green_pastel"] .v-timeline-details-grid {
+    background: rgba(45, 158, 107, 0.03);
+    border-color: rgba(45, 158, 107, 0.14);
 }
