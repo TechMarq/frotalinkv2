@@ -1,0 +1,28 @@
+====================================================================
+RESUMO DAS IMPLEMENTAÇÕES E AJUSTES REALIZADOS HOJE (01-02/10/2026)
+====================================================================
+
+1. MÓDULO FINANCEIRO - EDIÇÃO RESTRITA DE CONTAS DE OUTROS MÓDULOS
+--------------------------------------------------------------------
+- Permitida a edição de contas originadas de outros módulos (ex: Compras/Manutenção) dentro do Financeiro.
+- Restrição de escopo: Apenas vencimento, valor e parcelamento podem ser alterados, protegendo itens e dados fiscais de origem.
+- Padronização visual: Substituídos os tons acinzentados/escuros pelo padrão Clean Verde do sistema (bordas, badges e botões harmonizados).
+
+2. CONTAS A RECEBER - CORREÇÃO DOS CARDS DE INDICADORES
+--------------------------------------------------------------------
+- Corrigida a lógica de cálculo dos cards (Total a Receber, Vencidas, A Vencer, Recebidas).
+- Eliminado o falso-positivo que apontava títulos em atraso inexistentes.
+- Alinhadas regras de filtro de data, status de liquidação e normalização de fusos horários.
+
+3. HISTÓRICO DE AUDITORIA - LINHA DO TEMPO VERTICAL (TIMELINE)
+--------------------------------------------------------------------
+- Reformulação do histórico de alterações para formato de Linha do Tempo vertical.
+- Cada ação relevante (Lançamento, Pagamento/Baixa, Edição de Valores/Datas) agora gera um card/bloquinho individual com ícone, responsável, data/hora e detalhes da ação.
+- Ordenação cronológica intuitiva mantendo a última alteração em evidência.
+
+4. MÓDULO COMPRAS - ADIÇÃO DE NOVOS ITENS EM NOTAS JÁ LANÇADAS
+--------------------------------------------------------------------
+- Reabilitado o botão "+ Adicionar Novo Item" durante a edição de notas fiscais com estoque vinculado.
+- Preservação de integridade: Itens originais continuam protegidos para não corromper saldos anteriores de estoque.
+- Novos itens adicionados têm edição livre e, ao salvar, geram automaticamente as novas movimentações de ENTRADA no estoque (incrementando o saldo) e novos registros de manutenção se aplicável.
+====================================================================

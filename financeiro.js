@@ -225,15 +225,32 @@ async function loadInitialData() {
             }
         };
 
-        // Otimização de Performance: Por padrão, carrega apenas contas não totalmente pagas (ABERTO / PARCIAL / PENDENTE)
-        // para minimizar a carga no banco de dados e acelerar o tempo de resposta
-        let lancQuery = supabaseClient.from('fin_lancamentos')
-            .select('*')
-            .order('data_vencimento', { ascending: false })
-            .limit(5000);
+        // Carrega todos os lançamentos financeiros sem truncar no limite padrão de 1.000 do Supabase (PostgREST)
+        const fetchAllLancamentos = async () => {
+            let all = [];
+            let from = 0;
+            const step = 1000;
+            let finished = false;
+            while (!finished) {
+                const { data, error } = await supabaseClient
+                    .from('fin_lancamentos')
+                    .select('*')
+                    .order('data_vencimento', { ascending: false })
+                    .range(from, from + step - 1);
+                if (error) {
+                    console.error('Financeiro: Erro ao buscar lançamentos paginados:', error);
+                    break;
+                }
+                if (!data || data.length === 0) break;
+                all = all.concat(data);
+                if (data.length < step) finished = true;
+                else from += step;
+            }
+            return all;
+        };
 
-        const [l, c, cat, cc, forn, cl, formas, especies, motFrota, funcDP, prestCom, veics] = await Promise.all([
-            lancQuery,
+        const [allLancamentos, c, cat, cc, forn, cl, formas, especies, motFrota, funcDP, prestCom, veics] = await Promise.all([
+            fetchAllLancamentos(),
             supabaseClient.from('fin_contas_bancarias').select('*'),
             supabaseClient.from('fin_plano_contas').select('*').order('codigo'),
             supabaseClient.from('fin_centros_custo').select('*').order('codigo'),
@@ -247,7 +264,7 @@ async function loadInitialData() {
             fetchVeiculosSafely()
         ]);
 
-        state.lancamentos = l.data || [];
+        state.lancamentos = allLancamentos || [];
         state.contas = c.data || [];
         state.categorias = cat.data || [];
         state.centrosCusto = cc.data || [];
@@ -1778,6 +1795,8 @@ async function openEntryModal(tipo, id = null) {
     if (discountCont) discountCont.innerHTML = '';
     document.getElementById('installmentsContainer').innerHTML = '';
     document.getElementById('installmentsWrapper').style.display = 'none';
+    const chkFixar = document.getElementById('chkFixarMesmoDia');
+    if (chkFixar) chkFixar.checked = false;
     // Reset dos chips de favorecido
     state.favorecidoFiltroTipo = 'ALL';
     const chipsContainer = document.getElementById('entryFavChips');
@@ -5526,6 +5545,30 @@ window.rebalanceInstallments = function() {
     }
 };
 
+function calculateInstallmentDate(firstDateStr, index, intervalDays, fixarMesmoDia) {
+    if (index === 0) return firstDateStr || '';
+    if (!firstDateStr) return '';
+    const parts = firstDateStr.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return firstDateStr;
+    const [y, m, d] = parts;
+    if (fixarMesmoDia) {
+        const totalMonths = (m - 1) + index;
+        const targetYear = y + Math.floor(totalMonths / 12);
+        const targetMonth = ((totalMonths % 12) + 12) % 12;
+        const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+        const clampedDay = Math.min(d, daysInMonth);
+        return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
+    } else {
+        const baseDate = new Date(y, m - 1, d);
+        baseDate.setDate(baseDate.getDate() + (index * intervalDays));
+        const targetYear = baseDate.getFullYear();
+        const targetMonth = baseDate.getMonth() + 1;
+        const targetDay = baseDate.getDate();
+        return `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+    }
+}
+window.calculateInstallmentDate = calculateInstallmentDate;
+
 window.onInstallmentDateChange = function(changedIndex) {
     const parcRows = Array.from(document.querySelectorAll('#installmentsContainer .installment-row'));
     if (!parcRows[changedIndex]) return;
@@ -5535,23 +5578,26 @@ window.onInstallmentDateChange = function(changedIndex) {
 
     const intervalInput = document.getElementById('intervaloPrazoDias');
     const intervalDays = parseInt(intervalInput ? intervalInput.value : 30) || 30;
+    const chk = document.getElementById('chkFixarMesmoDia');
+    const fixarMesmoDia = chk ? chk.checked : false;
 
-    // Se alterou a primeira parcela (#1), sincroniza o vencimento do cabeçalho
+    // Se alterou a primeira parcela (#1), sincroniza o vencimento do cabeçalho e cascateia
     if (changedIndex === 0) {
         const topVenc = document.getElementById('entryVencimento');
         if (topVenc) topVenc.value = changedInput.value;
-    }
 
-    // Cascata automática instantânea para todas as parcelas posteriores
-    const baseDate = new Date(changedInput.value + 'T12:00:00');
-    if (isNaN(baseDate.getTime())) return;
-
-    for (let i = changedIndex + 1; i < parcRows.length; i++) {
-        const nextDate = new Date(baseDate);
-        nextDate.setDate(nextDate.getDate() + ((i - changedIndex) * intervalDays));
-        const dateInput = parcRows[i].querySelector('.parc-date');
-        if (dateInput) {
-            dateInput.value = nextDate.toISOString().split('T')[0];
+        for (let i = 1; i < parcRows.length; i++) {
+            const nextDateStr = calculateInstallmentDate(changedInput.value, i, intervalDays, fixarMesmoDia);
+            const dateInput = parcRows[i].querySelector('.parc-date');
+            if (dateInput) {
+                dateInput.value = nextDateStr;
+            }
+        }
+    } else {
+        // Se o usuário editar manualmente qualquer parcela após a primeira (#2, #3...),
+        // desmarca a opção 'Fixar mesmo dia' para permitir a customização livre dessa parcela.
+        if (chk && chk.checked) {
+            chk.checked = false;
         }
     }
 };
@@ -5567,15 +5613,12 @@ window.onTopVencimentoChange = function() {
 
     const intervalInput = document.getElementById('intervaloPrazoDias');
     const intervalDays = parseInt(intervalInput ? intervalInput.value : 30) || 30;
-    const baseDate = new Date(topVenc + 'T12:00:00');
-    if (isNaN(baseDate.getTime())) return;
+    const fixarMesmoDia = document.getElementById('chkFixarMesmoDia')?.checked || false;
 
     parcRows.forEach((row, idx) => {
-        const rowDate = new Date(baseDate);
-        rowDate.setDate(rowDate.getDate() + (idx * intervalDays));
         const dateInput = row.querySelector('.parc-date');
         if (dateInput) {
-            dateInput.value = rowDate.toISOString().split('T')[0];
+            dateInput.value = calculateInstallmentDate(topVenc, idx, intervalDays, fixarMesmoDia);
         }
     });
 };
@@ -5589,16 +5632,30 @@ window.onIntervaloPrazoChange = function() {
 
     const intervalInput = document.getElementById('intervaloPrazoDias');
     const intervalDays = parseInt(intervalInput ? intervalInput.value : 30) || 30;
-
-    const baseDate = new Date(firstDate + 'T12:00:00');
-    if (isNaN(baseDate.getTime())) return;
+    const fixarMesmoDia = document.getElementById('chkFixarMesmoDia')?.checked || false;
 
     for (let i = 1; i < parcRows.length; i++) {
-        const nextDate = new Date(baseDate);
-        nextDate.setDate(nextDate.getDate() + (i * intervalDays));
         const dateInput = parcRows[i].querySelector('.parc-date');
         if (dateInput) {
-            dateInput.value = nextDate.toISOString().split('T')[0];
+            dateInput.value = calculateInstallmentDate(firstDate, i, intervalDays, fixarMesmoDia);
+        }
+    }
+};
+
+window.onFixarMesmoDiaToggle = function(checked) {
+    const parcRows = Array.from(document.querySelectorAll('#installmentsContainer .installment-row'));
+    if (parcRows.length <= 1) return;
+    const firstDateInput = parcRows[0].querySelector('.parc-date');
+    const firstDate = firstDateInput?.value || document.getElementById('entryVencimento')?.value;
+    if (!firstDate) return;
+
+    const intervalInput = document.getElementById('intervaloPrazoDias');
+    const intervalDays = parseInt(intervalInput ? intervalInput.value : 30) || 30;
+
+    for (let i = 1; i < parcRows.length; i++) {
+        const dateInput = parcRows[i].querySelector('.parc-date');
+        if (dateInput) {
+            dateInput.value = calculateInstallmentDate(firstDate, i, intervalDays, checked);
         }
     }
 };
@@ -5613,6 +5670,7 @@ window.generateInstallmentFields = function(forcedTotal = null) {
     const prazoGroup = document.getElementById('prazoDiasGroup');
     const intervalInput = document.getElementById('intervaloPrazoDias');
     const intervalDays = parseInt(intervalInput ? intervalInput.value : 30) || 30;
+    const fixarMesmoDia = document.getElementById('chkFixarMesmoDia')?.checked || false;
 
     const formaVal = document.getElementById('entryForma')?.value || '';
     const isCheque = formaVal.toUpperCase() === 'CHEQUE';
@@ -5671,7 +5729,7 @@ window.generateInstallmentFields = function(forcedTotal = null) {
     const baseCentavos = Math.floor(centavosRestantes / qtd);
     let restoCentavos = centavosRestantes % qtd;
 
-    let dateBase = firstDate ? new Date(firstDate + 'T12:00:00') : new Date();
+    const baseDateStr = firstDate || new Date().toISOString().split('T')[0];
 
     const baseChequeNumRaw = (document.getElementById('entryNumCheque')?.value || '').trim();
     const baseChequeInt = parseInt(baseChequeNumRaw);
@@ -5687,9 +5745,7 @@ window.generateInstallmentFields = function(forcedTotal = null) {
     ).join('');
 
     for (let i = 0; i < qtd; i++) {
-        const rowDate = new Date(dateBase);
-        rowDate.setDate(rowDate.getDate() + (i * intervalDays));
-        const dateStr = rowDate.toISOString().split('T')[0];
+        const dateStr = calculateInstallmentDate(baseDateStr, i, intervalDays, fixarMesmoDia);
 
         let parcelaCentavos = baseCentavos;
         if (restoCentavos > 0) {
@@ -6457,14 +6513,22 @@ function setupEventListeners() {
                         ? `<span style="background:rgba(99,102,241,0.15); color:#6366f1; border:1px solid rgba(99,102,241,0.3); font-size:0.62rem; font-weight:800; padding:1px 5px; border-radius:4px; margin-left:6px;">ESTA PARCELA</span>` 
                         : '';
 
+                    // Checagem dinâmica de atraso da parcela no cronograma
+                    const todayStr = getLocalDateStr();
+                    const pVencStr = (p.data_vencimento || '').substring(0, 10);
+                    const isParcOverdue = pVencStr && pVencStr < todayStr && p.status === 'ABERTO';
+                    const displayStatus = isParcOverdue ? 'ATRASADO' : (p.status || 'ABERTO');
+                    const badgeClass = isParcOverdue ? 'status-atrasado' : `status-${(p.status || 'aberto').toLowerCase()}`;
+                    const borderLeftColor = p.status === 'PAGO' ? '#10b981' : (isParcOverdue ? '#ef4444' : '#f59e0b');
+
                     return `
-                    <div class="info-card" style="padding:0.8rem; border-left: 3px solid ${p.status === 'PAGO' ? '#10b981' : '#f59e0b'}; ${borderHighlight}">
+                    <div class="info-card" style="padding:0.8rem; border-left: 3px solid ${borderLeftColor}; ${borderHighlight}">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                             <div style="display:flex; align-items:center;">
                                 <span style="font-weight:800; font-size:0.8rem;">Parc #${p.numero_parcela}</span>
                                 ${currentBadge}
                             </div>
-                            <span class="status-badge status-${(p.status || 'pendente').toLowerCase()}" style="font-size:0.65rem; padding:2px 6px;">${p.status}</span>
+                            <span class="status-badge ${badgeClass}" style="font-size:0.65rem; padding:2px 6px;">${displayStatus}</span>
                         </div>
                         <div style="font-weight:800; font-size:0.95rem;">${formatCurrency(p.valor)}</div>
                         <div style="font-size:0.75rem; opacity:0.7; margin-top:2px;">Venc: ${formatDate(p.data_vencimento)}</div>
@@ -8810,6 +8874,78 @@ document.addEventListener('click', (e) => {
 let fhistData = [];
 let fhistFiltros = {};
 let _fhistSortKey = null, _fhistSortDir = 'asc';
+window.fhistSepararPorBanco = false;
+
+window.handleFhistToggleSepararBanco = function(checked) {
+    window.fhistSepararPorBanco = !!checked;
+    const sw = document.getElementById('toggle-switch-fhist-banco');
+    const knob = document.getElementById('toggle-knob-fhist-banco');
+    if (sw && knob) {
+        if (window.fhistSepararPorBanco) {
+            sw.style.background = '#10b981';
+            knob.style.transform = 'translateX(18px)';
+        } else {
+            sw.style.background = '#cbd5e1';
+            knob.style.transform = 'translateX(0px)';
+        }
+    }
+    // Se já existem dados gerados no relatório, re-renderiza imediatamente com ou sem agrupamento!
+    if (Array.isArray(fhistData) && fhistData.length > 0) {
+        fhistRenderTabela();
+    }
+};
+
+/** Retorna informações e nome formatado do banco/conta */
+function fhistGetContaInfo(contaId) {
+    if (!contaId) {
+        return {
+            id: '__SEM_BANCO__',
+            nome: 'Sem Banco / Não Definido',
+            banco: 'Não Informado',
+            display: 'Sem Banco / Conta Não Definida'
+        };
+    }
+    const c = (state.contas || []).find(x => x.id === contaId);
+    if (!c) {
+        const fallback = typeof contaId === 'string' ? contaId.slice(0, 8) : contaId;
+        return {
+            id: contaId,
+            nome: `Conta (${fallback})`,
+            banco: 'Outro',
+            display: `Conta (${fallback})`
+        };
+    }
+    const nome = c.nome || c.banco || 'Conta Bancária';
+    const bancoStr = c.banco && c.banco !== c.nome ? ` (${c.banco})` : '';
+    const agConta = (c.agencia || c.conta) ? ` • Ag: ${c.agencia || '-'} / CC: ${c.conta || '-'}` : '';
+    return {
+        id: c.id,
+        nome: c.nome || c.banco || 'Conta Bancária',
+        banco: c.banco || c.nome,
+        display: `${nome}${bancoStr}${agConta}`
+    };
+}
+
+/** Renderiza a linha <tr> padronizada da tabela de lançamentos */
+function fhistRenderRowHtml(l) {
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const venc = l.data_vencimento ? new Date(l.data_vencimento+'T00:00:00') : null;
+    const isAtrasado = venc && venc < hoje && l.status === 'ABERTO';
+    const statusDisplay = isAtrasado ? 'ATRASADO' : (l.status || '—');
+    const tipoIcon = l.tipo === 'PAGAR'
+        ? '<i data-lucide="arrow-up-circle" style="width:14px;color:#dc2626;vertical-align:middle"></i>'
+        : '<i data-lucide="arrow-down-circle" style="width:14px;color:#16a34a;vertical-align:middle"></i>';
+    return `<tr>
+        <td style="font-weight:800;color:#2d9e6b;font-family:'JetBrains Mono',monospace;font-size:0.8rem">${l.codigo_sequencial||'—'}</td>
+        <td>${tipoIcon} <span style="font-size:0.8rem;font-weight:700;color:${l.tipo==='PAGAR'?'#dc2626':'#16a34a'}">${l.tipo==='PAGAR'?'Pagar':'Receber'}</span></td>
+        <td style="font-weight:600;color:#1e293b">${fhistFmtDate(l.data_vencimento)}</td>
+        <td style="color:${l.data_pagamento?'#16a34a':'#64748b'};font-weight:600">${fhistFmtDate(l.data_pagamento)}</td>
+        <td style="font-weight:700;color:#1e293b">${l.entidade_nome||'—'}</td>
+        <td style="font-size:0.82rem;color:#475569;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(l.descricao||'').replace(/"/g,'&quot;')}">${l.descricao||'—'}</td>
+        <td style="text-align:right;color:#0284c7;font-weight:800;font-size:0.88rem">${fhistFmtCurrency(l.valor_pago)}</td>
+        <td>${fhistBadge(statusDisplay)}</td>
+    </tr>`;
+}
 
 /** Atalhos de período rápido (Personalizado, Este Mês, Mês Passado, Ano Atual) */
 function fhistSetPeriod(modo, btnEl) {
@@ -9099,7 +9235,7 @@ function fhistRenderTabela() {
         return;
     }
 
-    // KPI totais da consulta
+    // KPI totais consolidados da consulta
     const totalPagar   = fhistData.filter(l=>l.tipo==='PAGAR').reduce((s,l)=>s+(parseFloat(l.valor_total)||0),0);
     const totalReceber = fhistData.filter(l=>l.tipo==='RECEBER').reduce((s,l)=>s+(parseFloat(l.valor_total)||0),0);
     const totalPago    = fhistData.reduce((s,l)=>s+(parseFloat(l.valor_pago)||0),0);
@@ -9159,7 +9295,113 @@ function fhistRenderTabela() {
         <th onclick="fhistSort('status')" style="cursor:pointer">Status${sortIco}</th>
     </tr></thead>`;
 
-    // Lógica de Paginação do Relatório
+    // MODO AGRUPADO POR BANCO
+    if (window.fhistSepararPorBanco) {
+        const groupsMap = new Map();
+        fhistData.forEach(item => {
+            const key = item.conta_bancaria_id || '__SEM_BANCO__';
+            if (!groupsMap.has(key)) {
+                groupsMap.set(key, {
+                    info: fhistGetContaInfo(item.conta_bancaria_id),
+                    items: []
+                });
+            }
+            groupsMap.get(key).items.push(item);
+        });
+
+        // Ordena bancos alfabeticamente; Sem Banco fica no final
+        const sortedGroups = Array.from(groupsMap.values()).sort((a, b) => {
+            if (a.info.id === '__SEM_BANCO__') return 1;
+            if (b.info.id === '__SEM_BANCO__') return -1;
+            return (a.info.nome || '').localeCompare(b.info.nome || '');
+        });
+
+        const groupsHtml = sortedGroups.map(grp => {
+            const grpPagar   = grp.items.filter(l => l.tipo === 'PAGAR').reduce((s, l) => s + (parseFloat(l.valor_total) || 0), 0);
+            const grpReceber = grp.items.filter(l => l.tipo === 'RECEBER').reduce((s, l) => s + (parseFloat(l.valor_total) || 0), 0);
+            const grpPago    = grp.items.reduce((s, l) => s + (parseFloat(l.valor_pago) || 0), 0);
+            const grpSaldo   = grpReceber - grpPagar;
+
+            const rowsHtml = grp.items.map(l => fhistRenderRowHtml(l)).join('');
+
+            return `
+            <div class="fhist-bank-group-card">
+                <div class="fhist-bank-group-header">
+                    <div class="fhist-bank-title-area">
+                        <div class="fhist-bank-icon-box">
+                            <i data-lucide="landmark" style="width:20px;height:20px"></i>
+                        </div>
+                        <div>
+                            <h4 class="fhist-bank-title-text">
+                                ${grp.info.display}
+                                <span class="fhist-bank-badge-count">${grp.items.length} ${grp.items.length === 1 ? 'registro' : 'registros'}</span>
+                            </h4>
+                            <span style="font-size:0.75rem;color:#64748b;font-weight:500">Subtotais consolidados para este banco</span>
+                        </div>
+                    </div>
+                    <div class="fhist-bank-subtotals">
+                        <div class="fhist-bank-subtotal-item pagar">
+                            <div class="fhist-bank-subtotal-label" style="color:#dc2626">A Pagar</div>
+                            <div class="fhist-bank-subtotal-val" style="color:#dc2626">${fhistFmtCurrency(grpPagar)}</div>
+                        </div>
+                        <div class="fhist-bank-subtotal-item receber">
+                            <div class="fhist-bank-subtotal-label" style="color:#16a34a">A Receber</div>
+                            <div class="fhist-bank-subtotal-val" style="color:#16a34a">${fhistFmtCurrency(grpReceber)}</div>
+                        </div>
+                        <div class="fhist-bank-subtotal-item pago">
+                            <div class="fhist-bank-subtotal-label" style="color:#0284c7">Total Pago</div>
+                            <div class="fhist-bank-subtotal-val" style="color:#0284c7">${fhistFmtCurrency(grpPago)}</div>
+                        </div>
+                        <div class="fhist-bank-subtotal-item ${grpSaldo >= 0 ? 'saldo-pos' : 'saldo-neg'}">
+                            <div class="fhist-bank-subtotal-label" style="color:${grpSaldo >= 0 ? '#16a34a' : '#dc2626'}">Saldo</div>
+                            <div class="fhist-bank-subtotal-val" style="color:${grpSaldo >= 0 ? '#16a34a' : '#dc2626'}">${fhistFmtCurrency(grpSaldo)}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="glass-table-container" style="overflow-x:auto;margin:0;box-shadow:none;border:none">
+                    <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
+                        ${thead}
+                        <tbody>${rowsHtml}</tbody>
+                        <tfoot>
+                            <tr style="background:rgba(248,250,252,0.9);font-weight:700;border-top:2px solid rgba(226,232,240,0.9)">
+                                <td colspan="6" style="padding:0.65rem 0.85rem;text-align:right;font-size:0.8rem;color:#475569;text-transform:uppercase">
+                                    Subtotal Pago (${grp.info.nome}):
+                                </td>
+                                <td style="padding:0.65rem 0.85rem;text-align:right;color:#0284c7;font-weight:800;font-size:0.88rem">
+                                    ${fhistFmtCurrency(grpPago)}
+                                </td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>`;
+        }).join('');
+
+        area.innerHTML = `
+            ${kpis}
+            ${chips ? `<div class="fhist-chips">${chips}</div>` : ''}
+            <div class="fhist-result-header">
+                <div class="fhist-result-count">
+                    <strong>${fhistData.length}</strong> lançamento(s) encontrado(s) em <strong>${sortedGroups.length}</strong> banco(s)/conta(s)
+                </div>
+                <div style="display:flex;gap:0.5rem">
+                    <button class="btn-secondary-new" onclick="fhistExcelExport()" style="font-size:0.8rem;padding:0.5rem 1rem;display:flex;align-items:center;gap:0.4rem">
+                        <i data-lucide="file-spreadsheet" style="width:14px"></i> Excel
+                    </button>
+                    <button class="btn-secondary-new" onclick="fhistPdfExport()" style="font-size:0.8rem;padding:0.5rem 1rem;display:flex;align-items:center;gap:0.4rem">
+                        <i data-lucide="file-text" style="width:14px"></i> PDF
+                    </button>
+                </div>
+            </div>
+            <div class="fhist-bank-groups-container">
+                ${groupsHtml}
+            </div>`;
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+
+    // MODO PADRÃO (TABELA ÚNICA COM PAGINAÇÃO)
     const totalRecords = fhistData.length;
     const totalPages = Math.ceil(totalRecords / financialPageSize) || 1;
     if (currentPageFhist > totalPages) currentPageFhist = totalPages;
@@ -9169,25 +9411,7 @@ function fhistRenderTabela() {
     const endIdx = startIdx + financialPageSize;
     const pageRecords = fhistData.slice(startIdx, endIdx);
 
-    const tbody = `<tbody>${pageRecords.map(l => {
-        const hoje = new Date(); hoje.setHours(0,0,0,0);
-        const venc = l.data_vencimento ? new Date(l.data_vencimento+'T00:00:00') : null;
-        const isAtrasado = venc && venc < hoje && l.status === 'ABERTO';
-        const statusDisplay = isAtrasado ? 'ATRASADO' : l.status;
-        const tipoIcon = l.tipo === 'PAGAR'
-            ? '<i data-lucide="arrow-up-circle" style="width:14px;color:#dc2626;vertical-align:middle"></i>'
-            : '<i data-lucide="arrow-down-circle" style="width:14px;color:#16a34a;vertical-align:middle"></i>';
-        return `<tr>
-            <td style="font-weight:800;color:#2d9e6b;font-family:'JetBrains Mono',monospace;font-size:0.8rem">${l.codigo_sequencial||'—'}</td>
-            <td>${tipoIcon} <span style="font-size:0.8rem;font-weight:700;color:${l.tipo==='PAGAR'?'#dc2626':'#16a34a'}">${l.tipo==='PAGAR'?'Pagar':'Receber'}</span></td>
-            <td style="font-weight:600;color:#1e293b">${fhistFmtDate(l.data_vencimento)}</td>
-            <td style="color:${l.data_pagamento?'#16a34a':'#64748b'};font-weight:600">${fhistFmtDate(l.data_pagamento)}</td>
-            <td style="font-weight:700;color:#1e293b">${l.entidade_nome||'—'}</td>
-            <td style="font-size:0.82rem;color:#475569;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(l.descricao||'').replace(/"/g,'&quot;')}">${l.descricao||'—'}</td>
-            <td style="text-align:right;color:#0284c7;font-weight:800;font-size:0.88rem">${fhistFmtCurrency(l.valor_pago)}</td>
-            <td>${fhistBadge(statusDisplay)}</td>
-        </tr>`;
-    }).join('')}</tbody>`;
+    const tbody = `<tbody>${pageRecords.map(l => fhistRenderRowHtml(l)).join('')}</tbody>`;
 
     // Botões de navegação de páginas do relatório
     let pageButtonsHtml = '';
@@ -9259,17 +9483,97 @@ function fhistSort(key) {
 function fhistExcelExport() {
     if (!fhistData.length) return;
     if (typeof XLSX === 'undefined') { alert('Biblioteca Excel não carregada.'); return; }
-    const rows = fhistData.map(l => ({
-        Código: l.codigo_sequencial, Tipo: l.tipo,
-        Vencimento: fhistFmtDate(l.data_vencimento), Pagamento: fhistFmtDate(l.data_pagamento),
-        Favorecido: l.entidade_nome, Descrição: l.descricao,
-        'Valor Pago': parseFloat(l.valor_pago)||0,
-        Status: l.status, 'NF/Doc': l.num_nf
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Histórico Financeiro');
-    XLSX.writeFile(wb, `historico_financeiro_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+    // Exportação padrão (tabela consolidada em uma única planilha)
+    if (!window.fhistSepararPorBanco) {
+        const rows = fhistData.map(l => ({
+            Código: l.codigo_sequencial, Tipo: l.tipo,
+            Vencimento: fhistFmtDate(l.data_vencimento), Pagamento: fhistFmtDate(l.data_pagamento),
+            Favorecido: l.entidade_nome, Descrição: l.descricao,
+            'Valor Pago': parseFloat(l.valor_pago)||0,
+            Status: l.status, 'NF/Doc': l.num_nf
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, 'Histórico Financeiro');
+        XLSX.writeFile(wb, `historico_financeiro_${new Date().toISOString().slice(0,10)}.xlsx`);
+        return;
+    }
+
+    // Exportação com Separação por Banco
+    // 1. Aba Consolidado Geral
+    const rowsGeral = fhistData.map(l => {
+        const contaInfo = fhistGetContaInfo(l.conta_bancaria_id);
+        return {
+            'Banco / Conta': contaInfo.nome,
+            Código: l.codigo_sequencial, Tipo: l.tipo,
+            Vencimento: fhistFmtDate(l.data_vencimento), Pagamento: fhistFmtDate(l.data_pagamento),
+            Favorecido: l.entidade_nome, Descrição: l.descricao,
+            'Valor Pago': parseFloat(l.valor_pago)||0,
+            Status: l.status, 'NF/Doc': l.num_nf
+        };
+    });
+    const wsGeral = XLSX.utils.json_to_sheet(rowsGeral);
+    XLSX.utils.book_append_sheet(wb, wsGeral, 'Geral Consolidado');
+
+    // 2. Abas individuais por banco
+    const groupsMap = new Map();
+    fhistData.forEach(item => {
+        const key = item.conta_bancaria_id || '__SEM_BANCO__';
+        if (!groupsMap.has(key)) {
+            groupsMap.set(key, {
+                info: fhistGetContaInfo(item.conta_bancaria_id),
+                items: []
+            });
+        }
+        groupsMap.get(key).items.push(item);
+    });
+
+    const usedSheetNames = new Set(['Geral Consolidado']);
+    const sortedGroups = Array.from(groupsMap.values()).sort((a, b) => {
+        if (a.info.id === '__SEM_BANCO__') return 1;
+        if (b.info.id === '__SEM_BANCO__') return -1;
+        return (a.info.nome || '').localeCompare(b.info.nome || '');
+    });
+
+    sortedGroups.forEach(grp => {
+        let baseName = (grp.info.nome || 'Banco').replace(/[:\\/?*\[\]]/g, '').trim().substring(0, 24) || 'Banco';
+        let sheetName = baseName;
+        let counter = 2;
+        while (usedSheetNames.has(sheetName)) {
+            sheetName = `${baseName.substring(0, 20)} (${counter})`;
+            counter++;
+        }
+        usedSheetNames.add(sheetName);
+
+        const rowsBank = grp.items.map(l => ({
+            Código: l.codigo_sequencial, Tipo: l.tipo,
+            Vencimento: fhistFmtDate(l.data_vencimento), Pagamento: fhistFmtDate(l.data_pagamento),
+            Favorecido: l.entidade_nome, Descrição: l.descricao,
+            'Valor Pago': parseFloat(l.valor_pago)||0,
+            Status: l.status, 'NF/Doc': l.num_nf
+        }));
+
+        const totalPago = grp.items.reduce((s, l) => s + (parseFloat(l.valor_pago)||0), 0);
+        rowsBank.push({
+            Código: 'SUBTOTAL',
+            Tipo: '',
+            Vencimento: '',
+            Pagamento: '',
+            Favorecido: '',
+            Descrição: `SUBTOTAL PAGO (${grp.info.nome})`,
+            'Valor Pago': totalPago,
+            Status: '',
+            'NF/Doc': ''
+        });
+
+        const wsBank = XLSX.utils.json_to_sheet(rowsBank);
+        XLSX.utils.book_append_sheet(wb, wsBank, sheetName);
+    });
+
+    XLSX.writeFile(wb, `relatorio_por_banco_${new Date().toISOString().slice(0,10)}.xlsx`);
+    showToast('Planilha Excel com abas separadas por banco gerada com sucesso!', 'success');
 }
 
 /** Exporta para PDF no formato A4 Retrato idêntico à tela */
@@ -9374,9 +9678,145 @@ function fhistPdfExport() {
         startTableY = 48 + (splitText.length * 3.5) + 2;
     }
 
-    // 4. Tabela de Lançamentos em A4 Retrato
+    // Configuração de estilo de colunas e cabeçalho compartilhados
+    const sharedHead = [['CÓD.', 'TIPO', 'VENCIMENTO', 'PAGAMENTO', 'FAVORECIDO', 'DESCRIÇÃO', 'VALOR PAGO', 'STATUS']];
+    const sharedStyles = {
+        fontSize: 6.8,
+        cellPadding: 2,
+        textColor: [30, 41, 59],
+        lineColor: [241, 245, 249],
+        lineWidth: 0.2,
+        overflow: 'linebreak',
+        valign: 'middle'
+    };
+    const sharedHeadStyles = {
+        fillColor: [45, 158, 107],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 6.8,
+        halign: 'left',
+        valign: 'middle'
+    };
+    const sharedColumnStyles = {
+        0: { cellWidth: 16, fontStyle: 'bold', textColor: [45, 158, 107] },
+        1: { cellWidth: 13, fontStyle: 'bold' },
+        2: { cellWidth: 20, halign: 'center' },
+        3: { cellWidth: 20, halign: 'center' },
+        4: { cellWidth: 42, fontStyle: 'bold' },
+        5: { cellWidth: 38 },
+        6: { cellWidth: 22, halign: 'right', fontStyle: 'bold', textColor: [2, 132, 199] },
+        7: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }
+    };
+    const didDrawPageFunc = function (data) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Página ${doc.internal.getNumberOfPages()}`, pageWidth - margin, 290, { align: 'right' });
+        doc.text('FrotaLink • Gestão Financeira Inteligente', margin, 290);
+    };
+
+    // 4. MODO COM SEPARAÇÃO POR BANCO
+    if (window.fhistSepararPorBanco) {
+        const groupsMap = new Map();
+        fhistData.forEach(item => {
+            const key = item.conta_bancaria_id || '__SEM_BANCO__';
+            if (!groupsMap.has(key)) {
+                groupsMap.set(key, {
+                    info: fhistGetContaInfo(item.conta_bancaria_id),
+                    items: []
+                });
+            }
+            groupsMap.get(key).items.push(item);
+        });
+
+        const sortedGroups = Array.from(groupsMap.values()).sort((a, b) => {
+            if (a.info.id === '__SEM_BANCO__') return 1;
+            if (b.info.id === '__SEM_BANCO__') return -1;
+            return (a.info.nome || '').localeCompare(b.info.nome || '');
+        });
+
+        let currentY = startTableY;
+
+        sortedGroups.forEach(grp => {
+            const grpPago = grp.items.reduce((s, l) => s + (parseFloat(l.valor_pago) || 0), 0);
+
+            // Verifica se precisa de quebra de página antes de iniciar o grupo do banco
+            if (currentY > 245) {
+                doc.addPage();
+                currentY = 15;
+            }
+
+            // Banner de Cabeçalho do Banco
+            doc.setFillColor(241, 245, 249);
+            doc.roundedRect(margin, currentY, contentWidth, 7.5, 1.2, 1.2, 'F');
+            doc.setDrawColor(203, 213, 225);
+            doc.roundedRect(margin, currentY, contentWidth, 7.5, 1.2, 1.2, 'D');
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(15, 23, 42);
+            const fullTitle = `BANCO: ${grp.info.display.toUpperCase()}`;
+            const maxW = contentWidth - 65;
+            const displayTitle = doc.getTextWidth(fullTitle) > maxW ? fullTitle.substring(0, 48) + '...' : fullTitle;
+            doc.text(displayTitle, margin + 3, currentY + 5);
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7.2);
+            doc.setTextColor(45, 158, 107);
+            doc.text(`${grp.items.length} itens  •  Subtotal Pago: ${fhistFmtCurrency(grpPago)}`, pageWidth - margin - 3, currentY + 5, { align: 'right' });
+
+            currentY += 8.5;
+
+            doc.autoTable({
+                head: sharedHead,
+                body: grp.items.map(l => {
+                    const hoje = new Date(); hoje.setHours(0,0,0,0);
+                    const venc = l.data_vencimento ? new Date(l.data_vencimento+'T00:00:00') : null;
+                    const isAtrasado = venc && venc < hoje && l.status === 'ABERTO';
+                    const statusDisplay = isAtrasado ? 'ATRASADO' : (l.status || '—');
+                    return [
+                        l.codigo_sequencial || '—',
+                        l.tipo === 'PAGAR' ? 'Pagar' : 'Receber',
+                        fhistFmtDate(l.data_vencimento),
+                        fhistFmtDate(l.data_pagamento),
+                        l.entidade_nome || '—',
+                        l.descricao || '—',
+                        fhistFmtCurrency(l.valor_pago),
+                        statusDisplay
+                    ];
+                }),
+                foot: [[
+                    { content: `SUBTOTAL PAGO (${grp.info.nome}):`, colSpan: 6, styles: { halign: 'right', fontStyle: 'bold', textColor: [71, 85, 105], fontSize: 6.8 } },
+                    { content: fhistFmtCurrency(grpPago), styles: { halign: 'right', fontStyle: 'bold', textColor: [2, 132, 199], fontSize: 7 } },
+                    { content: '', styles: {} }
+                ]],
+                startY: currentY,
+                margin: { left: margin, right: margin, bottom: 14 },
+                styles: sharedStyles,
+                headStyles: sharedHeadStyles,
+                footStyles: {
+                    fillColor: [248, 250, 252],
+                    lineColor: [226, 232, 240],
+                    lineWidth: 0.3
+                },
+                alternateRowStyles: {
+                    fillColor: [248, 250, 252]
+                },
+                columnStyles: sharedColumnStyles,
+                didDrawPage: didDrawPageFunc
+            });
+
+            currentY = doc.lastAutoTable.finalY + 8;
+        });
+
+        doc.save(`relatorio_financeiro_por_banco_${new Date().toISOString().slice(0,10)}.pdf`);
+        showToast('PDF A4 Retrato com separação por banco gerado com sucesso!', 'success');
+        return;
+    }
+
+    // 4. MODO PADRÃO (TABELA ÚNICA)
     doc.autoTable({
-        head: [['CÓD.', 'TIPO', 'VENCIMENTO', 'PAGAMENTO', 'FAVORECIDO', 'DESCRIÇÃO', 'VALOR PAGO', 'STATUS']],
+        head: sharedHead,
         body: fhistData.map(l => {
             const hoje = new Date(); hoje.setHours(0,0,0,0);
             const venc = l.data_vencimento ? new Date(l.data_vencimento+'T00:00:00') : null;
@@ -9396,53 +9836,13 @@ function fhistPdfExport() {
         }),
         startY: startTableY,
         margin: { left: margin, right: margin, bottom: 14 },
-        styles: {
-            fontSize: 6.8,
-            cellPadding: 2,
-            textColor: [30, 41, 59],
-            lineColor: [241, 245, 249],
-            lineWidth: 0.2,
-            overflow: 'linebreak',
-            valign: 'middle'
-        },
-        headStyles: {
-            fillColor: [45, 158, 107], // Verde Clean FrotaLink
-            textColor: [255, 255, 255],
-            fontStyle: 'bold',
-            fontSize: 6.8,
-            halign: 'left',
-            valign: 'middle'
-        },
+        styles: sharedStyles,
+        headStyles: sharedHeadStyles,
         alternateRowStyles: {
-            fillColor: [248, 250, 252] // Fundo zebrado bem sutil
+            fillColor: [248, 250, 252]
         },
-        columnStyles: {
-            0: { cellWidth: 16, fontStyle: 'bold', textColor: [45, 158, 107] }, // Cód
-            1: { cellWidth: 13, fontStyle: 'bold' },                          // Tipo
-            2: { cellWidth: 20, halign: 'center' },                           // Vencimento (espaço perfeito p/ 'VENCIMENTO' e datas)
-            3: { cellWidth: 20, halign: 'center' },                           // Pagamento (espaço perfeito p/ 'PAGAMENTO' e datas)
-            4: { cellWidth: 42, fontStyle: 'bold' },                          // Favorecido
-            5: { cellWidth: 38 },                                             // Descrição
-            6: { cellWidth: 22, halign: 'right', fontStyle: 'bold', textColor: [2, 132, 199] }, // Valor Pago
-            7: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }          // Status
-        },
-        didDrawPage: function (data) {
-            // Rodapé com numeração de páginas em formato Retrato
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7.5);
-            doc.setTextColor(148, 163, 184);
-            doc.text(
-                `Página ${doc.internal.getNumberOfPages()}`,
-                pageWidth - margin,
-                290,
-                { align: 'right' }
-            );
-            doc.text(
-                'FrotaLink • Gestão Financeira Inteligente',
-                margin,
-                290
-            );
-        }
+        columnStyles: sharedColumnStyles,
+        didDrawPage: didDrawPageFunc
     });
 
     doc.save(`relatorio_financeiro_${new Date().toISOString().slice(0,10)}.pdf`);
@@ -9801,6 +10201,7 @@ window.renderBancoSubTab = async function() {
     _populateTransfSelects();
     _populateAvulsoFields();
     _populatePgBancoFilter();
+    _populateTransfFilterBanco();
     await renderHistoricoTransferencias();
     if (typeof window.renderJurosSection === 'function') {
         await window.renderJurosSection();
@@ -10031,6 +10432,17 @@ function _populatePgBancoFilter() {
     sel.innerHTML = `<option value="">Todos os Bancos</option>${opts}`;
 }
 
+/** Popula o filtro de banco na tabela Histórico de Transferências */
+function _populateTransfFilterBanco() {
+    const sel = document.getElementById('transf-filter-banco');
+    if (!sel) return;
+    const curVal = sel.value;
+    const contas = state.contas || [];
+    const opts = contas.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+    sel.innerHTML = `<option value="">Todos os Bancos</option>${opts}`;
+    if (curVal) sel.value = curVal;
+}
+
 /**
  * Salva uma nova transferência entre bancos:
  * - Insere registro em fin_transferencias_bancarias
@@ -10186,6 +10598,32 @@ window.handlePgbancoPeriodoChange = function(selectEl) {
         }
     }
     // Não executa automaticamente: aguarda clique no botão "Gerar"
+};
+
+/** Manipula mudança no filtro de período do Histórico de Transferências */
+window.handleTransfPeriodoChange = function(selectEl) {
+    const customContainer = document.getElementById('transf-custom-dates');
+    if (customContainer) {
+        if (selectEl.value === 'custom') {
+            customContainer.style.display = 'flex';
+            const ini = document.getElementById('transf-data-ini');
+            const fim = document.getElementById('transf-data-fim');
+            // Sugere datas caso estejam vazias para conveniência
+            if (ini && !ini.value) {
+                const now = new Date();
+                const y = now.getFullYear();
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                ini.value = `${y}-${m}-01`;
+            }
+            if (fim && !fim.value) {
+                const now = new Date();
+                fim.value = now.toISOString().slice(0, 10);
+            }
+            if (ini) ini.focus();
+        } else {
+            customContainer.style.display = 'none';
+        }
+    }
 };
 
 /**
@@ -10974,15 +11412,74 @@ window.toggleExpandPgBanco = function() {
 };
 
 /**
- * Renderiza o histórico de transferências bancárias buscando da View Otimizada no Supabase.
+ * Renderiza o histórico de transferências bancárias com filtragem por banco e período,
+ * atualizando a tabela e o rodapé de totalizadores.
  */
 window.renderHistoricoTransferencias = async function() {
     const tbody = document.getElementById('transf-hist-tbody');
+    const footerQtd = document.getElementById('transf-footer-qtd');
+    const footerTotal = document.getElementById('transf-footer-total');
     if (!tbody) return;
-    tbody.innerHTML = `<tr><td colspan="6" class="table-empty">Carregando...</td></tr>`;
+
+    const bancoId   = document.getElementById('transf-filter-banco')?.value   || '';
+    const direcao   = document.getElementById('transf-filter-direcao')?.value || 'ambos';
+    const periodo   = document.getElementById('transf-filter-periodo')?.value || 'current_month';
+    const dataIni   = document.getElementById('transf-data-ini')?.value       || '';
+    const dataFim   = document.getElementById('transf-data-fim')?.value       || '';
+
+    // Validação estrita do período personalizado
+    if (periodo === 'custom') {
+        if (!dataIni && !dataFim) {
+            tbody.innerHTML = `<tr><td colspan="6" class="table-empty" style="padding: 1.5rem; color: #d97706;"><i data-lucide="calendar" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px;"></i> Por favor, informe o intervalo de datas do período personalizado e clique em <b>Gerar</b>.</td></tr>`;
+            if (footerQtd) footerQtd.textContent = '0';
+            if (footerTotal) footerTotal.textContent = 'R$ 0,00';
+            if (window.lucide) lucide.createIcons();
+            showToast('Informe o período personalizado antes de clicar em Gerar.', 'warning');
+            return;
+        }
+        if (dataIni && dataFim && dataIni > dataFim) {
+            showToast('A data inicial não pode ser posterior à data final.', 'warning');
+            tbody.innerHTML = `<tr><td colspan="6" class="table-empty" style="padding: 1.5rem; color: #dc2626;">A data inicial não pode ser posterior à data final.</td></tr>`;
+            if (footerQtd) footerQtd.textContent = '0';
+            if (footerTotal) footerTotal.textContent = 'R$ 0,00';
+            return;
+        }
+    }
+
+    tbody.innerHTML = `<tr><td colspan="6" class="table-empty" style="padding: 1.5rem; color: #059669;"><i data-lucide="loader-2" class="spin-animation" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px;"></i> Carregando transferências...</td></tr>`;
+    if (window.lucide) lucide.createIcons();
 
     try {
         if (!supabaseClient) throw new Error('Supabase não inicializado.');
+
+        const today = new Date();
+        const todayStr = getLocalDateStr(today);
+
+        function inTransfPeriod(dateStr) {
+            if (!dateStr) return false;
+            const dStr = dateStr.slice(0, 10);
+            if (periodo === 'all') return true;
+            if (periodo === 'today') return dStr === todayStr;
+            if (periodo === 'yesterday') {
+                const yest = new Date();
+                yest.setDate(yest.getDate() - 1);
+                return dStr === getLocalDateStr(yest);
+            }
+            if (periodo === 'current_month') {
+                return dStr.substring(0, 7) === todayStr.substring(0, 7);
+            }
+            if (periodo === 'last_month') {
+                const lm = new Date();
+                lm.setMonth(lm.getMonth() - 1);
+                return dStr.substring(0, 7) === getLocalDateStr(lm).substring(0, 7);
+            }
+            if (periodo === 'custom') {
+                if (dataIni && dStr < dataIni) return false;
+                if (dataFim && dStr > dataFim) return false;
+                return true;
+            }
+            return true;
+        }
 
         // Busca da View Otimizada no banco com nomes de contas resolvidos
         const { data: transferencias, error } = await supabaseClient
@@ -10990,26 +11487,49 @@ window.renderHistoricoTransferencias = async function() {
             .select('*')
             .order('data_transferencia', { ascending: false })
             .order('created_at', { ascending: false })
-            .limit(200);
+            .limit(2000);
 
         if (error) throw error;
 
-        if (!transferencias || !transferencias.length) {
-            tbody.innerHTML = `<tr><td colspan="6" class="table-empty" style="color: #64748b;">Nenhuma transferência registrada.</td></tr>`;
+        // Filtra em memória pelos critérios selecionados
+        const filtered = (transferencias || []).filter(t => {
+            if (bancoId) {
+                if (direcao === 'origem' && t.conta_origem_id !== bancoId) return false;
+                if (direcao === 'destino' && t.conta_destino_id !== bancoId) return false;
+                if (direcao === 'ambos' && t.conta_origem_id !== bancoId && t.conta_destino_id !== bancoId) return false;
+            }
+
+            if (!inTransfPeriod(t.data_transferencia)) return false;
+
+            return true;
+        });
+
+        // Salva para exportação imediata
+        window._transfCurrentGeneratedItems = filtered;
+
+        const totalQtd = filtered.length;
+        const totalValor = filtered.reduce((acc, t) => acc + (parseFloat(t.valor) || 0), 0);
+
+        if (footerQtd) footerQtd.textContent = `${totalQtd} ${totalQtd === 1 ? 'transferência' : 'transferências'}`;
+        if (footerTotal) footerTotal.textContent = formatCurrency(totalValor);
+
+        if (!filtered.length) {
+            tbody.innerHTML = `<tr><td colspan="6" class="table-empty" style="color: #64748b; padding: 2rem;"><i data-lucide="search-x" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; color: #f59e0b;"></i> Nenhuma transferência encontrada para os filtros selecionados.</td></tr>`;
+            if (window.lucide) lucide.createIcons();
             return;
         }
 
-        tbody.innerHTML = transferencias.map(t => {
+        tbody.innerHTML = filtered.map(t => {
             const origemNome  = t.conta_origem_nome || '—';
             const destinoNome = t.conta_destino_nome || '—';
             const dataFmt = t.data_transferencia ? formatDate(t.data_transferencia) : '—';
 
             return `<tr>
-                <td style="font-size:0.78rem; white-space:nowrap; color: #334155;">${dataFmt}</td>
+                <td style="font-size:0.78rem; white-space:nowrap; color: #334155; font-weight:600;">${dataFmt}</td>
                 <td style="font-size:0.78rem; font-weight:600; color: #0f172a;">${origemNome}</td>
                 <td style="font-size:0.78rem; font-weight:600; color: #059669;">${destinoNome}</td>
                 <td style="text-align:right; font-weight:800; color: #059669; font-size:0.88rem;">${formatCurrency(t.valor)}</td>
-                <td style="font-size:0.75rem; color: #64748b; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${t.descricao || ''}">${t.descricao || '—'}</td>
+                <td style="font-size:0.75rem; color: #64748b; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${(t.descricao || '').replace(/"/g, '&quot;')}">${t.descricao || '—'}</td>
                 <td style="text-align:center;">
                     <button onclick="deleteTransferencia('${t.id}')" title="Estornar transferência"
                         style="background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; border-radius:6px; padding:3px 8px; cursor:pointer; font-size:0.7rem; font-weight:700; display:inline-flex; align-items:center; gap:4px; transition:all 0.2s;"
@@ -11025,6 +11545,20 @@ window.renderHistoricoTransferencias = async function() {
     } catch (err) {
         console.error('[renderHistoricoTransferencias] Erro:', err);
         tbody.innerHTML = `<tr><td colspan="6" class="table-empty" style="color: #dc2626;">Erro ao carregar: ${err.message || err}</td></tr>`;
+        if (footerQtd) footerQtd.textContent = '0';
+        if (footerTotal) footerTotal.textContent = 'R$ 0,00';
+    }
+};
+
+/** Alterna visibilidade do dropdown de exportação de Transferências */
+window.toggleExportTransfDropdown = function() {
+    const dropdown = document.getElementById('exportTransfDropdown');
+    if (!dropdown) return;
+    if (dropdown.style.display === 'none' || !dropdown.style.display) {
+        dropdown.style.display = 'block';
+        if (window.lucide) lucide.createIcons();
+    } else {
+        dropdown.style.display = 'none';
     }
 };
 
@@ -11040,12 +11574,18 @@ window.toggleExportPgBancoDropdown = function() {
     }
 };
 
-// Fechar dropdown de exportação de Pagamentos por Banco ao clicar fora
+// Fechar dropdowns de exportação ao clicar fora
 document.addEventListener('click', function(e) {
-    const dropdown = document.getElementById('exportPgBancoDropdown');
-    const btn = document.getElementById('btn-export-pgbanco');
-    if (dropdown && btn && !btn.contains(e.target) && !dropdown.contains(e.target)) {
-        dropdown.style.display = 'none';
+    const dropdownPg = document.getElementById('exportPgBancoDropdown');
+    const btnPg = document.getElementById('btn-export-pgbanco');
+    if (dropdownPg && btnPg && !btnPg.contains(e.target) && !dropdownPg.contains(e.target)) {
+        dropdownPg.style.display = 'none';
+    }
+
+    const dropdownTransf = document.getElementById('exportTransfDropdown');
+    const btnTransf = document.getElementById('btn-export-transf');
+    if (dropdownTransf && btnTransf && !btnTransf.contains(e.target) && !dropdownTransf.contains(e.target)) {
+        dropdownTransf.style.display = 'none';
     }
 });
 
@@ -11296,6 +11836,183 @@ window.exportPgBanco = async function(format) {
             showToast("Relatório exportado em PDF com sucesso!", "success");
         } catch (e) {
             console.error(e);
+            showToast("Falha ao exportar PDF: " + e.message, "error");
+        }
+    }
+};
+
+/**
+ * Exporta a tabela "Histórico de Transferências" com os filtros e dados ativos na tela.
+ */
+window.exportTransferencias = async function(format) {
+    const dropdown = document.getElementById('exportTransfDropdown');
+    if (dropdown) dropdown.style.display = 'none';
+
+    const bancoId   = document.getElementById('transf-filter-banco')?.value   || '';
+    const direcao   = document.getElementById('transf-filter-direcao')?.value || 'ambos';
+    const periodo   = document.getElementById('transf-filter-periodo')?.value || 'current_month';
+    const dataIni   = document.getElementById('transf-data-ini')?.value       || '';
+    const dataFim   = document.getElementById('transf-data-fim')?.value       || '';
+
+    if (periodo === 'custom' && !dataIni && !dataFim) {
+        showToast('Por favor, informe o período personalizado e clique em "Gerar" antes de exportar.', 'warning');
+        return;
+    }
+
+    if (!window._transfCurrentGeneratedItems) {
+        await window.renderHistoricoTransferencias();
+    }
+
+    const items = window._transfCurrentGeneratedItems || [];
+
+    if (!items.length) {
+        showToast('Nenhum dado encontrado para exportação.', 'warning');
+        return;
+    }
+
+    const totalQtd = items.length;
+    const totalValor = items.reduce((acc, t) => acc + (parseFloat(t.valor) || 0), 0);
+
+    const bancoObj = (state.contas || []).find(c => c.id === bancoId);
+    const bancoLabel = bancoObj ? bancoObj.nome : 'Todos os Bancos';
+    let direcaoLabel = 'Origem ou Destino';
+    if (direcao === 'origem') direcaoLabel = 'Somente Origem (Saída)';
+    else if (direcao === 'destino') direcaoLabel = 'Somente Destino (Entrada)';
+
+    let periodoLabel = 'Mês Atual';
+    if (periodo === 'today') periodoLabel = 'Hoje';
+    else if (periodo === 'yesterday') periodoLabel = 'Ontem';
+    else if (periodo === 'last_month') periodoLabel = 'Mês Anterior';
+    else if (periodo === 'all') periodoLabel = 'Todos os Períodos';
+    else if (periodo === 'custom') periodoLabel = `Personalizado (${formatDate(dataIni)} até ${formatDate(dataFim)})`;
+
+    if (format === 'excel') {
+        const rows = [
+            ['FROTALINK - HISTÓRICO DE TRANSFERÊNCIAS BANCÁRIAS'],
+            [`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`],
+            [`Filtros: Banco: ${bancoLabel} | Direção: ${direcaoLabel} | Período: ${periodoLabel}`],
+            [],
+            ['Data', 'Conta Origem', 'Conta Destino', 'Valor (R$)', 'Descrição']
+        ];
+
+        items.forEach(t => {
+            rows.push([
+                t.data_transferencia ? formatDate(t.data_transferencia) : '—',
+                t.conta_origem_nome || '—',
+                t.conta_destino_nome || '—',
+                parseFloat(t.valor) || 0,
+                t.descricao || '—'
+            ]);
+        });
+
+        rows.push([]);
+        rows.push(['TOTAIS:', '', '', '', '']);
+        rows.push(['Quantidade de Transferências:', totalQtd]);
+        rows.push(['Volume Total Transferido:', totalValor]);
+
+        try {
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Transferências");
+            XLSX.writeFile(wb, `Transferencias_Bancarias_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            showToast("Relatório de transferências exportado em Excel com sucesso!", "success");
+        } catch (e) {
+            showToast("Falha ao exportar excel: " + e.message, "error");
+        }
+    } else if (format === 'pdf') {
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const margin = 10;
+
+            // 1. Header do PDF
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(14);
+            doc.setTextColor(5, 150, 105); // Verde FrotaLink
+            doc.text("FROTALINK • GESTÃO FINANCEIRA", margin, 16);
+
+            doc.setFontSize(11);
+            doc.setTextColor(15, 23, 42);
+            doc.text("Relatório de Histórico de Transferências Bancárias", margin, 23);
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth - margin, 16, { align: 'right' });
+
+            // Linha divisória
+            doc.setDrawColor(226, 232, 240);
+            doc.setLineWidth(0.4);
+            doc.line(margin, 26, pageWidth - margin, 26);
+
+            // 2. Filtros Aplicados
+            doc.setFontSize(7.2);
+            doc.setTextColor(51, 65, 85);
+            const filtroTexto = `Filtros: Banco: ${bancoLabel}   |   Direção: ${direcaoLabel}   |   Período: ${periodoLabel}`;
+            doc.text(filtroTexto, margin, 31);
+
+            // 3. Tabela com jsPDF-AutoTable
+            const body = items.map(t => [
+                t.data_transferencia ? formatDate(t.data_transferencia) : '—',
+                t.conta_origem_nome || '—',
+                t.conta_destino_nome || '—',
+                formatCurrency(t.valor),
+                t.descricao || '—'
+            ]);
+
+            doc.autoTable({
+                startY: 34,
+                margin: { left: margin, right: margin, bottom: 18 },
+                head: [['DATA', 'CONTA ORIGEM', 'CONTA DESTINO', 'VALOR', 'DESCRIÇÃO']],
+                body: body,
+                theme: 'plain',
+                headStyles: {
+                    fillColor: [240, 253, 244],
+                    textColor: [5, 150, 105],
+                    fontStyle: 'bold',
+                    fontSize: 7.2,
+                    halign: 'left',
+                    cellPadding: { top: 2.8, right: 1.5, bottom: 2.8, left: 1.5 }
+                },
+                styles: {
+                    fontSize: 7,
+                    cellPadding: { top: 2.2, right: 1.5, bottom: 2.2, left: 1.5 },
+                    textColor: [15, 23, 42],
+                    lineColor: [241, 245, 249],
+                    lineWidth: 0.2,
+                    valign: 'middle'
+                },
+                columnStyles: {
+                    0: { cellWidth: 22, halign: 'center', fontStyle: 'bold' },
+                    1: { cellWidth: 42, fontStyle: 'bold' },
+                    2: { cellWidth: 42, fontStyle: 'bold', textColor: [5, 150, 105] },
+                    3: { cellWidth: 28, halign: 'right', fontStyle: 'bold', textColor: [5, 150, 105] },
+                    4: { cellWidth: 56 }
+                },
+                foot: [[
+                    { content: `TOTAL DE TRANSFERÊNCIAS: ${totalQtd}`, colSpan: 3, styles: { halign: 'left', fontStyle: 'bold', textColor: [51, 65, 85], fontSize: 7.2 } },
+                    { content: formatCurrency(totalValor), styles: { halign: 'right', fontStyle: 'bold', textColor: [5, 150, 105], fontSize: 7.5 } },
+                    { content: '', styles: {} }
+                ]],
+                footStyles: {
+                    fillColor: [248, 250, 252],
+                    lineColor: [226, 232, 240],
+                    lineWidth: 0.3
+                },
+                didDrawPage: function(data) {
+                    doc.setFontSize(7);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setTextColor(148, 163, 184);
+                    doc.text('FrotaLink • Gestão Financeira Inteligente', margin, doc.internal.pageSize.getHeight() - 7);
+                    doc.text(`Página ${doc.internal.getNumberOfPages()}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 7, { align: 'right' });
+                }
+            });
+
+            doc.save(`Transferencias_Bancarias_${new Date().toISOString().slice(0, 10)}.pdf`);
+            showToast("Relatório de transferências exportado em PDF com sucesso!", "success");
+        } catch (e) {
+            console.error('[exportTransferencias] Erro ao exportar PDF:', e);
             showToast("Falha ao exportar PDF: " + e.message, "error");
         }
     }

@@ -260,27 +260,57 @@ async function loadInitialData() {
         }
 
 
-        // --- Injeção do KM Atual Baseado nos Abastecimentos Recentes ---
+        // --- Injeção do KM Atual via View otimizada (view_veiculo_km_atual) ---
         try {
-            const { data: pageData } = await supabaseClient
-                .from('abastecimentos')
-                .select('veiculo_id, km_atual')
-                .order('created_at', { ascending: false })
-                .limit(500);
+            const { data: kmData, error: kmError } = await supabaseClient
+                .from('view_veiculo_km_atual')
+                .select('veiculo_id, km_atual');
 
             const kmMap = {};
-            if (pageData) {
-                pageData.forEach(ab => {
-                    if (!kmMap[ab.veiculo_id]) {
-                        kmMap[ab.veiculo_id] = parseFloat(ab.km_atual) || 0;
-                    }
+            if (!kmError && kmData && kmData.length > 0) {
+                kmData.forEach(r => {
+                    kmMap[r.veiculo_id] = parseFloat(r.km_atual) || 0;
                 });
+            } else {
+                // Fallback paginado para caso a view falhe ou não esteja disponível
+                let allAbastecimentos = [];
+                let from = 0;
+                let finished = false;
+                while (!finished) {
+                    const { data: page, error: pageErr } = await supabaseClient
+                        .from('abastecimentos')
+                        .select('veiculo_id, km_atual, data, horario')
+                        .order('data', { ascending: true })
+                        .order('horario', { ascending: true })
+                        .range(from, from + 999);
+                    if (pageErr || !page || page.length === 0) { finished = true; break; }
+                    allAbastecimentos = allAbastecimentos.concat(page);
+                    if (page.length < 1000) finished = true;
+                    else from += 1000;
+                }
+                if (allAbastecimentos.length > 0) {
+                    allAbastecimentos.forEach(ab => {
+                        kmMap[ab.veiculo_id] = parseFloat(ab.km_atual) || 0;
+                    });
+                }
             }
 
-            state.vehicles.forEach(veh => {
-                veh.km_atual = kmMap[veh.id] || parseFloat(veh.km_atual) || 0;
+            // Complementa com o maior KM registrado nas próprias manutenções se for superior
+            state.manutencoes.forEach(m => {
+                if (m.veiculo_id && m.km_atual) {
+                    const mKm = parseFloat(m.km_atual) || 0;
+                    if (mKm > (kmMap[m.veiculo_id] || 0)) {
+                        kmMap[m.veiculo_id] = mKm;
+                    }
+                }
             });
+
+            state.vehicles.forEach(veh => {
+                veh.km_atual = kmMap[veh.id] ?? parseFloat(veh.km_atual) ?? 0;
+            });
+            console.log('[Manutenção] KM Atual dos veículos injetado com sucesso:', Object.keys(kmMap).length, 'veículos.');
         } catch (kmErr) {
+            console.warn('[Manutenção] Erro ao carregar KM atual dos veículos:', kmErr);
             state.vehicles.forEach(veh => {
                 veh.km_atual = parseFloat(veh.km_atual) || 0;
             });
@@ -734,16 +764,16 @@ function renderMaintTable() {
                     valB = (b.manutencao_itens?.[0]?.descricao || b.descricao_servico || '').toUpperCase();
                     break;
                 case 'km_troca':
-                    valA = parseFloat(a.km_troca || a.manutencao_itens?.[0]?.proxima_troca_km || 0);
-                    valB = parseFloat(b.km_troca || b.manutencao_itens?.[0]?.proxima_troca_km || 0);
+                    valA = parseFloat(a.km_atual || a.km_troca || 0);
+                    valB = parseFloat(b.km_atual || b.km_troca || 0);
                     break;
                 case 'proxima_troca':
-                    valA = parseFloat(a.manutencao_itens?.[0]?.proxima_troca_km || 9999999);
-                    valB = parseFloat(b.manutencao_itens?.[0]?.proxima_troca_km || 9999999);
+                    valA = parseFloat(a.manutencao_itens?.[0]?.proxima_troca_km || a.proxima_troca_km || 9999999);
+                    valB = parseFloat(b.manutencao_itens?.[0]?.proxima_troca_km || b.proxima_troca_km || 9999999);
                     break;
                 case 'km_faltante':
-                    const proxA = a.manutencao_itens?.[0]?.proxima_troca_km;
-                    const proxB = b.manutencao_itens?.[0]?.proxima_troca_km;
+                    const proxA = a.manutencao_itens?.[0]?.proxima_troca_km || a.proxima_troca_km;
+                    const proxB = b.manutencao_itens?.[0]?.proxima_troca_km || b.proxima_troca_km;
                     valA = proxA ? (parseFloat(proxA) - currentKmA) : 9999999;
                     valB = proxB ? (parseFloat(proxB) - currentKmB) : 9999999;
                     break;
@@ -878,24 +908,31 @@ function renderMaintTable() {
             `;
         }).join('');
 
-        const proxKmText = items.map(i => i.proxima_troca_km ? parseFloat(i.proxima_troca_km).toLocaleString('pt-BR') : '---').join('<br>');
-        
-        const kmFaltanteHtml = items.map(i => {
-            if (!i.proxima_troca_km) return '---';
-            const limit = parseFloat(i.proxima_troca_km);
-            const faltante = limit - currentKm;
-            
-            let color = '#10b981'; // verde
-            if (faltante <= 0) color = '#ef4444'; // vermelho (vencido)
-            else if (faltante <= 2000) color = '#f59e0b'; // laranja (próximo)
-            
-            return `<div style="color: ${color}; font-weight: 800; font-size: 0.8rem;">${faltante.toLocaleString('pt-BR')} km</div>`;
-        }).join('');
+        let proxKmList = items.map(i => i.proxima_troca_km ? parseFloat(i.proxima_troca_km) : null).filter(k => k !== null);
+        if (proxKmList.length === 0 && m.proxima_troca_km) {
+            proxKmList = [parseFloat(m.proxima_troca_km)];
+        }
 
-        const isOverdue = !isConcluido && items.some(i => {
-            if (!i.proxima_troca_km) return false;
-            return currentKm >= parseFloat(i.proxima_troca_km);
-        });
+        const proxKmText = proxKmList.length > 0 
+            ? proxKmList.map(k => k.toLocaleString('pt-BR')).join('<br>')
+            : '---';
+        
+        const kmFaltanteHtml = proxKmList.length > 0
+            ? proxKmList.map(limit => {
+                const faltante = limit - currentKm;
+                
+                let color = '#10b981'; // verde
+                if (faltante <= 0) color = '#ef4444'; // vermelho (vencido)
+                else if (faltante <= 2000) color = '#f59e0b'; // laranja (próximo)
+                
+                return `<div style="color: ${color}; font-weight: 800; font-size: 0.8rem;" title="KM Atual do Veículo: ${currentKm.toLocaleString('pt-BR')} km | Próxima Troca: ${limit.toLocaleString('pt-BR')} km">${faltante.toLocaleString('pt-BR')} km</div>`;
+            }).join('')
+            : '---';
+
+        const isOverdue = !isConcluido && (
+            items.some(i => i.proxima_troca_km && currentKm >= parseFloat(i.proxima_troca_km)) ||
+            (m.proxima_troca_km && currentKm >= parseFloat(m.proxima_troca_km))
+        );
 
         let statusLabel, statusBg, statusColor, statusBorder;
         if (m.status === 'AGENDADO') {
@@ -2497,6 +2534,25 @@ window.selectMaintVehicle = (id, label) => {
     }
     if (resultsDiv) resultsDiv.style.display = 'none';
     currentAutocompleteIndex = -1;
+
+    // Se estiver registrando nova manutenção e o campo KM estiver vazio, sugere o KM atual do veículo
+    const kmInput = document.getElementById('maint_km');
+    const veh = state.vehicles.find(v => v.id === id);
+    if (kmInput && (!kmInput.value || parseFloat(kmInput.value) === 0) && veh && veh.km_atual) {
+        kmInput.value = veh.km_atual;
+        if (typeof renderMaintItems === 'function') renderMaintItems();
+    }
+};
+
+window.calculateNextMaint = function() {
+    if (state.currentMaintItems && state.currentMaintItems.length > 0) {
+        state.currentMaintItems.forEach(item => {
+            const predEl = document.getElementById(`prediction_km_${item.id}`);
+            if (predEl) {
+                predEl.innerHTML = calculateItemPrediction(item, 'KM');
+            }
+        });
+    }
 };
 
 window.handleMaintOficinaSearch = (el) => {

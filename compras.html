@@ -1134,12 +1134,12 @@
                     <div class="filter-group" style="min-width: 120px;">
                         <label>Início</label>
                         <input type="date" id="filterDateStart" class="filter-select"
-                            onchange="handleIntelligentFilter('filterDateStart')">
+                            onchange="handleCustomDateChange()">
                     </div>
                     <div class="filter-group" style="min-width: 120px;">
                         <label>Fim</label>
                         <input type="date" id="filterDateEnd" class="filter-select"
-                            onchange="handleIntelligentFilter('filterDateEnd')">
+                            onchange="handleCustomDateChange()">
                     </div>
                 </div>
 
@@ -1636,7 +1636,7 @@
                             <span class="section-title">Informações de Pagamento</span>
                         </div>
                         <div class="form-row"
-                            style="grid-template-columns: 1.5fr 1.1fr 1.3fr 90px 95px; gap: 1rem; align-items: flex-end;">
+                            style="grid-template-columns: 1.4fr 1.1fr 1.3fr 90px auto; gap: 1rem; align-items: flex-end;">
                             <div class="input-group">
                                 <label>Forma de Pagamento</label>
                                 <div class="input-with-btn">
@@ -1665,11 +1665,15 @@
                                     style="text-align: center; font-weight: 700; padding: 0.5rem 0.3rem;"
                                     onchange="generateInstallments()" oninput="generateInstallments()">
                             </div>
-                            <div class="input-group" id="prazoParcWrapper" style="opacity:0.5; pointer-events:none; max-width: 95px;">
+                            <div class="input-group" id="prazoParcWrapper" style="opacity:0.5; pointer-events:none; min-width: 105px;">
                                 <label style="white-space: nowrap;">Prazo (dias):</label>
                                 <input type="number" id="prazoParcelas" class="compra-input" value="30" min="1"
                                     style="text-align: center; font-weight: 700; padding: 0.5rem 0.3rem;"
                                     onchange="recalculateInstallmentDates()" oninput="recalculateInstallmentDates()">
+                                <label style="display:flex; align-items:center; gap:5px; margin-top:5px; font-size:0.72rem; color:var(--text-muted, #94a3b8); font-weight:600; cursor:pointer; white-space:nowrap; user-select:none;" title="Repetir o mesmo dia do mês em todas as parcelas">
+                                    <input type="checkbox" id="chkCompraFixarMesmoDia" onchange="window.recalculateInstallmentDates()" style="cursor:pointer; accent-color:var(--primary, #10b981); width:13px; height:13px;">
+                                    Fixar mesmo dia
+                                </label>
                             </div>
                         </div>
 

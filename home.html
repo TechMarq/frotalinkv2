@@ -440,6 +440,14 @@
                     <p>Controle de veículos, alocações de motoristas e seguros.</p>
                 </div>
             </a>
+            <a href="operacao.html" class="module-card" id="module-card-operacao" style="display: none;">
+                <div class="status-pill pill-active">Instalado</div>
+                <div class="module-icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;"><i data-lucide="navigation"></i></div>
+                <div>
+                    <h3>Operação</h3>
+                    <p>Gestão unificada de veículos alocados e prestadores comerciais.</p>
+                </div>
+            </a>
             <a href="abastecimento.html" class="module-card" id="module-card-abastecimento" style="display: none;">
                 <div class="status-pill pill-active">Instalado</div>
                 <div class="module-icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;"><i
@@ -633,6 +641,14 @@
                     const showGerencial = window.currentUserRole === 'admin' ||
                         (window.currentUserPermissions && window.currentUserPermissions['gerencial']?.view);
                     gerencialCard.style.display = showGerencial ? 'flex' : 'none';
+                }
+
+                // Operação: visível se admin ou tem acesso a frota, comercial ou operacao
+                const operacaoCard = document.getElementById('module-card-operacao');
+                if (operacaoCard) {
+                    const showOperacao = window.currentUserRole === 'admin' ||
+                        hasAccess('operacao') || hasAccess('frota') || hasAccess('comercial');
+                    operacaoCard.style.display = showOperacao ? 'flex' : 'none';
                 }
                 Object.entries(modules).forEach(([id, mod]) => {
                     const el = document.getElementById(id);

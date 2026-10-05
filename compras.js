@@ -368,6 +368,62 @@ async function loadConfigFromSupabase() {
     }
 }
 
+// Helper para carregar registros filhos (itens, adicionais, parcelas) em lotes
+// contornando o limite de 1.000 registros do Supabase/PostgREST e restrições de URL
+async function fetchChildrenForCompras(client, table, compraIds) {
+    if (!compraIds || compraIds.length === 0) return [];
+    
+    if (compraIds.length <= 100) {
+        let all = [];
+        let from = 0;
+        const step = 1000;
+        let finished = false;
+        while (!finished) {
+            const { data, error } = await client
+                .from(table)
+                .select('*')
+                .in('compra_id', compraIds)
+                .range(from, from + step - 1);
+            if (error) {
+                console.error(`Erro ao buscar ${table}:`, error);
+                break;
+            }
+            if (!data || data.length === 0) break;
+            all = all.concat(data);
+            if (data.length < step) finished = true;
+            else from += step;
+        }
+        return all;
+    }
+
+    // Se houver mais de 100 compras (ex: Todos os Períodos), particiona em blocos de 100 IDs
+    // para evitar estourar o tamanho da URL e contornar a trava de 1.000 do PostgREST
+    let all = [];
+    const chunkSize = 100;
+    for (let i = 0; i < compraIds.length; i += chunkSize) {
+        const slice = compraIds.slice(i, i + chunkSize);
+        let from = 0;
+        const step = 1000;
+        let finished = false;
+        while (!finished) {
+            const { data, error } = await client
+                .from(table)
+                .select('*')
+                .in('compra_id', slice)
+                .range(from, from + step - 1);
+            if (error) {
+                console.error(`Erro ao buscar bloco de ${table}:`, error);
+                break;
+            }
+            if (!data || data.length === 0) break;
+            all = all.concat(data);
+            if (data.length < step) finished = true;
+            else from += step;
+        }
+    }
+    return all;
+}
+
 async function loadCompras(startDate, endDate) {
     const client = window.authClient || supabaseClient;
     if (!client) return;
@@ -399,13 +455,13 @@ async function loadCompras(startDate, endDate) {
 
         if (compraIds.length > 0) {
             const [itensRes, addsRes, parcsRes] = await Promise.all([
-                client.from('compra_itens').select('*').in('compra_id', compraIds),
-                client.from('compra_adicionais').select('*').in('compra_id', compraIds),
-                client.from('compra_parcelas').select('*').in('compra_id', compraIds)
+                fetchChildrenForCompras(client, 'compra_itens', compraIds),
+                fetchChildrenForCompras(client, 'compra_adicionais', compraIds),
+                fetchChildrenForCompras(client, 'compra_parcelas', compraIds)
             ]);
-            cloudItens = itensRes.data || [];
-            cloudAdds = addsRes.data || [];
-            cloudParcs = parcsRes.data || [];
+            cloudItens = itensRes || [];
+            cloudAdds = addsRes || [];
+            cloudParcs = parcsRes || [];
         }
 
         // 3. Map to internal format
@@ -485,7 +541,10 @@ async function loadCompras(startDate, endDate) {
 
         // 4. RECOVERY LOGIC: Check for "orphaned" maintenance records that have a Purchase ID
         try {
-            const { data: maintItems, error: mErr } = await client.from('manutencao_itens').select('*, manutencoes(*)').filter('descricao', 'ilike', '%[ID:%');
+            const { data: maintItems, error: mErr } = await client
+                .from('manutencao_itens')
+                .select('*, manutencoes(*)')
+                .filter('descricao', 'ilike', '%[ID:%');
             
             if (mErr) console.warn("⚠️ Erro ao buscar manutenções para recuperação:", mErr);
 
@@ -493,32 +552,57 @@ async function loadCompras(startDate, endDate) {
                 const purchaseIdsInCloud = new Set(mappedCompras.map(c => c.id));
                 const purchaseIdsInLocal = new Set(compras.map(c => c.id));
                 
+                // Extrai candidatos a órfãos
+                const candidateItems = [];
                 maintItems.forEach(mi => {
                     const match = mi.descricao.match(/\[ID:([^\]]+)\]/);
                     if (match) {
                         const pId = match[1];
                         if (!purchaseIdsInCloud.has(pId) && !purchaseIdsInLocal.has(pId)) {
-                            const m = Array.isArray(mi.manutencoes) ? mi.manutencoes[0] : mi.manutencoes;
-                            if (m) {
-                                mappedCompras.push({
-                                    id: pId,
-                                    data: m.data,
-                                    numeroNota: 'RECUPERADA',
-                                    fornecedorId: m.oficina_id || m.fornecedor_id,
-                                    valorTotal: parseFloat(mi.valor_servicos || 0) + parseFloat(mi.valor_pecas || 0),
-                                    itens: [{
-                                        produto: mi.descricao.replace(/\[ID:[^\]]+\]/, '').trim(),
-                                        quantidade: 1,
-                                        valorUnitario: parseFloat(mi.valor_servicos || 0) + parseFloat(mi.valor_pecas || 0),
-                                        tipo: 'servico'
-                                    }],
-                                    recuperada: true
-                                });
-                                purchaseIdsInCloud.add(pId);
-                            }
+                            candidateItems.push({ mi, pId });
                         }
                     }
                 });
+
+                if (candidateItems.length > 0) {
+                    // Verifica no banco se as compras realmente não existem (evita criar #RECUPERADA para compras reais)
+                    const uniquePIds = [...new Set(candidateItems.map(c => c.pId))];
+                    const { data: dbExistingPurchases } = await client
+                        .from('compras')
+                        .select('id')
+                        .in('id', uniquePIds);
+
+                    const existingInDbSet = new Set((dbExistingPurchases || []).map(p => p.id));
+
+                    candidateItems.forEach(({ mi, pId }) => {
+                        // Se a compra existe no banco de dados, NÃO criamos nota fictícia
+                        if (existingInDbSet.has(pId)) return;
+                        if (purchaseIdsInCloud.has(pId)) return;
+
+                        const m = Array.isArray(mi.manutencoes) ? mi.manutencoes[0] : mi.manutencoes;
+                        if (m) {
+                            // Se a consulta possui filtro de data, respeita a data da manutenção
+                            if (sDate && m.data < sDate) return;
+                            if (eDate && m.data > eDate) return;
+
+                            mappedCompras.push({
+                                id: pId,
+                                data: m.data,
+                                numeroNota: 'RECUPERADA',
+                                fornecedorId: m.oficina_id || m.fornecedor_id,
+                                valorTotal: parseFloat(mi.valor_servicos || 0) + parseFloat(mi.valor_pecas || 0),
+                                itens: [{
+                                    produto: mi.descricao.replace(/\[ID:[^\]]+\]/, '').trim(),
+                                    quantidade: 1,
+                                    valorUnitario: parseFloat(mi.valor_servicos || 0) + parseFloat(mi.valor_pecas || 0),
+                                    tipo: 'servico'
+                                }],
+                                recuperada: true
+                            });
+                            purchaseIdsInCloud.add(pId);
+                        }
+                    });
+                }
             }
         } catch (recErr) {
             console.warn("⚠️ Aviso na rotina de recuperação de manutenções:", recErr);
@@ -1257,6 +1341,12 @@ window.openCompraModal = async (id = null) => {
         document.getElementById('toggleParcelas').classList.remove('active');
         document.getElementById('qtdParcWrapper').style.opacity = '0.5';
         document.getElementById('qtdParcWrapper').style.pointerEvents = 'none';
+        if (document.getElementById('prazoParcWrapper')) {
+            document.getElementById('prazoParcWrapper').style.opacity = '0.5';
+            document.getElementById('prazoParcWrapper').style.pointerEvents = 'none';
+        }
+        const chkCompraFixar = document.getElementById('chkCompraFixarMesmoDia');
+        if (chkCompraFixar) chkCompraFixar.checked = false;
 
         if (id) {
             editId = id;
@@ -1869,7 +1959,7 @@ function populateModal(c) {
             const row = document.createElement('div');
             row.className = 'parcela-row';
             row.style = "display: grid; grid-template-columns: 100px 1fr 1fr 30px; gap: 1.5rem; align-items: center; margin-bottom: 0.8rem; background: rgba(0, 0, 0, 0.2); padding: 0.8rem; border-radius: 10px;";
-            row.innerHTML = `<div style="font-weight: 700; color: var(--primary)">Parcela ${idx + 1}</div><input type="date" class="parc-date compra-input" value="${p.data}" onchange="${idx === 0 ? 'window.recalculateInstallmentDates()' : 'calculateTotal()'}" oninput="${idx === 0 ? 'window.recalculateInstallmentDates()' : 'calculateTotal()'}"><input type="number" step="0.01" class="parc-val compra-input" value="${p.valor}" onchange="calculateTotal()"><i data-lucide="info" style="width:14px; opacity: 0.5"></i>`;
+            row.innerHTML = `<div style="font-weight: 700; color: var(--primary)">Parcela ${idx + 1}</div><input type="date" class="parc-date compra-input" value="${p.data}" onchange="window.onCompraParcelaDateChange(${idx + 1})" oninput="window.onCompraParcelaDateChange(${idx + 1})"><input type="number" step="0.01" class="parc-val compra-input" value="${p.valor}" onchange="calculateTotal()"><i data-lucide="info" style="width:14px; opacity: 0.5"></i>`;
             container.appendChild(row);
         });
     }
@@ -2615,6 +2705,10 @@ window.toggleParcelasSection = (el) => {
         prazoWrapper.style.opacity = visible ? '1' : '0.5';
         prazoWrapper.style.pointerEvents = visible ? 'auto' : 'none';
     }
+    if (!visible) {
+        const chkCompra = document.getElementById('chkCompraFixarMesmoDia');
+        if (chkCompra) chkCompra.checked = false;
+    }
 
     // Anular campo de vencimento principal para evitar conflito
     const vencimentoInput = document.getElementById('vencimentoNota');
@@ -2641,6 +2735,30 @@ window.toggleParcelasSection = (el) => {
     calculateTotal();
 };
 
+function calculateInstallmentDate(firstDateStr, index, intervalDays, fixarMesmoDia) {
+    if (index === 0) return firstDateStr || '';
+    if (!firstDateStr) return '';
+    const parts = firstDateStr.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return firstDateStr;
+    const [y, m, d] = parts;
+    if (fixarMesmoDia) {
+        const totalMonths = (m - 1) + index;
+        const targetYear = y + Math.floor(totalMonths / 12);
+        const targetMonth = ((totalMonths % 12) + 12) % 12;
+        const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+        const clampedDay = Math.min(d, daysInMonth);
+        return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
+    } else {
+        const baseDate = new Date(y, m - 1, d);
+        baseDate.setDate(baseDate.getDate() + (index * intervalDays));
+        const targetYear = baseDate.getFullYear();
+        const targetMonth = baseDate.getMonth() + 1;
+        const targetDay = baseDate.getDate();
+        return `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+    }
+}
+window.calculateInstallmentDate = calculateInstallmentDate;
+
 window.recalculateInstallmentDates = () => {
     const rows = document.querySelectorAll('#parcelasContainer .parcela-row');
     if (rows.length === 0) return;
@@ -2649,23 +2767,30 @@ window.recalculateInstallmentDates = () => {
     if (!firstDateInput || !firstDateInput.value) return;
 
     const prazoDias = parseInt(document.getElementById('prazoParcelas')?.value) || 30;
-
-    const [year, month, day] = firstDateInput.value.split('-').map(Number);
+    const fixarMesmoDia = document.getElementById('chkCompraFixarMesmoDia')?.checked || false;
 
     rows.forEach((row, idx) => {
         if (idx === 0) return; // Mantém a data definida na Parcela 1
         
-        const nextDate = new Date(year, month - 1, day + (idx * prazoDias));
-        const yyyy = nextDate.getFullYear();
-        const mm = String(nextDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(nextDate.getDate()).padStart(2, '0');
-        
         const dateInput = row.querySelector('.parc-date');
         if (dateInput) {
-            dateInput.value = `${yyyy}-${mm}-${dd}`;
+            dateInput.value = calculateInstallmentDate(firstDateInput.value, idx, prazoDias, fixarMesmoDia);
         }
     });
 
+    calculateTotal();
+};
+
+window.onCompraParcelaDateChange = (parcelaNum) => {
+    if (parcelaNum === 1) {
+        window.recalculateInstallmentDates();
+    } else {
+        // Se o usuário editar manualmente qualquer parcela > 1, desmarca a opção 'Fixar mesmo dia'
+        const chk = document.getElementById('chkCompraFixarMesmoDia');
+        if (chk && chk.checked) {
+            chk.checked = false;
+        }
+    }
     calculateTotal();
 };
 
@@ -2675,35 +2800,38 @@ window.generateInstallments = () => {
 
     const qty = parseInt(document.getElementById('qtdParcelas').value) || 1;
     const prazoDias = parseInt(document.getElementById('prazoParcelas')?.value) || 30;
+    const fixarMesmoDia = document.getElementById('chkCompraFixarMesmoDia')?.checked || false;
     const totalNota = calculateTotal();
     const baseValue = (totalNota / qty).toFixed(2);
     container.innerHTML = '';
 
     const dataCompraInput = document.getElementById('dataCompra')?.value;
-    let year, month, day;
+    let baseDateStr = '';
     if (dataCompraInput) {
-        [year, month, day] = dataCompraInput.split('-').map(Number);
+        const [year, month, day] = dataCompraInput.split('-').map(Number);
+        const firstDueDate = new Date(year, month - 1, day + prazoDias);
+        const yyyy = firstDueDate.getFullYear();
+        const mm = String(firstDueDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(firstDueDate.getDate()).padStart(2, '0');
+        baseDateStr = `${yyyy}-${mm}-${dd}`;
     } else {
         const now = new Date();
-        year = now.getFullYear();
-        month = now.getMonth() + 1;
-        day = now.getDate();
+        const firstDueDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + prazoDias);
+        const yyyy = firstDueDate.getFullYear();
+        const mm = String(firstDueDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(firstDueDate.getDate()).padStart(2, '0');
+        baseDateStr = `${yyyy}-${mm}-${dd}`;
     }
 
     for (let i = 1; i <= qty; i++) {
-        // Parcela 1 é gerada para dataCompra + prazoDias
-        const dueDate = new Date(year, month - 1, day + (i * prazoDias));
-        const yyyy = dueDate.getFullYear();
-        const mm = String(dueDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(dueDate.getDate()).padStart(2, '0');
-        const formattedDate = `${yyyy}-${mm}-${dd}`;
+        const formattedDate = calculateInstallmentDate(baseDateStr, i - 1, prazoDias, fixarMesmoDia);
 
         const row = document.createElement('div');
         row.className = 'parcela-row';
         row.style = "display: grid; grid-template-columns: 100px 1fr 1fr 30px; gap: 1.5rem; align-items: center; margin-bottom: 0.8rem; background: rgba(0, 0, 0, 0.2); padding: 0.8rem; border-radius: 10px;";
         row.innerHTML = `
             <div style="font-weight: 700; color: var(--primary)">Parcela ${i}</div>
-            <input type="date" class="parc-date compra-input" value="${formattedDate}" onchange="${i === 1 ? 'window.recalculateInstallmentDates()' : 'calculateTotal()'}" oninput="${i === 1 ? 'window.recalculateInstallmentDates()' : 'calculateTotal()'}">
+            <input type="date" class="parc-date compra-input" value="${formattedDate}" onchange="window.onCompraParcelaDateChange(${i})" oninput="window.onCompraParcelaDateChange(${i})">
             <input type="number" step="0.01" class="parc-val compra-input" value="${baseValue}" onchange="calculateTotal()">
             <i data-lucide="info" style="width:14px; opacity: 0.5"></i>
         `;
@@ -2849,15 +2977,35 @@ async function handleSaveCompra(e) {
         }
 
         // 2. Duplicate Validation (Same supplier + Same invoice number)
-        const isDuplicate = compras.some(c => 
+        // Passo 1: Checagem instantânea em memória local (0ms, 0 requisições)
+        const localDuplicate = compras.find(c => 
             c.fornecedorId === fornecedorId && 
             String(c.numeroNota).trim() === numNota && 
             c.id != editId
         );
 
-        if (isDuplicate) {
+        if (localDuplicate) {
             const fornObj = config.fornecedores.find(f => f.id == fornecedorId);
-            alert(`⚠️ Atenção: Já existe uma nota lançada com o número "${numNota}" para o fornecedor "${fornObj ? fornObj.nome : 'selecionado'}".`);
+            alert(`⚠️ Bloqueado: Já existe uma nota lançada com o número "${numNota}" para o fornecedor "${fornObj ? fornObj.nome : 'selecionado'}" (Data: ${formatDateBR(localDuplicate.data)}).`);
+            return;
+        }
+
+        // Passo 2: Se não estava na memória do mês atual, faz uma única consulta pontual e leve no banco (~20ms)
+        let queryDup = client
+            .from('compras')
+            .select('id, data_emissao')
+            .eq('fornecedor_id', fornecedorId)
+            .eq('numero_nota', numNota);
+            
+        if (editId) {
+            queryDup = queryDup.neq('id', editId);
+        }
+
+        const { data: dbDup } = await queryDup.maybeSingle();
+
+        if (dbDup) {
+            const fornObj = config.fornecedores.find(f => f.id == fornecedorId);
+            alert(`⚠️ Bloqueado: Já existe a nota "${numNota}" lançada para o fornecedor "${fornObj ? fornObj.nome : 'selecionado'}" em ${formatDateBR(dbDup.data_emissao)}.`);
             return;
         }
 
@@ -4917,6 +5065,25 @@ window.deleteCompra = async (id) => {
     });
 };
 
+window.handleCustomDateChange = async () => {
+    const startInput = document.getElementById('filterDateStart');
+    const endInput = document.getElementById('filterDateEnd');
+    const sDate = startInput ? startInput.value : '';
+    const eDate = endInput ? endInput.value : '';
+
+    if (sDate || eDate) {
+        if (typeof window.showLoader === 'function') window.showLoader();
+        try {
+            await loadCompras(sDate, eDate);
+        } finally {
+            if (typeof window.hideLoader === 'function') window.hideLoader();
+        }
+    }
+    currentPage = 1;
+    renderCompras();
+    updateFilterOptionsDynamically('filterDateStart');
+};
+
 window.handleDatePresetChange = (el, triggerFetch = true) => {
     const val = el ? el.value : 'month';
     const container = document.getElementById('customDateContainer');
@@ -4972,10 +5139,16 @@ window.handleDatePresetChange = (el, triggerFetch = true) => {
         }
     }
     
-    if (triggerFetch && val !== 'custom') {
-        loadCompras().then(() => {
+    if (triggerFetch) {
+        const s = startInput.value;
+        const e = endInput.value;
+        if (val === 'custom' && !s && !e) {
             handleIntelligentFilter('filterDatePreset');
-        });
+        } else {
+            loadCompras(s, e).then(() => {
+                handleIntelligentFilter('filterDatePreset');
+            });
+        }
     } else {
         handleIntelligentFilter('filterDatePreset');
     }

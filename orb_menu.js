@@ -6,6 +6,7 @@
 (function() {
     const modules = [
         { id: 'home', icon: 'layout-grid', label: 'Hub', url: 'home.html' },
+        { id: 'operacao', icon: 'navigation', label: 'Operação', url: 'operacao.html' },
         { id: 'fleet', icon: 'car', label: 'Frota', url: 'index.html' },
         { id: 'fuel', icon: 'fuel', label: 'Abastecimento', url: 'abastecimento.html' },
         { id: 'maint', icon: 'wrench', label: 'Manutenção', url: 'manutencao.html' },
@@ -20,6 +21,7 @@
 
     const authModuleMap = {
         'home': null,
+        'operacao': 'frota',
         'fleet': 'frota',
         'fuel': 'abastecimento',
         'maint': 'manutencao',
@@ -87,6 +89,16 @@
                 hasViewPerm = window.currentUserRole === 'admin' || 
                     (window.currentUserPermissions && Object.keys(window.currentUserPermissions).some(key => key.endsWith('_auditoria') && window.currentUserPermissions[key].view));
                 isEnabled = hasViewPerm;
+            } else if (modId === 'operacao') {
+                hasViewPerm = window.currentUserRole === 'admin' ||
+                    (window.currentUserPermissions && (
+                        (window.currentUserPermissions['frota'] && window.currentUserPermissions['frota'].view) ||
+                        (window.currentUserPermissions['comercial'] && window.currentUserPermissions['comercial'].view) ||
+                        (window.currentUserPermissions['operacao'] && window.currentUserPermissions['operacao'].view) ||
+                        Object.keys(window.currentUserPermissions).some(key => (key.startsWith('frota_') || key.startsWith('comercial_')) && window.currentUserPermissions[key].view)
+                    ));
+                isEnabled = window.currentUserRole === 'admin' || !window.currentUserModules || 
+                    window.currentUserModules.some(m => ['frota', 'comercial', 'operacao'].includes(m) || m.startsWith('frota_') || m.startsWith('comercial_'));
             } else {
                 const authModKey = authModuleMap[modId];
                 if (!authModKey) return;
