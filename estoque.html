@@ -1426,9 +1426,9 @@
                 <span style="color: var(--text-main);">Novo Registro</span>
             </div>
 
-            <div style="display: flex; justify-content: center; width: 100%;">
+            <div style="width: 100%;">
                 <div class="inventory-control-card"
-                    style="max-width: 900px; width: 100%; margin: 0 auto; padding: 2.5rem; position: relative; overflow: hidden;">
+                    style="width: 100%; padding: 2.5rem; position: relative; overflow: hidden;">
                     <!-- Decorative background element -->
                     <div
                         style="position: absolute; top: 0; right: 0; width: 150px; height: 150px; background: radial-gradient(circle, var(--primary) 0%, transparent 70%); opacity: 0.05; transform: translate(30%, -30%); pointer-events: none;">
@@ -1495,23 +1495,23 @@
                                 <label>Marca do Produto</label>
                                 <div style="display: flex; gap: 0.5rem;">
                                     <select id="mp_marca" style="height: 48px; flex: 1;"></select>
-                                    <button type="button" onclick="switchTab('setup')"
-                                        style="background: rgba(245, 158, 11, 0.1); border: none; border-radius: 10px; width: 38px; height: 48px; color: var(--accent); cursor: pointer;">
+                                    <button type="button" onclick="openQuickAuxModal('marca')" title="Cadastrar Nova Marca"
+                                        style="background: rgba(245, 158, 11, 0.1); border: none; border-radius: 10px; width: 38px; height: 48px; color: var(--accent); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">
                                         <i data-lucide="plus" style="width: 18px;"></i>
                                     </button>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Linha 3: Unidade, Categoria e AplicaÃ§Ã£o -->
+                        <!-- Linha 3: Unidade, Categoria e Aplicação -->
                         <div class="form-grid"
                             style="display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 1.5rem; margin-bottom: 1.5rem;">
                             <div class="form-group">
                                 <label>Unidade de Medida*</label>
                                 <div style="display: flex; gap: 0.5rem;">
                                     <select id="mp_unidade" style="height: 48px; flex: 1;" required></select>
-                                    <button type="button" onclick="switchTab('setup')"
-                                        style="background: rgba(245, 158, 11, 0.1); border: none; border-radius: 10px; width: 38px; height: 48px; color: var(--accent); cursor: pointer;">
+                                    <button type="button" onclick="openQuickAuxModal('unidade')" title="Cadastrar Nova Unidade"
+                                        style="background: rgba(245, 158, 11, 0.1); border: none; border-radius: 10px; width: 38px; height: 48px; color: var(--accent); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">
                                         <i data-lucide="plus" style="width: 18px;"></i>
                                     </button>
                                 </div>
@@ -1520,8 +1520,8 @@
                                 <label>Categoria*</label>
                                 <div style="display: flex; gap: 0.5rem;">
                                     <select id="mp_categoria" style="height: 48px; flex: 1;" required></select>
-                                    <button type="button" onclick="switchTab('setup')"
-                                        style="background: rgba(245, 158, 11, 0.1); border: none; border-radius: 10px; width: 38px; height: 48px; color: var(--accent); cursor: pointer;">
+                                    <button type="button" onclick="openQuickAuxModal('categoria')" title="Cadastrar Nova Categoria"
+                                        style="background: rgba(245, 158, 11, 0.1); border: none; border-radius: 10px; width: 38px; height: 48px; color: var(--accent); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">
                                         <i data-lucide="plus" style="width: 18px;"></i>
                                     </button>
                                 </div>
@@ -1531,8 +1531,8 @@
                                 <div style="display: flex; gap: 0.5rem;">
                                     <select id="mp_aplicacao" style="height: 48px; flex: 1;"
                                         onchange="handleApplicationSelect(this)"></select>
-                                    <button type="button" onclick="switchTab('setup')"
-                                        style="background: rgba(245, 158, 11, 0.1); border: none; border-radius: 10px; width: 38px; height: 48px; color: var(--accent); cursor: pointer;">
+                                    <button type="button" onclick="openQuickAuxModal('modelo')" title="Cadastrar Novo Modelo de Veículo"
+                                        style="background: rgba(245, 158, 11, 0.1); border: none; border-radius: 10px; width: 38px; height: 48px; color: var(--accent); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">
                                         <i data-lucide="plus" style="width: 18px;"></i>
                                     </button>
                                 </div>
@@ -2306,6 +2306,143 @@
                 </div>
             </div>
         </div>
+
+        <!-- MODAL DE CADASTRO RÁPIDO AUXILIAR (SEM SAIR DA TELA DE PRODUTO) -->
+        <div id="modalQuickAuxiliar" class="modal-overlay"
+            style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.82); backdrop-filter: blur(8px); z-index: 10001; align-items: center; justify-content: center; padding: 1.5rem;">
+            <div
+                style="background: #1e293b; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 20px; width: 100%; max-width: 480px; padding: 2rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05); display: flex; flex-direction: column; font-family: 'Inter', sans-serif; position: relative; animation: quickModalFadeIn 0.2s ease-out;">
+                
+                <!-- Header -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.9rem;">
+                        <div id="quickAuxIconBox"
+                            style="width: 44px; height: 44px; border-radius: 12px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); color: var(--accent); display: flex; align-items: center; justify-content: center;">
+                            <i id="quickAuxIcon" data-lucide="plus" style="width: 22px; height: 22px;"></i>
+                        </div>
+                        <div>
+                            <h3 id="quickAuxTitle" style="font-size: 1.25rem; font-weight: 800; color: #ffffff; margin: 0; letter-spacing: -0.01em;">
+                                Cadastro Rápido
+                            </h3>
+                            <p id="quickAuxSubtitle" style="font-size: 0.75rem; color: #94a3b8; margin: 0.2rem 0 0 0; font-weight: 500;">
+                                O item cadastrado será selecionado automaticamente no formulário.
+                            </p>
+                        </div>
+                    </div>
+                    <button type="button" onclick="closeQuickAuxModal()" title="Fechar (ESC)"
+                        style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; color: #94a3b8; cursor: pointer; transition: all 0.2s;">
+                        <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+                    </button>
+                </div>
+
+                <!-- Formulário Dinâmico -->
+                <form id="formQuickAuxiliar" onsubmit="saveQuickAux(event)">
+                    <input type="hidden" id="quick_aux_type" value="">
+
+                    <!-- Campos Marca -->
+                    <div id="quickAuxFieldsMarca" style="display: none; margin-bottom: 1.5rem;">
+                        <label style="display: block; font-size: 0.72rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.5px;">
+                            Nome da Marca *
+                        </label>
+                        <input type="text" id="quick_aux_marca_nome" placeholder="Ex: BOSCH, MAHLE, COBREQ..."
+                            style="width: 100%; box-sizing: border-box; height: 46px; background: #0f172a; border: 1px solid #334155; border-radius: 10px; color: #ffffff; font-weight: 600; padding: 0 1rem; font-size: 0.9rem; text-transform: uppercase;">
+                    </div>
+
+                    <!-- Campos Categoria -->
+                    <div id="quickAuxFieldsCategoria" style="display: none; margin-bottom: 1.5rem;">
+                        <label style="display: block; font-size: 0.72rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.5px;">
+                            Nome da Categoria *
+                        </label>
+                        <input type="text" id="quick_aux_categoria_nome" placeholder="Ex: FILTROS, FREIOS, SUSPENSÃO, ELÉTRICA..."
+                            style="width: 100%; box-sizing: border-box; height: 46px; background: #0f172a; border: 1px solid #334155; border-radius: 10px; color: #ffffff; font-weight: 600; padding: 0 1rem; font-size: 0.9rem; text-transform: uppercase;">
+                    </div>
+
+                    <!-- Campos Unidade -->
+                    <div id="quickAuxFieldsUnidade" style="display: none; margin-bottom: 1.5rem;">
+                        <div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 0.8rem;">
+                            <div>
+                                <label style="display: block; font-size: 0.72rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.5px;">
+                                    Nome da Unidade *
+                                </label>
+                                <input type="text" id="quick_aux_unidade_nome" placeholder="Ex: Peça, Litro, Jogo..."
+                                    style="width: 100%; box-sizing: border-box; height: 46px; background: #0f172a; border: 1px solid #334155; border-radius: 10px; color: #ffffff; font-weight: 600; padding: 0 1rem; font-size: 0.9rem;">
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 0.72rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.5px;">
+                                    Sigla / Código
+                                </label>
+                                <input type="text" id="quick_aux_unidade_sigla" placeholder="Ex: PC, LT, JG..." maxlength="6"
+                                    style="width: 100%; box-sizing: border-box; height: 46px; background: #0f172a; border: 1px solid #334155; border-radius: 10px; color: #ffffff; font-weight: 700; padding: 0 1rem; font-size: 0.9rem; text-transform: uppercase;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Campos Modelo / Aplicação -->
+                    <div id="quickAuxFieldsModelo" style="display: none; margin-bottom: 1.5rem;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin-bottom: 0.8rem;">
+                            <div>
+                                <label style="display: block; font-size: 0.72rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.5px;">
+                                    Marca do Veículo *
+                                </label>
+                                <input type="text" id="quick_aux_modelo_marca" placeholder="Ex: Volvo, Scania, VW..."
+                                    style="width: 100%; box-sizing: border-box; height: 44px; background: #0f172a; border: 1px solid #334155; border-radius: 10px; color: #ffffff; font-weight: 600; padding: 0 0.8rem; font-size: 0.85rem;">
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 0.72rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.5px;">
+                                    Modelo do Veículo *
+                                </label>
+                                <input type="text" id="quick_aux_modelo_nome" placeholder="Ex: FH 540, R 450, Actros..."
+                                    style="width: 100%; box-sizing: border-box; height: 44px; background: #0f172a; border: 1px solid #334155; border-radius: 10px; color: #ffffff; font-weight: 600; padding: 0 0.8rem; font-size: 0.85rem;">
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
+                            <div>
+                                <label style="display: block; font-size: 0.72rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.5px;">
+                                    Potência
+                                </label>
+                                <input type="text" id="quick_aux_modelo_potencia" placeholder="Ex: 540cv (opcional)"
+                                    style="width: 100%; box-sizing: border-box; height: 44px; background: #0f172a; border: 1px solid #334155; border-radius: 10px; color: #ffffff; font-weight: 600; padding: 0 0.8rem; font-size: 0.85rem;">
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 0.72rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.5px;">
+                                    Ano
+                                </label>
+                                <input type="text" id="quick_aux_modelo_ano" placeholder="Ex: 2024 (opcional)"
+                                    style="width: 100%; box-sizing: border-box; height: 44px; background: #0f172a; border: 1px solid #334155; border-radius: 10px; color: #ffffff; font-weight: 600; padding: 0 0.8rem; font-size: 0.85rem;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rodapé com Botões -->
+                    <div style="display: flex; gap: 0.75rem; justify-content: flex-end; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 1.25rem;">
+                        <button type="button" onclick="closeQuickAuxModal()"
+                            style="height: 44px; padding: 0 1.25rem; background: transparent; border: 1px solid #475569; border-radius: 10px; color: #cbd5e1; font-weight: 700; font-size: 0.8rem; cursor: pointer; transition: all 0.2s;"
+                            onmouseover="this.style.color='#ffffff'; this.style.borderColor='#94a3b8';"
+                            onmouseout="this.style.color='#cbd5e1'; this.style.borderColor='#475569';">
+                            CANCELAR
+                        </button>
+                        <button type="submit" id="btnQuickAuxSubmit"
+                            style="height: 44px; padding: 0 1.5rem; background: #059669; border: none; border-radius: 10px; color: #ffffff; font-weight: 800; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35); transition: all 0.2s;">
+                            <i data-lucide="check" style="width: 16px; height: 16px;"></i>
+                            <span>SALVAR E SELECIONAR</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <style>
+            @keyframes quickModalFadeIn {
+                from { opacity: 0; transform: scale(0.96); }
+                to { opacity: 1; transform: scale(1); }
+            }
+            #toast_container {
+                z-index: 10005 !important;
+            }
+            @keyframes toastSlideIn {
+                from { opacity: 0; transform: translateY(12px) scale(0.96); }
+                to { opacity: 1; transform: translateY(0) scale(1); }
+            }
+        </style>
 
         <!-- MODAL DE CONFIRMAÇÃO DE SEGURANÇA (PADRÃO SISTEMA) -->
         <div id="modalSecurityConfirm" class="modal-overlay"

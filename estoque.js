@@ -1495,7 +1495,7 @@ function switchTab(tab) {
 }
 
 // Auxiliares Logic
-async function loadSetup() {
+async function loadSetup(forceSelect = {}) {
     console.log("Iniciando carregamento dos dados auxiliares...");
     if (!supabaseClient) {
         console.error("Supabase Client não inicializado!");
@@ -1583,8 +1583,17 @@ async function loadSetup() {
         renderClientes(clientesData);
         updateSelectClientes(clientesData);
         
-        // Atualizar os campos Select do formulário
-        updateSelects(cats || [], units || [], models || [], loadedBrands);
+        // Se for um modelo recém-cadastrado, incluir automaticamente nas aplicações do produto
+        if (forceSelect && forceSelect.modelo) {
+            const modStr = forceSelect.modelo.trim();
+            if (modStr && !selectedApplications.includes(modStr)) {
+                selectedApplications.push(modStr);
+                renderApplications();
+            }
+        }
+
+        // Atualizar os campos Select do formulário preservando dados e selecionando novos
+        updateSelects(cats || [], units || [], models || [], loadedBrands, forceSelect);
         
         console.log("Processo de carregamento auxiliar finalizado.");
     } catch (err) {
@@ -1679,10 +1688,11 @@ async function addCategory() {
     const nome = document.getElementById('new_category_name').value.trim();
     if (!nome) return;
     try {
-        await supabaseClient.from('estoque_categorias').insert([{ nome }]);
-        logEstoque('INCLUSÃO', `DETALHE: Cadastrou categoria de estoque: ${nome}`);
+        const catUpper = nome.toUpperCase();
+        await supabaseClient.from('estoque_categorias').insert([{ nome: catUpper }]);
+        logEstoque('INCLUSÃO', `DETALHE: Cadastrou categoria de estoque: ${catUpper}`);
         document.getElementById('new_category_name').value = '';
-        await loadSetup();
+        await loadSetup({ categoria: catUpper });
     } catch (err) { console.error(err); }
 }
 
@@ -1695,13 +1705,16 @@ async function addModel() {
     
     if (!modelo) return;
     try {
-        await supabaseClient.from('estoque_modelos').insert([{ marca, modelo, potencia, ano }]);
-        logEstoque('INCLUSÃO', `DETALHE: Cadastrou modelo de aplicação: ${marca} ${modelo}`);
+        const marcaUpper = marca ? marca.toUpperCase() : '';
+        const modeloUpper = modelo.toUpperCase();
+        await supabaseClient.from('estoque_modelos').insert([{ marca: marcaUpper, modelo: modeloUpper, potencia, ano }]);
+        const appName = `${marcaUpper} ${modeloUpper}`.trim();
+        logEstoque('INCLUSÃO', `DETALHE: Cadastrou modelo de aplicação: ${appName}`);
         document.getElementById('new_model_nome').value = '';
         document.getElementById('new_model_marca').value = '';
         document.getElementById('new_model_potencia').value = '';
         document.getElementById('new_model_ano').value = '';
-        await loadSetup();
+        await loadSetup({ modelo: appName });
     } catch (err) { console.error(err); }
 }
 
@@ -1710,10 +1723,11 @@ async function addUnit() {
     const nome = document.getElementById('new_unit_name').value.trim();
     if (!nome) return;
     try {
-        await supabaseClient.from('estoque_unidades').insert([{ nome, sigla: nome.substring(0,2).toUpperCase() }]);
+        const sigla = nome.substring(0,2).toUpperCase();
+        await supabaseClient.from('estoque_unidades').insert([{ nome, sigla }]);
         logEstoque('INCLUSÃO', `DETALHE: Cadastrou unidade de estoque: ${nome}`);
         document.getElementById('new_unit_name').value = '';
-        await loadSetup();
+        await loadSetup({ unidade: sigla || nome });
     } catch (err) { console.error(err); }
 }
 
@@ -1896,10 +1910,11 @@ async function addBrand() {
     const nome = document.getElementById('new_brand_name').value.trim();
     if (!nome) return;
     try {
-        await supabaseClient.from('estoque_marcas').insert([{ nome: nome.toUpperCase() }]);
-        logEstoque('INCLUSÃO', `DETALHE: Cadastrou marca no estoque: ${nome.toUpperCase()}`);
+        const brandUpper = nome.toUpperCase();
+        await supabaseClient.from('estoque_marcas').insert([{ nome: brandUpper }]);
+        logEstoque('INCLUSÃO', `DETALHE: Cadastrou marca no estoque: ${brandUpper}`);
         document.getElementById('new_brand_name').value = '';
-        await loadSetup();
+        await loadSetup({ marca: brandUpper });
     } catch (err) { console.error(err); }
 }
 
@@ -1913,11 +1928,16 @@ async function deleteBrand(id) {
     } catch (err) { console.error(err); }
 }
 
-function updateSelects(cats, units, models, brands = []) {
+function updateSelects(cats, units, models, brands = [], forceSelect = {}) {
     const mpCatSelect = document.getElementById('mp_categoria');
     const mpUnitSelect = document.getElementById('mp_unidade');
     const mpModelSelect = document.getElementById('mp_aplicacao');
     const mpBrandSelect = document.getElementById('mp_marca');
+
+    // Preservar valores atualmente selecionados nos campos para não resetar enquanto o usuário preenche o produto
+    const prevCat = mpCatSelect ? mpCatSelect.value : '';
+    const prevUnit = mpUnitSelect ? mpUnitSelect.value : '';
+    const prevBrand = mpBrandSelect ? mpBrandSelect.value : '';
 
     const catOptions = '<option value="">Selecione...</option>' + 
             cats.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
@@ -1931,10 +1951,46 @@ function updateSelects(cats, units, models, brands = []) {
     const brandOptions = '<option value="">Selecione...</option>' +
             brands.map(b => `<option value="${b.nome}">${b.nome}</option>`).join('');
 
-    if (mpCatSelect) mpCatSelect.innerHTML = catOptions;
-    if (mpUnitSelect) mpUnitSelect.innerHTML = unitOptions;
-    if (mpModelSelect) mpModelSelect.innerHTML = modelOptions;
-    if (mpBrandSelect) mpBrandSelect.innerHTML = brandOptions;
+    if (mpCatSelect) {
+        mpCatSelect.innerHTML = catOptions;
+        const targetCat = (forceSelect && forceSelect.categoria !== undefined) ? forceSelect.categoria : prevCat;
+        if (targetCat) mpCatSelect.value = targetCat;
+    }
+
+    if (mpUnitSelect) {
+        mpUnitSelect.innerHTML = unitOptions;
+        const targetUnit = (forceSelect && forceSelect.unidade !== undefined) ? forceSelect.unidade : prevUnit;
+        if (targetUnit) {
+            const matchingOpt = Array.from(mpUnitSelect.options).find(o => 
+                o.value.toUpperCase() === targetUnit.toUpperCase() || 
+                o.text.toUpperCase() === targetUnit.toUpperCase()
+            );
+            if (matchingOpt) {
+                mpUnitSelect.value = matchingOpt.value;
+            } else {
+                mpUnitSelect.value = targetUnit;
+            }
+        }
+    }
+
+    if (mpModelSelect) {
+        mpModelSelect.innerHTML = modelOptions;
+    }
+
+    if (mpBrandSelect) {
+        mpBrandSelect.innerHTML = brandOptions;
+        const targetBrand = (forceSelect && forceSelect.marca !== undefined) ? forceSelect.marca : prevBrand;
+        if (targetBrand) mpBrandSelect.value = targetBrand;
+    }
+
+    // Manter atualizado também o filtro de categorias da listagem principal
+    const filterCat = document.getElementById('filter_category');
+    if (filterCat) {
+        const prevFilter = filterCat.value;
+        filterCat.innerHTML = '<option value="">Todas Categorias</option>' + 
+            cats.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+        if (prevFilter) filterCat.value = prevFilter;
+    }
 }
 
 function generateInternalCode() {
@@ -3001,5 +3057,284 @@ document.addEventListener('click', function(e) {
     const input = document.getElementById('v_cliente_nome');
     if (resultsDiv && input && !input.contains(e.target) && !resultsDiv.contains(e.target)) {
         resultsDiv.style.display = 'none';
+    }
+});
+
+// =========================================================================
+//  CADASTRO RÁPIDO AUXILIAR EM MODAL (SEM SAIR DA TELA DE PRODUTO)
+// =========================================================================
+
+function showToast(msg, type = 'success') {
+    let container = document.getElementById('toast_container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast_container';
+        container.style.cssText = 'position: fixed; bottom: 2rem; right: 2rem; z-index: 10005; display: flex; flex-direction: column; gap: 0.75rem; pointer-events: none;';
+        document.body.appendChild(container);
+    }
+    const t = document.createElement('div');
+    const isSuccess = type === 'success';
+    t.style.cssText = `
+        background: ${isSuccess ? '#065f46' : '#991b1b'};
+        color: #ffffff;
+        padding: 0.9rem 1.4rem;
+        border-radius: 12px;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.88rem;
+        font-weight: 700;
+        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.15);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        pointer-events: auto;
+        animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        transition: all 0.3s ease;
+    `;
+    const iconName = isSuccess ? 'check-circle' : 'alert-triangle';
+    t.innerHTML = `<i data-lucide="${iconName}" style="width: 20px; height: 20px; flex-shrink: 0;"></i> <span>${msg}</span>`;
+    container.appendChild(t);
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => {
+        t.style.opacity = '0';
+        t.style.transform = 'translateY(12px)';
+        setTimeout(() => t.remove(), 300);
+    }, 3500);
+}
+window.showToast = showToast;
+
+function openQuickAuxModal(type) {
+    if (typeof canDo === 'function' && !canDo('estoque_cadastros', 'add')) {
+        alert('Sem permissão para cadastrar dados auxiliares.');
+        return;
+    }
+
+    const modal = document.getElementById('modalQuickAuxiliar');
+    if (!modal) return;
+
+    // Resetar campos
+    document.getElementById('quick_aux_type').value = type;
+    document.getElementById('quick_aux_marca_nome').value = '';
+    document.getElementById('quick_aux_categoria_nome').value = '';
+    document.getElementById('quick_aux_unidade_nome').value = '';
+    document.getElementById('quick_aux_unidade_sigla').value = '';
+    document.getElementById('quick_aux_modelo_marca').value = '';
+    document.getElementById('quick_aux_modelo_nome').value = '';
+    document.getElementById('quick_aux_modelo_potencia').value = '';
+    document.getElementById('quick_aux_modelo_ano').value = '';
+
+    // Ocultar todos os grupos de campos
+    document.getElementById('quickAuxFieldsMarca').style.display = 'none';
+    document.getElementById('quickAuxFieldsCategoria').style.display = 'none';
+    document.getElementById('quickAuxFieldsUnidade').style.display = 'none';
+    document.getElementById('quickAuxFieldsModelo').style.display = 'none';
+
+    const titleEl = document.getElementById('quickAuxTitle');
+    const subtitleEl = document.getElementById('quickAuxSubtitle');
+    const iconEl = document.getElementById('quickAuxIcon');
+    const iconBox = document.getElementById('quickAuxIconBox');
+
+    let focusInputId = '';
+
+    if (type === 'marca') {
+        titleEl.innerText = 'Cadastrar Marca';
+        subtitleEl.innerText = 'A nova marca será selecionada automaticamente no produto.';
+        iconEl.setAttribute('data-lucide', 'tag');
+        iconBox.style.background = 'rgba(245, 158, 11, 0.15)';
+        iconBox.style.color = '#f59e0b';
+        iconBox.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+        document.getElementById('quickAuxFieldsMarca').style.display = 'block';
+        focusInputId = 'quick_aux_marca_nome';
+    } else if (type === 'categoria') {
+        titleEl.innerText = 'Cadastrar Categoria';
+        subtitleEl.innerText = 'A nova categoria será selecionada automaticamente no produto.';
+        iconEl.setAttribute('data-lucide', 'layers');
+        iconBox.style.background = 'rgba(99, 102, 241, 0.15)';
+        iconBox.style.color = '#818cf8';
+        iconBox.style.borderColor = 'rgba(99, 102, 241, 0.3)';
+        document.getElementById('quickAuxFieldsCategoria').style.display = 'block';
+        focusInputId = 'quick_aux_categoria_nome';
+    } else if (type === 'unidade') {
+        titleEl.innerText = 'Cadastrar Unidade de Medida';
+        subtitleEl.innerText = 'A unidade será selecionada automaticamente no produto.';
+        iconEl.setAttribute('data-lucide', 'ruler');
+        iconBox.style.background = 'rgba(16, 185, 129, 0.15)';
+        iconBox.style.color = '#10b981';
+        iconBox.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+        document.getElementById('quickAuxFieldsUnidade').style.display = 'block';
+        focusInputId = 'quick_aux_unidade_nome';
+    } else if (type === 'modelo') {
+        titleEl.innerText = 'Cadastrar Aplicação Veicular';
+        subtitleEl.innerText = 'O novo modelo será inserido diretamente nas aplicações do produto.';
+        iconEl.setAttribute('data-lucide', 'truck');
+        iconBox.style.background = 'rgba(236, 72, 153, 0.15)';
+        iconBox.style.color = '#ec4899';
+        iconBox.style.borderColor = 'rgba(236, 72, 153, 0.3)';
+        document.getElementById('quickAuxFieldsModelo').style.display = 'block';
+        focusInputId = 'quick_aux_modelo_marca';
+    }
+
+    modal.style.display = 'flex';
+    if (window.lucide) lucide.createIcons();
+
+    setTimeout(() => {
+        if (focusInputId) {
+            const el = document.getElementById(focusInputId);
+            if (el) el.focus();
+        }
+    }, 100);
+}
+window.openQuickAuxModal = openQuickAuxModal;
+
+function closeQuickAuxModal() {
+    const modal = document.getElementById('modalQuickAuxiliar');
+    if (modal) modal.style.display = 'none';
+}
+window.closeQuickAuxModal = closeQuickAuxModal;
+
+async function saveQuickAux(event) {
+    if (event) event.preventDefault();
+
+    if (typeof canDo === 'function' && !canDo('estoque_cadastros', 'add')) {
+        alert('Sem permissão para cadastrar dados auxiliares.');
+        return;
+    }
+
+    const type = document.getElementById('quick_aux_type').value;
+    const btnSubmit = document.getElementById('btnQuickAuxSubmit');
+    const originalBtnHTML = btnSubmit ? btnSubmit.innerHTML : '';
+    if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = 'Salvando...';
+    }
+
+    try {
+        if (type === 'marca') {
+            const nome = document.getElementById('quick_aux_marca_nome').value.trim();
+            if (!nome) {
+                alert('Por favor, informe o nome da marca.');
+                return;
+            }
+            const nomeUpper = nome.toUpperCase();
+            try {
+                await supabaseClient.from('estoque_marcas').insert([{ nome: nomeUpper }]);
+            } catch (errSup) {
+                console.warn('Erro ao inserir marca no Supabase. Atualizando cache local:', errSup);
+                let localB = JSON.parse(localStorage.getItem('estoque_marcas') || '[]');
+                if (!localB.find(b => b.nome.toUpperCase() === nomeUpper)) {
+                    localB.push({ id: 'loc_' + Date.now(), nome: nomeUpper });
+                    localStorage.setItem('estoque_marcas', JSON.stringify(localB));
+                }
+            }
+            if (typeof logEstoque === 'function') {
+                logEstoque('INCLUSÃO', `DETALHE: Cadastrou marca no estoque: ${nomeUpper}`);
+            }
+            await loadSetup({ marca: nomeUpper });
+            closeQuickAuxModal();
+            showToast(`Marca "${nomeUpper}" cadastrada e selecionada!`, 'success');
+
+        } else if (type === 'categoria') {
+            const nome = document.getElementById('quick_aux_categoria_nome').value.trim();
+            if (!nome) {
+                alert('Por favor, informe o nome da categoria.');
+                return;
+            }
+            const nomeUpper = nome.toUpperCase();
+            try {
+                await supabaseClient.from('estoque_categorias').insert([{ nome: nomeUpper }]);
+            } catch (errSup) {
+                console.warn('Erro ao inserir categoria no Supabase:', errSup);
+            }
+            if (typeof logEstoque === 'function') {
+                logEstoque('INCLUSÃO', `DETALHE: Cadastrou categoria no estoque: ${nomeUpper}`);
+            }
+            await loadSetup({ categoria: nomeUpper });
+            closeQuickAuxModal();
+            showToast(`Categoria "${nomeUpper}" cadastrada e selecionada!`, 'success');
+
+        } else if (type === 'unidade') {
+            const nome = document.getElementById('quick_aux_unidade_nome').value.trim();
+            let sigla = document.getElementById('quick_aux_unidade_sigla').value.trim().toUpperCase();
+            if (!nome) {
+                alert('Por favor, informe o nome da unidade de medida.');
+                return;
+            }
+            if (!sigla) sigla = nome.substring(0, 2).toUpperCase();
+            try {
+                await supabaseClient.from('estoque_unidades').insert([{ nome, sigla }]);
+            } catch (errSup) {
+                console.warn('Erro ao inserir unidade no Supabase:', errSup);
+            }
+            if (typeof logEstoque === 'function') {
+                logEstoque('INCLUSÃO', `DETALHE: Cadastrou unidade no estoque: ${nome} (${sigla})`);
+            }
+            await loadSetup({ unidade: sigla || nome });
+            closeQuickAuxModal();
+            showToast(`Unidade "${nome}" cadastrada e selecionada!`, 'success');
+
+        } else if (type === 'modelo') {
+            const marca = document.getElementById('quick_aux_modelo_marca').value.trim();
+            const modelo = document.getElementById('quick_aux_modelo_nome').value.trim();
+            const potencia = document.getElementById('quick_aux_modelo_potencia').value.trim();
+            const ano = document.getElementById('quick_aux_modelo_ano').value.trim();
+
+            if (!modelo) {
+                alert('Por favor, informe o modelo do veículo.');
+                return;
+            }
+
+            const marcaUpper = marca ? marca.toUpperCase() : '';
+            const modeloUpper = modelo.toUpperCase();
+            const appFullName = marcaUpper ? `${marcaUpper} ${modeloUpper}` : modeloUpper;
+
+            try {
+                await supabaseClient.from('estoque_modelos').insert([{
+                    marca: marcaUpper,
+                    modelo: modeloUpper,
+                    potencia: potencia || '',
+                    ano: ano || ''
+                }]);
+            } catch (errSup) {
+                console.warn('Erro ao inserir modelo no Supabase:', errSup);
+            }
+
+            if (typeof logEstoque === 'function') {
+                logEstoque('INCLUSÃO', `DETALHE: Cadastrou modelo no estoque: ${appFullName}`);
+            }
+
+            await loadSetup({ modelo: appFullName });
+            closeQuickAuxModal();
+            showToast(`Modelo "${appFullName}" cadastrado e adicionado às aplicações!`, 'success');
+        }
+    } catch (err) {
+        console.error('Erro ao salvar no modal rápido:', err);
+        alert('Erro ao realizar o cadastro. Verifique os dados.');
+    } finally {
+        if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = originalBtnHTML;
+            if (window.lucide) lucide.createIcons();
+        }
+    }
+}
+window.saveQuickAux = saveQuickAux;
+
+// Fechar modal ao pressionar ESC ou clicar fora da caixa
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('modalQuickAuxiliar');
+        if (modal && modal.style.display === 'flex') {
+            closeQuickAuxModal();
+        }
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('modalQuickAuxiliar');
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeQuickAuxModal();
+            }
+        });
     }
 });
