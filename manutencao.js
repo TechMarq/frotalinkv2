@@ -295,16 +295,7 @@ async function loadInitialData() {
                 }
             }
 
-            // Complementa com o maior KM registrado nas próprias manutenções se for superior
-            state.manutencoes.forEach(m => {
-                if (m.veiculo_id && m.km_atual) {
-                    const mKm = parseFloat(m.km_atual) || 0;
-                    if (mKm > (kmMap[m.veiculo_id] || 0)) {
-                        kmMap[m.veiculo_id] = mKm;
-                    }
-                }
-            });
-
+            // O KM Atual do veículo é mantido fiel à view/último odômetro registrado no sistema (Hub)
             state.vehicles.forEach(veh => {
                 veh.km_atual = kmMap[veh.id] ?? parseFloat(veh.km_atual) ?? 0;
             });
@@ -772,10 +763,23 @@ function renderMaintTable() {
                     valB = parseFloat(b.manutencao_itens?.[0]?.proxima_troca_km || b.proxima_troca_km || 9999999);
                     break;
                 case 'km_faltante':
-                    const proxA = a.manutencao_itens?.[0]?.proxima_troca_km || a.proxima_troca_km;
-                    const proxB = b.manutencao_itens?.[0]?.proxima_troca_km || b.proxima_troca_km;
-                    valA = proxA ? (parseFloat(proxA) - currentKmA) : 9999999;
-                    valB = proxB ? (parseFloat(proxB) - currentKmB) : 9999999;
+                    const isConcA = a.status === 'CONCLUIDO';
+                    const isConcB = b.status === 'CONCLUIDO';
+                    if (isConcA && !isConcB) {
+                        valA = 999999999;
+                        valB = 0;
+                    } else if (!isConcA && isConcB) {
+                        valA = 0;
+                        valB = 999999999;
+                    } else if (isConcA && isConcB) {
+                        valA = 0;
+                        valB = 0;
+                    } else {
+                        const proxA = a.manutencao_itens?.[0]?.proxima_troca_km || a.proxima_troca_km;
+                        const proxB = b.manutencao_itens?.[0]?.proxima_troca_km || b.proxima_troca_km;
+                        valA = proxA ? (parseFloat(proxA) - currentKmA) : 9999999;
+                        valB = proxB ? (parseFloat(proxB) - currentKmB) : 9999999;
+                    }
                     break;
                 case 'status':
                     valA = (a.status || '').toUpperCase();
@@ -917,17 +921,19 @@ function renderMaintTable() {
             ? proxKmList.map(k => k.toLocaleString('pt-BR')).join('<br>')
             : '---';
         
-        const kmFaltanteHtml = proxKmList.length > 0
-            ? proxKmList.map(limit => {
-                const faltante = limit - currentKm;
-                
-                let color = '#10b981'; // verde
-                if (faltante <= 0) color = '#ef4444'; // vermelho (vencido)
-                else if (faltante <= 2000) color = '#f59e0b'; // laranja (próximo)
-                
-                return `<div style="color: ${color}; font-weight: 800; font-size: 0.8rem;" title="KM Atual do Veículo: ${currentKm.toLocaleString('pt-BR')} km | Próxima Troca: ${limit.toLocaleString('pt-BR')} km">${faltante.toLocaleString('pt-BR')} km</div>`;
-            }).join('')
-            : '---';
+        const kmFaltanteHtml = isConcluido
+            ? '<span style="color: #64748b; font-size: 0.8rem;">---</span>'
+            : (proxKmList.length > 0
+                ? proxKmList.map(limit => {
+                    const faltante = limit - currentKm;
+                    
+                    let color = '#10b981'; // verde
+                    if (faltante <= 0) color = '#ef4444'; // vermelho (vencido)
+                    else if (faltante <= 2000) color = '#f59e0b'; // laranja (próximo)
+                    
+                    return `<div style="color: ${color}; font-weight: 800; font-size: 0.8rem;" title="KM Atual do Veículo: ${currentKm.toLocaleString('pt-BR')} km | Próxima Troca: ${limit.toLocaleString('pt-BR')} km">${faltante.toLocaleString('pt-BR')} km</div>`;
+                }).join('')
+                : '<span style="color: #64748b; font-size: 0.8rem;">---</span>');
 
         const isOverdue = !isConcluido && (
             items.some(i => i.proxima_troca_km && currentKm >= parseFloat(i.proxima_troca_km)) ||
