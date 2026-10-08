@@ -2497,88 +2497,161 @@ function generateDetailedReportPDF() {
     }
     const { jsPDF } = window.jspdf;
     const doc = jsPDF('p', 'mm', 'a4');
-    const margin = 15;
-    let y = 20;
+    const margin = 12;
+    const pageW = doc.internal.pageSize.width;
+    const contentW = pageW - margin * 2;
+    let y = 0;
+    let pageNum = 1;
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.setTextColor(30, 41, 59);
-    doc.text(`RELATÓRIO DETALHADO DE CUSTOS - ${state.periodLabel}`, margin, y);
-    
-    y += 8;
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, margin, y);
-    
+    // ── Paleta de cores ──────────────────────────────────────────────
+    const C = {
+        dark:    [15, 23, 42],
+        slate:   [71, 85, 105],
+        muted:   [100, 116, 139],
+        white:   [255, 255, 255],
+        primary: [79, 70, 229],
+        fuel:    [5, 150, 105],
+        maint:   [180, 110, 0],
+        extra:   [185, 28, 28],
+        estoque: [67, 56, 202],
+        green:   [209, 250, 229],
+        amber:   [254, 243, 199],
+        red:     [254, 226, 226],
+        indigo:  [224, 231, 255],
+        gray:    [241, 245, 249],
+    };
+
+    // ── Helpers ──────────────────────────────────────────────────────
+    const addPageHeader = () => {
+        // Barra superior azul escura
+        doc.setFillColor(...C.dark);
+        doc.rect(0, 0, pageW, 14, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(...C.white);
+        doc.text('FROTALINK — RELATÓRIO DETALHADO DE CUSTOS VEICULARES', margin, 9);
+
+        // Período à direita
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        const perStr = state.periodLabel;
+        doc.text(perStr, pageW - margin - doc.getTextWidth(perStr), 9);
+
+        y = 20;
+    };
+
+    const addPageFooter = () => {
+        const footerY = doc.internal.pageSize.height - 8;
+        doc.setDrawColor(...C.muted);
+        doc.setLineWidth(0.3);
+        doc.line(margin, footerY - 2, pageW - margin, footerY - 2);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.5);
+        doc.setTextColor(...C.muted);
+        doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, margin, footerY + 1);
+        const pgStr = `Página ${pageNum}`;
+        doc.text(pgStr, pageW - margin - doc.getTextWidth(pgStr), footerY + 1);
+    };
+
+    const checkPage = (needed = 30) => {
+        if (y + needed > doc.internal.pageSize.height - 18) {
+            addPageFooter();
+            doc.addPage();
+            pageNum++;
+            addPageHeader();
+        }
+    };
+
+    const sectionTitle = (text, color) => {
+        checkPage(16);
+        // Barra lateral colorida
+        doc.setFillColor(...color);
+        doc.rect(margin, y - 0.5, 3, 6.5, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...color);
+        doc.text(text, margin + 5, y + 5);
+        // Linha fina abaixo do título
+        doc.setDrawColor(...color);
+        doc.setLineWidth(0.2);
+        doc.line(margin + 5, y + 6.5, pageW - margin, y + 6.5);
+        y += 10;
+    };
+
+    // ── Cabeçalho global ─────────────────────────────────────────────
+    addPageHeader();
+
+    // Filtros e total geral
     const selectedClasses = Array.from(document.querySelectorAll('#classificacaoDropdown input:checked')).map(cb => cb.value);
     const filterClassSelected = selectedClasses.length > 0 ? selectedClasses.join(', ') : 'TODAS';
-    y += 5;
-    doc.text(`Filtro Classificação: ${filterClassSelected}`, margin, y);
-    
-    // Filter owners based on selected ones in propDropdown
     const selectedProps = Array.from(document.querySelectorAll('#propDropdown input:checked')).map(cb => {
         const lbl = cb.nextElementSibling;
         return lbl ? lbl.textContent.trim().toUpperCase() : cb.value.toUpperCase();
     });
-    
     let ownersToExport = Object.keys(state.closingData);
     if (selectedProps.length > 0) {
         ownersToExport = ownersToExport.filter(owner => selectedProps.includes(owner.toUpperCase()));
     }
 
-    // Calculate Grand Total for selected owners
     let grandTotal = 0;
     ownersToExport.forEach(owner => {
-        const plates = state.closingData[owner];
-        Object.values(plates).forEach(data => {
+        Object.values(state.closingData[owner]).forEach(data => {
             grandTotal += (parseFloat(data.total) || 0);
         });
     });
 
+    // Box de total geral
+    doc.setFillColor(237, 233, 254);
+    doc.roundedRect(margin, y, contentW, 14, 2, 2, 'F');
+    doc.setDrawColor(...C.primary);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(margin, y, contentW, 14, 2, 2, 'S');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...C.slate);
+    doc.text(`Classificação: ${filterClassSelected}`, margin + 5, y + 5.5);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(79, 70, 229); // Indigo
-    doc.text(`VALOR TOTAL GERAL: R$ ${grandTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, margin + 110, y);
-    
-    y += 10;
+    doc.setFontSize(10);
+    doc.setTextColor(...C.primary);
+    const gtStr = `VALOR TOTAL GERAL: R$ ${grandTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    doc.text(gtStr, pageW - margin - 5 - doc.getTextWidth(gtStr), y + 9);
+    y += 20;
 
-    // Iterate through filtered Owners & Plates
+    // ── Loop de Proprietários e Placas ────────────────────────────────
     ownersToExport.sort().forEach(owner => {
         const plates = state.closingData[owner];
         Object.keys(plates).sort().forEach(plate => {
             const data = plates[plate];
             const dis = state.disabledGroups[plate] || {};
-            
-            // Check page overflow
-            if (y > 230) {
-                doc.addPage();
-                y = 20;
-            }
 
-            // Print Major Header
-            doc.setFillColor(30, 41, 59);
-            doc.rect(margin, y, 180, 10, 'F');
+            checkPage(28);
+
+            // ─── Cabeçalho do veículo ───────────────────────────────
+            doc.setFillColor(...C.dark);
+            doc.roundedRect(margin, y, contentW, 13, 2, 2, 'F');
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(10);
-            doc.setTextColor(255, 255, 255);
-            doc.text(`${plate} | PROPRIETÁRIO: ${owner.toUpperCase()}`, margin + 5, y + 6.5);
-            
-            // Right-aligned cost
-            const totalStr = `TOTAL CUSTO: R$ ${data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-            doc.text(totalStr, margin + 175 - doc.getTextWidth(totalStr), y + 6.5);
-            
-            y += 15;
+            doc.setFontSize(9.5);
+            doc.setTextColor(...C.white);
+            doc.text(`${plate}`, margin + 5, y + 5.5);
 
-            // SECTION 1: Abastecimentos
+            // Proprietário em menor
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.setTextColor(180, 200, 240);
+            doc.text(`Proprietário: ${owner.toUpperCase()}`, margin + 5, y + 10.5);
+
+            // Total do veículo à direita
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9.5);
+            doc.setTextColor(167, 243, 208);
+            const totalStr = `TOTAL: R$ ${data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            doc.text(totalStr, pageW - margin - 5 - doc.getTextWidth(totalStr), y + 8.5);
+
+            y += 17;
+
+            // ─── Seção 1: Abastecimentos ────────────────────────────
             if (data.fuel && data.fuel.length > 0 && !dis.fuel) {
-                if (y > 250) { doc.addPage(); y = 20; }
-                
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(9);
-                doc.setTextColor(99, 102, 241); // var(--primary-light) blue
-                doc.text(`ABASTECIMENTOS POR CONDUTOR (${data.fuel.length})`, margin, y);
-                y += 4;
+                sectionTitle(`ABASTECIMENTOS POR CONDUTOR (${data.fuel.length})`, C.fuel);
 
                 const fuelByDriver = {};
                 data.fuel.forEach(f => {
@@ -2589,166 +2662,193 @@ function generateDetailedReportPDF() {
                 });
 
                 const fuelRows = Object.keys(fuelByDriver).sort().map(dName => {
-                    const group = fuelByDriver[dName];
-                    return [
-                        dName,
-                        `${group.count} abast.`,
-                        group.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-                    ];
+                    const g = fuelByDriver[dName];
+                    return [dName, `${g.count} abast.`, g.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })];
                 });
-
-                // Add subtotal row
                 fuelRows.push([
-                    { content: 'Total Abastecimento Placa', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold', fillColor: [241, 245, 249] } },
-                    { content: data.totalFuel.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold', fillColor: [209, 250, 229], textColor: [5, 150, 105] } }
+                    { content: 'Total Abastecimento Placa', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold', fillColor: C.gray, textColor: C.dark } },
+                    { content: data.totalFuel.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold', fillColor: C.green, textColor: [5, 150, 105], halign: 'right' } }
                 ]);
 
                 doc.autoTable({
                     startY: y,
                     head: [['CONDUTOR', 'QTD ABAST.', 'TOTAL (R$)']],
                     body: fuelRows,
-                    theme: 'grid',
-                    headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255] },
-                    styles: { fontSize: 7.5, cellPadding: 2 },
+                    theme: 'striped',
+                    headStyles: { fillColor: [5, 130, 90], textColor: C.white, fontStyle: 'bold', fontSize: 7.5, halign: 'center' },
+                    styles: { fontSize: 7.5, cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 } },
+                    alternateRowStyles: { fillColor: [240, 253, 244] },
                     columnStyles: {
-                        1: { halign: 'center' },
-                        2: { halign: 'right' }
-                    }
+                        0: { cellWidth: 110 },
+                        1: { halign: 'center', cellWidth: 30 },
+                        2: { halign: 'right', fontStyle: 'bold', cellWidth: 40 }
+                    },
+                    margin: { left: margin + 5 },
+                    tableWidth: contentW - 5,
                 });
-
-                y = doc.lastAutoTable.finalY + 8;
+                y = doc.lastAutoTable.finalY + 10;
             }
 
-            // SECTION 2: Manutenções / Compras
+            // ─── Seção 2: Manutenções / Compras ─────────────────────
             if (data.maint && data.maint.length > 0 && !dis.maint) {
-                if (y > 250) { doc.addPage(); y = 20; }
-                
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(9);
-                doc.setTextColor(99, 102, 241); // var(--primary-light) blue
-                doc.text(`MANUTENÇÕES / COMPRAS (${data.maint.length})`, margin, y);
-                y += 4;
+                checkPage(20);
+                sectionTitle(`MANUTENÇÕES / COMPRAS (${data.maint.length})`, C.maint);
 
-                let totalAVencerSection = 0;
-                const maintRows = data.maint.sort((a,b) => new Date(a.data) - new Date(b.data)).map(m => {
-                    const descServico = m.isParcelado ? `${m.servicos} (${m.tipo}) [${m.parcelaInfo}]` : `${m.servicos} (${m.tipo})`;
-                    const saldoFuturo = (m.isParcelado && m.saldoAVencer > 0) ? m.saldoAVencer : 0;
-                    totalAVencerSection += saldoFuturo;
-
+                let totalAVencer = 0;
+                const maintRows = data.maint.sort((a, b) => new Date(a.data) - new Date(b.data)).map(m => {
+                    // Limpa o sufixo redundante "(SERVIÇO (COMPRAS))" ou "(PEÇA (COMPRAS))"
+                    let desc = m.servicos || '';
+                    desc = desc.replace(/\s*\((SERVIÇO|PEÇA|SERVIÇO DE COMPRA|SERVICE)\s*(\(COMPRAS?\))?[)]/gi, '').trim();
+                    const tipoLabel = m.tipo ? ` [${m.tipo}]` : '';
+                    const parcInfo = m.isParcelado ? ` • ${m.parcelaInfo}` : '';
+                    const fullDesc = `${desc}${tipoLabel}${parcInfo}`;
+                    const saldo = m.isParcelado && m.saldoAVencer > 0 ? m.saldoAVencer : 0;
+                    totalAVencer += saldo;
                     return [
                         new Date(m.data + 'T12:00:00').toLocaleDateString('pt-BR'),
-                        descServico,
+                        fullDesc,
                         m.fornecedor,
                         m.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                        saldoFuturo > 0 ? saldoFuturo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'
+                        saldo > 0 ? saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'
                     ];
                 });
-
-                // Add subtotal row
                 maintRows.push([
-                    { content: 'Subtotal Manutenção', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold', fillColor: [241, 245, 249] } },
-                    { content: data.totalMaint.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold', fillColor: [254, 243, 199], textColor: [217, 119, 6] } },
-                    { content: totalAVencerSection > 0 ? totalAVencerSection.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-', styles: { fontStyle: 'bold', fillColor: [254, 226, 226], textColor: [220, 38, 38], halign: 'right' } }
+                    { content: 'Subtotal Manutenção', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold', fillColor: C.gray, textColor: C.dark } },
+                    { content: data.totalMaint.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold', fillColor: C.amber, textColor: C.maint, halign: 'right' } },
+                    { content: totalAVencer > 0 ? totalAVencer.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—', styles: { fontStyle: 'bold', fillColor: C.red, textColor: [185, 28, 28], halign: 'right' } }
                 ]);
 
                 doc.autoTable({
                     startY: y,
-                    head: [['DATA', 'SERVIÇOS / ITENS', 'FORNECEDOR', 'VALOR MÊS (R$)', 'A DESCONTAR PRÓX. MESES (R$)']],
+                    head: [['DATA', 'SERVIÇO / ITEM', 'FORNECEDOR', 'VALOR MÊS (R$)', 'A DESCONTAR (R$)']],
                     body: maintRows,
-                    theme: 'grid',
-                    headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255] },
-                    styles: { fontSize: 7, cellPadding: 2 },
+                    theme: 'striped',
+                    headStyles: { fillColor: [146, 90, 0], textColor: C.white, fontStyle: 'bold', fontSize: 7, halign: 'center' },
+                    styles: { fontSize: 7, cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 }, overflow: 'linebreak' },
+                    alternateRowStyles: { fillColor: [255, 251, 235] },
                     columnStyles: {
-                        3: { halign: 'right' },
-                        4: { halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] }
-                    }
+                        0: { cellWidth: 20, halign: 'center' },
+                        1: { cellWidth: 65 },
+                        2: { cellWidth: 45 },
+                        3: { halign: 'right', cellWidth: 25, fontStyle: 'bold' },
+                        4: { halign: 'right', cellWidth: 25, textColor: [185, 28, 28] }
+                    },
+                    margin: { left: margin + 5 },
+                    tableWidth: contentW - 5,
                 });
-
-                y = doc.lastAutoTable.finalY + 8;
+                y = doc.lastAutoTable.finalY + 10;
             }
 
-            // SECTION 3: Saídas e Vendas de Estoque
+            // ─── Seção 3: Estoque ────────────────────────────────────
             if (data.estoque && data.estoque.length > 0 && !dis.estoque) {
-                if (y > 250) { doc.addPage(); y = 20; }
-                
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(9);
-                doc.setTextColor(99, 102, 241); // var(--primary-light) blue
-                doc.text(`SAÍDAS E VENDAS DE ESTOQUE (${data.estoque.length})`, margin, y);
-                y += 4;
+                checkPage(20);
+                sectionTitle(`SAÍDAS / VENDAS DE ESTOQUE (${data.estoque.length})`, C.estoque);
 
-                const estoqueRows = data.estoque.sort((a,b) => new Date(a.data) - new Date(b.data)).map(e => {
-                    return [
-                        new Date(e.data).toLocaleDateString('pt-BR'),
-                        e.codigo || 'S/C',
-                        e.produto,
-                        parseFloat(e.quantidade),
-                        parseFloat(e.valor_unitario).toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                        parseFloat(e.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-                    ];
-                });
-
-                // Add subtotal row
-                estoqueRows.push([
-                    { content: 'Subtotal Estoque', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold', fillColor: [241, 245, 249] } },
-                    { content: data.totalEstoque.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold', fillColor: [224, 231, 255], textColor: [79, 70, 229] } }
+                const estoqueRows = data.estoque.sort((a, b) => new Date(a.data) - new Date(b.data)).map(e => [
+                    new Date(e.data).toLocaleDateString('pt-BR'),
+                    e.codigo || 'S/C',
+                    e.produto,
+                    parseFloat(e.quantidade),
+                    parseFloat(e.valor_unitario).toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+                    parseFloat(e.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
                 ]);
-
+                estoqueRows.push([
+                    { content: 'Subtotal Estoque', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold', fillColor: C.gray, textColor: C.dark } },
+                    { content: data.totalEstoque.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold', fillColor: C.indigo, textColor: C.estoque, halign: 'right' } }
+                ]);
                 doc.autoTable({
                     startY: y,
-                    head: [['DATA', 'CÓD. VENDA', 'PRODUTO / SKU', 'QTD', 'VALOR UNIT.', 'TOTAL (R$)']],
+                    head: [['DATA', 'CÓD.', 'PRODUTO / SKU', 'QTD', 'UNIT. (R$)', 'TOTAL (R$)']],
                     body: estoqueRows,
-                    theme: 'grid',
-                    headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255] },
-                    styles: { fontSize: 7.5, cellPadding: 2 },
+                    theme: 'striped',
+                    headStyles: { fillColor: [67, 56, 202], textColor: C.white, fontStyle: 'bold', fontSize: 7.5, halign: 'center' },
+                    styles: { fontSize: 7.5, cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 } },
+                    alternateRowStyles: { fillColor: [238, 242, 255] },
                     columnStyles: {
-                        5: { halign: 'right' }
-                    }
+                        0: { halign: 'center', cellWidth: 20 },
+                        1: { halign: 'center', cellWidth: 18 },
+                        2: { cellWidth: 70 },
+                        3: { halign: 'center', cellWidth: 14 },
+                        4: { halign: 'right', cellWidth: 22 },
+                        5: { halign: 'right', cellWidth: 22, fontStyle: 'bold' }
+                    },
+                    margin: { left: margin + 5 },
+                    tableWidth: contentW - 5,
                 });
-
-                y = doc.lastAutoTable.finalY + 8;
+                y = doc.lastAutoTable.finalY + 10;
             }
 
-            // SECTION 4: Custos Adicionais Manuais
+            // ─── Seção 4: Custos Adicionais ──────────────────────────
             if (data.custosAdicionais && data.custosAdicionais.length > 0 && !dis.custosAdicionais) {
-                if (y > 250) { doc.addPage(); y = 20; }
-                
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(9);
-                doc.setTextColor(239, 68, 68); // Red
-                doc.text(`CUSTOS ADICIONAIS MANUAIS (${data.custosAdicionais.length})`, margin, y);
-                y += 4;
+                checkPage(20);
+                sectionTitle(`CUSTOS ADICIONAIS MANUAIS (${data.custosAdicionais.length})`, C.extra);
 
                 const addRows = data.custosAdicionais.map(c => [
                     c.descricao,
                     parseFloat(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
                 ]);
-
                 addRows.push([
-                    { content: 'Subtotal Custos Adicionais', styles: { halign: 'right', fontStyle: 'bold', fillColor: [254, 226, 226] } },
-                    { content: (data.totalCustosAdicionais || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold', fillColor: [254, 226, 226], textColor: [220, 38, 38] } }
+                    { content: 'Subtotal Custos Adicionais', styles: { halign: 'right', fontStyle: 'bold', fillColor: C.gray, textColor: C.dark } },
+                    { content: (data.totalCustosAdicionais || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), styles: { fontStyle: 'bold', fillColor: C.red, textColor: [185, 28, 28], halign: 'right' } }
                 ]);
-
                 doc.autoTable({
                     startY: y,
                     head: [['DESCRIÇÃO DO CUSTO', 'VALOR (R$)']],
                     body: addRows,
-                    theme: 'grid',
-                    headStyles: { fillColor: [185, 28, 28], textColor: [255, 255, 255] },
-                    styles: { fontSize: 7.5, cellPadding: 2 },
+                    theme: 'striped',
+                    headStyles: { fillColor: [185, 28, 28], textColor: C.white, fontStyle: 'bold', fontSize: 7.5 },
+                    styles: { fontSize: 7.5, cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 } },
+                    alternateRowStyles: { fillColor: [255, 241, 242] },
                     columnStyles: {
-                        1: { halign: 'right' }
-                    }
+                        0: { cellWidth: 140 },
+                        1: { halign: 'right', fontStyle: 'bold', cellWidth: 40 }
+                    },
+                    margin: { left: margin + 5 },
+                    tableWidth: contentW - 5,
                 });
+                y = doc.lastAutoTable.finalY + 5;
+            }
 
-                y = doc.lastAutoTable.finalY + 12;
-            } else {
-                y += 4;
+            // ─── Sumário do veículo ──────────────────────────────────
+            checkPage(22);
+            const summaryItems = [];
+            if (data.totalFuel > 0 && !dis.fuel)          summaryItems.push(['⛽ Abastecimento', data.totalFuel.toLocaleString('pt-BR', { minimumFractionDigits: 2, style: 'currency', currency: 'BRL' })]);
+            if (data.totalMaint > 0 && !dis.maint)         summaryItems.push(['🔧 Manutenções / Compras', data.totalMaint.toLocaleString('pt-BR', { minimumFractionDigits: 2, style: 'currency', currency: 'BRL' })]);
+            if (data.totalEstoque > 0 && !dis.estoque)     summaryItems.push(['📦 Estoque', data.totalEstoque.toLocaleString('pt-BR', { minimumFractionDigits: 2, style: 'currency', currency: 'BRL' })]);
+            if ((data.totalCustosAdicionais||0) > 0 && !dis.custosAdicionais) summaryItems.push(['➕ Custos Adicionais', (data.totalCustosAdicionais||0).toLocaleString('pt-BR', { minimumFractionDigits: 2, style: 'currency', currency: 'BRL' })]);
+            summaryItems.push([
+                { content: `TOTAL VEÍCULO (${plate})`, styles: { fontStyle: 'bold', fillColor: C.dark, textColor: C.white } },
+                { content: `R$ ${data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, styles: { fontStyle: 'bold', fillColor: C.dark, textColor: [167, 243, 208], halign: 'right' } }
+            ]);
+
+            doc.autoTable({
+                startY: y,
+                body: summaryItems,
+                theme: 'plain',
+                styles: { fontSize: 7.5, cellPadding: { top: 2, bottom: 2, left: 5, right: 5 }, fillColor: [249, 250, 251] },
+                columnStyles: {
+                    0: { cellWidth: 120, fontStyle: 'bold', textColor: C.slate },
+                    1: { cellWidth: 60, halign: 'right', fontStyle: 'bold', textColor: C.dark }
+                },
+                margin: { left: margin + 5 },
+                tableWidth: contentW - 5,
+            });
+
+            y = doc.lastAutoTable.finalY + 14;
+
+            // Linha separadora entre veículos
+            if (y < doc.internal.pageSize.height - 25) {
+                doc.setDrawColor(...C.muted);
+                doc.setLineWidth(0.3);
+                doc.setLineDashPattern([2, 2], 0);
+                doc.line(margin, y - 6, pageW - margin, y - 6);
+                doc.setLineDashPattern([], 0);
             }
         });
     });
 
-    doc.save(`RELATORIO_DETALHADO_${state.periodLabel.replace(' ','_')}.pdf`);
+    addPageFooter();
+    doc.save(`RELATORIO_DETALHADO_${state.periodLabel.replace(/\s/g, '_')}.pdf`);
 }
 
 function exportSupplierDetailedPDF() {

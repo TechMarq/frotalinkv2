@@ -489,6 +489,12 @@ async function loadCompras(startDate, endDate) {
                     marca: it.marca,
                     quantidade: parseFloat(it.quantidade),
                     valorUnitario: parseFloat(it.valor_unitario),
+                    // Recupera valor_venda do cadastro do produto em estoque (não é armazenado em compra_itens)
+                    valorVenda: (() => {
+                        if (!it.produto_id) return 0;
+                        const prod = inventoryProducts.find(p => p.id === it.produto_id);
+                        return prod ? (parseFloat(prod.valor_venda) || 0) : 0;
+                    })(),
                     estoque: it.estoque,
                     veiculoId: it.vinculo_veiculo_id,
                     pessoa: it.vinculo_pessoa,
@@ -1775,8 +1781,24 @@ function applyStockItemLock(isLocked) {
             row.style.opacity = '1';
             
             const interactives = row.querySelectorAll('input, select, button, .stock-toggle');
+            // Campos de qtd, valor unit e valor venda permanecem editáveis mesmo em modo protegido
+            const EDITABLE_CLASSES = ['item-qtd', 'item-unit', 'item-venda'];
             interactives.forEach(el => {
                 if (el.classList.contains('btn-substituir-produto')) return;
+                // Permite edição dos campos financeiros (qty, unit, venda) mesmo com estoque bloqueado
+                const isEditable = EDITABLE_CLASSES.some(cls => el.classList.contains(cls));
+                if (isEditable) {
+                    el.readOnly = false;
+                    el.style.pointerEvents = 'auto';
+                    el.style.color = '';
+                    el.style.webkitTextFillColor = '';
+                    el.style.background = '';
+                    el.style.fontWeight = '700';
+                    el.style.opacity = '1';
+                    el.style.borderColor = '';
+                    el.style.cursor = '';
+                    return;
+                }
                 el.style.pointerEvents = 'none';
                 if (el.tagName === 'INPUT') {
                     el.readOnly = true;
@@ -3156,11 +3178,22 @@ async function handleSaveCompra(e) {
 
         let finalItens = items;
         if (editId && hasLinkedStock && oldExistingItems.length > 0) {
+            // Mescla qtd, valorUnitario e valorVenda editados pelo usuário nos itens originais
+            const updatedOriginals = oldExistingItems.map((orig, idx) => {
+                const fromForm = items[idx];
+                if (!fromForm) return orig;
+                return {
+                    ...orig,
+                    quantidade: fromForm.quantidade ?? orig.quantidade,
+                    valorUnitario: fromForm.valorUnitario ?? orig.valorUnitario,
+                    valorVenda: fromForm.valorVenda ?? orig.valorVenda
+                };
+            });
             if (items.length > oldExistingItems.length) {
-                // Preserva os itens originais intactos e anexa os novos itens adicionados
-                finalItens = [...oldExistingItems, ...items.slice(oldExistingItems.length)];
+                // Itens originais (com edições) + novos itens adicionados
+                finalItens = [...updatedOriginals, ...items.slice(oldExistingItems.length)];
             } else {
-                finalItens = oldExistingItems;
+                finalItens = updatedOriginals;
             }
         }
 
@@ -3415,6 +3448,25 @@ async function handleSaveCompra(e) {
                                 }
                             } catch (err) { console.error("❌ Erro Supabase Novo Item Estoque:", err); }
                         }
+                    }
+                }
+
+                // Atualiza valor_custo e valor_venda nos itens originais que tiveram qty/unit/venda alterados
+                for (let i = 0; i < Math.min(oldExistingItems.length, finalItens.length); i++) {
+                    const orig = oldExistingItems[i];
+                    const updated = finalItens[i];
+                    if (!orig || !updated || !updated.produtoId) continue;
+                    const qtdChanged = updated.quantidade !== orig.quantidade;
+                    const unitChanged = updated.valorUnitario !== orig.valorUnitario;
+                    const vendaChanged = updated.valorVenda !== orig.valorVenda;
+                    if (unitChanged || vendaChanged) {
+                        try {
+                            const patch = {};
+                            if (unitChanged) patch.valor_custo = updated.valorUnitario;
+                            if (vendaChanged) patch.valor_venda = updated.valorVenda;
+                            await client.from('estoque').update(patch).eq('id', updated.produtoId);
+                            console.log(`✅ Preços atualizados no estoque para produto ${updated.produtoId}:`, patch);
+                        } catch (err) { console.warn('⚠️ Não foi possível atualizar preços no estoque:', err); }
                     }
                 }
             } else {
