@@ -511,9 +511,13 @@ async function loadCompras(startDate, endDate) {
                     maintGarantia: it.maint_garantia || false,
                     maintMesesGarantia: it.maint_meses_garantia || ''
                 })),
-                adicionais: (cloudAdds || []).filter(ad => ad.compra_id === c.id).map(ad => ({
+                adicionais: (cloudAdds || []).filter(ad => ad.compra_id === c.id && parseFloat(ad.valor) >= 0 && !String(ad.descricao || '').startsWith('[DESCONTO]')).map(ad => ({
                     descricao: ad.descricao,
                     valor: parseFloat(ad.valor)
+                })),
+                descontos: (cloudAdds || []).filter(ad => ad.compra_id === c.id && (parseFloat(ad.valor) < 0 || String(ad.descricao || '').startsWith('[DESCONTO]'))).map(d => ({
+                    descricao: (d.descricao || '').replace(/^\[DESCONTO\]\s*/, ''),
+                    valor: Math.abs(parseFloat(d.valor))
                 })),
                 parcelasData: (() => {
                     const parcs = (cloudParcs || []).filter(p => p.compra_id === c.id).map(p => ({
@@ -1312,7 +1316,14 @@ window.openCompraModal = async (id = null) => {
     if (typeof window.showLoader === 'function') window.showLoader();
     try {
         if (id) {
+            const comp = compras.find(c => String(c.id) === String(id));
+            if (comp && (comp.integradoFinanceiro === true || comp.integrado_financeiro === true)) {
+                if (typeof window.hideLoader === 'function') window.hideLoader();
+                alert('⚠️ Esta nota fiscal já foi integrada ao setor Financeiro (Contas a Pagar) e não pode ser alterada.\n\nPara modificá-la, solicite ao setor Financeiro que exclua o lançamento correspondente para que a nota retorne.');
+                return;
+            }
             if (!canDo('compras_historico', 'edit')) {
+                if (typeof window.hideLoader === 'function') window.hideLoader();
                 alert('Você não tem permissão para editar compras.');
                 return;
             }
@@ -1714,10 +1725,28 @@ window.openViewModal = (id) => {
     }
 
     // Edit Button
-    document.getElementById('btnEditFromView').onclick = () => {
-        closeViewModal();
-        openCompraModal(c.id);
-    };
+    const btnEdit = document.getElementById('btnEditFromView');
+    if (btnEdit) {
+        const isIntegrada = c.integradoFinanceiro === true || c.integrado_financeiro === true;
+        if (isIntegrada) {
+            btnEdit.style.background = '#64748b';
+            btnEdit.style.cursor = 'not-allowed';
+            btnEdit.style.boxShadow = 'none';
+            btnEdit.innerHTML = '<i data-lucide="lock" style="width:16px; height:16px;"></i> NOTA INTEGRADA AO FINANCEIRO (BLOQUEADA)';
+            btnEdit.onclick = () => {
+                alert('⚠️ Esta nota fiscal já está integrada ao setor Financeiro e não pode ser alterada.\n\nPara modificá-la, solicite ao setor Financeiro que exclua o lançamento correspondente para que a nota retorne.');
+            };
+        } else {
+            btnEdit.style.background = '#059669';
+            btnEdit.style.cursor = 'pointer';
+            btnEdit.style.boxShadow = '0 4px 12px rgba(5,150,105,0.25)';
+            btnEdit.innerHTML = '<i data-lucide="edit-3" style="width:16px; height:16px;"></i> EDITAR NOTA';
+            btnEdit.onclick = () => {
+                closeViewModal();
+                openCompraModal(c.id);
+            };
+        }
+    }
 
     if (window.lucide) lucide.createIcons();
 };
@@ -1934,10 +1963,12 @@ function populateModal(c) {
             const val = parseFloat(ad.valor) || 0;
             const isDisc = val < 0 || (ad.descricao && ad.descricao.startsWith('[DESCONTO]'));
             if (isDisc) {
-                addDescontoRow({
-                    descricao: ad.descricao ? ad.descricao.replace(/^\[DESCONTO\]\s*/, '') : '',
-                    valor: Math.abs(val)
-                });
+                if (!c.descontos || c.descontos.length === 0) {
+                    addDescontoRow({
+                        descricao: ad.descricao ? ad.descricao.replace(/^\[DESCONTO\]\s*/, '') : '',
+                        valor: Math.abs(val)
+                    });
+                }
             } else {
                 addAdditionalRow({
                     descricao: ad.descricao || '',
@@ -2710,9 +2741,10 @@ window.addDescontoRow = (data) => {
     row.id = rowId;
     const descVal = data?.descricao || '';
     const numVal = data?.valor !== undefined ? data.valor : 0;
-    row.innerHTML = `<input type="text" class="desc-desc compra-input" placeholder="Ex: Desconto pontualidade, abatimento..." value="${descVal}"> <input type="number" step="0.01" min="0" class="desc-val compra-input" value="${numVal}" style="color: #ef4444;" onchange="calculateTotal()" oninput="calculateTotal()"> <button type="button" class="btn-remove" onclick="document.getElementById('${rowId}').remove(); calculateTotal();" title="Excluir Desconto"><i data-lucide="x" style="width:16px;"></i></button>`;
+    row.innerHTML = `<input type="text" class="desc-desc compra-input" placeholder="Ex: Desconto pontualidade, abatimento..." value="${descVal}"> <input type="number" step="0.01" min="0" class="desc-val compra-input" value="${numVal}" style="color: #ef4444; font-weight: 700;" onchange="calculateTotal()" oninput="calculateTotal()"> <button type="button" class="btn-remove" onclick="document.getElementById('${rowId}').remove(); calculateTotal();" title="Excluir Desconto"><i data-lucide="x" style="width:16px;"></i></button>`;
     container.appendChild(row);
     if (window.lucide) lucide.createIcons();
+    calculateTotal();
 };
 
 window.toggleParcelasSection = (el) => {
@@ -2816,6 +2848,32 @@ window.onCompraParcelaDateChange = (parcelaNum) => {
     calculateTotal();
 };
 
+window.recalcularValoresParcelas = () => {
+    const qtyInput = parseInt(document.getElementById('qtdParcelas')?.value) || 1;
+    const rows = document.querySelectorAll('#parcelasContainer .parcela-row');
+    
+    // Se a quantidade de linhas em tela for diferente do input qtdParcelas ou estiver vazio, regenera tudo
+    if (rows.length === 0 || rows.length !== qtyInput) {
+        window.generateInstallments();
+        return;
+    }
+
+    const totalNota = calculateTotal();
+    const qty = rows.length;
+    const baseVal = Math.floor((totalNota / qty) * 100) / 100;
+    const diff = Number((totalNota - (baseVal * qty)).toFixed(2));
+
+    rows.forEach((row, idx) => {
+        const input = row.querySelector('.parc-val');
+        if (input) {
+            const val = (idx === qty - 1) ? Number((baseVal + diff).toFixed(2)) : baseVal;
+            input.value = val.toFixed(2);
+        }
+    });
+
+    calculateTotal();
+};
+
 window.generateInstallments = () => {
     const container = document.getElementById('parcelasContainer');
     if (!container) return;
@@ -2824,7 +2882,8 @@ window.generateInstallments = () => {
     const prazoDias = parseInt(document.getElementById('prazoParcelas')?.value) || 30;
     const fixarMesmoDia = document.getElementById('chkCompraFixarMesmoDia')?.checked || false;
     const totalNota = calculateTotal();
-    const baseValue = (totalNota / qty).toFixed(2);
+    const baseVal = Math.floor((totalNota / qty) * 100) / 100;
+    const diff = Number((totalNota - (baseVal * qty)).toFixed(2));
     container.innerHTML = '';
 
     const dataCompraInput = document.getElementById('dataCompra')?.value;
@@ -2847,6 +2906,7 @@ window.generateInstallments = () => {
 
     for (let i = 1; i <= qty; i++) {
         const formattedDate = calculateInstallmentDate(baseDateStr, i - 1, prazoDias, fixarMesmoDia);
+        const val = (i === qty) ? Number((baseVal + diff).toFixed(2)) : baseVal;
 
         const row = document.createElement('div');
         row.className = 'parcela-row';
@@ -2854,7 +2914,7 @@ window.generateInstallments = () => {
         row.innerHTML = `
             <div style="font-weight: 700; color: var(--primary)">Parcela ${i}</div>
             <input type="date" class="parc-date compra-input" value="${formattedDate}" onchange="window.onCompraParcelaDateChange(${i})" oninput="window.onCompraParcelaDateChange(${i})">
-            <input type="number" step="0.01" class="parc-val compra-input" value="${baseValue}" onchange="calculateTotal()">
+            <input type="number" step="0.01" class="parc-val compra-input" value="${val.toFixed(2)}" onchange="calculateTotal()">
             <i data-lucide="info" style="width:14px; opacity: 0.5"></i>
         `;
         container.appendChild(row);
@@ -2876,6 +2936,7 @@ function calculateTotal() {
     let subtotalPecas = 0;
     let subtotalServicos = 0;
     let subtotalAdicionais = 0;
+    let subtotalDescontos = 0;
 
     document.querySelectorAll('.item-row').forEach(row => {
         const typeBtn = row.querySelector('.type-btn.active');
@@ -2893,20 +2954,27 @@ function calculateTotal() {
         subtotalAdicionais += parseFloat(input.value) || 0;
     });
 
-    const totalGeral = Math.max(0, subtotalPecas + subtotalServicos + subtotalAdicionais);
+    document.querySelectorAll('.desc-val').forEach(input => {
+        subtotalDescontos += parseFloat(input.value) || 0;
+    });
+
+    const subtotalBruto = subtotalPecas + subtotalServicos + subtotalAdicionais;
+    const totalGeral = Math.max(0, subtotalBruto - subtotalDescontos);
 
     const summaryText = document.getElementById('summaryText');
     if (summaryText) {
         const countItems = document.querySelectorAll('.item-row').length;
         const countAdds = document.querySelectorAll('.add-val').length;
+        const countDescs = document.querySelectorAll('.desc-val').length;
         summaryText.innerHTML = `
             <div style="display:flex; gap:1.2rem; font-size:0.65rem; color:var(--text-muted); font-weight:800; margin-top:0.3rem; text-transform:uppercase; flex-wrap:wrap;">
                 <span>PEÇAS: R$ ${subtotalPecas.toFixed(2)}</span>
                 <span>SERVIÇOS: R$ ${subtotalServicos.toFixed(2)}</span>
                 <span>OUTROS: R$ ${subtotalAdicionais.toFixed(2)}</span>
+                ${subtotalDescontos > 0 ? `<span style="color:#ef4444; font-weight:900;">DESCONTOS: - R$ ${subtotalDescontos.toFixed(2)}</span>` : ''}
             </div>
             <div style="margin-top:0.2rem; font-size:0.8rem; opacity:0.7;">
-                ${countItems} itens + ${countAdds} adicionais
+                ${countItems} itens + ${countAdds} adicionais${countDescs > 0 ? ` - ${countDescs} desconto(s)` : ''}
             </div>
         `;
     }
@@ -2962,6 +3030,11 @@ async function handleSaveCompra(e) {
     if (e) e.preventDefault();
     const isEditing = !!editId;
     if (isEditing) {
+        const existingCompra = compras.find(c => String(c.id) === String(editId));
+        if (existingCompra && (existingCompra.integradoFinanceiro === true || existingCompra.integrado_financeiro === true)) {
+            alert('⚠️ Operação bloqueada: Esta nota fiscal já está integrada ao setor Financeiro e não pode ser alterada.\n\nPara modificá-la, o setor Financeiro deve excluir o lançamento correspondente.');
+            return;
+        }
         if (!canDo('compras_historico', 'edit')) {
             alert('Você não tem permissão para editar compras.');
             return;
@@ -3040,6 +3113,21 @@ async function handleSaveCompra(e) {
 
         if (itemRows.length === 0) {
             alert('Adicione pelo menos um item.');
+            return;
+        }
+
+        let totalDescontosVal = 0;
+        document.querySelectorAll('.desc-val').forEach(i => totalDescontosVal += parseFloat(i.value) || 0);
+        let totalBrutoVal = 0;
+        document.querySelectorAll('.item-row').forEach(row => {
+            const q = parseFloat(row.querySelector('.item-qtd').value) || 0;
+            const u = parseFloat(row.querySelector('.item-unit').value) || 0;
+            totalBrutoVal += (q * u);
+        });
+        document.querySelectorAll('.add-val').forEach(i => totalBrutoVal += parseFloat(i.value) || 0);
+
+        if (totalDescontosVal > 0 && totalDescontosVal >= totalBrutoVal) {
+            alert('A soma dos descontos não pode ser igual ou superior ao valor total dos itens e custos adicionais.');
             return;
         }
 
@@ -4094,12 +4182,20 @@ function renderCompras() {
                 </td>`;
             }
 
-            if (col.key === 'actions') return `<td data-label="Ações">
-                <div style="display:flex; gap:0.5rem;">
-                    <button class="action-btn-mini" onclick="openCompraModal('${c.id}')" title="Editar" data-perm="compras_historico:edit" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center;"><i data-lucide="edit-2" style="width:14px;"></i></button>
-                    <button class="action-btn-mini" onclick="deleteCompra('${c.id}')" title="Excluir" data-perm="compras_historico:delete" style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); color:#ef4444; border-radius:6px; cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center;"><i data-lucide="trash-2" style="width:14px;"></i></button>
-                </div>
-            </td>`;
+            if (col.key === 'actions') {
+                const isIntegrada = c.integradoFinanceiro === true || c.integrado_financeiro === true;
+                return `<td data-label="Ações">
+                    <div style="display:flex; gap:0.5rem;">
+                        ${isIntegrada ? `
+                            <button class="action-btn-mini" onclick="alert('⚠️ Esta nota fiscal já está integrada ao setor Financeiro e não pode ser alterada.\n\nPara modificá-la, o lançamento correspondente deve ser excluído no módulo Financeiro para que ela retorne.');" title="Nota integrada ao Financeiro (Bloqueada para alteração)" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); color:#64748b; border-radius:6px; cursor:not-allowed; width:28px; height:28px; display:flex; align-items:center; justify-content:center;"><i data-lucide="lock" style="width:14px;"></i></button>
+                            <button class="action-btn-mini" onclick="alert('⚠️ Esta nota fiscal já está integrada ao setor Financeiro e não pode ser excluída.\n\nPara excluí-la, o lançamento correspondente deve ser excluído no módulo Financeiro para que ela retorne.');" title="Nota integrada ao Financeiro (Bloqueada para exclusão)" style="background:rgba(239,68,68,0.03); border:1px solid rgba(239,68,68,0.08); color:#64748b; border-radius:6px; cursor:not-allowed; width:28px; height:28px; display:flex; align-items:center; justify-content:center;"><i data-lucide="lock" style="width:14px;"></i></button>
+                        ` : `
+                            <button class="action-btn-mini" onclick="openCompraModal('${c.id}')" title="Editar" data-perm="compras_historico:edit" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center;"><i data-lucide="edit-2" style="width:14px;"></i></button>
+                            <button class="action-btn-mini" onclick="deleteCompra('${c.id}')" title="Excluir" data-perm="compras_historico:delete" style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); color:#ef4444; border-radius:6px; cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center;"><i data-lucide="trash-2" style="width:14px;"></i></button>
+                        `}
+                    </div>
+                </td>`;
+            }
             return `<td data-label="-">-</td>`;
         }).join('');
         return `<tr>${cells}</tr>`;
@@ -5075,11 +5171,11 @@ window.deleteCompra = async (id) => {
         alert('Você não tem permissão para excluir compras.');
         return;
     }
-    const compra = compras.find(c => c.id == id);
+    const compra = compras.find(c => String(c.id) === String(id));
     if (!compra) return;
 
     if (compra.integradoFinanceiro === true || compra.integrado_financeiro === true) {
-        alert('Esta nota já está integrada com o financeiro e não pode ser excluída. É necessário excluir os lançamentos financeiros correspondentes para que ela possa ser removida.');
+        alert('⚠️ Operação bloqueada: Esta nota fiscal já está integrada com o setor Financeiro e não pode ser excluída.\n\nÉ necessário excluir os lançamentos correspondentes no módulo Financeiro para que ela retorne e possa ser excluída.');
         return;
     }
 
@@ -7161,6 +7257,11 @@ window.openSubstituirProdutoModal = async function(compraId, itemIndex) {
         const c = compras.find(x => String(x.id) === String(compraId));
         if (!c) {
             alert('Nota de compra não localizada.');
+            return;
+        }
+
+        if (c.integradoFinanceiro === true || c.integrado_financeiro === true) {
+            alert('⚠️ Esta nota fiscal já está integrada ao setor Financeiro e não pode ser alterada.\n\nPara substituir itens ou realizar modificações, o lançamento deve ser excluído no setor Financeiro para que a nota retorne.');
             return;
         }
 

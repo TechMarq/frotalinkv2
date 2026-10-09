@@ -1630,6 +1630,17 @@
                     </div>
                     <div id="additionalContainer" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
 
+                    <div class="section-header" style="margin-top: 1.2rem;">
+                        <div class="section-title-wrap">
+                            <i data-lucide="minus-square" style="color:#ef4444;"></i>
+                            <span class="section-title" style="color:#ef4444;">Descontos</span>
+                        </div>
+                        <a href="#"
+                            style="color:#ef4444; font-size:0.75rem; text-decoration:none; font-weight:700;"
+                            onclick="addDescontoRow()">+ Novo Desconto</a>
+                    </div>
+                    <div id="descontoContainer" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+
                     <div class="payment-block">
                         <div class="section-title-wrap" style="margin-bottom: 1.5rem;">
                             <i data-lucide="credit-card" style="color:var(--primary);"></i>
@@ -1679,14 +1690,25 @@
 
                         <div id="parcelasSection"
                             style="display:none; margin-top:1.5rem; border-top: 1px dashed rgba(255,255,255,0.05); padding-top:1.5rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                <span style="font-size: 0.75rem; font-weight: 800; color: #818cf8; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem;">
+                                    <i data-lucide="layers" style="width: 14px; height: 14px;"></i> Divisão das Parcelas
+                                </span>
+                                <button type="button" class="btn-page" onclick="recalcularValoresParcelas()" style="display: flex; align-items: center; gap: 6px; font-weight: 700; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); color: #818cf8; cursor: pointer; padding: 0.4rem 0.8rem; border-radius: 8px; transition: all 0.2s;" title="Redistribuir o valor total líquido igualmente entre as parcelas">
+                                    <i data-lucide="calculator" style="width: 14px; height: 14px;"></i> Recalcular Valores
+                                </button>
+                            </div>
                             <div id="parcelasContainer"></div>
                             <div
                                 style="text-align:right; margin-top:1rem; font-family:'JetBrains Mono'; font-weight:800; color:#818cf8; font-size:0.85rem;">
                                 Total Parcelas: R$ <span id="sumParcelas">0,00</span>
                             </div>
                             <div id="validationMsg"
-                                style="display:none; text-align:right; color:#ef4444; font-size:0.7rem; font-weight:800; margin-top:0.5rem;">
+                                style="display:none; text-align:right; color:#ef4444; font-size:0.75rem; font-weight:800; margin-top:0.5rem;">
                                 ⚠ A SOMA DAS PARCELAS NÃO CONFERE COM O TOTAL
+                                <button type="button" onclick="recalcularValoresParcelas()" style="background: none; border: none; color: #38bdf8; text-decoration: underline; cursor: pointer; font-weight: 800; font-size: 0.75rem; margin-left: 8px;">
+                                    Recalcular agora
+                                </button>
                             </div>
                         </div>
                     </div>
