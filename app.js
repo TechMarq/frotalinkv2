@@ -477,18 +477,32 @@ function sortVehiclesList(list, sort) {
 // --- Funções de UI ---
 
 function switchView(viewName) {
-    // Alternar botões
+    // Alternar botões desktop
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.remove('active');
-        if (btn.getAttribute('onclick').includes(viewName)) btn.classList.add('active');
+        if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(viewName)) btn.classList.add('active');
+    });
+
+    // Alternar botões mobile bottom nav
+    document.querySelectorAll('.mob-nav-item').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-tab') === viewName);
     });
 
     // Alternar seções
     document.querySelectorAll('.view-section').forEach(section => {
         section.classList.remove('active');
     });
-    document.getElementById(viewName + 'View').classList.add('active');
+    const targetSection = document.getElementById(viewName + 'View');
+    if (targetSection) targetSection.classList.add('active');
 }
+
+window.switchMobileNav = function(tab) {
+    if (tab === 'setup') tab = 'dashboard';
+    switchView(tab);
+    if (window.innerWidth <= 768) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+};
 
 function renderAll() {
     renderVehicles();
@@ -696,46 +710,46 @@ function openVehicleDetail(id) {
     title.innerText = `Detalhes: ${v.placa}`;
 
     content.innerHTML = `
-        <div class="detail-item"><strong>Marca/Modelo:</strong> ${v.marca || ''} ${v.modelo}</div>
-        <div class="detail-item"><strong>Placa:</strong> ${v.placa}</div>
-        <div class="detail-item"><strong>RENAVAM:</strong> ${v.renavam || '-'}</div>
-        <div class="detail-item"><strong>Cor:</strong> ${v.cor || '-'}</div>
-        <div class="detail-item"><strong>Ano:</strong> ${v.ano_fabricacao || '-'}/${v.ano_modelo || '-'}</div>
-        <div class="detail-item"><strong>Proprietário:</strong> ${v.proprietario || '-'}</div>
-        <div class="detail-item"><strong>Combustível Predominante:</strong> ${v.tipo_combustivel || '-'}</div>
-        <div class="detail-item"><strong>Classificação:</strong> ${v.classificacao || '-'}</div>
-        <div class="detail-item"><strong>Status:</strong> <span class="badge ${v.status === 'ATIVO' ? 'success' : 'danger'}">${v.status || 'ATIVO'}</span></div>
+        <div class="detail-item full-width"><strong>Marca / Modelo</strong>${v.marca || ''} ${v.modelo}</div>
+        <div class="detail-item"><strong>Placa</strong><span style="font-family:'JetBrains Mono',monospace; color:#38bdf8; font-weight:800;">${v.placa}</span></div>
+        <div class="detail-item"><strong>Status</strong><span class="badge ${v.status === 'ATIVO' ? 'success' : 'danger'}" style="width:fit-content;">${v.status || 'ATIVO'}</span></div>
+        <div class="detail-item"><strong>RENAVAM</strong>${v.renavam || '-'}</div>
+        <div class="detail-item"><strong>Cor</strong>${v.cor || '-'}</div>
+        <div class="detail-item"><strong>Ano</strong>${v.ano_fabricacao || '-'}/${v.ano_modelo || '-'}</div>
+        <div class="detail-item"><strong>Classificação</strong>${v.classificacao || '-'}</div>
+        <div class="detail-item"><strong>Proprietário</strong>${v.proprietario || '-'}</div>
+        <div class="detail-item"><strong>Combustível</strong>${v.tipo_combustivel || '-'}</div>
         ${v.status === 'INATIVO' ? `
         <div class="form-section-header" style="color: #ff4757;">Dados da Inativação</div>
-        <div class="detail-item"><strong>Motivo:</strong> ${v.inativo_motivo || '-'}</div>
-        <div class="detail-item"><strong>Data:</strong> ${formatDate(v.inativo_data)}</div>
-        <div class="detail-item"><strong>Beneficiário/Destino:</strong> ${v.inativo_beneficiario || '-'}</div>
-        <div class="detail-item"><strong>Valor:</strong> ${v.inativo_valor ? 'R$ ' + Number(v.inativo_valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</div>
+        <div class="detail-item full-width"><strong>Motivo</strong>${v.inativo_motivo || '-'}</div>
+        <div class="detail-item"><strong>Data</strong>${formatDate(v.inativo_data)}</div>
+        <div class="detail-item"><strong>Valor</strong>${v.inativo_valor ? 'R$ ' + Number(v.inativo_valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</div>
+        <div class="detail-item full-width"><strong>Beneficiário / Destino</strong>${v.inativo_beneficiario || '-'}</div>
         ` : ''}
         
         <div class="form-section-header">Seguro</div>
-        <div class="detail-item"><strong>Condutor Principal (Seguro):</strong> ${v.motoristas?.nome_completo ? `<span style="color:#059669; font-weight:700;">${v.motoristas.nome_completo}</span>` : '-'}</div>
-        <div class="detail-item"><strong>Seguradora:</strong> ${v.seguradora || '-'}</div>
-        <div class="detail-item"><strong>Vencimento:</strong> ${formatDate(v.vencimento_seguro)}</div>
-        <div class="detail-item"><strong>Apólice:</strong> ${v.numero_apolice || '-'}</div>
-        <div class="detail-item"><strong>Corretor:</strong> ${v.corretor_seguro || '-'}</div>
-        <div class="detail-item"><strong>Valor Prêmio:</strong> ${v.valor_premio ? 'R$ ' + Number(v.valor_premio).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</div>
-        <div class="detail-item"><strong>Parcelas:</strong> ${v.parcelas_pagamento || '-'}</div>
-        <div class="detail-item" style="background: rgba(99,102,241,0.05); border: 1px solid rgba(99,102,241,0.15); border-radius: 8px; padding: 0.6rem 0.8rem; margin-top: 0.2rem;">
-            <strong style="color: #818cf8;">Valor por Parcela:</strong> ${(v.valor_premio && v.parcelas_pagamento && v.parcelas_pagamento > 0) ? '<span style="color:#818cf8; font-weight:800;">R$ ' + (v.valor_premio / v.parcelas_pagamento).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span>' : '-'}
+        <div class="detail-item full-width"><strong>Condutor Principal (Seguro)</strong>${v.motoristas?.nome_completo ? `<span style="color:#059669; font-weight:700;">${v.motoristas.nome_completo}</span>` : '-'}</div>
+        <div class="detail-item"><strong>Seguradora</strong>${v.seguradora || '-'}</div>
+        <div class="detail-item"><strong>Vencimento</strong>${formatDate(v.vencimento_seguro)}</div>
+        <div class="detail-item"><strong>Apólice</strong>${v.numero_apolice || '-'}</div>
+        <div class="detail-item"><strong>Corretor</strong>${v.corretor_seguro || '-'}</div>
+        <div class="detail-item"><strong>Valor Prêmio</strong>${v.valor_premio ? 'R$ ' + Number(v.valor_premio).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</div>
+        <div class="detail-item"><strong>Parcelas</strong>${v.parcelas_pagamento || '-'}</div>
+        <div class="detail-item full-width" style="background: rgba(99,102,241,0.08); border-color: rgba(99,102,241,0.25);">
+            <strong style="color: #818cf8;">Valor por Parcela</strong>${(v.valor_premio && v.parcelas_pagamento && v.parcelas_pagamento > 0) ? '<span style="color:#818cf8; font-weight:800;">R$ ' + (v.valor_premio / v.parcelas_pagamento).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span>' : '-'}
         </div>
-        <div class="detail-item"><strong>Valor Franquia:</strong> ${v.valor_franquia ? 'R$ ' + Number(v.valor_franquia).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</div>
-        <div class="detail-item"><strong>Proponente:</strong> ${v.proponente_seguro || '-'}</div>
-        <div class="detail-item"><strong>Endosso/Proposta:</strong> ${v.endosso_proposta || '-'}</div>
-        <div class="detail-item"><strong>CI Seguro:</strong> ${v.ci_seguro || '-'}</div>
+        <div class="detail-item"><strong>Valor Franquia</strong>${v.valor_franquia ? 'R$ ' + Number(v.valor_franquia).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</div>
+        <div class="detail-item"><strong>CI Seguro</strong>${v.ci_seguro || '-'}</div>
+        <div class="detail-item"><strong>Proponente</strong>${v.proponente_seguro || '-'}</div>
+        <div class="detail-item"><strong>Endosso / Proposta</strong>${v.endosso_proposta || '-'}</div>
         
         <div class="form-section-header">Técnico & Documentação</div>
-        <div class="detail-item"><strong>Chassi:</strong> ${v.chassi || '-'}</div>
-        <div class="detail-item"><strong>Motor:</strong> ${v.numero_motor || '-'}</div>
-        <div class="detail-item"><strong>FIPE:</strong> ${v.codigo_fipe || '-'} / R$ ${Number(v.valor_fipe_mes || 0).toLocaleString('pt-BR')}</div>
-        <div class="detail-item"><strong>Pasta de Documentos:</strong> ${v.drive_folder_url ? `<a href="${v.drive_folder_url}" target="_blank" style="color: #3b82f6; text-decoration: underline; font-weight: 600;">Abrir Google Drive <i data-lucide="external-link" style="width:12px; display:inline;"></i></a>` : '-'}</div>
-        <div class="detail-item"><strong>Canvas Avarias:</strong> ${v.canvas_url ? `<a href="${v.canvas_url}" target="_blank" style="color: #f59e0b; text-decoration: underline; font-weight: 600;">Abrir Canvas Avarias <i data-lucide="external-link" style="width:12px; display:inline;"></i></a>` : '-'}</div>
-        <div class="detail-item"><strong>Controle de Média:</strong> ${v.ignorar_media ? '<span class="badge danger">IGNORADO</span>' : '<span class="badge success">ATIVO</span>'}</div>
+        <div class="detail-item"><strong>Chassi</strong>${v.chassi || '-'}</div>
+        <div class="detail-item"><strong>Motor</strong>${v.numero_motor || '-'}</div>
+        <div class="detail-item full-width"><strong>FIPE</strong>${v.codigo_fipe || '-'} • R$ ${Number(v.valor_fipe_mes || 0).toLocaleString('pt-BR')}</div>
+        <div class="detail-item full-width"><strong>Pasta de Documentos</strong>${v.drive_folder_url ? `<a href="${v.drive_folder_url}" target="_blank" style="color: #3b82f6; text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><i data-lucide="folder" style="width:13px;"></i> Abrir no Google Drive</a>` : '-'}</div>
+        <div class="detail-item full-width"><strong>Registro de Avarias</strong>${v.canvas_url ? `<a href="${v.canvas_url}" target="_blank" style="color: #f59e0b; text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><i data-lucide="file-warning" style="width:13px;"></i> Abrir Canvas Avarias</a>` : '-'}</div>
+        <div class="detail-item full-width"><strong>Controle de Média</strong>${v.ignorar_media ? '<span class="badge danger" style="width:fit-content;">IGNORADO</span>' : '<span class="badge success" style="width:fit-content;">ATIVO</span>'}</div>
     `;
 
     modal.style.display = 'flex';
@@ -762,19 +776,19 @@ function openDriverDetail(id) {
     title.innerText = d.nome_completo;
 
     content.innerHTML = `
-        <div class="detail-item"><strong>Nome:</strong> ${d.nome_completo}</div>
-        <div class="detail-item"><strong>CPF:</strong> ${maskCpfDriver(d.cpf) || '-'}</div>
-        <div class="detail-item"><strong>WhatsApp:</strong> ${maskTelefoneDriver(d.contato_whatsapp) || '-'}</div>
-        <div class="detail-item"><strong>Idade:</strong> ${calcAge(d.data_nascimento)}</div>
-        <div class="detail-item"><strong>Nascimento:</strong> ${formatDate(d.data_nascimento)}</div>
+        <div class="detail-item full-width"><strong>Nome Completo</strong>${d.nome_completo}</div>
+        <div class="detail-item"><strong>CPF</strong>${maskCpfDriver(d.cpf) || '-'}</div>
+        <div class="detail-item"><strong>WhatsApp</strong>${maskTelefoneDriver(d.contato_whatsapp) || '-'}</div>
+        <div class="detail-item"><strong>Idade</strong>${calcAge(d.data_nascimento)}</div>
+        <div class="detail-item"><strong>Nascimento</strong>${formatDate(d.data_nascimento)}</div>
         
         <div class="form-section-header">Habilitação</div>
-        <div class="detail-item"><strong>Registro CNH:</strong> ${maskCnhDriver(d.registro_cnh) || '-'}</div>
-        <div class="detail-item"><strong>Categoria:</strong> ${d.categoria_cnh || '-'}</div>
-        <div class="detail-item"><strong>Vencimento:</strong> ${formatDate(d.vencimento_cnh)}</div>
+        <div class="detail-item"><strong>Registro CNH</strong>${maskCnhDriver(d.registro_cnh) || '-'}</div>
+        <div class="detail-item"><strong>Categoria</strong>${d.categoria_cnh || '-'}</div>
+        <div class="detail-item full-width"><strong>Vencimento CNH</strong>${formatDate(d.vencimento_cnh)}</div>
         
         <div class="form-section-header">Status atual</div>
-        <div class="detail-item"><strong>Status:</strong> <span class="badge ${d.status === 'ATIVO' ? 'success' : 'danger'}">${d.status}</span></div>
+        <div class="detail-item full-width"><strong>Status</strong><span class="badge ${d.status === 'ATIVO' ? 'success' : 'danger'}" style="width:fit-content;">${d.status}</span></div>
     `;
 
     modal.style.display = 'flex';
@@ -887,6 +901,37 @@ function calculateAge() {
     document.getElementById('driverIdade').value = age + ' anos';
 }
 
+function getDriverOptions(v, activeDrivers, occupiedDriverIds) {
+    let options = '<option value="">-- Vincular Motorista --</option>';
+    options += `<option value="MANUTENCAO" ${v.status_alocacao === 'MANUTENCAO' ? 'selected' : ''}>Manutenção</option>`;
+    options += `<option value="GARAGEM" ${v.status_alocacao === 'GARAGEM' ? 'selected' : ''}>Garagem</option>`;
+    options += `<option value="DISPONIVEL" ${v.status_alocacao === 'DISPONIVEL' ? 'selected' : ''}>Disponível</option>`;
+    activeDrivers.forEach(d => {
+        const isCurrent1 = d.id === v.motorista_alocado_id;
+        const isCurrent2 = d.id === v.motorista_alocado_2_id;
+        const isOccupiedByAnother = occupiedDriverIds.includes(d.id) && !isCurrent1 && !isCurrent2;
+        
+        if (!isOccupiedByAnother && !isCurrent2) {
+            options += `<option value="${d.id}" ${isCurrent1 ? 'selected' : ''}>${d.nome_completo}</option>`;
+        }
+    });
+
+    let options2 = '<option value="">-- 2º Condutor (Compartilhado) --</option>';
+    if (v.motorista_alocado_id) {
+        activeDrivers.forEach(d => {
+            const isCurrent1 = d.id === v.motorista_alocado_id;
+            const isCurrent2 = d.id === v.motorista_alocado_2_id;
+            const isOccupiedByAnother = occupiedDriverIds.includes(d.id) && !isCurrent1 && !isCurrent2;
+            
+            if (!isOccupiedByAnother && !isCurrent1) {
+                options2 += `<option value="${d.id}" ${isCurrent2 ? 'selected' : ''}>${d.nome_completo}</option>`;
+            }
+        });
+    }
+
+    return { options, options2 };
+}
+
 function renderVehicles() {
     const searchTerm = searchInput.value.toLowerCase();
     const list = document.getElementById('vehicleList');
@@ -988,34 +1033,7 @@ function renderVehicles() {
         const specialStatus = JSON.parse(localStorage.getItem('vehicleStatus')) || {};
         const currentSpecial = specialStatus[v.id];
         
-        // Opções para o 1º Condutor / Status
-        let options = '<option value="">-- Vincular Motorista --</option>';
-        options += `<option value="MANUTENCAO" ${v.status_alocacao === 'MANUTENCAO' ? 'selected' : ''}>Manutenção</option>`;
-        options += `<option value="GARAGEM" ${v.status_alocacao === 'GARAGEM' ? 'selected' : ''}>Garagem</option>`;
-        options += `<option value="DISPONIVEL" ${v.status_alocacao === 'DISPONIVEL' ? 'selected' : ''}>Disponível</option>`;
-        activeDrivers.forEach(d => {
-            const isCurrent1 = d.id === v.motorista_alocado_id;
-            const isCurrent2 = d.id === v.motorista_alocado_2_id;
-            const isOccupiedByAnother = occupiedDriverIds.includes(d.id) && !isCurrent1 && !isCurrent2;
-            
-            if (!isOccupiedByAnother && !isCurrent2) {
-                options += `<option value="${d.id}" ${isCurrent1 ? 'selected' : ''}>${d.nome_completo}</option>`;
-            }
-        });
-
-        // Opções para o 2º Condutor (Carro Compartilhado - ativo apenas se houver 1º condutor)
-        let options2 = '<option value="">-- 2º Condutor (Compartilhado) --</option>';
-        if (v.motorista_alocado_id) {
-            activeDrivers.forEach(d => {
-                const isCurrent1 = d.id === v.motorista_alocado_id;
-                const isCurrent2 = d.id === v.motorista_alocado_2_id;
-                const isOccupiedByAnother = occupiedDriverIds.includes(d.id) && !isCurrent1 && !isCurrent2;
-                
-                if (!isOccupiedByAnother && !isCurrent1) {
-                    options2 += `<option value="${d.id}" ${isCurrent2 ? 'selected' : ''}>${d.nome_completo}</option>`;
-                }
-            });
-        }
+        const { options, options2 } = getDriverOptions(v, activeDrivers, occupiedDriverIds);
 
         const cells = activeCols.map(col => {
             switch (col.key) {
@@ -1146,6 +1164,115 @@ function renderVehicles() {
 
         return `<tr data-id="${v.id}">${cells}</tr>`;
     }).join('');
+
+    // --- Renderização Mobile Cards (Alocações) ---
+    const mobAllocList = document.getElementById('mobileAllocationList');
+    if (mobAllocList) {
+        if (filtered.length === 0) {
+            mobAllocList.innerHTML = '<div style="text-align:center; padding: 2.5rem 1rem; color: var(--text-muted); font-size: 0.85rem;">Nenhum veículo encontrado na alocação.</div>';
+        } else {
+            const hasEditPerm = canDo('frota_alocacoes', 'edit');
+            const disabledAttr = hasEditPerm ? '' : 'disabled';
+
+            mobAllocList.innerHTML = filtered.map(v => {
+                const { options, options2 } = getDriverOptions(v, activeDrivers, occupiedDriverIds);
+                const statusAlocUpper = (v.status_alocacao || '').toUpperCase();
+                const currentVal = v.motorista_alocado_id || statusAlocUpper;
+                const sClass = getStatusClass(currentVal);
+                const isMaint = statusAlocUpper === 'MANUTENCAO';
+                const oficinaName = v.fornecedores?.nome || v.manutencao_oficina_id || '';
+
+                let statusClass = 'mob-status-avail';
+                let statusBadge = 'Disponível';
+                if (isMaint) {
+                    statusClass = 'mob-status-maint';
+                    statusBadge = 'Manutenção';
+                } else if (statusAlocUpper === 'GARAGEM') {
+                    statusClass = 'mob-status-garage';
+                    statusBadge = 'Garagem';
+                } else if (v.motorista_alocado_id || v.motorista_alocado_2_id) {
+                    statusClass = 'mob-status-aloc';
+                    statusBadge = 'Alocado';
+                }
+
+                const logs = v.veiculo_situacoes_log || [];
+                const hasLogs = logs.length > 0;
+
+                // WhatsApp links
+                let waBtn = '';
+                if (v.motorista_alocado?.contato_whatsapp) {
+                    const waClean = v.motorista_alocado.contato_whatsapp.replace(/\D/g, '');
+                    waBtn = `<a href="https://wa.me/${waClean}" target="_blank" class="mob-wa-btn" title="Conversar no WhatsApp" onclick="event.stopPropagation();">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="color:#25d366;"><path d="M12.012 2c-5.506 0-9.989 4.478-9.989 9.984 0 1.76.459 3.474 1.33 4.988l-1.413 5.163 5.281-1.385c1.455.794 3.09 1.218 4.791 1.218 5.507 0 9.99-4.478 9.99-9.984 0-5.506-4.483-9.984-9.99-9.984zm5.836 14.166c-.244.688-1.201 1.26-1.954 1.425-.516.113-1.19.205-3.456-.732-2.899-1.2-4.759-4.148-4.903-4.34-.144-.192-1.168-1.554-1.168-2.96 0-1.406.735-2.099.997-2.383.262-.284.571-.355.761-.355.19 0 .38.002.547.01.178.008.417-.067.652.496.244.587.83 2.03.902 2.176.072.146.12.316.024.507-.096.191-.144.31-.286.478-.144.168-.303.376-.433.504-.144.144-.295.302-.127.591.168.289.747 1.233 1.603 1.996 1.101.981 2.03 1.286 2.318 1.43.288.144.456.12.624-.072.168-.192.72-0.838.912-1.126.192-.288.384-.24.648-.144.264.096 1.679.791 1.967.935.288.144.48.216.552.336.072.12.072.696-.172 1.384z"/></svg>
+                    </a>`;
+                }
+
+                let waBtn2 = '';
+                if (v.motorista_alocado_2?.contato_whatsapp) {
+                    const waClean2 = v.motorista_alocado_2.contato_whatsapp.replace(/\D/g, '');
+                    waBtn2 = `<a href="https://wa.me/${waClean2}" target="_blank" class="mob-wa-btn" title="Conversar no WhatsApp" onclick="event.stopPropagation();">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="color:#25d366;"><path d="M12.012 2c-5.506 0-9.989 4.478-9.989 9.984 0 1.76.459 3.474 1.33 4.988l-1.413 5.163 5.281-1.385c1.455.794 3.09 1.218 4.791 1.218 5.507 0 9.99-4.478 9.99-9.984 0-5.506-4.483-9.984-9.99-9.984zm5.836 14.166c-.244.688-1.201 1.26-1.954 1.425-.516.113-1.19.205-3.456-.732-2.899-1.2-4.759-4.148-4.903-4.34-.144-.192-1.168-1.554-1.168-2.96 0-1.406.735-2.099.997-2.383.262-.284.571-.355.761-.355.19 0 .38.002.547.01.178.008.417-.067.652.496.244.587.83 2.03.902 2.176.072.146.12.316.024.507-.096.191-.144.31-.286.478-.144.168-.303.376-.433.504-.144.144-.295.302-.127.591.168.289.747 1.233 1.603 1.996 1.101.981 2.03 1.286 2.318 1.43.288.144.456.12.624-.072.168-.192.72-0.838.912-1.126.192-.288.384-.24.648-.144.264.096 1.679.791 1.967.935.288.144.48.216.552.336.072.12.072.696-.172 1.384z"/></svg>
+                    </a>`;
+                }
+
+                return `
+                    <div class="mob-card" onclick="openVehicleDetail('${v.id}')">
+                        <div class="mob-card-head">
+                            <div class="mob-card-plate-col">
+                                <div class="mob-plate-row">
+                                    <span class="mob-plate">${v.placa}</span>
+                                    <span class="mob-cat-badge">${v.classificacao || 'FROTA'}</span>
+                                </div>
+                                <span class="mob-model-text">${v.modelo || 'Modelo não inf.'}</span>
+                            </div>
+                            <div class="mob-card-status-col">
+                                <span class="mob-status-pill ${statusClass}">${statusBadge}</span>
+                                <span class="mob-km-text"><strong>${(v.km_atual || 0).toLocaleString('pt-BR')}</strong> km</span>
+                            </div>
+                        </div>
+
+                        <!-- Seletor de Condutor / Alocação Ativo no Celular -->
+                        <div class="mob-alloc-control" onclick="event.stopPropagation();">
+                            <div class="mob-select-line">
+                                <select class="direct-select mob-select-driver ${sClass}" ${disabledAttr} onchange="updateVehicleDriver('${v.id}', this.value, false); renderAll();">
+                                    ${options}
+                                </select>
+                                ${waBtn}
+                            </div>
+                            ${v.motorista_alocado_id ? `
+                                <div class="mob-select-line">
+                                    <select class="direct-select direct-select-secondary mob-select-driver ${v.motorista_alocado_2_id ? 'status-alocado' : ''}" ${disabledAttr} onchange="updateVehicleDriver('${v.id}', this.value, true); renderAll();">
+                                        ${options2}
+                                    </select>
+                                    ${waBtn2}
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <div class="mob-card-foot" style="margin-top: 2px;">
+                            <div class="mob-driver-col">
+                                ${isMaint ? `
+                                    <div class="mob-driver-row" style="color: #ef4444; cursor: pointer;" onclick="event.stopPropagation(); openMaintenanceModal('${v.id}')">
+                                        <i data-lucide="wrench" style="width: 12px; height: 12px; flex-shrink: 0;"></i>
+                                        <span class="mob-driver-name">${oficinaName || 'Em Manutenção'}</span>
+                                        ${v.manutencao_motivo ? `<span class="mob-dot">•</span><span class="mob-sub-detail">${v.manutencao_motivo}</span>` : ''}
+                                    </div>
+                                ` : `
+                                    <div class="mob-driver-row" style="color: ${hasLogs ? '#60a5fa' : 'var(--text-muted)'}; cursor: pointer;" onclick="event.stopPropagation(); openMaintenanceModal('${v.id}')">
+                                        <i data-lucide="${hasLogs ? 'file-text' : 'plus-circle'}" style="width: 12px; height: 12px; flex-shrink: 0;"></i>
+                                        <span class="mob-sub-detail" style="font-weight: 600;">${hasLogs ? 'Ver Histórico' : 'Registrar Ocorrência'}</span>
+                                    </div>
+                                `}
+                            </div>
+                            <div class="mob-card-chevron">
+                                <i data-lucide="chevron-right" style="width: 16px; height: 16px; color: var(--text-muted);"></i>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
 
     // Aplica as cores nos selects após renderizar tudo
     document.querySelectorAll('.direct-select').forEach(select => {
@@ -1474,24 +1601,26 @@ function renderMaintLogs() {
         const creatorText = log.usuario_email ? `<span style="display:block; font-size:0.75rem; color:var(--text-muted); margin-top:2px;">Por: ${log.usuario_email.split('@')[0]}</span>` : '';
 
         return `
-        <div class="maint-log-item" style="display: flex; gap: 1rem; padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: flex-start;">
-            <div class="maint-log-date" style="font-weight: 700; color: var(--primary); min-width: 100px;">${formatDate(log.data)}</div>
-            <div class="maint-log-desc" style="flex: 1; font-size: 0.9rem;">
+        <div class="maint-log-item">
+            <div class="maint-log-header-row">
+                <span class="maint-log-date">${formatDate(log.data)}</span>
+                <div class="maint-log-actions">
+                    <button type="button" class="btn-edit" onclick="sendMaintLogNotification('${log.id}', event)" title="Enviar notificação WhatsApp" style="color: #25D366; border-color: rgba(37,211,102,0.3); background: rgba(37,211,102,0.08);">
+                        <i data-lucide="send" style="width: 12px; height: 12px;"></i>
+                    </button>
+                    ${canEditLog ? `
+                    <button type="button" class="btn-edit" onclick="editMaintLog('${log.id}')" title="Editar">
+                        <i data-lucide="edit-2" style="width: 12px; height: 12px;"></i>
+                    </button>` : ''}
+                    ${canDeleteLog ? `
+                    <button type="button" class="btn-edit btn-delete" onclick="deleteMaintLog('${log.id}')" title="Excluir">
+                        <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                    </button>` : ''}
+                </div>
+            </div>
+            <div class="maint-log-desc">
                 ${log.descricao}
                 ${creatorText}
-            </div>
-            <div class="maint-log-actions" style="display: flex; gap: 0.5rem; align-items: center;">
-                <button type="button" class="btn-edit" onclick="sendMaintLogNotification('${log.id}', event)" title="Enviar notificação WhatsApp" style="padding: 4px; visibility: visible; color: #25D366; border-color: rgba(37,211,102,0.3); background: rgba(37,211,102,0.08);">
-                    <i data-lucide="send" style="width: 14px;"></i>
-                </button>
-                ${canEditLog ? `
-                <button type="button" class="btn-edit" onclick="editMaintLog('${log.id}')" title="Editar" style="padding: 4px; visibility: visible;">
-                    <i data-lucide="edit-2" style="width: 14px;"></i>
-                </button>` : ''}
-                ${canDeleteLog ? `
-                <button type="button" class="btn-edit btn-delete" onclick="deleteMaintLog('${log.id}')" title="Excluir" style="padding: 4px; visibility: visible;">
-                    <i data-lucide="trash-2" style="width: 14px;"></i>
-                </button>` : ''}
             </div>
         </div>
         `;
@@ -1834,6 +1963,8 @@ function renderFullVehicles() {
 
     if (filtered.length === 0) {
         list.innerHTML = `<tr><td colspan="${activeCols.length + 1}" style="text-align: center; padding: 3rem; color: var(--text-muted);">Nenhum veículo encontrado.</td></tr>`;
+        const mobVehList = document.getElementById('mobileVehiclesList');
+        if (mobVehList) mobVehList.innerHTML = '<div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); font-size: 0.85rem;">Nenhum veículo encontrado.</div>';
         if (window.lucide) lucide.createIcons();
         updateVehicleSelectionUI();
         return;
@@ -1892,6 +2023,62 @@ function renderFullVehicles() {
         }).join('');
         return `<tr class="${isSelected ? 'row-selected' : ''}">${checkCell}${cells}</tr>`;
     }).join('');
+
+    // Render Mobile Cards para Frota
+    const mobVehList = document.getElementById('mobileVehiclesList');
+    if (mobVehList) {
+        mobVehList.innerHTML = filtered.map(v => {
+            let statusClass = 'mob-status-avail';
+            let statusBadge = v.status || 'ATIVO';
+            if (v.status === 'INATIVO') {
+                statusClass = 'mob-status-maint';
+            } else if (v.status === 'ATIVO - NÃO ALOCAR') {
+                statusClass = 'mob-status-garage';
+            }
+
+            const driveUrl = v.drive_folder_url || '';
+            const canvasUrl = v.canvas_url || '';
+
+            return `
+                <div class="mob-card" onclick="openVehicleDetail('${v.id}')">
+                    <div class="mob-card-head">
+                        <div class="mob-card-plate-col">
+                            <div class="mob-plate-row">
+                                <span class="mob-plate">${v.placa}</span>
+                                <span class="mob-cat-badge">${v.classificacao || 'FROTA'}</span>
+                            </div>
+                            <span class="mob-model-text">${v.marca ? v.marca + ' ' : ''}${v.modelo || 'Modelo não inf.'}</span>
+                        </div>
+                        <div class="mob-card-status-col">
+                            <span class="mob-status-pill ${statusClass}">${statusBadge}</span>
+                            <span class="mob-km-text"><strong>${(v.km_atual || 0).toLocaleString('pt-BR')}</strong> km</span>
+                        </div>
+                    </div>
+
+                    <div class="mob-card-foot">
+                        <div class="mob-driver-col">
+                            <div class="mob-driver-row">
+                                <i data-lucide="info" style="width: 12px; height: 12px; flex-shrink: 0; color: var(--primary);"></i>
+                                <span class="mob-driver-name" style="color: var(--text-muted); font-size: 0.72rem;">
+                                    ${v.ano_fabricacao || v.ano_modelo ? `${v.ano_fabricacao || ''}/${v.ano_modelo || ''} • ` : ''}${v.tipo_combustivel || 'Flex'} • Chassi: ${(v.chassi || '---').slice(-6)}
+                                </span>
+                            </div>
+                            ${(driveUrl || canvasUrl) ? `
+                                <div class="mob-driver-row" style="margin-top: 4px; gap: 8px;">
+                                    ${driveUrl ? `<a href="${driveUrl}" target="_blank" onclick="event.stopPropagation();" style="display:inline-flex; align-items:center; gap:3px; font-size:0.68rem; color:#3b82f6; text-decoration:none;"><i data-lucide="folder" style="width:11px; height:11px;"></i> Drive</a>` : ''}
+                                    ${canvasUrl ? `<a href="${canvasUrl}" target="_blank" onclick="event.stopPropagation();" style="display:inline-flex; align-items:center; gap:3px; font-size:0.68rem; color:#f59e0b; text-decoration:none;"><i data-lucide="file-warning" style="width:11px; height:11px;"></i> Avarias</a>` : ''}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="mob-card-chevron">
+                            <i data-lucide="chevron-right" style="width: 16px; height: 16px; color: var(--text-muted);"></i>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
     if (window.lucide) lucide.createIcons();
     updateVehicleSelectionUI();
 }
@@ -1950,6 +2137,14 @@ function renderFullDrivers() {
             </button>
         </div>`;
 
+    if (filtered.length === 0) {
+        list.innerHTML = `<tr><td colspan="${activeCols.length}" style="text-align: center; padding: 3rem; color: var(--text-muted);">Nenhum motorista encontrado.</td></tr>`;
+        const mobDrivList = document.getElementById('mobileDriversList');
+        if (mobDrivList) mobDrivList.innerHTML = '<div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); font-size: 0.85rem;">Nenhum motorista encontrado.</div>';
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+
     list.innerHTML = filtered.map(d => {
         // Calcula vínculos de seguro manualmente para garantir que sempre funcione
         const vinculosCount = vehicles.filter(v => v.condutor_principal_id === d.id).length;
@@ -1975,6 +2170,66 @@ function renderFullDrivers() {
         }).join('');
         return `<tr>${cells}</tr>`;
     }).join('');
+
+    // Render Mobile Cards para Equipe
+    const mobDrivList = document.getElementById('mobileDriversList');
+    if (mobDrivList) {
+        mobDrivList.innerHTML = filtered.map(d => {
+            let statusClass = 'mob-status-avail';
+            let statusBadge = d.status || 'ATIVO';
+            if (d.status === 'INATIVO') {
+                statusClass = 'mob-status-maint';
+            } else if (d.status === 'ATIVO - NÃO ALOCAR') {
+                statusClass = 'mob-status-garage';
+            }
+
+            // WhatsApp link
+            let waBtn = '';
+            if (d.contato_whatsapp) {
+                const waClean = d.contato_whatsapp.replace(/\D/g, '');
+                waBtn = `<a href="https://wa.me/${waClean}" target="_blank" class="mob-wa-link" title="WhatsApp" onclick="event.stopPropagation();"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style="display:inline-block; vertical-align:-2px; color:#25d366;"><path d="M12.012 2c-5.506 0-9.989 4.478-9.989 9.984 0 1.76.459 3.474 1.33 4.988l-1.413 5.163 5.281-1.385c1.455.794 3.09 1.218 4.791 1.218 5.507 0 9.99-4.478 9.99-9.984 0-5.506-4.483-9.984-9.99-9.984zm5.836 14.166c-.244.688-1.201 1.26-1.954 1.425-.516.113-1.19.205-3.456-.732-2.899-1.2-4.759-4.148-4.903-4.34-.144-.192-1.168-1.554-1.168-2.96 0-1.406.735-2.099.997-2.383.262-.284.571-.355.761-.355.19 0 .38.002.547.01.178.008.417-.067.652.496.244.587.83 2.03.902 2.176.072.146.12.316.024.507-.096.191-.144.31-.286.478-.144.168-.303.376-.433.504-.144.144-.295.302-.127.591.168.289.747 1.233 1.603 1.996 1.101.981 2.03 1.286 2.318 1.43.288.144.456.12.624-.072.168-.192.72-0.838.912-1.126.192-.288.384-.24.648-.144.264.096 1.679.791 1.967.935.288.144.48.216.552.336.072.12.072.696-.172 1.384z"/></svg></a>`;
+            }
+
+            // Veículo atualmente alocado
+            const allocatedVeh = vehicles.find(v => v.motorista_alocado_id === d.id || v.motorista_alocado_2_id === d.id);
+            const vehInfo = allocatedVeh 
+                ? `🚗 ${allocatedVeh.placa} • ${allocatedVeh.modelo}`
+                : 'Sem veículo alocado';
+
+            return `
+                <div class="mob-card" onclick="openDriverDetail('${d.id}')">
+                    <div class="mob-card-head">
+                        <div class="mob-card-plate-col">
+                            <div class="mob-plate-row" style="align-items:center;">
+                                <span class="mob-driver-name" style="font-size:0.88rem; font-weight:700; color:var(--text-main);">${d.nome_completo}</span>
+                                ${waBtn}
+                            </div>
+                            <span class="mob-model-text">CNH ${d.categoria_cnh || '-'} • Val: ${formatDate(d.vencimento_cnh)}</span>
+                        </div>
+                        <div class="mob-card-status-col">
+                            <span class="mob-status-pill ${statusClass}">${statusBadge}</span>
+                            <span class="mob-km-text" style="font-size:0.72rem; color:var(--text-muted);">${calcAge(d.data_nascimento)}</span>
+                        </div>
+                    </div>
+
+                    <div class="mob-card-foot">
+                        <div class="mob-driver-col">
+                            <div class="mob-driver-row">
+                                <i data-lucide="truck" style="width: 12px; height: 12px; flex-shrink: 0; color: var(--primary);"></i>
+                                <span class="mob-driver-name" style="color: ${allocatedVeh ? 'var(--text-main)' : 'var(--text-muted)'}; font-size: 0.72rem;">
+                                    ${vehInfo}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="mob-card-chevron">
+                            <i data-lucide="chevron-right" style="width: 16px; height: 16px; color: var(--text-muted);"></i>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
     if (window.lucide) lucide.createIcons();
 }
 

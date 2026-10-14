@@ -507,229 +507,896 @@
             font-size: 0.85rem;
         }
 
-        /* --- Estilos Responsivos (Mobile) --- */
-        @media (max-width: 768px) {
-            .ops-container {
-                padding: 0.75rem;
+        /* Desktop vs Mobile Visibilidade Base */
+        @media (min-width: 769px) {
+            .desktop-table-view {
+                display: block !important;
             }
-
-            .header-actions {
-                flex-direction: row;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 1.5rem;
+            .mobile-maint-cards-container {
+                display: none !important;
             }
-
-            .header-actions h1 {
-                font-size: 1.2rem;
-                margin: 0;
-            }
-
-            .nav-back {
-                font-size: 0.8rem;
-            }
-
-            .tabs-header {
-                width: 100%;
-                display: flex;
-                gap: 0.25rem;
-                padding: 0.25rem;
-                overflow: hidden;
-                /* Sem scroll */
-            }
-
-            .tab-item {
-                flex: 1;
-                justify-content: center;
-                padding: 0.6rem 0.25rem;
-                font-size: 0.65rem;
-                gap: 0.3rem;
-                white-space: nowrap;
-            }
-
-            .tab-item i {
-                width: 14px !important;
-            }
-
-            .stats-summary {
-                grid-template-columns: repeat(2, 1fr) !important;
-                gap: 0.4rem !important;
-                margin-bottom: 1.5rem !important;
-            }
-
-            .card-kpi {
-                padding: 0.75rem !important;
-                gap: 0.4rem !important;
-            }
-
-            .card-kpi .kpi-icon {
-                width: 30px;
-                height: 30px;
-            }
-
-            .card-kpi .kpi-icon i {
-                width: 16px;
-            }
-
-            .card-kpi div div:last-child {
-                font-size: 1rem !important;
-            }
-
-            .data-header {
-                gap: 0.5rem !important;
-                margin-bottom: 1rem !important;
-            }
-
-            .data-header h2 {
-                font-size: 1rem !important;
-                margin-bottom: 0.25rem !important;
-                margin-top: -10px !important;
-            }
-
-            /* Nova estrutura de Grid para evitar cortes */
-            .data-header>div:last-child {
-                display: flex !important;
-                flex-direction: column !important;
-                width: 100%;
-                gap: 0.4rem !important;
-            }
-
-            /* Linha 1: Busca */
-            .search-box {
-                width: 100% !important;
-                order: 1;
-                min-width: unset !important;
-            }
-
-            .search-box input {
-                padding: 0.6rem 1rem 0.6rem 2.5rem !important;
-                font-size: 0.8rem;
-            }
-
-            /* Linha 2: Placa + Ãcones rÃ¡pidos reduzidos */
-            .data-header .compact-row-mobile {
-                display: flex !important;
-                gap: 0.25rem;
-                order: 2;
-                width: 100%;
-                align-items: center;
-            }
-
-            #maintFilterPlaca {
-                flex: 1 !important;
-                min-width: 0 !important;
-                padding: 0.6rem 0.5rem !important;
-                font-size: 0.75rem !important;
-            }
-
-            /* Ãcones menores no mobile para nÃ£o cortar */
-            .noti-btn,
-            .notification-wrapper .noti-btn {
-                height: 36px !important;
-                width: 36px !important;
-            }
-
-            .noti-btn i {
-                width: 16px !important;
-            }
-
-            /* Linha 3: AÃ§Ãµes de arquivo */
-            .data-header .actions-row-mobile {
-                display: flex !important;
-                gap: 0.4rem;
-                order: 3;
-                width: 100%;
-            }
-
-            .actions-row-mobile .btn-plus {
-                flex: 1;
-                justify-content: center;
-                height: 36px !important;
-                font-size: 0.65rem !important;
-            }
-
-            /* BotÃ£o Nova ManutenÃ§Ã£o sempre por Ãºltimo e cheio */
-            .data-header button[onclick="openMaintModal()"] {
-                order: 4;
-                width: 100% !important;
-                height: 40px !important;
-                margin-top: 0;
-            }
-
-            /* Garantir que Ã­cones nÃ£o amassem */
-            .noti-btn,
-            .notification-wrapper {
-                flex-shrink: 0 !important;
-            }
-
-            /* Transformar Tabela em Cards COMPACTOS */
-            .mobile-cards thead {
-                display: none;
-            }
-
-            .mobile-cards tbody tr {
-                display: block;
-                margin-bottom: 0.75rem;
-                /* Margem reduzida */
-                border-radius: 12px;
-                padding: 0.75rem !important;
-                /* Padding reduzido */
-                background: rgba(30, 41, 59, 0.5);
-            }
-
-            .mobile-cards td {
-                padding: 0.4rem 0 !important;
-                font-size: 0.75rem;
-            }
-
-            .mobile-cards td::before {
-                font-size: 0.6rem;
-            }
-
-            .mobile-cards td[data-label="VeÃ­culo"] {
-                color: var(--primary);
-                font-size: 0.9rem !important;
-                margin-bottom: 0.25rem;
-                border-bottom: 2px solid rgba(255, 255, 255, 0.05) !important;
-            }
-
-            .mobile-cards td[data-label="AÃ§Ãµes"] {
-                border-top: 1px solid rgba(255, 255, 255, 0.05);
-                margin-top: 0.5rem;
-                padding-top: 0.75rem !important;
-            }
-
-            .charts-row {
-                grid-template-columns: 1fr !important;
-                gap: 1rem;
-            }
-
-            .card-kpi[style*="height: 350px"] {
-                height: 280px !important;
-            }
-
-            .modal-content {
-                padding: 1.25rem;
+            .mobile-bottom-nav {
+                display: none !important;
             }
         }
 
-        @media (max-width: 480px) {
-            .tab-item {
-                flex-direction: column;
-                height: auto;
+        /* --- Estilos Responsivos (Mobile App Design System) --- */
+        @media (max-width: 768px) {
+            /* Container Geral Mobile */
+            .ops-container {
+                padding: 0.5rem 0.65rem 95px 0.65rem !important;
+                width: 100% !important;
+                max-width: 100vw !important;
+                box-sizing: border-box !important;
+                overflow-x: hidden !important;
             }
 
-            .tab-item i {
-                margin-bottom: 2px;
+            /* Ocultar elementos desktop e cadastros */
+            .desktop-table-view,
+            .tabs-header,
+            #setupSection,
+            #connectionStatus,
+            .charts-row,
+            button[onclick*="exportMaintToExcel"],
+            .notification-wrapper {
+                display: none !important;
+                visibility: hidden !important;
+                pointer-events: none !important;
+            }
+
+            /* Header Estilo App Mobile */
+            .header-actions {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.15rem !important;
+                margin-bottom: 0.55rem !important;
+            }
+
+            .header-actions .nav-back {
+                font-size: 0.72rem !important;
+                color: var(--text-muted) !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 0.25rem !important;
+                margin-bottom: 0.1rem !important;
+            }
+
+            .header-actions h1 {
+                font-size: 1.15rem !important;
+                font-weight: 800 !important;
+                letter-spacing: -0.3px !important;
+                margin: 0 !important;
+                display: flex !important;
+                align-items: center !important;
+                gap: 0.4rem !important;
+                color: var(--text-main) !important;
+            }
+
+            .header-actions h1::after {
+                content: 'CONSULTA';
+                display: inline-block;
+                font-size: 0.55rem;
+                font-weight: 800;
+                letter-spacing: 0.5px;
+                background: rgba(56, 189, 248, 0.15);
+                color: #38bdf8;
+                border: 1px solid rgba(56, 189, 248, 0.3);
+                padding: 0.1rem 0.35rem;
+                border-radius: 4px;
+                vertical-align: middle;
+            }
+
+            [data-theme="green_pastel"] .header-actions h1::after {
+                background: rgba(45, 158, 107, 0.12);
+                color: #1a7a50;
+                border-color: rgba(45, 158, 107, 0.25);
+            }
+
+            /* Mini KPIs Strip no Mobile */
+            .stats-summary {
+                display: grid !important;
+                grid-template-columns: repeat(3, 1fr) !important;
+                gap: 0.35rem !important;
+                margin-bottom: 0.55rem !important;
+            }
+
+            .stats-summary .card-kpi {
+                padding: 0.45rem 0.35rem !important;
+                border-radius: 10px !important;
+                flex-direction: column !important;
+                align-items: center !important;
+                text-align: center !important;
+                gap: 0.15rem !important;
+                background: rgba(30, 41, 59, 0.7) !important;
+                border: 1px solid rgba(255, 255, 255, 0.06) !important;
+            }
+
+            [data-theme="green_pastel"] .stats-summary .card-kpi {
+                background: #ffffff !important;
+                border-color: rgba(45, 158, 107, 0.18) !important;
+            }
+
+            .stats-summary .card-kpi .kpi-icon {
+                display: none !important;
+            }
+
+            .stats-summary .card-kpi div div:first-child {
+                font-size: 0.52rem !important;
+                font-weight: 700 !important;
+                letter-spacing: 0.2px !important;
+            }
+
+            .stats-summary .card-kpi div div:last-child {
+                font-size: 1rem !important;
+                font-weight: 800 !important;
+            }
+
+            /* Data Header (Título da Seção e Busca) */
+            .data-header {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.4rem !important;
+                margin-bottom: 0.45rem !important;
+            }
+
+            .data-header h2 {
+                font-size: 0.95rem !important;
+                font-weight: 800 !important;
+                margin: 0 !important;
+                color: var(--text-main) !important;
+            }
+
+            .data-header > div:last-child {
+                display: flex !important;
+                flex-direction: column !important;
+                width: 100% !important;
+                gap: 0.35rem !important;
+            }
+
+            .search-box {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+            }
+
+            .search-box input {
+                height: 36px !important;
+                font-size: 0.78rem !important;
+                padding: 0.4rem 2rem 0.4rem 2.2rem !important;
+                border-radius: 10px !important;
+                background: rgba(15, 23, 42, 0.7) !important;
+            }
+
+            [data-theme="green_pastel"] .search-box input {
+                background: #ffffff !important;
+                border-color: rgba(45, 158, 107, 0.22) !important;
+            }
+
+            /* Ocultar botões de criação no mobile (Modo Consulta) */
+            .data-header button[onclick="openMaintModal()"],
+            button[data-perm="manutencao_os:add"] {
+                display: none !important;
+                visibility: hidden !important;
+            }
+
+            /* Filtros Inteligentes Compactos (Grid 2x2 Simétrico) */
+            .intelligent-filter-bar {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
+                gap: 0.35rem !important;
+                padding: 0.45rem 0.55rem !important;
+                border-radius: 10px !important;
+                margin-bottom: 0.55rem !important;
+                background: rgba(30, 41, 59, 0.7) !important;
+                border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            }
+
+            [data-theme="green_pastel"] .intelligent-filter-bar {
+                background: #ffffff !important;
+                border-color: rgba(45, 158, 107, 0.18) !important;
+            }
+
+            .intelligent-filter-bar > div:first-child,
+            .intelligent-filter-bar > div:nth-child(2) {
+                display: none !important;
+            }
+
+            .intelligent-filter-bar > div {
+                min-width: 0 !important;
+                width: 100% !important;
+                flex: unset !important;
+            }
+
+            .intelligent-filter-bar select {
+                height: 32px !important;
+                font-size: 0.72rem !important;
+                padding: 0 0.4rem !important;
+                border-radius: 8px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+                background: var(--bg-main) !important;
+                color: var(--text-main) !important;
+                border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            }
+
+            [data-theme="green_pastel"] .intelligent-filter-bar select {
+                background: #f8faf8 !important;
+                border-color: rgba(45, 158, 107, 0.25) !important;
+                color: #1a2e25 !important;
+            }
+
+            .intelligent-filter-bar button {
+                height: 32px !important;
+                font-size: 0.7rem !important;
+                font-weight: 700 !important;
+                padding: 0 0.5rem !important;
+                border-radius: 8px !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            /* Carrossel Deslizante de Chips de Status */
+            .status-filters-pills {
+                display: flex !important;
+                flex-wrap: nowrap !important;
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+                scrollbar-width: none !important;
+                gap: 0.35rem !important;
+                margin-bottom: 0.65rem !important;
+                padding: 0.1rem 0 !important;
+                width: 100% !important;
+            }
+
+            .status-filters-pills::-webkit-scrollbar {
+                display: none !important;
+            }
+
+            .status-filter-btn {
+                flex-shrink: 0 !important;
+                white-space: nowrap !important;
+                padding: 0.32rem 0.65rem !important;
+                font-size: 0.68rem !important;
+                font-weight: 700 !important;
+                border-radius: 20px !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 0.3rem !important;
+            }
+
+            .status-filter-btn .count {
+                font-size: 0.6rem !important;
+                padding: 0.05rem 0.35rem !important;
+                border-radius: 6px !important;
+            }
+
+            /* --- Container dos Cards Mobile (Alta Densidade) --- */
+            .mobile-maint-cards-container {
+                display: flex !important;
+                flex-direction: column !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+                gap: 0.65rem !important;
+                margin-bottom: 0.75rem !important;
+            }
+
+            /* Card Moderno Mobile */
+            .mob-card.mob-maint-card {
+                width: 100% !important;
+                box-sizing: border-box !important;
+                background: rgba(30, 41, 59, 0.85) !important;
+                backdrop-filter: blur(12px) !important;
+                border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                border-radius: 14px !important;
+                padding: 0.75rem 0.85rem !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.4rem !important;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+                transition: transform 0.15s ease !important;
+                cursor: pointer !important;
+            }
+
+            .mob-card.mob-maint-card:active {
+                transform: scale(0.985) !important;
+            }
+
+            [data-theme="green_pastel"] .mob-card.mob-maint-card {
+                background: #ffffff !important;
+                border-color: rgba(45, 158, 107, 0.2) !important;
+                box-shadow: 0 2px 10px rgba(45, 158, 107, 0.08) !important;
+            }
+
+            .mob-card-head {
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: flex-start !important;
+                gap: 0.4rem !important;
+                padding-bottom: 0.35rem !important;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+            }
+
+            [data-theme="green_pastel"] .mob-card-head {
+                border-bottom-color: rgba(45, 158, 107, 0.1) !important;
+            }
+
+            .mob-card-plate-col {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.15rem !important;
+                min-width: 0 !important;
+                flex: 1 !important;
+            }
+
+            .mob-plate-row {
+                display: flex !important;
+                align-items: center !important;
+                gap: 0.35rem !important;
+                flex-wrap: wrap !important;
+            }
+
+            .mob-plate {
+                font-family: 'JetBrains Mono', monospace !important;
+                font-size: 0.95rem !important;
+                font-weight: 800 !important;
+                color: #38bdf8 !important;
+                letter-spacing: 0.5px !important;
+            }
+
+            [data-theme="green_pastel"] .mob-plate {
+                color: #1a7a50 !important;
+            }
+
+            .mob-nf-badge {
+                font-size: 0.65rem !important;
+                font-weight: 800 !important;
+                padding: 0.1rem 0.4rem !important;
+                border-radius: 4px !important;
+                background: rgba(16, 185, 129, 0.15) !important;
+                color: #10b981 !important;
+                border: 1px solid rgba(16, 185, 129, 0.3) !important;
+            }
+
+            [data-theme="green_pastel"] .mob-nf-badge {
+                background: rgba(45, 158, 107, 0.12) !important;
+                color: #1a7a50 !important;
+                border-color: rgba(45, 158, 107, 0.25) !important;
+            }
+
+            .mob-maint-subhead {
+                display: flex !important;
+                align-items: center !important;
+                gap: 0.3rem !important;
+                font-size: 0.72rem !important;
+                color: var(--text-muted) !important;
+                flex-wrap: wrap !important;
+            }
+
+            .mob-oficina-name {
+                font-weight: 600 !important;
+                color: var(--text-main) !important;
+                max-width: 170px !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                white-space: nowrap !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 0.2rem !important;
+            }
+
+            .mob-dot {
+                opacity: 0.5 !important;
+            }
+
+            .mob-card-status-col {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: flex-end !important;
+                gap: 0.2rem !important;
+                flex-shrink: 0 !important;
+            }
+
+            .mob-status-pill {
+                font-size: 0.62rem !important;
+                font-weight: 800 !important;
+                padding: 0.2rem 0.55rem !important;
+                border-radius: 6px !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.3px !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 0.25rem !important;
+                cursor: default !important;
+                pointer-events: none !important;
+                user-select: none !important;
+            }
+
+            .mob-status-pendente {
+                background: rgba(245, 158, 11, 0.15) !important;
+                color: #f59e0b !important;
+                border: 1px solid rgba(245, 158, 11, 0.3) !important;
+            }
+
+            .mob-status-concluido {
+                background: rgba(16, 185, 129, 0.15) !important;
+                color: #10b981 !important;
+                border: 1px solid rgba(16, 185, 129, 0.3) !important;
+            }
+
+            .mob-status-agendado {
+                background: rgba(124, 58, 237, 0.15) !important;
+                color: #a78bfa !important;
+                border: 1px solid rgba(124, 58, 237, 0.3) !important;
+            }
+
+            .mob-status-vencido {
+                background: rgba(239, 68, 68, 0.15) !important;
+                color: #ef4444 !important;
+                border: 1px solid rgba(239, 68, 68, 0.3) !important;
+            }
+
+            [data-theme="green_pastel"] .mob-status-pendente {
+                background: #fffbeb !important;
+                color: #d97706 !important;
+                border-color: #fde68a !important;
+            }
+
+            [data-theme="green_pastel"] .mob-status-concluido {
+                background: #ecfdf5 !important;
+                color: #059669 !important;
+                border-color: #a7f3d0 !important;
+            }
+
+            [data-theme="green_pastel"] .mob-status-agendado {
+                background: #f5f3ff !important;
+                color: #7c3aed !important;
+                border-color: #c4b5fd !important;
+            }
+
+            [data-theme="green_pastel"] .mob-status-vencido {
+                background: #fef2f2 !important;
+                color: #dc2626 !important;
+                border-color: #fca5a5 !important;
+            }
+
+            .mob-antecipado-badge {
+                font-size: 0.58rem !important;
+                color: #ef4444 !important;
+                font-weight: 700 !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 0.2rem !important;
+            }
+
+            /* Serviços & Itens */
+            .mob-maint-services {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.25rem !important;
+                background: rgba(0, 0, 0, 0.2) !important;
+                border-radius: 8px !important;
+                padding: 0.4rem 0.55rem !important;
+                border: 1px solid rgba(255, 255, 255, 0.04) !important;
+            }
+
+            [data-theme="green_pastel"] .mob-maint-services {
+                background: rgba(45, 158, 107, 0.05) !important;
+                border-color: rgba(45, 158, 107, 0.12) !important;
+            }
+
+            .mob-srv-item {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.15rem !important;
+            }
+
+            .mob-srv-header {
+                display: flex !important;
+                align-items: center !important;
+                gap: 0.3rem !important;
+                flex-wrap: wrap !important;
+            }
+
+            .mob-srv-badge {
+                font-size: 0.65rem !important;
+                font-weight: 800 !important;
+                color: var(--primary) !important;
+                text-transform: uppercase !important;
+            }
+
+            [data-theme="green_pastel"] .mob-srv-badge {
+                color: #1a7a50 !important;
+            }
+
+            .mob-srv-qty {
+                font-size: 0.65rem !important;
+                font-weight: 700 !important;
+                color: #10b981 !important;
+            }
+
+            .mob-garantia-pill {
+                font-size: 0.58rem !important;
+                font-weight: 700 !important;
+                color: #10b981 !important;
+                background: rgba(16, 185, 129, 0.1) !important;
+                padding: 0.05rem 0.35rem !important;
+                border-radius: 4px !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 0.2rem !important;
+            }
+
+            .mob-srv-desc {
+                font-size: 0.74rem !important;
+                color: var(--text-muted) !important;
+                font-weight: 500 !important;
+                line-height: 1.3 !important;
+            }
+
+            /* KM Strip (3 caixas) */
+            .mob-km-strip {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr 1fr !important;
+                gap: 0.3rem !important;
+                background: rgba(255, 255, 255, 0.03) !important;
+                border-radius: 8px !important;
+                padding: 0.35rem 0.45rem !important;
+                border: 1px solid rgba(255, 255, 255, 0.05) !important;
+            }
+
+            [data-theme="green_pastel"] .mob-km-strip {
+                background: rgba(45, 158, 107, 0.06) !important;
+                border-color: rgba(45, 158, 107, 0.15) !important;
+            }
+
+            .mob-km-box {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+                gap: 0.1rem !important;
+            }
+
+            .mob-km-lbl {
+                font-size: 0.55rem !important;
+                font-weight: 700 !important;
+                color: var(--text-muted) !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.3px !important;
+            }
+
+            .mob-km-val {
+                font-size: 0.72rem !important;
+                font-weight: 800 !important;
+                color: var(--text-main) !important;
+                white-space: nowrap !important;
+            }
+
+            .mob-km-val.highlight {
+                color: #6366f1 !important;
+            }
+
+            [data-theme="green_pastel"] .mob-km-val.highlight {
+                color: #1a7a50 !important;
+            }
+
+            .mob-km-val.text-success {
+                color: #10b981 !important;
+            }
+
+            .mob-km-val.text-warning {
+                color: #f59e0b !important;
+            }
+
+            .mob-km-val.text-danger {
+                color: #ef4444 !important;
+            }
+
+            /* Rodapé do Card */
+            .mob-card-foot {
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                padding-top: 0.2rem !important;
+                border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+            }
+
+            [data-theme="green_pastel"] .mob-card-foot {
+                border-top-color: rgba(45, 158, 107, 0.1) !important;
+            }
+
+            .mob-card-actions {
+                display: none !important;
+            }
+
+            .mob-btn-action {
+                height: 28px !important;
+                padding: 0 0.6rem !important;
+                border-radius: 6px !important;
+                font-size: 0.72rem !important;
+                font-weight: 700 !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 0.25rem !important;
+                cursor: pointer !important;
+                border: none !important;
+            }
+
+            .mob-btn-action.edit {
+                background: rgba(16, 185, 129, 0.12) !important;
+                border: 1px solid rgba(16, 185, 129, 0.3) !important;
+                color: #10b981 !important;
+            }
+
+            .mob-btn-action.delete {
+                background: rgba(239, 68, 68, 0.12) !important;
+                border: 1px solid rgba(239, 68, 68, 0.3) !important;
+                color: #ef4444 !important;
+                width: 28px !important;
+                padding: 0 !important;
+                justify-content: center !important;
+            }
+
+            [data-theme="green_pastel"] .mob-btn-action.edit {
+                background: rgba(45, 158, 107, 0.12) !important;
+                border-color: rgba(45, 158, 107, 0.3) !important;
+                color: #1a7a50 !important;
+            }
+
+            /* Paginação Compacta */
+            .pagination-container {
+                padding: 0.5rem 0.65rem !important;
+                border-radius: 10px !important;
+                margin-top: 0.5rem !important;
+                margin-bottom: 1rem !important;
+            }
+
+            #maintPaginationInfo {
+                font-size: 0.72rem !important;
+            }
+
+            #btnPrevMaintPage,
+            #btnNextMaintPage {
+                padding: 0.3rem 0.6rem !important;
+                font-size: 0.72rem !important;
+            }
+
+            /* Barra de Navegação Inferior Fixa (Bottom Nav Bar) */
+            .mobile-bottom-nav {
+                display: flex !important;
+                position: fixed !important;
+                bottom: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                height: 60px !important;
+                background: rgba(15, 23, 42, 0.96) !important;
+                backdrop-filter: blur(16px) !important;
+                border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+                z-index: 10005 !important;
+                padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+                justify-content: space-around !important;
+                align-items: center !important;
+                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35) !important;
+            }
+
+            [data-theme="green_pastel"] .mobile-bottom-nav {
+                background: rgba(255, 255, 255, 0.98) !important;
+                border-top-color: rgba(45, 158, 107, 0.2) !important;
+                box-shadow: 0 -4px 15px rgba(45, 158, 107, 0.08) !important;
+            }
+
+            .mob-nav-item {
+                flex: 1 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+                justify-content: center !important;
+                height: 100% !important;
+                background: transparent !important;
+                border: none !important;
+                color: #64748b !important;
+                cursor: pointer !important;
+                padding: 0.3rem 0 !important;
+                gap: 0.2rem !important;
+                text-decoration: none !important;
+            }
+
+            .mob-nav-item.active {
+                color: var(--primary) !important;
+                font-weight: 800 !important;
+            }
+
+            [data-theme="green_pastel"] .mob-nav-item.active {
+                color: #1a7a50 !important;
+            }
+
+            .mob-nav-item i {
+                width: 18px !important;
+                height: 18px !important;
+            }
+
+            .mob-nav-item span {
+                font-size: 0.65rem !important;
+            }
+
+            /* Orb menu padding fix */
+            .orb-menu-container {
+                bottom: 75px !important;
+                right: 18px !important;
+            }
+
+            .orb-main {
+                width: 48px !important;
+                height: 48px !important;
+            }
+
+            .orb-main i {
+                width: 22px !important;
+                height: 22px !important;
+            }
+
+            /* Modais e Formulários Responsivos Mobile */
+            .modal {
+                padding: 0.4rem !important;
+                align-items: flex-end !important;
+            }
+
+            .modal-content {
+                width: 100% !important;
+                max-width: 100vw !important;
+                max-height: 90vh !important;
+                padding: 1.1rem 0.85rem !important;
+                border-radius: 20px 20px 12px 12px !important;
+                margin: 0 !important;
+            }
+
+            .modal-header h2 {
+                font-size: 1.05rem !important;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr !important;
+                gap: 0.6rem !important;
+            }
+
+            .form-group.full {
+                grid-column: span 1 !important;
+            }
+
+            .item-card {
+                padding: 0.65rem !important;
+            }
+
+            .item-card .form-grid,
+            .item-card-inner-grid {
+                grid-template-columns: 1fr !important;
+                gap: 0.45rem !important;
+            }
+
+            .btn-submit {
+                padding: 0.75rem !important;
+                font-size: 0.85rem !important;
+                margin-top: 1rem !important;
+            }
+
+            /* Detail Modal & Overlay Mobile (Base de Consulta) */
+            .modal-overlay {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100% !important;
+                height: 100% !important;
+                background: rgba(0, 0, 0, 0.8) !important;
+                backdrop-filter: blur(8px) !important;
+                z-index: 10005 !important;
+                display: none;
+                align-items: flex-end !important;
+                justify-content: center !important;
+                padding: 0.4rem !important;
+            }
+
+            .modal-overlay.active,
+            .modal-overlay[style*="display: flex"] {
+                display: flex !important;
+            }
+
+            .detail-modal {
+                width: 100% !important;
+                max-width: 100vw !important;
+                max-height: 88vh !important;
+                overflow-y: auto !important;
+                padding: 1rem 0.85rem !important;
+                border-radius: 18px 18px 10px 10px !important;
+                margin: 0 !important;
+                background: #0f172a !important;
+                border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            }
+
+            .detail-modal-header {
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                margin-bottom: 0.65rem !important;
+                padding-bottom: 0.45rem !important;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+            }
+
+            .detail-modal-header h2 {
+                font-size: 1.05rem !important;
+                font-weight: 800 !important;
+                margin: 0 !important;
+                color: var(--text-main) !important;
+            }
+
+            .detail-close-btn {
+                width: 28px !important;
+                height: 28px !important;
+                font-size: 1.25rem !important;
+                line-height: 1 !important;
+                border-radius: 50% !important;
+                background: rgba(255, 255, 255, 0.08) !important;
+                color: var(--text-muted) !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                cursor: pointer !important;
+                border: none !important;
+            }
+
+            .detail-grid {
+                display: grid !important;
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 0.35rem !important;
+            }
+
+            .detail-item {
+                background: rgba(255, 255, 255, 0.04) !important;
+                padding: 0.45rem 0.55rem !important;
+                border-radius: 9px !important;
+                border: 1px solid rgba(255, 255, 255, 0.06) !important;
+                font-size: 0.78rem !important;
+                font-weight: 600 !important;
+                color: var(--text-main) !important;
+            }
+
+            .detail-item.full-width {
+                grid-column: 1 / -1 !important;
+            }
+
+            .detail-item strong {
+                font-size: 0.58rem !important;
+                font-weight: 700 !important;
+                color: var(--text-muted) !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.3px !important;
+                margin-bottom: 0.15rem !important;
+                display: block;
             }
         }
 
         /* Standardized green_pastel theme styling for modals */
-        [data-theme="green_pastel"] .modal-content {
+        [data-theme="green_pastel"] .modal-content,
+        [data-theme="green_pastel"] .detail-modal {
             background: #ffffff !important;
             border-color: rgba(45, 158, 107, 0.2) !important;
             box-shadow: 0 20px 60px rgba(45, 158, 107, 0.15) !important;
             color: #1a2e25 !important;
+        }
+
+        [data-theme="green_pastel"] .detail-modal-header {
+            border-bottom-color: rgba(45, 158, 107, 0.15) !important;
+        }
+
+        [data-theme="green_pastel"] .detail-item {
+            background: #f8faf8 !important;
+            border-color: rgba(45, 158, 107, 0.15) !important;
+            color: #1a2e25 !important;
+        }
+
+        [data-theme="green_pastel"] .detail-item strong {
+            color: #5a7a6a !important;
         }
 
         [data-theme="green_pastel"] .modal-header h2,
@@ -1022,9 +1689,9 @@
                 </button>
             </div>
 
-            <!-- Tabela Principal em Glassmorphism -->
-            <div class="glass-table-container">
-                <table id="maintTable" class="mobile-cards">
+            <!-- Tabela Principal em Glassmorphism (Desktop) -->
+            <div class="glass-table-container desktop-table-view">
+                <table id="maintTable">
                     <thead>
                         <tr>
                             <th onclick="sortMaintTable('veiculo')" style="width: 120px; cursor: pointer; user-select: none;" title="Clique para ordenar por Veículo">
@@ -1065,6 +1732,9 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- Lista de Cards Mobile Exclusiva para Celular (Alta Densidade) -->
+            <div id="mobileMaintList" class="mobile-maint-cards-container"></div>
 
             <!-- Rodapé com Paginação (Layout Abastecimento) -->
             <div class="pagination-container" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding: 0.8rem 1rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-card);">
@@ -1353,10 +2023,41 @@
         </div>
     </div>
 
+    <!-- Modal de Detalhes da Manutenção (Apenas Consulta / Leitura) -->
+    <div class="modal-overlay" id="maintDetailModal" style="display: none;" onclick="closeMaintDetail()">
+        <div class="modal detail-modal" onclick="event.stopPropagation()">
+            <div class="detail-modal-header">
+                <h2 id="maintDetailTitle">Detalhes da Manutenção</h2>
+                <button class="detail-close-btn" type="button" onclick="closeMaintDetail()">&times;</button>
+            </div>
+            <div id="maintDetailContent" class="detail-grid"></div>
+        </div>
+    </div>
+
     <div id="toast" class="toast">
         <i data-lucide="info"></i>
         <span id="toastMsg"></span>
     </div>
+
+    <!-- Barra de Navegação Inferior Fixa Mobile (Base de Consulta) -->
+    <nav class="mobile-bottom-nav" id="mobileBottomNav">
+        <button class="mob-nav-item active" onclick="switchMainTab('maint')">
+            <i data-lucide="wrench"></i>
+            <span>Ordens OS</span>
+        </button>
+        <button class="mob-nav-item" onclick="location.href='index.html'">
+            <i data-lucide="truck"></i>
+            <span>Frota</span>
+        </button>
+        <button class="mob-nav-item" onclick="location.href='abastecimento.html'">
+            <i data-lucide="fuel"></i>
+            <span>Combustível</span>
+        </button>
+        <button class="mob-nav-item" onclick="location.href='home.html'">
+            <i data-lucide="layout-grid"></i>
+            <span>Hub</span>
+        </button>
+    </nav>
 
     <script src="manutencao.js?v=20261007_km_fix"></script>
     <script src="orb_menu.js"></script>

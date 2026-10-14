@@ -1144,22 +1144,33 @@ tr:hover td {
     }
     
     .maint-log-item {
+        display: flex;
         flex-direction: column;
-        gap: 0.4rem !important;
-        padding: 0.8rem 0 !important;
+        gap: 0.35rem !important;
+        padding: 0.6rem 0.75rem !important;
+        border-radius: 8px;
+    }
+    .maint-log-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
     }
     .maint-log-date {
         font-size: 0.75rem !important;
-        min-width: auto !important;
+        font-weight: 700;
     }
     .maint-log-desc {
-        font-size: 0.85rem !important;
+        font-size: 0.82rem !important;
         line-height: 1.4;
+        width: 100%;
+        word-break: normal;
+        overflow-wrap: break-word;
     }
     .maint-log-actions {
-        width: 100%;
-        justify-content: flex-end;
-        margin-top: 0.3rem;
+        display: flex;
+        gap: 0.35rem;
+        align-items: center;
     }
 }
 
@@ -1176,6 +1187,69 @@ tr:hover td {
 .maint-add-btn-wrapper {
     display: flex;
     align-items: flex-end;
+}
+
+/* Base Maintenance Modal History */
+#maintLogHistory {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    max-height: 260px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 0.6rem;
+}
+
+.maint-log-item {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.65rem 0.85rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 0.35rem;
+}
+
+.maint-log-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    box-sizing: border-box;
+    gap: 0.5rem;
+}
+
+.maint-log-date {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #60a5fa;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.maint-log-desc {
+    font-size: 0.84rem;
+    color: var(--text-main);
+    line-height: 1.4;
+    width: 100%;
+    box-sizing: border-box;
+    word-break: normal;
+    overflow-wrap: break-word;
+    white-space: normal;
+}
+
+.maint-log-actions {
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+    flex-shrink: 0;
 }
 
 .noti-panel.active {

@@ -25,6 +25,935 @@
     <script defer
         src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="config.js"></script>
+
+    <style>
+        /* ==========================================================================
+           📱 MOBILE APP DESIGN SYSTEM (iPhone 16 Pro Max Inspired - 430px Viewport)
+           Compatível com Dark Mode e Clean Verde [data-theme="green_pastel"]
+           Modo: Apenas Visualização (Sem Lançamentos/Edições/Exclusões no Celular)
+           ========================================================================== */
+
+        /* Desktop vs Mobile Visibilidade Base */
+        @media (min-width: 769px) {
+            .desktop-table-view {
+                display: block !important;
+            }
+            .mobile-fleet-cards-container {
+                display: none !important;
+            }
+            .mobile-bottom-nav {
+                display: none !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            /* Container Geral Mobile */
+            .container {
+                padding: 0.5rem 0.65rem 95px 0.65rem !important;
+                width: 100% !important;
+                max-width: 100vw !important;
+                box-sizing: border-box !important;
+                overflow-x: hidden !important;
+            }
+
+            /* Ocultar elementos desnecessários e de escrita/edição no celular */
+            .nav-tabs,
+            .admin-actions,
+            .btn-col-config,
+            .col-panel,
+            #setupView,
+            .desktop-table-view,
+            table,
+            .table-container,
+            button[onclick*="openAddModal"],
+            button[onclick*="openDriverModal"],
+            button[onclick*="openWhatsAppConfig"],
+            button[onclick*="export"],
+            button[onclick*="generatePDF"],
+            #btnImport,
+            #importExcel,
+            #selectionBadge-vehicles,
+            #driversView .view-header-actions,
+            .col-config-bar > div:not(.status-filters),
+            .view-header-actions > div:not(.status-filters),
+            .btn-add,
+            .controls > div > a[href="home.html"] {
+                display: none !important;
+                visibility: hidden !important;
+                pointer-events: none !important;
+            }
+
+            /* Header Estilo App Mobile */
+            header {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.15rem !important;
+                padding: 0.2rem 0 0.5rem 0 !important;
+                margin-bottom: 0.5rem !important;
+                border-bottom: 1px solid var(--border-card) !important;
+                position: relative !important;
+            }
+
+            header a[href="home.html"] {
+                font-size: 0.72rem !important;
+                font-weight: 600 !important;
+                color: var(--text-muted) !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 0.25rem !important;
+                margin-bottom: 0.1rem !important;
+            }
+
+            header h1 {
+                font-size: 1.15rem !important;
+                font-weight: 800 !important;
+                letter-spacing: -0.3px !important;
+                margin: 0 !important;
+                display: flex !important;
+                align-items: center !important;
+                gap: 0.4rem !important;
+                color: var(--text-main) !important;
+            }
+
+            header h1::after {
+                content: 'APP';
+                display: inline-block;
+                font-size: 0.55rem;
+                font-weight: 800;
+                letter-spacing: 0.5px;
+                background: rgba(99, 102, 241, 0.15);
+                color: #818cf8;
+                border: 1px solid rgba(99, 102, 241, 0.3);
+                padding: 0.1rem 0.35rem;
+                border-radius: 4px;
+                vertical-align: middle;
+            }
+
+            [data-theme="green_pastel"] header h1::after {
+                background: rgba(45, 158, 107, 0.12);
+                color: #1a7a50;
+                border-color: rgba(45, 158, 107, 0.25);
+            }
+
+            header .subtitle {
+                display: none !important;
+            }
+
+            /* Widget de Usuário Compacto */
+            #auth-user-widget {
+                position: fixed !important;
+                top: 0.55rem !important;
+                right: 0.65rem !important;
+                z-index: 9999 !important;
+            }
+
+            #auth-user-btn {
+                padding: 2px !important;
+                border-radius: 50% !important;
+                gap: 0 !important;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3) !important;
+                background: var(--bg-card) !important;
+                border: 1px solid var(--border-card) !important;
+            }
+
+            #auth-user-btn > div,
+            #auth-user-btn > span:not(:first-child),
+            #auth-user-btn > svg {
+                display: none !important;
+            }
+
+            #auth-user-btn span:first-child {
+                width: 28px !important;
+                height: 28px !important;
+                font-size: 0.7rem !important;
+            }
+
+            /* Controles e Busca */
+            .controls {
+                padding: 0 !important;
+                margin-bottom: 0.55rem !important;
+                background: transparent !important;
+                border: none !important;
+            }
+
+            .search-box {
+                width: 100% !important;
+                margin: 0 !important;
+            }
+
+            .search-box input {
+                height: 38px !important;
+                font-size: 0.78rem !important;
+                border-radius: 10px !important;
+                padding: 0 1.8rem 0 2.2rem !important;
+                box-sizing: border-box !important;
+                width: 100% !important;
+                background: rgba(255, 255, 255, 0.04) !important;
+                border: 1px solid var(--border-card) !important;
+                color: var(--text-main) !important;
+            }
+
+            [data-theme="green_pastel"] .search-box input {
+                background: #ffffff !important;
+                border-color: rgba(45, 158, 107, 0.25) !important;
+            }
+
+            /* Carrossel Horizontal Deslizante de Chips */
+            .col-config-bar,
+            .view-header-actions {
+                margin-bottom: 0.55rem !important;
+                padding: 0 !important;
+            }
+
+            .status-filters {
+                display: flex !important;
+                flex-wrap: nowrap !important;
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+                scrollbar-width: none !important;
+                padding: 0.15rem 0 !important;
+                gap: 0.4rem !important;
+                width: 100% !important;
+            }
+
+            .status-filters::-webkit-scrollbar {
+                display: none;
+            }
+
+            .filter-chip {
+                flex-shrink: 0 !important;
+                white-space: nowrap !important;
+                padding: 0.35rem 0.65rem !important;
+                font-size: 0.65rem !important;
+                border-radius: 20px !important;
+                font-weight: 700 !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 0.3rem !important;
+            }
+
+            .filter-chip .filter-count {
+                font-size: 0.6rem !important;
+                padding: 0.05rem 0.35rem !important;
+                border-radius: 6px !important;
+            }
+
+            /* --- Container dos Cards Mobile (100% Largura Útil) --- */
+            .mobile-fleet-cards-container {
+                display: flex !important;
+                flex-direction: column !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+                gap: 0.65rem !important;
+                margin-bottom: 0.75rem !important;
+            }
+
+            /* Card Moderno iPhone 16 Pro Max */
+            .mob-card {
+                width: 100% !important;
+                box-sizing: border-box !important;
+                background: rgba(30, 41, 59, 0.8) !important;
+                backdrop-filter: blur(12px) !important;
+                border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                border-radius: 14px !important;
+                padding: 0.8rem 0.9rem !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.45rem !important;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+                transition: transform 0.15s ease !important;
+                cursor: pointer !important;
+            }
+
+            .mob-card:active {
+                transform: scale(0.985);
+            }
+
+            [data-theme="green_pastel"] .mob-card {
+                background: #ffffff !important;
+                border-color: rgba(45, 158, 107, 0.18) !important;
+                box-shadow: 0 2px 10px rgba(45, 158, 107, 0.08) !important;
+            }
+
+            .mob-card-head {
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: flex-start !important;
+                gap: 0.5rem !important;
+                padding-bottom: 0.35rem !important;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+            }
+
+            [data-theme="green_pastel"] .mob-card-head {
+                border-bottom-color: rgba(45, 158, 107, 0.1) !important;
+            }
+
+            .mob-card-plate-col {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.2rem !important;
+                min-width: 0 !important;
+                flex: 1 !important;
+            }
+
+            .mob-plate-row {
+                display: flex !important;
+                align-items: center !important;
+                gap: 0.4rem !important;
+                flex-wrap: wrap !important;
+            }
+
+            .mob-plate {
+                font-family: 'JetBrains Mono', monospace !important;
+                font-size: 0.95rem !important;
+                font-weight: 800 !important;
+                color: #38bdf8 !important;
+                letter-spacing: 0.5px !important;
+            }
+
+            [data-theme="green_pastel"] .mob-plate {
+                color: #1a7a50 !important;
+            }
+
+            .mob-driver-name-title {
+                font-size: 0.88rem !important;
+                font-weight: 800 !important;
+                color: var(--text-main) !important;
+            }
+
+            .mob-cat-badge {
+                font-size: 0.58rem !important;
+                font-weight: 700 !important;
+                padding: 0.1rem 0.35rem !important;
+                border-radius: 4px !important;
+                background: rgba(99, 102, 241, 0.15) !important;
+                color: var(--primary) !important;
+                text-transform: uppercase !important;
+            }
+
+            [data-theme="green_pastel"] .mob-cat-badge {
+                background: rgba(45, 158, 107, 0.12) !important;
+                color: #2d9e6b !important;
+            }
+
+            .mob-model-text {
+                font-size: 0.72rem !important;
+                font-weight: 600 !important;
+                color: var(--text-muted) !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+
+            .mob-sub-detail {
+                font-size: 0.68rem !important;
+                color: var(--text-muted) !important;
+            }
+
+            .mob-card-status-col {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: flex-end !important;
+                gap: 0.2rem !important;
+                flex-shrink: 0 !important;
+            }
+
+            .mob-status-pill {
+                font-size: 0.6rem !important;
+                font-weight: 800 !important;
+                padding: 0.15rem 0.45rem !important;
+                border-radius: 6px !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.3px !important;
+            }
+
+            .mob-status-avail {
+                background: rgba(16, 185, 129, 0.15) !important;
+                color: #10b981 !important;
+                border: 1px solid rgba(16, 185, 129, 0.3) !important;
+            }
+
+            .mob-status-maint {
+                background: rgba(239, 68, 68, 0.15) !important;
+                color: #ef4444 !important;
+                border: 1px solid rgba(239, 68, 68, 0.3) !important;
+            }
+
+            .mob-status-garage {
+                background: rgba(245, 158, 11, 0.15) !important;
+                color: #f59e0b !important;
+                border: 1px solid rgba(245, 158, 11, 0.3) !important;
+            }
+
+            .mob-status-aloc {
+                background: rgba(99, 102, 241, 0.15) !important;
+                color: #818cf8 !important;
+                border: 1px solid rgba(99, 102, 241, 0.3) !important;
+            }
+
+            .mob-km-text {
+                font-size: 0.72rem !important;
+                color: var(--text-muted) !important;
+            }
+
+            .mob-km-text strong {
+                color: var(--text-main) !important;
+                font-weight: 700 !important;
+            }
+
+            .mob-card-foot {
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                gap: 0.4rem !important;
+                padding-top: 0.15rem !important;
+            }
+
+            .mob-driver-col {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.15rem !important;
+                min-width: 0 !important;
+                flex: 1 !important;
+            }
+
+            .mob-driver-row {
+                display: flex !important;
+                align-items: center !important;
+                gap: 0.3rem !important;
+                font-size: 0.72rem !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                white-space: nowrap !important;
+            }
+
+            .mob-driver-name {
+                font-weight: 600 !important;
+                color: var(--text-main) !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                white-space: nowrap !important;
+            }
+
+            .mob-wa-link {
+                color: #25D366 !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                margin-left: 0.2rem !important;
+            }
+
+            /* --- Mecânica de Troca de Condutores no Card Mobile --- */
+            .mob-alloc-control {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.35rem !important;
+                width: 100% !important;
+                margin-top: 0.15rem !important;
+            }
+
+            .mob-select-line {
+                display: flex !important;
+                align-items: center !important;
+                gap: 0.4rem !important;
+                width: 100% !important;
+            }
+
+            .mob-select-driver {
+                flex: 1 !important;
+                min-width: 0 !important;
+                height: 38px !important;
+                font-size: 0.8rem !important;
+                font-weight: 600 !important;
+                border-radius: 9px !important;
+                padding: 0 1.8rem 0 0.65rem !important;
+                background-size: 10px !important;
+                background-position: right 0.65rem center !important;
+                border: 1px solid rgba(255, 255, 255, 0.12) !important;
+                background-color: rgba(15, 23, 42, 0.65) !important;
+            }
+
+            .mob-select-driver.direct-select-secondary {
+                border-style: dashed !important;
+                opacity: 0.95 !important;
+                font-size: 0.76rem !important;
+            }
+
+            .mob-wa-btn {
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                width: 38px !important;
+                height: 38px !important;
+                border-radius: 9px !important;
+                background: rgba(37, 211, 102, 0.15) !important;
+                border: 1px solid rgba(37, 211, 102, 0.35) !important;
+                color: #25d366 !important;
+                flex-shrink: 0 !important;
+                transition: transform 0.15s ease, background 0.15s ease !important;
+            }
+
+            .mob-wa-btn:active {
+                transform: scale(0.92) !important;
+            }
+
+            [data-theme="green_pastel"] .mob-select-driver {
+                background-color: #ffffff !important;
+                border-color: rgba(45, 158, 107, 0.28) !important;
+                color: #1a2e25 !important;
+            }
+
+            [data-theme="green_pastel"] .mob-select-driver.direct-select-secondary {
+                border-color: rgba(45, 158, 107, 0.35) !important;
+            }
+
+            [data-theme="green_pastel"] .mob-wa-btn {
+                background: rgba(37, 211, 102, 0.12) !important;
+                border-color: rgba(37, 211, 102, 0.3) !important;
+            }
+
+            .mob-card-chevron {
+                display: flex !important;
+                align-items: center !important;
+                flex-shrink: 0 !important;
+                opacity: 0.6 !important;
+            }
+
+            /* --- Barra de Navegação Inferior Fixa (Bottom Nav Bar) --- */
+            .mobile-bottom-nav {
+                display: flex !important;
+                position: fixed !important;
+                bottom: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                height: 60px !important;
+                background: rgba(15, 23, 42, 0.96) !important;
+                backdrop-filter: blur(16px) !important;
+                border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+                z-index: 10005 !important;
+                padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+                justify-content: space-around !important;
+                align-items: center !important;
+                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35) !important;
+            }
+
+            [data-theme="green_pastel"] .mobile-bottom-nav {
+                background: rgba(255, 255, 255, 0.98) !important;
+                border-top-color: rgba(45, 158, 107, 0.2) !important;
+                box-shadow: 0 -4px 15px rgba(45, 158, 107, 0.08) !important;
+            }
+
+            .mob-nav-item {
+                flex: 1 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+                justify-content: center !important;
+                background: transparent !important;
+                border: none !important;
+                color: var(--text-muted) !important;
+                gap: 0.2rem !important;
+                cursor: pointer !important;
+                padding: 0.3rem 0 !important;
+                transition: all 0.2s ease !important;
+                text-decoration: none !important;
+            }
+
+            .mob-nav-item i {
+                width: 18px !important;
+                height: 18px !important;
+                stroke-width: 2.2 !important;
+                transition: transform 0.2s ease !important;
+            }
+
+            .mob-nav-item span {
+                font-size: 0.62rem !important;
+                font-weight: 600 !important;
+                letter-spacing: 0.2px !important;
+            }
+
+            .mob-nav-item.active {
+                color: #6366f1 !important;
+            }
+
+            [data-theme="green_pastel"] .mob-nav-item.active {
+                color: #2d9e6b !important;
+            }
+
+            .mob-nav-item.active i {
+                transform: translateY(-2px) !important;
+            }
+
+            /* --- Botões Flutuantes (Menu Orb e Widgets) posicionados acima da Bottom Nav --- */
+            .orb-menu-container {
+                display: block !important;
+                visibility: visible !important;
+                position: fixed !important;
+                bottom: 74px !important;
+                right: 14px !important;
+                z-index: 10006 !important;
+                pointer-events: auto !important;
+            }
+
+            .orb-main {
+                display: flex !important;
+                visibility: visible !important;
+                width: 48px !important;
+                height: 48px !important;
+                box-shadow: 0 4px 16px rgba(234, 88, 12, 0.45) !important;
+                pointer-events: auto !important;
+            }
+
+            .orb-main i,
+            .orb-main svg {
+                width: 22px !important;
+                height: 22px !important;
+            }
+
+            .widgets-manager-trigger {
+                display: flex !important;
+                visibility: visible !important;
+                position: fixed !important;
+                bottom: 74px !important;
+                left: 14px !important;
+                right: auto !important;
+                width: 42px !important;
+                height: 42px !important;
+                z-index: 10006 !important;
+                pointer-events: auto !important;
+            }
+
+            /* =======================================================
+               📱 MODAIS MOBILE ULTRA-COMPACTOS (iPhone 16 Pro Max)
+               ======================================================= */
+            .modal-overlay {
+                z-index: 25000 !important;
+                padding: 0.65rem !important;
+                backdrop-filter: blur(10px) !important;
+                background: rgba(0, 0, 0, 0.78) !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+
+            [data-theme="green_pastel"] .modal-overlay {
+                background: rgba(10, 30, 20, 0.6) !important;
+            }
+
+            .modal {
+                width: 100% !important;
+                max-width: 430px !important;
+                max-height: 88vh !important;
+                padding: 0.85rem 0.85rem 0.95rem 0.85rem !important;
+                border-radius: 18px !important;
+                background: #111827 !important;
+                border: 1px solid rgba(255, 255, 255, 0.12) !important;
+                box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6) !important;
+                box-sizing: border-box !important;
+                overflow-y: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+            }
+
+            [data-theme="green_pastel"] .modal {
+                background: #ffffff !important;
+                border-color: rgba(45, 158, 107, 0.22) !important;
+                box-shadow: 0 16px 40px rgba(45, 158, 107, 0.18) !important;
+                color: #1a2e25 !important;
+            }
+
+            .modal h2,
+            .detail-modal-header h2 {
+                font-size: 1.05rem !important;
+                font-weight: 800 !important;
+                margin: 0 !important;
+                color: var(--text-main) !important;
+                letter-spacing: -0.3px !important;
+            }
+
+            .detail-modal-header {
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                margin-bottom: 0.6rem !important;
+                padding-bottom: 0.4rem !important;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+            }
+
+            [data-theme="green_pastel"] .detail-modal-header {
+                border-bottom-color: rgba(45, 158, 107, 0.15) !important;
+            }
+
+            .detail-close-btn {
+                width: 28px !important;
+                height: 28px !important;
+                font-size: 1.25rem !important;
+                line-height: 1 !important;
+                border-radius: 50% !important;
+                background: rgba(255, 255, 255, 0.08) !important;
+                color: var(--text-muted) !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                cursor: pointer !important;
+                border: none !important;
+                padding: 0 !important;
+                transition: all 0.15s ease !important;
+            }
+
+            .detail-close-btn:active {
+                transform: scale(0.9);
+                background: rgba(255, 255, 255, 0.16) !important;
+            }
+
+            /* --- Grid Compacto para Detalhes do Veículo e Motorista --- */
+            .detail-grid {
+                display: grid !important;
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 0.35rem !important;
+            }
+
+            .detail-item {
+                background: rgba(255, 255, 255, 0.04) !important;
+                padding: 0.4rem 0.55rem !important;
+                border-radius: 9px !important;
+                border: 1px solid rgba(255, 255, 255, 0.06) !important;
+                font-size: 0.78rem !important;
+                font-weight: 600 !important;
+                color: var(--text-main) !important;
+                min-width: 0 !important;
+                word-break: break-word !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: center !important;
+            }
+
+            [data-theme="green_pastel"] .detail-item {
+                background: #f8faf8 !important;
+                border-color: rgba(45, 158, 107, 0.15) !important;
+                color: #1a2e25 !important;
+            }
+
+            .detail-item strong {
+                font-size: 0.58rem !important;
+                font-weight: 700 !important;
+                color: var(--text-muted) !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.3px !important;
+                margin-bottom: 0.1rem !important;
+                display: block !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+
+            [data-theme="green_pastel"] .detail-item strong {
+                color: #5a7a6a !important;
+            }
+
+            .detail-item.full-width,
+            .detail-grid > div[style*="grid-column: span 2"],
+            .detail-grid > div[style*="grid-column: 1 / -1"] {
+                grid-column: 1 / -1 !important;
+            }
+
+            .form-section-header {
+                grid-column: 1 / -1 !important;
+                font-size: 0.68rem !important;
+                font-weight: 800 !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.5px !important;
+                color: #818cf8 !important;
+                margin: 0.5rem 0 0.15rem 0 !important;
+                padding-bottom: 0.2rem !important;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+            }
+
+            [data-theme="green_pastel"] .form-section-header {
+                color: #1a7a50 !important;
+                border-bottom-color: rgba(45, 158, 107, 0.2) !important;
+            }
+
+            /* --- Modal de Manutenção e Situação Atual --- */
+            .maint-grid-top {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
+                gap: 0.4rem !important;
+                margin-bottom: 0.35rem !important;
+            }
+
+            .maint-grid-top .form-group,
+            .maint-grid-new .form-group {
+                margin: 0 !important;
+            }
+
+            .maint-grid-top label,
+            .maint-grid-new label {
+                font-size: 0.62rem !important;
+                font-weight: 700 !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.3px !important;
+                margin-bottom: 0.15rem !important;
+                display: block !important;
+                color: var(--text-muted) !important;
+            }
+
+            .maint-grid-top input,
+            .maint-grid-new input {
+                height: 34px !important;
+                font-size: 0.78rem !important;
+                padding: 0.35rem 0.6rem !important;
+                border-radius: 8px !important;
+                box-sizing: border-box !important;
+                width: 100% !important;
+            }
+
+            .maint-grid-new {
+                display: grid !important;
+                grid-template-columns: 105px 1fr !important;
+                gap: 0.4rem !important;
+                margin-bottom: 0.35rem !important;
+            }
+
+            .maint-add-btn-wrapper {
+                grid-column: 1 / -1 !important;
+                margin-top: 0.2rem !important;
+            }
+
+            .maint-add-btn-wrapper button {
+                width: 100% !important;
+                height: 34px !important;
+                padding: 0.35rem 0.6rem !important;
+                font-size: 0.78rem !important;
+                font-weight: 700 !important;
+                border-radius: 8px !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                gap: 0.3rem !important;
+            }
+
+            #maintLogHistory {
+                max-height: 210px !important;
+                padding: 0.45rem !important;
+                border-radius: 10px !important;
+                background: rgba(0, 0, 0, 0.28) !important;
+                border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                margin-bottom: 0.4rem !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.4rem !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+                overflow-y: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+            }
+
+            [data-theme="green_pastel"] #maintLogHistory {
+                background: #f8faf8 !important;
+                border-color: rgba(45, 158, 107, 0.18) !important;
+            }
+
+            .maint-log-item {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+                padding: 0.5rem 0.6rem !important;
+                gap: 0.3rem !important;
+                border-radius: 8px !important;
+                background: rgba(255, 255, 255, 0.035) !important;
+                border: 1px solid rgba(255, 255, 255, 0.07) !important;
+            }
+
+            [data-theme="green_pastel"] .maint-log-item {
+                background: #ffffff !important;
+                border-color: rgba(45, 158, 107, 0.18) !important;
+                box-shadow: 0 1px 3px rgba(45, 158, 107, 0.06) !important;
+            }
+
+            .maint-log-header-row {
+                display: flex !important;
+                flex-direction: row !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+                gap: 0.4rem !important;
+            }
+
+            .maint-log-date {
+                font-size: 0.72rem !important;
+                font-weight: 800 !important;
+                color: #60a5fa !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 0.2rem !important;
+                margin: 0 !important;
+            }
+
+            [data-theme="green_pastel"] .maint-log-date {
+                color: #1a7a50 !important;
+            }
+
+            .maint-log-desc {
+                font-size: 0.78rem !important;
+                color: var(--text-main) !important;
+                line-height: 1.35 !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+                white-space: normal !important;
+                word-break: normal !important;
+                overflow-wrap: break-word !important;
+                margin: 0 !important;
+            }
+
+            [data-theme="green_pastel"] .maint-log-desc {
+                color: #1a2e25 !important;
+            }
+
+            .maint-log-actions {
+                display: flex !important;
+                gap: 0.35rem !important;
+                align-items: center !important;
+                flex-shrink: 0 !important;
+            }
+
+            .maint-log-actions .btn-edit {
+                width: 26px !important;
+                height: 26px !important;
+                padding: 0 !important;
+                border-radius: 6px !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+
+            .maint-log-actions .btn-edit i {
+                width: 12px !important;
+                height: 12px !important;
+            }
+
+            .modal-actions {
+                display: flex !important;
+                justify-content: flex-end !important;
+                gap: 0.5rem !important;
+                margin-top: 0.5rem !important;
+                padding-top: 0.5rem !important;
+                border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+            }
+
+            [data-theme="green_pastel"] .modal-actions {
+                border-top-color: rgba(45, 158, 107, 0.15) !important;
+            }
+
+            .modal-actions .btn {
+                height: 36px !important;
+                padding: 0.35rem 0.9rem !important;
+                font-size: 0.78rem !important;
+                font-weight: 700 !important;
+                border-radius: 8px !important;
+            }
+        }
+    </style>
 </head>
 
 <body class="admin-active">
@@ -171,7 +1100,7 @@
                     <button class="btn-col-reset" onclick="resetColumns('dashboard')">Redefinir padrão</button>
                 </div>
             </div>
-            <div class="table-container">
+            <div class="table-container desktop-table-view">
                 <table>
                     <thead id="thead-dashboard">
                         <tr></tr>
@@ -183,6 +1112,8 @@
                     </tbody>
                 </table>
             </div>
+            <!-- Lista de Cards Exclusiva para Celular (Alta Densidade) -->
+            <div id="mobileAllocationList" class="mobile-fleet-cards-container"></div>
         </div>
 
         <div id="vehiclesView" class="view-section">
@@ -242,7 +1173,7 @@
                     <button class="btn-col-reset" onclick="resetColumns('vehicles')">Redefinir padrão</button>
                 </div>
             </div>
-            <div class="table-container">
+            <div class="table-container desktop-table-view">
                 <table>
                     <thead id="thead-vehicles">
                         <tr></tr>
@@ -254,6 +1185,8 @@
                     </tbody>
                 </table>
             </div>
+            <!-- Lista de Cards Exclusiva para Celular (Alta Densidade) -->
+            <div id="mobileVehiclesList" class="mobile-fleet-cards-container"></div>
         </div>
 
         <div id="driversView" class="view-section">
@@ -279,7 +1212,7 @@
                     <button class="btn-col-reset" onclick="resetColumns('drivers')">Redefinir padrÃ£o</button>
                 </div>
             </div>
-            <div class="table-container">
+            <div class="table-container desktop-table-view">
                 <table>
                     <thead id="thead-drivers">
                         <tr></tr>
@@ -291,6 +1224,8 @@
                     </tbody>
                 </table>
             </div>
+            <!-- Lista de Cards Exclusiva para Celular (Alta Densidade) -->
+            <div id="mobileDriversList" class="mobile-fleet-cards-container"></div>
         </div>
 
         <!-- Aba Cadastros (Setup) -->
@@ -701,9 +1636,9 @@
 
     <!-- Maintenance Status Modal -->
     <div class="modal-overlay" id="maintenanceModal">
-        <div class="modal" style="max-width: 800px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                <h2 style="margin: 0;">Situação Atual e Histórico</h2>
+        <div class="modal detail-modal" style="max-width: 800px;">
+            <div class="detail-modal-header">
+                <h2>Situação Atual e Histórico</h2>
                 <button class="detail-close-btn" onclick="closeMaintenanceModal()">&times;</button>
             </div>
 
@@ -741,10 +1676,8 @@
                 </div>
 
                 <div class="form-section-header">Histórico de Movimentações</div>
-                <div id="maintLogHistory"
-                    style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 1rem;">
-                    <p style="text-align: center; color: var(--text-muted); font-size: 0.9rem;">Carregando histórico...
-                    </p>
+                <div id="maintLogHistory">
+                    <p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 0.5rem 0;">Carregando histórico...</p>
                 </div>
 
                 <div class="modal-actions">
@@ -941,6 +1874,22 @@
             </div>
         </div>
     </div>
+    <!-- Barra de Navegação Inferior Fixa Mobile (Apenas Visualização) -->
+    <nav class="mobile-bottom-nav" id="mobileBottomNav">
+        <button class="mob-nav-item active" data-tab="dashboard" onclick="switchMobileNav('dashboard')">
+            <i data-lucide="layout-dashboard"></i>
+            <span>Alocações</span>
+        </button>
+        <button class="mob-nav-item" data-tab="vehicles" onclick="switchMobileNav('vehicles')">
+            <i data-lucide="car"></i>
+            <span>Frota</span>
+        </button>
+        <button class="mob-nav-item" data-tab="drivers" onclick="switchMobileNav('drivers')">
+            <i data-lucide="users"></i>
+            <span>Equipe</span>
+        </button>
+    </nav>
+
     <script src="app.js?v=20260923_aloc_sort"></script>
     <script src="orb_menu.js"></script>
 </body>

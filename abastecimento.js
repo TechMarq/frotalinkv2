@@ -282,6 +282,12 @@ window.switchMainTab = (tab) => {
     // Reset all tabs components
     document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
     
+    // Sync mobile bottom navigation items
+    document.querySelectorAll('.mob-nav-item').forEach(b => {
+        b.classList.remove('active');
+        if (b.getAttribute('data-tab') === tab) b.classList.add('active');
+    });
+
     // Deactivate all sections
     const sections = ['fuelSection', 'dashboardSection', 'setupSection', 'importsSection', 'comparativoSection'];
     sections.forEach(s => {
@@ -319,10 +325,44 @@ window.switchMainTab = (tab) => {
             if (statsRow) statsRow.style.display = 'none';
             renderImportsTable();
         } else {
-            if (statsRow) statsRow.style.display = 'grid';
+            if (statsRow) statsRow.style.display = '';
             renderFuelTable();
         }
 
+    }
+    if (window.lucide) lucide.createIcons();
+};
+
+window.switchMobileNav = (tab) => {
+    if (tab === 'setup' || tab === 'imports') tab = 'fuel';
+    switchMainTab(tab);
+    document.querySelectorAll('.mob-nav-item').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
+    });
+};
+
+window.toggleMobileFilters = () => {
+    const qf = document.getElementById('quickFiltersBar');
+    if (qf) {
+        qf.classList.toggle('mob-filters-open');
+    }
+};
+
+window.updateActiveFiltersBadge = () => {
+    const badge = document.getElementById('activeFiltersBadge');
+    if (!badge || !state.filters) return;
+    let count = 0;
+    if (state.filters.categoria) count++;
+    if (state.filters.posto) count++;
+    if (state.filters.veiculo) count++;
+    if (state.filters.motorista) count++;
+    if (state.filters.combustivel) count++;
+    if (state.filters.periodo && state.filters.periodo !== 'current_month') count++;
+    if (count > 0) {
+        badge.innerText = count;
+        badge.style.display = 'flex';
+    } else {
+        badge.style.display = 'none';
     }
 };
 
@@ -2399,12 +2439,17 @@ function renderFuelTable() {
             mediaColor = '#d97706';
         }
 
+        const kmDiff = previousRecord ? (f.km_atual - previousRecord.km_atual) : null;
+        const diffText = kmDiff !== null ? (kmDiff >= 0 ? `+${kmDiff.toLocaleString('pt-BR')} km` : `${kmDiff.toLocaleString('pt-BR')} km`) : '1º reg';
+        const diffClass = kmDiff !== null && kmDiff < 0 ? 'mob-diff-neg' : 'mob-diff-pos';
+
         return `
             <tr>
-                <td style="text-align: center;">
+                <!-- COLUNAS DESKTOP (MANTIDAS 100% INTACTAS) -->
+                <td class="desktop-cell" style="text-align: center;">
                     <input type="checkbox" class="fuel-checkbox" value="${f.id}" onchange="updateSelectedUI()">
                 </td>
-                <td data-label="Data / Hora" data-column="data">
+                <td class="desktop-cell" data-label="Data / Hora" data-column="data">
                     <div style="font-weight: 600; display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap;">
                         ${alertIconHtml}
                         ${fDate.toLocaleDateString('pt-BR')}
@@ -2412,7 +2457,7 @@ function renderFuelTable() {
                     </div>
                     <div style="font-size: 0.75rem; color: var(--text-muted);">${formatTime24h(f.data, f.horario)}</div>
                 </td>
-                <td data-label="Veículo / Cat." data-column="veiculo">
+                <td class="desktop-cell" data-label="Veículo / Cat." data-column="veiculo">
                     <div style="font-weight: 700; cursor: pointer; color: var(--primary-light); text-decoration: underline; text-underline-offset: 2px;" onclick="filterByPlate('${f.veiculo_placa || ''}')" title="Filtrar este veículo">
                         ${f.veiculo_placa || '---'}
                     </div>
@@ -2423,20 +2468,20 @@ function renderFuelTable() {
                     </div>
                     <span class="type-badge" style="background: rgba(99, 102, 241, 0.1); color: var(--primary); font-size: 0.65rem; border: none; margin-top: 4px;">${f.veiculo_classificacao || '---'}</span>
                 </td>
-                <td data-label="KM Atual" data-column="km" class="${state.highlightId === f.id && state.highlightField === 'km' ? 'highlight-alert' : ''}">${f.km_atual.toLocaleString('pt-BR')} km</td>
-                <td data-label="KM Rodado" data-column="rodado" style="font-weight: 600; color: ${previousRecord && (f.km_atual - previousRecord.km_atual) < 0 ? '#ef4444' : 'inherit'};">
+                <td class="desktop-cell" data-label="KM Atual" data-column="km" class="${state.highlightId === f.id && state.highlightField === 'km' ? 'highlight-alert' : ''}">${f.km_atual.toLocaleString('pt-BR')} km</td>
+                <td class="desktop-cell" data-label="KM Rodado" data-column="rodado" style="font-weight: 600; color: ${previousRecord && (f.km_atual - previousRecord.km_atual) < 0 ? '#ef4444' : 'inherit'};">
                     ${previousRecord ? (f.km_atual - previousRecord.km_atual).toLocaleString('pt-BR') + ' km' : '---'}
                 </td>
-                <td data-label="Quantidade" data-column="litros">${f.litros.toLocaleString('pt-BR')} ${getFuelUnit(f.tipo_combustivel)}</td>
-                <td data-label="Combustível" data-column="combustivel"><div style="font-size: 0.8rem; font-weight: 600;">${f.tipo_combustivel || '---'}</div></td>
-                <td data-label="Média" data-column="media" style="color: ${mediaColor}; font-weight: 700;" class="${state.highlightId === f.id && state.highlightField === 'media' ? 'highlight-alert' : ''}">${avg}</td>
-                <td data-label="Valor Total" data-column="valor" style="font-weight: 600;" class="${state.highlightId === f.id && state.highlightField === 'valor' ? 'highlight-alert' : ''}">
+                <td class="desktop-cell" data-label="Quantidade" data-column="litros">${f.litros.toLocaleString('pt-BR')} ${getFuelUnit(f.tipo_combustivel)}</td>
+                <td class="desktop-cell" data-label="Combustível" data-column="combustivel"><div style="font-size: 0.8rem; font-weight: 600;">${f.tipo_combustivel || '---'}</div></td>
+                <td class="desktop-cell" data-label="Média" data-column="media" style="color: ${mediaColor}; font-weight: 700;" class="${state.highlightId === f.id && state.highlightField === 'media' ? 'highlight-alert' : ''}">${avg}</td>
+                <td class="desktop-cell" data-label="Valor Total" data-column="valor" style="font-weight: 600;" class="${state.highlightId === f.id && state.highlightField === 'valor' ? 'highlight-alert' : ''}">
                     <div>${f.valor_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
                     <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; font-weight: normal;">
                         ${unitVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 3 })} / ${getFuelUnit(f.tipo_combustivel)}
                     </div>
                 </td>
-                <td data-label="Posto / Local" data-column="posto">
+                <td class="desktop-cell" data-label="Posto / Local" data-column="posto">
                     <div style="font-weight: 600; font-size: 0.85rem;">${f.posto_nome || 'Não inf.' }</div>
                     <div style="font-size: 0.7rem; color: var(--text-muted);">${f.cidade_posto || ''} ${f.estado_posto ? '- '+f.estado_posto : ''}</div>
                     <div style="margin-top: 4px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
@@ -2451,7 +2496,7 @@ function renderFuelTable() {
                     </div>
                 </td>
 
-                <td data-label="Ações" class="actions-cell" style="vertical-align: middle;">
+                <td class="desktop-cell actions-cell" data-label="Ações" style="vertical-align: middle;">
                     <div style="display: flex; gap: 0.5rem; align-items: center; justify-content: center; height: 100%;">
                         <button class="btn-action edit" onclick="openFuelModal('${f.id}')" title="Editar" data-perm="abastecimento_lancamentos:edit">
                             <i data-lucide="edit-3" style="width: 16px;"></i>
@@ -2464,6 +2509,138 @@ function renderFuelTable() {
             </tr>
         `;
     }).join('');
+
+    // --- Renderização Separada dos Cards Mobile (100% largura útil, estilo App nativo, Apenas Visualização) ---
+    const mobContainer = document.getElementById('mobileFuelList');
+    if (mobContainer) {
+        if (pageRecords.length === 0) {
+            mobContainer.innerHTML = '<div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); font-size: 0.85rem;">Nenhum abastecimento encontrado.</div>';
+        } else {
+            mobContainer.innerHTML = pageRecords.map((f) => {
+                const fDate = smartParseDate(f.data, f.horario);
+                const previousRecord = state.fuelingRecords
+                    .filter(r => r.veiculo_id === f.veiculo_id && r.id !== f.id)
+                    .sort((a, b) => smartParseDate(b.data, b.horario) - smartParseDate(a.data, a.horario))
+                    .find(r => smartParseDate(r.data, r.horario) < fDate);
+                    
+                const importRecord = state.imports.find(i => i.id === f.importacao_id);
+                const importDisplayId = importRecord ? importRecord.display_id : null;
+
+                let avgValue = 0;
+                let avg = '---';
+                if (previousRecord) {
+                    const kmDiff = f.km_atual - previousRecord.km_atual;
+                    if (kmDiff > 0 && f.litros > 0) {
+                        avgValue = kmDiff / f.litros;
+                        avg = avgValue.toFixed(2) + ' ' + getFuelMediaUnit(f.tipo_combustivel);
+                    }
+                }
+
+                const isOutlier = avgValue > 0 && (avgValue < 8 || avgValue > 18);
+                const unitVal = parseFloat(f.valor_unitario) || (f.litros > 0 ? (parseFloat(f.valor_total) / parseFloat(f.litros)) : 0);
+
+                const recordAlerts = activeAlerts.filter(a => a.id === f.id);
+                let alertIconHtml = '';
+                if (recordAlerts.length > 0) {
+                    let severityColor = '#3b82f6';
+                    let iconName = 'info';
+                    let tooltipText = recordAlerts.map(a => a.title.replace(/[^\w\s\(\)\[\]\u00C0-\u00FF]/g, '').trim()).join(', ');
+                    if (recordAlerts.some(a => a.type === 'danger')) {
+                        severityColor = '#ef4444';
+                        iconName = 'alert-triangle';
+                    } else if (recordAlerts.some(a => a.type === 'warning')) {
+                        severityColor = '#f59e0b';
+                        iconName = 'alert-circle';
+                    }
+                    alertIconHtml = `
+                        <span class="row-alert-icon" title="${tooltipText}" style="color: ${severityColor}; display: inline-flex; align-items: center; margin-right: 0.35rem;" onclick="event.stopPropagation(); toggleFuelNotiPanel();">
+                            <i data-lucide="${iconName}" style="width: 14px; height: 14px; stroke-width: 2.5;"></i>
+                        </span>
+                    `;
+                }
+
+                const alterationLog = findAlterationLogForRecord(f, state.alterationLogs || [], state.userMap || {});
+                let alterationIconHtml = '';
+                if (alterationLog) {
+                    const tooltipText = getAlterationText(alterationLog, state.userMap || {});
+                    const escapedAlert = tooltipText.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    alterationIconHtml = `
+                        <span class="row-alteration-icon" title="${tooltipText}" style="color: #fbbf24; display: inline-flex; align-items: center; margin-left: 0.25rem;" onclick="event.stopPropagation(); alert('${escapedAlert}');">
+                            <i data-lucide="history" style="width: 13px; height: 13px; stroke-width: 2.5;"></i>
+                        </span>
+                    `;
+                }
+
+                let mediaColor = 'var(--primary)';
+                const mediaAlert = recordAlerts.find(a => a.field === 'media');
+                if (mediaAlert) {
+                    if (mediaAlert.type === 'danger') mediaColor = '#ef4444';
+                    else if (mediaAlert.type === 'warning') mediaColor = '#d97706';
+                    else if (mediaAlert.type === 'info') mediaColor = '#2563eb';
+                } else if (isOutlier) {
+                    mediaColor = '#d97706';
+                }
+
+                const kmDiff = previousRecord ? (f.km_atual - previousRecord.km_atual) : null;
+                const diffText = kmDiff !== null ? (kmDiff >= 0 ? `+${kmDiff.toLocaleString('pt-BR')} km` : `${kmDiff.toLocaleString('pt-BR')} km`) : '1º reg';
+                const diffClass = kmDiff !== null && kmDiff < 0 ? 'mob-diff-neg' : 'mob-diff-pos';
+
+                return `
+                    <div class="mob-card">
+                        <div class="mob-card-head">
+                            <div class="mob-card-plate-col">
+                                <div class="mob-plate-row">
+                                    <span class="mob-plate" onclick="filterByPlate('${f.veiculo_placa || ''}')" title="Filtrar veículo">${f.veiculo_placa || 'SEM PLACA'}</span>
+                                    <span class="mob-cat-badge">${f.veiculo_classificacao || 'FROTA'}</span>
+                                    ${alertIconHtml}
+                                    ${alterationIconHtml}
+                                </div>
+                                <div class="mob-sub-details">
+                                    <span class="mob-model-text">${f.veiculo_modelo || 'Modelo não inf.'}</span>
+                                    <span class="mob-dot">•</span>
+                                    <span class="mob-driver-text"><i data-lucide="user" style="width: 10px; height: 10px; display: inline-block;"></i> ${f.motorista_nome || 'N/I'}</span>
+                                </div>
+                            </div>
+                            <div class="mob-card-price-col">
+                                <div class="mob-total-val">${f.valor_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+                                <div class="mob-unit-val">${unitVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 })} / ${getFuelUnit(f.tipo_combustivel)}</div>
+                            </div>
+                        </div>
+
+                        <div class="mob-card-kpis">
+                            <div class="mob-kpi-col">
+                                <span class="mob-kpi-lbl">VOLUME</span>
+                                <span class="mob-kpi-val">${f.litros.toLocaleString('pt-BR')} ${getFuelUnit(f.tipo_combustivel)}</span>
+                                <span class="mob-kpi-sub">${f.tipo_combustivel || 'Combustível'}</span>
+                            </div>
+                            <div class="mob-kpi-col">
+                                <span class="mob-kpi-lbl">KM ATUAL</span>
+                                <span class="mob-kpi-val">${f.km_atual.toLocaleString('pt-BR')} km</span>
+                                <span class="mob-kpi-sub ${diffClass}">${diffText}</span>
+                            </div>
+                            <div class="mob-kpi-col">
+                                <span class="mob-kpi-lbl">MÉDIA</span>
+                                <span class="mob-kpi-val" style="color: ${mediaColor};">${avg}</span>
+                                <span class="mob-kpi-sub">Consumo</span>
+                            </div>
+                        </div>
+
+                        <div class="mob-card-foot">
+                            <div class="mob-foot-station">
+                                <i data-lucide="map-pin" style="width: 12px; height: 12px; flex-shrink: 0; color: var(--primary);"></i>
+                                <span class="mob-station-txt">${f.posto_nome || 'Posto não informado'}</span>
+                                ${f.cidade_posto ? `<span class="mob-city-txt">• ${f.cidade_posto}${f.estado_posto ? '/' + f.estado_posto : ''}</span>` : ''}
+                            </div>
+                            <div class="mob-foot-meta">
+                                <span>${fDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${formatTime24h(f.data, f.horario)}</span>
+                                ${importDisplayId ? `<span class="mob-imp-badge">${importDisplayId}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
     
     if (window.lucide) lucide.createIcons();
     calculateStats(filteredRecords);
@@ -3537,14 +3714,23 @@ window.focusFuelItem = (id, field = null) => {
 // --- Pagination Utilities ---
 
 window.changePage = (dir) => {
+    const totalRecords = (typeof getFilteredRecords === 'function' ? getFilteredRecords().length : state.fuelingRecords.length);
+    const totalPages = Math.ceil(totalRecords / state.pageSize) || 1;
     state.currentPage += dir;
     if (state.currentPage < 1) state.currentPage = 1;
+    if (state.currentPage > totalPages) state.currentPage = totalPages;
     renderFuelTable();
+    if (window.innerWidth <= 768) {
+        window.scrollTo({ top: 100, behavior: 'smooth' });
+    }
 };
 
 window.goToPage = (page) => {
     state.currentPage = page;
     renderFuelTable();
+    if (window.innerWidth <= 768) {
+        window.scrollTo({ top: 100, behavior: 'smooth' });
+    }
 };
 
 function updatePaginationUI(total, start, end) {
@@ -3583,6 +3769,30 @@ function updatePaginationUI(total, start, end) {
     }
     
     pNumbers.innerHTML = html;
+
+    // Mobile compact indicator
+    let mobInd = document.getElementById('mobPageIndicator');
+    if (!mobInd) {
+        mobInd = document.createElement('div');
+        mobInd.id = 'mobPageIndicator';
+        mobInd.className = 'mob-page-indicator';
+        pNumbers.parentNode.insertBefore(mobInd, pNumbers);
+    }
+    mobInd.innerText = `${state.currentPage} / ${totalPages}`;
+
+    // Estado dos botões Anterior e Próxima
+    const btnPrev = document.querySelector('.btn-page-prev');
+    const btnNext = document.querySelector('.btn-page-next');
+    if (btnPrev) {
+        btnPrev.disabled = state.currentPage <= 1;
+        btnPrev.style.opacity = state.currentPage <= 1 ? '0.35' : '1';
+        btnPrev.style.cursor = state.currentPage <= 1 ? 'not-allowed' : 'pointer';
+    }
+    if (btnNext) {
+        btnNext.disabled = state.currentPage >= totalPages;
+        btnNext.style.opacity = state.currentPage >= totalPages ? '0.35' : '1';
+        btnNext.style.cursor = state.currentPage >= totalPages ? 'not-allowed' : 'pointer';
+    }
 }
 
 window.clearDashFilters = () => {

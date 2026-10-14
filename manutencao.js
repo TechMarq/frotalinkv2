@@ -1054,8 +1054,235 @@ function renderMaintTable() {
         `;
     }).join('');
 
+    // Renderização dos Mobile Cards (Exclusiva para Celular / Alta Densidade)
+    const mobContainer = document.getElementById('mobileMaintList');
+    if (mobContainer) {
+        if (pageRecords.length === 0) {
+            mobContainer.innerHTML = `
+                <div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1);">
+                    <i data-lucide="wrench" style="width: 32px; height: 32px; margin-bottom: 0.5rem; opacity: 0.4;"></i>
+                    <p style="margin: 0; font-size: 0.85rem; font-weight: 600;">Nenhuma manutenção encontrada com os filtros atuais.</p>
+                </div>
+            `;
+        } else {
+            mobContainer.innerHTML = pageRecords.map(m => {
+                const items = m.manutencao_itens || [];
+                const vehicle = state.vehicles.find(v => v.id === m.veiculo_id);
+                const currentKm = vehicle?.km_atual || 0;
+                const isConcluido = m.status === 'CONCLUIDO';
+
+                let highestAlert = 0;
+                items.forEach(i => {
+                    if (!isConcluido && i.proxima_troca_km) {
+                        const limit = parseFloat(i.proxima_troca_km);
+                        if (currentKm >= limit) highestAlert = 2;
+                        else if (currentKm >= (limit - 2000) && highestAlert < 2) highestAlert = 1;
+                    }
+                });
+
+                let alertHtml = '';
+                if (highestAlert === 2) {
+                    alertHtml = `<i data-lucide="alert-triangle" class="pulse-red" style="width: 14px; height: 14px; color: #ef4444; flex-shrink: 0;" title="VENCIDO"></i>`;
+                } else if (highestAlert === 1) {
+                    alertHtml = `<i data-lucide="alert-circle" style="width: 14px; height: 14px; color: #f59e0b; flex-shrink: 0;" title="PRÓXIMO"></i>`;
+                }
+
+                const isOverdue = !isConcluido && (
+                    items.some(i => i.proxima_troca_km && currentKm >= parseFloat(i.proxima_troca_km)) ||
+                    (m.proxima_troca_km && currentKm >= parseFloat(m.proxima_troca_km))
+                );
+
+                let statusLabel = 'Pendente';
+                let statusClass = 'mob-status-pendente';
+                if (m.status === 'AGENDADO') {
+                    statusLabel = 'Agendado';
+                    statusClass = 'mob-status-agendado';
+                } else if (isConcluido) {
+                    statusLabel = 'Concluído';
+                    statusClass = 'mob-status-concluido';
+                } else if (isOverdue) {
+                    statusLabel = 'Atrasado';
+                    statusClass = 'mob-status-vencido';
+                }
+
+                const dataFormatted = m.data ? new Date(m.data + 'T12:00:00').toLocaleDateString('pt-BR') : '---';
+                const oficinaNome = m.fornecedores?.nome || 'Oficina não inf.';
+
+                let proxKmList = items.map(i => i.proxima_troca_km ? parseFloat(i.proxima_troca_km) : null).filter(k => k !== null);
+                if (proxKmList.length === 0 && m.proxima_troca_km) proxKmList = [parseFloat(m.proxima_troca_km)];
+
+                const kmTrocaText = m.km_atual ? parseFloat(m.km_atual).toLocaleString('pt-BR') : '---';
+                const proxKmText = proxKmList.length > 0 ? proxKmList.map(k => k.toLocaleString('pt-BR')).join(', ') : '---';
+
+                let kmFaltanteText = '---';
+                let kmFaltanteColorClass = '';
+                if (isConcluido) {
+                    kmFaltanteText = 'Concluído';
+                    kmFaltanteColorClass = 'text-success';
+                } else if (proxKmList.length > 0) {
+                    const limit = proxKmList[0];
+                    const faltante = limit - currentKm;
+                    if (faltante <= 0) {
+                        kmFaltanteText = `${Math.abs(faltante).toLocaleString('pt-BR')} km Venc.`;
+                        kmFaltanteColorClass = 'text-danger';
+                    } else if (faltante <= 2000) {
+                        kmFaltanteText = `${faltante.toLocaleString('pt-BR')} km`;
+                        kmFaltanteColorClass = 'text-warning';
+                    } else {
+                        kmFaltanteText = `${faltante.toLocaleString('pt-BR')} km`;
+                        kmFaltanteColorClass = 'text-success';
+                    }
+                }
+
+                const servicosHtmlMobile = items.map(i => {
+                    const acao = (i.manutencao_acoes?.descricao || 'Serviço').toUpperCase();
+                    const tipo = i.manutencao_tipos?.descricao ? `[${i.manutencao_tipos.descricao}]` : '';
+                    const qtd = i.quantidade ? `(Qtd: ${parseFloat(i.quantidade).toLocaleString('pt-BR')})` : '';
+                    const desc = i.descricao || 'Sem descrição adicional';
+                    const hasGarantia = i.possui_garantia;
+                    const dataGarantia = i.vencimento_garantia ? new Date(i.vencimento_garantia + 'T12:00:00').toLocaleDateString('pt-BR') : '';
+
+                    return `
+                        <div class="mob-srv-item">
+                            <div class="mob-srv-header">
+                                <span class="mob-srv-badge">${acao} ${tipo}</span>
+                                ${qtd ? `<span class="mob-srv-qty">${qtd}</span>` : ''}
+                                ${hasGarantia ? `<span class="mob-garantia-pill"><i data-lucide="shield-check" style="width: 10px; height: 10px;"></i> Gar. ${dataGarantia}</span>` : ''}
+                            </div>
+                            <div class="mob-srv-desc">${desc}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="mob-card mob-maint-card" onclick="openMaintDetail('${m.id}')" title="Toque para visualizar detalhes da OS">
+                        <div class="mob-card-head">
+                            <div class="mob-card-plate-col">
+                                <div class="mob-plate-row">
+                                    ${alertHtml}
+                                    <span class="mob-plate">${m.veiculos?.placa || '---'}</span>
+                                    ${m.numero_nota ? `<span class="mob-nf-badge">#${m.numero_nota}</span>` : ''}
+                                </div>
+                                <div class="mob-maint-subhead">
+                                    <span><i data-lucide="calendar" style="width: 11px; height: 11px;"></i> ${dataFormatted}</span>
+                                    <span class="mob-dot">•</span>
+                                    <span class="mob-oficina-name" title="${oficinaNome}"><i data-lucide="building-2" style="width: 11px; height: 11px;"></i> ${oficinaNome}</span>
+                                </div>
+                            </div>
+                            <div class="mob-card-status-col">
+                                <div class="mob-status-pill ${statusClass}" title="Status: ${statusLabel}">
+                                    ${statusLabel}
+                                </div>
+                                ${m.autorizacao_motivo ? `<span class="mob-antecipado-badge" title="${m.autorizacao_motivo}"><i data-lucide="shield-check" style="width: 10px; height: 10px;"></i> Antecipado</span>` : ''}
+                            </div>
+                        </div>
+
+                        ${servicosHtmlMobile ? `<div class="mob-maint-services">${servicosHtmlMobile}</div>` : ''}
+
+                        <div class="mob-km-strip">
+                            <div class="mob-km-box">
+                                <span class="mob-km-lbl">KM TROCA</span>
+                                <span class="mob-km-val">${kmTrocaText}</span>
+                            </div>
+                            <div class="mob-km-box">
+                                <span class="mob-km-lbl">PRÓXIMA</span>
+                                <span class="mob-km-val highlight">${proxKmText}</span>
+                            </div>
+                            <div class="mob-km-box">
+                                <span class="mob-km-lbl">FALTANTE</span>
+                                <span class="mob-km-val ${kmFaltanteColorClass}">${kmFaltanteText}</span>
+                            </div>
+                        </div>
+
+                        <div class="mob-card-foot">
+                            <div class="mob-sub-detail">
+                                ${m.veiculos?.modelo ? `<span style="font-weight: 600;"><i data-lucide="car" style="width: 11px; height: 11px; display: inline-block; vertical-align: middle; margin-right: 2px;"></i>${m.veiculos.modelo}</span>` : ''}
+                            </div>
+                            <span style="font-size: 0.68rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 2px; font-weight: 600;">
+                                Ver detalhes <i data-lucide="chevron-right" style="width: 12px; height: 12px;"></i>
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
     if (window.lucide) lucide.createIcons();
 }
+
+// --- Modal de Detalhes da Manutenção (Apenas Consulta / Leitura Mobile & Desktop) ---
+window.openMaintDetail = function(id) {
+    const m = state.manutencoes.find(item => item.id === id);
+    if (!m) return;
+
+    const modal = document.getElementById('maintDetailModal');
+    const content = document.getElementById('maintDetailContent');
+    const title = document.getElementById('maintDetailTitle');
+    if (!modal || !content || !title) return;
+
+    const veh = state.vehicles.find(v => v.id === m.veiculo_id) || m.veiculos;
+    const items = m.manutencao_itens || [];
+    const isConcluido = m.status === 'CONCLUIDO';
+    const dataFormatted = m.data ? new Date(m.data + 'T12:00:00').toLocaleDateString('pt-BR') : '---';
+    const statusLabel = m.status === 'AGENDADO' ? 'Agendado' : (isConcluido ? 'Concluído' : 'Pendente');
+
+    title.innerHTML = `<span style="font-family:'JetBrains Mono',monospace; color:var(--primary);">${veh?.placa || 'Veículo'}</span> • Detalhes da OS`;
+
+    let itemsHtml = items.map((i, idx) => {
+        const acao = (i.manutencao_acoes?.descricao || 'Serviço').toUpperCase();
+        const tipo = i.manutencao_tipos?.descricao ? `[${i.manutencao_tipos.descricao}]` : '';
+        const qtd = i.quantidade ? `Qtd: ${parseFloat(i.quantidade).toLocaleString('pt-BR')}` : 'Qtd: 1';
+        const prox = i.proxima_troca_km ? `${parseFloat(i.proxima_troca_km).toLocaleString('pt-BR')} km` : '---';
+        const interv = i.intervalo_km ? `${parseFloat(i.intervalo_km).toLocaleString('pt-BR')} km` : '---';
+        const hasGar = i.possui_garantia;
+        const garVenc = i.vencimento_garantia ? new Date(i.vencimento_garantia + 'T12:00:00').toLocaleDateString('pt-BR') : '';
+
+        return `
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+                    <span style="font-size: 0.75rem; font-weight: 800; color: var(--primary);">${idx + 1}. ${acao} ${tipo}</span>
+                    <span style="font-size: 0.7rem; color: #10b981; font-weight: 700;">${qtd}</span>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-main); margin-bottom: 0.4rem;">${i.descricao || 'Sem descrição'}</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; font-size: 0.72rem; color: var(--text-muted); border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 0.35rem;">
+                    <div>Intervalo: <strong style="color:var(--text-main);">${interv}</strong></div>
+                    <div>Próx. Troca: <strong style="color:#6366f1;">${prox}</strong></div>
+                    ${hasGar ? `<div style="grid-column: span 2; color: #10b981; font-weight: 700;">🛡️ Garantia até ${garVenc} (${i.origem_garantia || 'Fornecedor'})</div>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    content.innerHTML = `
+        <div class="detail-item"><strong>Placa / Veículo</strong><span style="font-family:'JetBrains Mono',monospace; color:#38bdf8; font-weight:800;">${veh?.placa || '---'}</span> ${veh?.modelo ? `<br><small style="color:var(--text-muted); font-size:0.75rem;">${veh.modelo}</small>` : ''}</div>
+        <div class="detail-item"><strong>Data do Serviço</strong>${dataFormatted}</div>
+        <div class="detail-item"><strong>Status</strong><span class="badge ${isConcluido ? 'success' : (m.status === 'AGENDADO' ? 'purple' : 'warning')}">${statusLabel}</span></div>
+        <div class="detail-item"><strong>Nota Fiscal</strong>${m.numero_nota ? `<span style="color:#10b981; font-weight:800;">#${m.numero_nota}</span>` : '---'}</div>
+        <div class="detail-item"><strong>Oficina / Fornecedor</strong>${m.fornecedores?.nome || '---'}</div>
+        <div class="detail-item"><strong>KM no Momento</strong>${m.km_atual ? `${parseFloat(m.km_atual).toLocaleString('pt-BR')} km` : '---'}</div>
+        ${m.autorizacao_motivo ? `<div class="detail-item full-width" style="border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.06);"><strong style="color:#ef4444;">Motivo de Antecipação</strong><span style="color:#ef4444;">${m.autorizacao_motivo}</span></div>` : ''}
+        <div class="detail-item full-width">
+            <strong>Itens & Serviços Realizados (${items.length})</strong>
+            ${itemsHtml || '<span style="color:var(--text-muted); font-size:0.8rem;">Nenhum item registrado.</span>'}
+        </div>
+        <div class="detail-item full-width" style="display: flex; justify-content: flex-end; padding: 0.5rem 0; background: transparent; border: none;">
+            <button type="button" class="btn btn-secondary" onclick="closeMaintDetail()" style="width: 100%; height: 42px; border-radius: 10px; font-weight: 700;">FECHAR</button>
+        </div>
+    `;
+
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+    if (window.lucide) lucide.createIcons();
+};
+
+window.closeMaintDetail = function() {
+    const modal = document.getElementById('maintDetailModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+    }
+};
 
 function calculateMaintStats() {
     const totalCount = state.manutencoes.length;
@@ -1223,12 +1450,17 @@ window.openStatusMenu = function(event, id, currentStatus) {
     if (existingMenu) existingMenu.remove();
 
     const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 140;
+    let leftPos = rect.left;
+    if (leftPos + menuWidth > window.innerWidth - 10) {
+        leftPos = Math.max(10, window.innerWidth - menuWidth - 10);
+    }
 
     const menu = document.createElement('div');
     menu.id = 'statusMenuPopover';
     menu.style.position = 'fixed';
     menu.style.top = `${rect.bottom + 4}px`;
-    menu.style.left = `${rect.left}px`;
+    menu.style.left = `${leftPos}px`;
     menu.style.zIndex = '10000';
     menu.style.background = '#ffffff';
     menu.style.border = '1px solid var(--border-card, #cbd5e1)';
