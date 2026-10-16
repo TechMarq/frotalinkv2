@@ -43,6 +43,8 @@ let currentSort = {
 };
 let currentStatusFilters = []; // Multi-select: MANUTENCAO, GARAGEM, DISPONIVEL
 let currentClassificationFilters = []; // Multi-select: PROPRIO, TERCEIRO, etc.
+let currentVehicleStatusFilter = 'ATIVO'; // 'ATIVO', 'INATIVO', 'TODOS'
+window.currentVehicleStatusFilter = currentVehicleStatusFilter;
 let whatsappConfig = { api_type: 'evolution', api_url: '', instance: '', apikey: '' };
 let whatsappDestinatarios = [];
 let inativoMotivos = [];
@@ -1318,6 +1320,50 @@ function toggleClassificationFilter(classif) {
     renderFullVehicles();
 }
 
+function setVehicleStatusFilter(status) {
+    currentVehicleStatusFilter = status;
+    window.currentVehicleStatusFilter = status;
+
+    const btns = {
+        'ATIVO': document.getElementById('filter-veh-status-ATIVO'),
+        'INATIVO': document.getElementById('filter-veh-status-INATIVO'),
+        'TODOS': document.getElementById('filter-veh-status-TODOS')
+    };
+
+    for (const [key, btn] of Object.entries(btns)) {
+        if (btn) {
+            if (key === status) btn.classList.add('active');
+            else btn.classList.remove('active');
+        }
+    }
+
+    renderFullVehicles();
+}
+window.setVehicleStatusFilter = setVehicleStatusFilter;
+
+function updateVehicleStatusCounts() {
+    let ativos = 0;
+    let inativos = 0;
+    let todos = vehicles.length;
+
+    vehicles.forEach(v => {
+        if (v.status === 'INATIVO') {
+            inativos++;
+        } else {
+            ativos++;
+        }
+    });
+
+    const elAtivos = document.getElementById('count-veh-status-ATIVO');
+    if (elAtivos) elAtivos.innerText = ativos;
+
+    const elInativos = document.getElementById('count-veh-status-INATIVO');
+    if (elInativos) elInativos.innerText = inativos;
+
+    const elTodos = document.getElementById('count-veh-status-TODOS');
+    if (elTodos) elTodos.innerText = todos;
+}
+
 const KNOWN_CLASSIFICATIONS = ['PROPRIO', 'TERCEIRO', 'ALUGADO', 'DIRETORIA', 'ESPECIAL', 'OUTRO'];
 
 function updateClassificationCounts() {
@@ -1330,7 +1376,14 @@ function updateClassificationCounts() {
         OUTRO: 0
     };
 
-    vehicles.forEach(v => {
+    // Calcula classificação respeitando o filtro de status selecionado (Ativos / Inativos / Todos)
+    const targetVehicles = currentVehicleStatusFilter === 'TODOS'
+        ? vehicles
+        : (currentVehicleStatusFilter === 'INATIVO'
+            ? vehicles.filter(v => v.status === 'INATIVO')
+            : vehicles.filter(v => v.status !== 'INATIVO'));
+
+    targetVehicles.forEach(v => {
         const classif = v.classificacao;
         if (classif && counts.hasOwnProperty(classif)) {
             counts[classif]++;
@@ -1891,6 +1944,7 @@ function renderFullVehicles() {
     const list = document.getElementById('fullVehicleList');
     if (!list) return;
 
+    updateVehicleStatusCounts(); // 📊 Atualiza contadores de status Ativos, Inativos e Todos
     updateClassificationCounts(); // 📊 Atualiza os contadores de classificação
     renderThead('vehicles');
 
@@ -1898,6 +1952,15 @@ function renderFullVehicles() {
 
     const searchWords = searchTerm.split(/\s+/).filter(w => w);
     const filtered = vehicles.filter(v => {
+        // Filtro por Status Operacional do Veículo (ATIVO / INATIVO / TODOS)
+        if (typeof currentVehicleStatusFilter !== 'undefined') {
+            if (currentVehicleStatusFilter === 'ATIVO') {
+                if (v.status === 'INATIVO') return false;
+            } else if (currentVehicleStatusFilter === 'INATIVO') {
+                if (v.status !== 'INATIVO') return false;
+            }
+        }
+
         // Filtro por Classificação (Multi-seleção)
         if (currentClassificationFilters.length > 0) {
             // Treat null/empty/unknown classification as 'OUTRO'
@@ -2422,6 +2485,15 @@ function getFilteredVehicles() {
     const searchWords = searchTerm.split(/\s+/).filter(w => w);
 
     let filtered = vehicles.filter(v => {
+        // Filtro por Status Operacional do Veículo (ATIVO / INATIVO / TODOS)
+        if (typeof currentVehicleStatusFilter !== 'undefined') {
+            if (currentVehicleStatusFilter === 'ATIVO') {
+                if (v.status === 'INATIVO') return false;
+            } else if (currentVehicleStatusFilter === 'INATIVO') {
+                if (v.status !== 'INATIVO') return false;
+            }
+        }
+
         // Filtro por Classificação (Multi-seleção)
         if (typeof currentClassificationFilters !== 'undefined' && currentClassificationFilters.length > 0) {
             const effectiveClass = (v.classificacao && KNOWN_CLASSIFICATIONS.includes(v.classificacao))
@@ -2723,6 +2795,9 @@ function exportFleetToPDF() {
         if (distinctClasses.length > 0) subTitle += ` | Classificação: ${distinctClasses.join(', ')}`;
     } else {
         if (searchTerm) subTitle += ` | Busca: "${searchTerm}"`;
+        if (typeof currentVehicleStatusFilter !== 'undefined') {
+            subTitle += ` | Status: ${currentVehicleStatusFilter === 'ATIVO' ? 'Ativos' : (currentVehicleStatusFilter === 'INATIVO' ? 'Inativos' : 'Todos')}`;
+        }
         if (typeof currentClassificationFilters !== 'undefined' && currentClassificationFilters.length > 0) {
             subTitle += ` | Filtro: ${currentClassificationFilters.join(', ')}`;
         }

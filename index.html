@@ -953,6 +953,140 @@
                 border-radius: 8px !important;
             }
         }
+
+        /* Estilos do Seletor Segmentado de Status do Veículo (Ativos / Inativos / Todos) */
+        .vehicle-status-segmented {
+            display: inline-flex;
+            align-items: center;
+            background: rgba(15, 23, 42, 0.4);
+            padding: 3px;
+            border-radius: 10px;
+            gap: 3px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .vehicle-status-segmented::-webkit-scrollbar {
+            display: none;
+        }
+
+        [data-theme="green_pastel"] .vehicle-status-segmented {
+            background: #ffffff;
+            border-color: rgba(45, 158, 107, 0.22);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+        }
+
+        .vehicle-status-btn {
+            border: none;
+            background: transparent;
+            padding: 0.4rem 0.85rem;
+            border-radius: 7px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            text-transform: uppercase;
+            letter-spacing: 0.02rem;
+            white-space: nowrap;
+        }
+
+        .vehicle-status-btn .status-pill-count {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-muted);
+            padding: 0.1rem 0.45rem;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 800;
+            transition: all 0.2s ease;
+        }
+
+        [data-theme="green_pastel"] .vehicle-status-btn {
+            color: #64748b;
+        }
+
+        [data-theme="green_pastel"] .vehicle-status-btn .status-pill-count {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        .vehicle-status-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        [data-theme="green_pastel"] .vehicle-status-btn:hover {
+            color: #0f172a;
+            background: #f8fafc;
+        }
+
+        /* Ativo - ATIVOS */
+        .vehicle-status-btn.active.btn-status-ativo {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+        }
+        [data-theme="green_pastel"] .vehicle-status-btn.active.btn-status-ativo {
+            background: #10b981;
+            color: #ffffff;
+            border: 1px solid #059669;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+        }
+        .vehicle-status-btn.active.btn-status-ativo .status-pill-count {
+            background: rgba(16, 185, 129, 0.3);
+            color: #ffffff;
+        }
+        [data-theme="green_pastel"] .vehicle-status-btn.active.btn-status-ativo .status-pill-count {
+            background: rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+        }
+
+        /* Ativo - INATIVOS */
+        .vehicle-status-btn.active.btn-status-inativo {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+        }
+        [data-theme="green_pastel"] .vehicle-status-btn.active.btn-status-inativo {
+            background: #ef4444;
+            color: #ffffff;
+            border: 1px solid #dc2626;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
+        }
+        .vehicle-status-btn.active.btn-status-inativo .status-pill-count {
+            background: rgba(239, 68, 68, 0.3);
+            color: #ffffff;
+        }
+        [data-theme="green_pastel"] .vehicle-status-btn.active.btn-status-inativo .status-pill-count {
+            background: rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+        }
+
+        /* Ativo - TODOS */
+        .vehicle-status-btn.active.btn-status-todos {
+            background: rgba(99, 102, 241, 0.2);
+            color: #818cf8;
+            border: 1px solid rgba(99, 102, 241, 0.4);
+        }
+        [data-theme="green_pastel"] .vehicle-status-btn.active.btn-status-todos {
+            background: #059669;
+            color: #ffffff;
+            border: 1px solid #047857;
+            box-shadow: 0 2px 8px rgba(5, 150, 105, 0.35);
+        }
+        .vehicle-status-btn.active.btn-status-todos .status-pill-count {
+            background: rgba(99, 102, 241, 0.3);
+            color: #ffffff;
+        }
+        [data-theme="green_pastel"] .vehicle-status-btn.active.btn-status-todos .status-pill-count {
+            background: rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+        }
     </style>
 </head>
 
@@ -1118,27 +1252,51 @@
 
         <div id="vehiclesView" class="view-section">
             <div class="view-header-actions"
-                style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
-                <div class="status-filters" id="classificationFilters"
-                    style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                    <button id="filter-full-PROPRIO" class="filter-chip filter-proprio"
-                        onclick="toggleClassificationFilter('PROPRIO')">PRÓPRIO <span class="filter-count"
-                            id="count-PROPRIO">0</span></button>
-                    <button id="filter-full-TERCEIRO" class="filter-chip filter-terceiro"
-                        onclick="toggleClassificationFilter('TERCEIRO')">TERCEIRO <span class="filter-count"
-                            id="count-TERCEIRO">0</span></button>
-                    <button id="filter-full-ALUGADO" class="filter-chip filter-alugado"
-                        onclick="toggleClassificationFilter('ALUGADO')">ALUGADO <span class="filter-count"
-                            id="count-ALUGADO">0</span></button>
-                    <button id="filter-full-DIRETORIA" class="filter-chip filter-diretoria"
-                        onclick="toggleClassificationFilter('DIRETORIA')">DIRETORIA <span class="filter-count"
-                            id="count-DIRETORIA">0</span></button>
-                    <button id="filter-full-ESPECIAL" class="filter-chip filter-especial"
-                        onclick="toggleClassificationFilter('ESPECIAL')">ESPECIAL <span class="filter-count"
-                            id="count-ESPECIAL">0</span></button>
-                    <button id="filter-full-OUTRO" class="filter-chip filter-outro"
-                        onclick="toggleClassificationFilter('OUTRO')">OUTRO <span class="filter-count"
-                            id="count-OUTRO">0</span></button>
+                style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                <div style="display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap;">
+                    <!-- Filtro Segmentado de Operação/Status do Veículo -->
+                    <div class="vehicle-status-segmented" id="vehicleStatusFilterGroup">
+                        <button type="button" class="vehicle-status-btn active btn-status-ativo" id="filter-veh-status-ATIVO"
+                            onclick="setVehicleStatusFilter('ATIVO')" title="Exibir apenas veículos ativos">
+                            <i data-lucide="check-circle-2" style="width: 14px; height: 14px;"></i> ATIVOS <span class="status-pill-count"
+                                id="count-veh-status-ATIVO">0</span>
+                        </button>
+                        <button type="button" class="vehicle-status-btn btn-status-inativo" id="filter-veh-status-INATIVO"
+                            onclick="setVehicleStatusFilter('INATIVO')" title="Exibir apenas veículos inativos">
+                            <i data-lucide="slash" style="width: 14px; height: 14px;"></i> INATIVOS <span class="status-pill-count"
+                                id="count-veh-status-INATIVO">0</span>
+                        </button>
+                        <button type="button" class="vehicle-status-btn btn-status-todos" id="filter-veh-status-TODOS"
+                            onclick="setVehicleStatusFilter('TODOS')" title="Exibir todos os veículos (ativos e inativos)">
+                            <i data-lucide="layers" style="width: 14px; height: 14px;"></i> TODOS <span class="status-pill-count"
+                                id="count-veh-status-TODOS">0</span>
+                        </button>
+                    </div>
+
+                    <div style="width: 1px; height: 26px; background: rgba(0,0,0,0.12);" class="status-filter-separator"></div>
+
+                    <!-- Filtros por Classificação -->
+                    <div class="status-filters" id="classificationFilters"
+                        style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <button id="filter-full-PROPRIO" class="filter-chip filter-proprio"
+                            onclick="toggleClassificationFilter('PROPRIO')">PRÓPRIO <span class="filter-count"
+                                id="count-PROPRIO">0</span></button>
+                        <button id="filter-full-TERCEIRO" class="filter-chip filter-terceiro"
+                            onclick="toggleClassificationFilter('TERCEIRO')">TERCEIRO <span class="filter-count"
+                                id="count-TERCEIRO">0</span></button>
+                        <button id="filter-full-ALUGADO" class="filter-chip filter-alugado"
+                            onclick="toggleClassificationFilter('ALUGADO')">ALUGADO <span class="filter-count"
+                                id="count-ALUGADO">0</span></button>
+                        <button id="filter-full-DIRETORIA" class="filter-chip filter-diretoria"
+                            onclick="toggleClassificationFilter('DIRETORIA')">DIRETORIA <span class="filter-count"
+                                id="count-DIRETORIA">0</span></button>
+                        <button id="filter-full-ESPECIAL" class="filter-chip filter-especial"
+                            onclick="toggleClassificationFilter('ESPECIAL')">ESPECIAL <span class="filter-count"
+                                id="count-ESPECIAL">0</span></button>
+                        <button id="filter-full-OUTRO" class="filter-chip filter-outro"
+                            onclick="toggleClassificationFilter('OUTRO')">OUTRO <span class="filter-count"
+                                id="count-OUTRO">0</span></button>
+                    </div>
                 </div>
                 <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
                     <div id="selectionBadge-vehicles" style="display:none; align-items:center; gap:0.5rem; background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.3); padding:0.35rem 0.8rem; border-radius:8px; font-size:0.78rem; font-weight:700; color:#818cf8;">
@@ -1890,7 +2048,7 @@
         </button>
     </nav>
 
-    <script src="app.js?v=20260923_aloc_sort"></script>
+    <script src="app.js?v=20261015_status_filter"></script>
     <script src="orb_menu.js"></script>
 </body>
 

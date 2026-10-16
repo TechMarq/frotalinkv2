@@ -464,6 +464,7 @@ function applyPermissions(modulo) {
 
             // ── Verificação de acesso total ao módulo ──────────────────────
             const hasAnyEstoque = canDo('estoque_inventario', 'view') ||
+                                  canDo('estoque_ajuste',      'view') ||
                                   canDo('estoque_historico',  'view') ||
                                   canDo('estoque_vendas',     'view') ||
                                   canDo('estoque_cadastros',  'view');
@@ -535,12 +536,13 @@ function applyPermissions(modulo) {
             }
 
             // ── E. Ajuste de Inventário (Reajuste de Saldo) ───────────────
+            const canAjusteEstoque = canDo('estoque_ajuste', 'edit') || canDo('estoque_ajuste', 'add') || canDo('estoque_ajuste', 'view');
             document.querySelectorAll('.adjust-form').forEach(el => {
-                if (!canDo('estoque_inventario', 'edit')) el.style.display = 'none';
+                if (!canAjusteEstoque) el.style.display = 'none';
                 else el.style.display = '';
             });
             document.querySelectorAll('button[onclick*="saveQuickAdjustment"]').forEach(el => {
-                if (!canDo('estoque_inventario', 'edit')) el.style.display = 'none';
+                if (!canAjusteEstoque) el.style.display = 'none';
                 else el.style.display = '';
             });
 

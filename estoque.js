@@ -748,13 +748,19 @@ function setupEventListeners() {
         const vModal = document.getElementById('vendaModal');
         const pModal = document.getElementById('productModal');
         const pvModal = document.getElementById('productViewModal');
+        const scanModal = document.getElementById('barcodeScannerModal');
 
+        const isScanActive = scanModal && (scanModal.style.display === 'flex' || scanModal.classList.contains('active'));
         const isVendaActive = vModal && vModal.classList.contains('active');
         const isProdActive = pModal && pModal.classList.contains('active');
         const isViewActive = pvModal && pvModal.classList.contains('active');
 
         // ESC: Fechar Modal
         if (e.key === 'Escape') {
+            if (isScanActive) {
+                closeBarcodeScanner();
+                return;
+            }
             if (isVendaActive) {
                 const searchResults = document.getElementById('v_search_results');
                 if (searchResults && searchResults.style.display === 'block') {
@@ -865,9 +871,10 @@ async function openProductViewModal(id) {
     // Configura botões de ação e permissões
     const canEdit = typeof canDo === 'function' ? canDo('estoque_inventario', 'edit') : true;
     const canDelete = typeof canDo === 'function' ? canDo('estoque_inventario', 'delete') : true;
+    const canAjuste = typeof canDo === 'function' ? (canDo('estoque_ajuste', 'edit') || canDo('estoque_ajuste', 'add') || canDo('estoque_ajuste', 'view')) : true;
 
     const adjustForm = document.querySelector('#productViewModal .adjust-form');
-    if (adjustForm) adjustForm.style.display = canEdit ? 'block' : 'none';
+    if (adjustForm) adjustForm.style.display = canAjuste ? 'block' : 'none';
 
     const btnEdit = document.getElementById('btn_view_edit_trigger');
     if (btnEdit) {
@@ -883,6 +890,7 @@ async function openProductViewModal(id) {
 
     // Abre Modal
     document.getElementById('productViewModal').classList.add('active');
+    document.body.classList.add('product-view-modal-open');
 
     // Carrega Histórico Específico
     await loadProductHistory(id);
@@ -890,6 +898,7 @@ async function openProductViewModal(id) {
 
 function closeProductViewModal() {
     document.getElementById('productViewModal').classList.remove('active');
+    document.body.classList.remove('product-view-modal-open');
     currentViewingId = null;
 }
 
@@ -970,6 +979,13 @@ async function loadProductHistory(productId) {
                 
                 const isCancelled = h.motivo && h.motivo.includes('[CANCELADA]');
 
+                // Detectar se há código de venda no motivo
+                let vendaCodigo = null;
+                if (h.motivo && h.motivo.includes('VENDA:')) {
+                    const match = h.motivo.match(/VENDA:\s*([A-Za-z0-9_-]+)/i);
+                    if (match) vendaCodigo = match[1].trim();
+                }
+
                 let cellContent = '';
                 if (isAjuste) {
                     const reasonClean = h.motivo.replace('[AJUSTE] ', '');
@@ -977,6 +993,19 @@ async function loadProductHistory(productId) {
                     cellContent = `
                         <div style="font-size: 0.75rem; color: #334155; font-weight: 600;">${reasonClean}</div>
                         ${userEmail ? `<div style="font-size: 0.68rem; color: #94a3b8; font-weight: 500; margin-top: 2px;">por ${userEmail}</div>` : ''}
+                    `;
+                } else if (vendaCodigo) {
+                    const motivoParts = (h.motivo || '').split(' | ');
+                    const mainPart = motivoParts[0] || '';
+                    const salePart = motivoParts[1] || `VENDA: ${vendaCodigo}`;
+                    cellContent = `
+                        <div style="font-size: 0.75rem; color: #334155; font-weight: 600;">${mainPart}</div>
+                        <div style="margin-top: 4px;">
+                            <span onclick="closeProductViewModal(); editSaleByCodigo('${vendaCodigo}');" title="Clique para abrir e visualizar/editar a venda ${vendaCodigo}" style="display: inline-flex; align-items: center; gap: 4px; color: #059669; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 2px 8px; border-radius: 6px; font-weight: 800; font-size: 0.72rem; cursor: pointer; text-decoration: none; transition: all 0.2s;" onmouseover="this.style.background='#d1fae5'; this.style.borderColor='#059669';" onmouseout="this.style.background='#ecfdf5'; this.style.borderColor='#a7f3d0';">
+                                <i data-lucide="shopping-cart" style="width: 12px; height: 12px;"></i>
+                                ${salePart}
+                            </span>
+                        </div>
                     `;
                 } else {
                     cellContent = (h.motivo || '---').replace(' | ', '<br><span style="color:#059669; font-weight:700;">');
@@ -994,6 +1023,7 @@ async function loadProductHistory(productId) {
                 `;
                 tbody.appendChild(row);
             });
+            if (window.lucide) lucide.createIcons();
         } else {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 2rem; color: #64748b; font-weight: 600;">Nenhuma movimentação registrada.</td></tr>';
         }
@@ -1004,8 +1034,9 @@ async function loadProductHistory(productId) {
 }
 
 async function saveQuickAdjustment() {
-    if (typeof canDo === 'function' && !canDo('estoque_inventario', 'edit')) {
-        alert('Sem permissão para ajustar saldo de estoque.');
+    const canAjuste = typeof canDo === 'function' ? (canDo('estoque_ajuste', 'edit') || canDo('estoque_ajuste', 'add') || canDo('estoque_ajuste', 'view')) : true;
+    if (!canAjuste) {
+        alert('Você não possui permissão para ajustar saldo / inventário de estoque.');
         return;
     }
     const id = currentViewingId;
@@ -1108,38 +1139,83 @@ async function loadHistory(forceReload = false) {
     }
 }
 
-function applyHistoryFilters() {
-    const searchTerm = document.getElementById('search_history')?.value?.toLowerCase() || '';
-    const typeFilter = document.getElementById('filter_type')?.value || '';
-    const periodFilter = document.getElementById('filter_period')?.value || 'todos';
+let historyViewMode = 'venda'; // 'venda' ou 'item'
+let historyCurrentPage = 1;
+let historyPageSize = 15;
+let filteredHistoryRecords = []; // Holds items ready for rendering (grouped sales or per-item)
 
-    // Toggle custom range display
+function setHistoryViewMode(mode) {
+    historyViewMode = mode;
+    const btnVenda = document.getElementById('btn_history_mode_venda');
+    const btnItem = document.getElementById('btn_history_mode_item');
+    if (btnVenda && btnItem) {
+        if (mode === 'venda') {
+            btnVenda.style.background = '#059669';
+            btnVenda.style.color = '#ffffff';
+            btnVenda.style.fontWeight = '800';
+            btnItem.style.background = 'transparent';
+            btnItem.style.color = '#64748b';
+            btnItem.style.fontWeight = '700';
+        } else {
+            btnItem.style.background = '#059669';
+            btnItem.style.color = '#ffffff';
+            btnItem.style.fontWeight = '800';
+            btnVenda.style.background = 'transparent';
+            btnVenda.style.color = '#64748b';
+            btnVenda.style.fontWeight = '700';
+        }
+    }
+    historyCurrentPage = 1;
+    applyHistoryFilters();
+}
+
+function changeHistoryPageSize(newSize) {
+    historyPageSize = parseInt(newSize, 10) || 15;
+    historyCurrentPage = 1;
+    renderCurrentHistoryPage();
+}
+
+function prevHistoryPage() {
+    if (historyCurrentPage > 1) {
+        historyCurrentPage--;
+        renderCurrentHistoryPage();
+    }
+}
+
+function nextHistoryPage() {
+    const totalPages = Math.ceil(filteredHistoryRecords.length / historyPageSize) || 1;
+    if (historyCurrentPage < totalPages) {
+        historyCurrentPage++;
+        renderCurrentHistoryPage();
+    }
+}
+
+function goToHistoryPage(page) {
+    historyCurrentPage = page;
+    renderCurrentHistoryPage();
+}
+
+function applyHistoryFilters() {
+    const searchTerm = (document.getElementById('search_history')?.value || '').toLowerCase().trim();
+    const typeFilter = document.getElementById('filter_type')?.value || '';
+    const periodFilter = document.getElementById('filter_period')?.value || 'mes';
+
+    // Exibir/ocultar datas customizadas
     const customRangeDiv = document.getElementById('history_custom_date_range');
     if (customRangeDiv) {
         customRangeDiv.style.display = periodFilter === 'custom' ? 'flex' : 'none';
     }
 
-    let filtered = historyData.filter(h => {
-        // Search Term
-        const matchesSearch = !searchTerm || 
-            (h.estoque?.nome || '').toLowerCase().includes(searchTerm) || 
-            (h.motivo || '').toLowerCase().includes(searchTerm) ||
-            (h.responsavel || '').toLowerCase().includes(searchTerm);
+    // 1. Filtragem base por data e tipo
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
 
-        // Type
-        const isAjuste = h.motivo && h.motivo.startsWith('[AJUSTE]');
-        let displayTipo = h.tipo;
-        if (isAjuste) displayTipo = 'AJUSTE';
+    const matchedRaw = (historyData || []).filter(h => {
+        const itemDate = new Date(h.data || h.created_at);
 
-        let matchesType = true;
-        if (typeFilter) {
-            matchesType = displayTipo === typeFilter;
-        }
-
-        // Period
+        // Período
         let matchesPeriod = true;
-        const now = new Date();
-        const itemDate = new Date(h.data);
         if (periodFilter === 'hoje') {
             const todayStr = now.toISOString().split('T')[0];
             const itemStr = itemDate.toISOString().split('T')[0];
@@ -1149,11 +1225,10 @@ function applyHistoryFilters() {
             oneWeekAgo.setDate(now.getDate() - 7);
             matchesPeriod = itemDate >= oneWeekAgo;
         } else if (periodFilter === 'mes') {
-            matchesPeriod = itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear();
+            matchesPeriod = itemDate.getMonth() === currentMonth && itemDate.getFullYear() === currentYear;
         } else if (periodFilter === 'custom') {
             const startVal = document.getElementById('history_filter_start')?.value;
             const endVal = document.getElementById('history_filter_end')?.value;
-            
             if (startVal) {
                 const startDate = new Date(startVal + 'T00:00:00');
                 if (itemDate < startDate) matchesPeriod = false;
@@ -1164,12 +1239,645 @@ function applyHistoryFilters() {
             }
         }
 
-        return matchesSearch && matchesType && matchesPeriod;
+        if (!matchesPeriod) return false;
+
+        // Tipo filter
+        if (typeFilter) {
+            const isAjuste = h.motivo && h.motivo.startsWith('[AJUSTE]');
+            let displayTipo = h.tipo;
+            if (isAjuste) displayTipo = 'AJUSTE';
+            if (displayTipo !== typeFilter) return false;
+        }
+
+        return true;
     });
 
-    updateHistoryStats(filtered);
-    renderHistory(filtered);
+    // 2. Atualizar cards de estatísticas (baseado no mês atual ou filtrado)
+    updateHistoryStats(matchedRaw);
+
+    // 3. Montar registros de acordo com historyViewMode ('venda' ou 'item')
+    if (historyViewMode === 'venda') {
+        filteredHistoryRecords = buildGroupedSalesHistory(matchedRaw, searchTerm);
+    } else {
+        filteredHistoryRecords = buildItemHistory(matchedRaw, searchTerm);
+    }
+
+    historyCurrentPage = 1;
+    renderCurrentHistoryPage();
     updateHistoryFilterDropdowns(searchTerm, typeFilter, periodFilter);
+}
+
+// Agrupamento inteligente por venda
+function buildGroupedSalesHistory(rawData, searchTerm) {
+    const salesMap = new Map();
+    const nonSalesList = [];
+
+    rawData.forEach(h => {
+        const motivo = h.motivo || '';
+        const isVenda = motivo.includes('VENDA:');
+        let vendaCodigo = null;
+
+        if (isVenda) {
+            const match = motivo.match(/VENDA:\s*([A-Za-z0-9\-_]+)/i);
+            if (match && match[1]) {
+                vendaCodigo = match[1].trim().toUpperCase();
+            }
+        }
+
+        if (vendaCodigo) {
+            if (!salesMap.has(vendaCodigo)) {
+                // Extrai tipo de saída e destino
+                let tipoLabel = 'Saída Simples';
+                if (motivo.toLowerCase().includes('ordem de serviço') || motivo.toLowerCase().includes('o.s.') || motivo.includes('OS:')) {
+                    tipoLabel = 'O.S.';
+                } else if (motivo.toLowerCase().includes('externa')) {
+                    tipoLabel = 'Externa';
+                }
+
+                // Destino (veículo ou cliente)
+                let destino = 'Não Informado';
+                const destMatch = motivo.match(/PLACA:\s*([A-Za-z0-9\-_]+)/i);
+                if (destMatch && destMatch[1]) {
+                    destino = `Placa: ${destMatch[1].toUpperCase()}`;
+                } else {
+                    const parts = motivo.split('|');
+                    if (parts.length > 0) {
+                        destino = parts[0].replace(/SAÍDA:\s*/i, '').trim();
+                    }
+                }
+
+                salesMap.set(vendaCodigo, {
+                    isGroup: true,
+                    codigo: vendaCodigo,
+                    data: h.data || h.created_at,
+                    created_at: h.created_at || h.data,
+                    tipoLabel: tipoLabel,
+                    destino: destino,
+                    responsavel: h.responsavel || '---',
+                    isCancelled: motivo.includes('[CANCELADA]'),
+                    itens: [],
+                    total_qtd: 0,
+                    total_valor: 0,
+                    total_lucro: 0,
+                    searchIndex: ''
+                });
+            }
+
+            const group = salesMap.get(vendaCodigo);
+            const qtd = Math.abs(parseFloat(h.quantidade) || 0);
+            const vlr = parseFloat(h.valor_unitario) || 0;
+            const lucro = parseFloat(h.lucro) || 0;
+
+            group.itens.push({
+                item_id: h.item_id,
+                nome: h.estoque?.nome || 'Item Removido',
+                ref: h.estoque?.ref || '---',
+                cod_int: h.estoque?.codigo_interno || '---',
+                quantidade: qtd,
+                valor_unitario: vlr,
+                tipo: h.tipo,
+                isEstorno: h.tipo === 'ESTORNO'
+            });
+
+            if (h.tipo === 'SAIDA') {
+                group.total_qtd += qtd;
+                group.total_valor += (qtd * vlr);
+                group.total_lucro += lucro;
+            } else if (h.tipo === 'ESTORNO') {
+                // Reduz valor ou marca estorno
+                group.total_lucro -= lucro;
+            }
+
+            // Atualiza data se houver registro mais recente
+            const currentGroupTime = new Date(group.created_at).getTime();
+            const itemTime = new Date(h.created_at || h.data).getTime();
+            if (itemTime > currentGroupTime) {
+                group.created_at = h.created_at || h.data;
+                group.data = h.data || h.created_at;
+            }
+        } else {
+            // Movimentação Avulsa (Compra, Ajuste, etc.)
+            const isAjuste = motivo.startsWith('[AJUSTE]');
+            let displayTipo = h.tipo;
+            if (isAjuste) displayTipo = 'AJUSTE';
+
+            nonSalesList.push({
+                isGroup: false,
+                raw: h,
+                data: h.data || h.created_at,
+                created_at: h.created_at || h.data,
+                tipo: displayTipo,
+                motivo: motivo,
+                responsavel: h.responsavel || '---',
+                item_id: h.item_id,
+                item_nome: h.estoque?.nome || 'Item Removido',
+                item_ref: h.estoque?.ref || '---',
+                item_cod_int: h.estoque?.codigo_interno || '---',
+                quantidade: parseFloat(h.quantidade) || 0,
+                saldo_apos: h.saldo_apos,
+                valor_unitario: parseFloat(h.valor_unitario) || 0,
+                lucro: parseFloat(h.lucro) || 0,
+                isCancelled: motivo.includes('[CANCELADA]')
+            });
+        }
+    });
+
+    // Combina vendas e movimentos avulsos
+    const combined = [...salesMap.values(), ...nonSalesList];
+
+    // Ordenação cronológica decrescente
+    combined.sort((a, b) => new Date(b.created_at || b.data) - new Date(a.created_at || a.data));
+
+    // Filtragem por SearchTerm
+    if (!searchTerm) return combined;
+
+    return combined.filter(rec => {
+        if (rec.isGroup) {
+            if (rec.codigo.toLowerCase().includes(searchTerm)) return true;
+            if (rec.destino.toLowerCase().includes(searchTerm)) return true;
+            if (rec.responsavel.toLowerCase().includes(searchTerm)) return true;
+            return rec.itens.some(it => 
+                (it.nome || '').toLowerCase().includes(searchTerm) ||
+                (it.ref || '').toLowerCase().includes(searchTerm) ||
+                (it.cod_int || '').toLowerCase().includes(searchTerm)
+            );
+        } else {
+            return (rec.item_nome || '').toLowerCase().includes(searchTerm) ||
+                   (rec.motivo || '').toLowerCase().includes(searchTerm) ||
+                   (rec.responsavel || '').toLowerCase().includes(searchTerm) ||
+                   (rec.item_ref || '').toLowerCase().includes(searchTerm);
+        }
+    });
+}
+
+// Lista detalhada por item (visão analítica original)
+function buildItemHistory(rawData, searchTerm) {
+    const list = rawData.map(h => {
+        const motivo = h.motivo || '';
+        const isAjuste = motivo.startsWith('[AJUSTE]');
+        let displayTipo = h.tipo;
+        if (isAjuste) displayTipo = 'AJUSTE';
+
+        let vendaCodigo = null;
+        if (motivo.includes('VENDA:')) {
+            const match = motivo.match(/VENDA:\s*([A-Za-z0-9\-_]+)/i);
+            if (match && match[1]) vendaCodigo = match[1].trim().toUpperCase();
+        }
+
+        return {
+            isGroup: false,
+            raw: h,
+            data: h.data || h.created_at,
+            created_at: h.created_at || h.data,
+            tipo: displayTipo,
+            motivo: motivo,
+            vendaCodigo: vendaCodigo,
+            responsavel: h.responsavel || '---',
+            item_id: h.item_id,
+            item_nome: h.estoque?.nome || 'Item Removido',
+            item_ref: h.estoque?.ref || '---',
+            item_cod_int: h.estoque?.codigo_interno || '---',
+            quantidade: parseFloat(h.quantidade) || 0,
+            saldo_apos: h.saldo_apos,
+            valor_unitario: parseFloat(h.valor_unitario) || 0,
+            lucro: parseFloat(h.lucro) || 0,
+            isCancelled: motivo.includes('[CANCELADA]')
+        };
+    });
+
+    list.sort((a, b) => new Date(b.created_at || b.data) - new Date(a.created_at || a.data));
+
+    if (!searchTerm) return list;
+
+    return list.filter(rec => 
+        (rec.item_nome || '').toLowerCase().includes(searchTerm) ||
+        (rec.motivo || '').toLowerCase().includes(searchTerm) ||
+        (rec.responsavel || '').toLowerCase().includes(searchTerm) ||
+        (rec.item_ref || '').toLowerCase().includes(searchTerm) ||
+        (rec.vendaCodigo && rec.vendaCodigo.toLowerCase().includes(searchTerm))
+    );
+}
+
+function renderCurrentHistoryPage() {
+    const thead = document.getElementById('history_thead');
+    const tbody = document.getElementById('history_body');
+    if (!tbody || !thead) return;
+
+    tbody.innerHTML = '';
+
+    // 1. Configurar Cabeçalho de acordo com a visão selecionada
+    if (historyViewMode === 'venda') {
+        thead.innerHTML = `
+            <tr>
+                <th style="padding: 0.9rem 0.8rem; width: 95px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">DATA</th>
+                <th style="padding: 0.9rem 0.8rem; width: 135px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">CÓDIGO / TIPO</th>
+                <th style="padding: 0.9rem 0.8rem; width: 140px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">DESTINO / DETALHES</th>
+                <th style="padding: 0.9rem 0.8rem; min-width: 250px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle;">RESUMO DOS ITENS</th>
+                <th style="padding: 0.9rem 0.8rem; width: 90px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; text-align: center; white-space: nowrap;">QTD TOTAL</th>
+                <th style="padding: 0.9rem 0.8rem; width: 105px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">VALOR TOTAL</th>
+                <th style="padding: 0.9rem 0.8rem; width: 90px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">LUCRO</th>
+                <th style="padding: 0.9rem 0.8rem; width: 135px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">RESPONSÁVEL</th>
+                <th style="padding: 0.9rem 0.8rem; width: 115px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; text-align: right; white-space: nowrap;">AÇÃO</th>
+            </tr>
+        `;
+    } else {
+        thead.innerHTML = `
+            <tr>
+                <th style="padding: 0.9rem 0.8rem; width: 95px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">DATA</th>
+                <th style="padding: 0.9rem 0.8rem; min-width: 180px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle;">PRODUTO</th>
+                <th style="padding: 0.9rem 0.8rem; width: 110px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">LOTE / REF</th>
+                <th style="padding: 0.9rem 0.8rem; width: 90px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">TIPO</th>
+                <th style="padding: 0.9rem 0.8rem; width: 90px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; text-align: center; white-space: nowrap;">QUANTIDADE</th>
+                <th style="padding: 0.9rem 0.8rem; width: 85px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; text-align: center; white-space: nowrap;">SALDO</th>
+                <th style="padding: 0.9rem 0.8rem; width: 105px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">VLR. UNITÁRIO</th>
+                <th style="padding: 0.9rem 0.8rem; width: 90px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">LUCRO</th>
+                <th style="padding: 0.9rem 0.8rem; min-width: 160px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle;">MOTIVO / FORNECEDOR</th>
+                <th style="padding: 0.9rem 0.8rem; width: 135px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">RESPONSÁVEL</th>
+                <th style="padding: 0.9rem 0.8rem; width: 90px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; text-align: right; white-space: nowrap;">AÇÃO</th>
+            </tr>
+        `;
+    }
+
+    const totalRecords = filteredHistoryRecords.length;
+    if (totalRecords === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="${historyViewMode === 'venda' ? 9 : 11}" style="text-align: center; padding: 3rem 1rem; color: #94a3b8; font-weight: 700; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+                    <i data-lucide="inbox" style="width: 38px; height: 38px; margin: 0 auto 0.5rem; display: block; opacity: 0.5;"></i>
+                    Nenhuma movimentação encontrada para os filtros selecionados.
+                </td>
+            </tr>
+        `;
+        renderHistoryPagination(0, 1, 0, 0);
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+
+    // 2. Paginação: Slice dos registros
+    const totalPages = Math.ceil(totalRecords / historyPageSize) || 1;
+    if (historyCurrentPage > totalPages) historyCurrentPage = totalPages;
+    if (historyCurrentPage < 1) historyCurrentPage = 1;
+
+    const startIdx = (historyCurrentPage - 1) * historyPageSize;
+    const endIdx = Math.min(startIdx + historyPageSize, totalRecords);
+    const pageRecords = filteredHistoryRecords.slice(startIdx, endIdx);
+
+    // 3. Renderização das Linhas
+    if (historyViewMode === 'venda') {
+        pageRecords.forEach(rec => {
+            const row = document.createElement('tr');
+            row.style.background = '#ffffff';
+            row.style.boxShadow = '0 1px 3px rgba(0,0,0,0.03)';
+            row.style.borderRadius = '10px';
+            row.style.transition = 'all 0.15s ease';
+            row.onmouseover = () => row.style.background = '#f8fafc';
+            row.onmouseout = () => row.style.background = '#ffffff';
+
+            const dateStr = new Date(rec.data).toLocaleDateString('pt-BR');
+
+            // Formatação do Responsável
+            const rawResp = rec.responsavel || '---';
+            let cleanResp = rawResp.includes('@') ? rawResp.split('@')[0] : rawResp;
+            cleanResp = cleanResp.replace(/[._]/g, ' ').trim();
+            if (!cleanResp) cleanResp = 'Sistema';
+
+            const respCellHtml = `
+                <div style="display: flex; align-items: center; gap: 6px;" title="${rawResp}">
+                    <div style="width: 22px; height: 22px; border-radius: 50%; background: #f1f5f9; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #475569; font-size: 0.65rem; font-weight: 800; text-transform: uppercase;">
+                        ${cleanResp.charAt(0)}
+                    </div>
+                    <span style="font-size: 0.74rem; font-weight: 700; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 105px; text-transform: capitalize;">
+                        ${cleanResp}
+                    </span>
+                </div>
+            `;
+
+            if (rec.isGroup) {
+                // Monta resumo dos itens
+                let itemsSummaryHtml = '';
+                if (rec.itens && rec.itens.length > 0) {
+                    itemsSummaryHtml = rec.itens.map(it => `
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                            <span style="font-weight: 700; color: #1e293b; font-size: 0.78rem; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 240px;" title="${it.nome}">
+                                ${it.nome}
+                            </span>
+                            <span style="font-size: 0.72rem; font-weight: 800; color: ${it.isEstorno ? '#d97706' : '#dc2626'}; white-space: nowrap; background: #ffffff; padding: 1px 6px; border-radius: 4px; border: 1px solid #e2e8f0;">
+                                ${it.isEstorno ? 'Estorno ' : ''}${Math.round(it.quantidade)} un
+                            </span>
+                        </div>
+                    `).join('');
+                } else {
+                    itemsSummaryHtml = '<span style="font-size: 0.75rem; color: #94a3b8;">Nenhum item</span>';
+                }
+
+                row.innerHTML = `
+                    <td data-label="DATA" style="padding: 0.85rem 0.8rem; vertical-align: middle; border: 1px solid #e2e8f0; border-right: none; border-radius: 10px 0 0 10px; white-space: nowrap;">
+                        <span style="font-size: 0.82rem; font-weight: 700; color: #475569;">${dateStr}</span>
+                    </td>
+                    <td data-label="CÓDIGO / TIPO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                        <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
+                            <button type="button" onclick="editSaleByCodigo('${rec.codigo}')" 
+                                style="white-space: nowrap; background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; border-radius: 8px; padding: 4px 9px; font-size: 0.8rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s;"
+                                onmouseover="this.style.background='#d1fae5'" onmouseout="this.style.background='#ecfdf5'">
+                                <i data-lucide="shopping-cart" style="width: 13px; height: 13px;"></i>
+                                ${rec.codigo}
+                            </button>
+                            <span style="white-space: nowrap; font-size: 0.65rem; font-weight: 800; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 0.15rem 0.5rem; border-radius: 6px; text-transform: uppercase;">
+                                ${rec.tipoLabel}
+                            </span>
+                        </div>
+                    </td>
+                    <td data-label="DESTINO / DETALHES" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                        <div style="display: inline-flex; align-items: center; gap: 5px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 3px 8px; border-radius: 6px; font-weight: 800; font-size: 0.78rem; color: #1e293b; white-space: nowrap;">
+                            <i data-lucide="truck" style="width: 13px; height: 13px; color: #059669; flex-shrink: 0;"></i>
+                            <span>${rec.destino.replace(/placa:\s*/i, 'Placa: ')}</span>
+                        </div>
+                    </td>
+                    <td data-label="RESUMO DOS ITENS" style="padding: 0.6rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px;">
+                            ${itemsSummaryHtml}
+                        </div>
+                    </td>
+                    <td data-label="QTD TOTAL" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: center; white-space: nowrap;">
+                        <span style="font-weight: 900; font-size: 0.95rem; color: #dc2626;">${Math.round(rec.total_qtd)} un</span>
+                    </td>
+                    <td data-label="VALOR TOTAL" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                        <span style="font-weight: 800; font-size: 0.88rem; color: #0f172a;">R$ ${rec.total_valor.toFixed(2)}</span>
+                    </td>
+                    <td data-label="LUCRO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                        <span style="font-size: 0.82rem; font-weight: 800; color: #059669;">${rec.total_lucro > 0 ? 'R$ ' + rec.total_lucro.toFixed(2) : '---'}</span>
+                    </td>
+                    <td data-label="RESPONSÁVEL" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                        ${respCellHtml}
+                    </td>
+                    <td data-label="AÇÃO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border: 1px solid #e2e8f0; border-left: none; border-radius: 0 10px 10px 0; text-align: right; white-space: nowrap;">
+                        <button type="button" onclick="editSaleByCodigo('${rec.codigo}')" 
+                            style="white-space: nowrap; background: #059669; color: #ffffff; border: none; border-radius: 8px; padding: 7px 12px; font-size: 0.75rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s; box-shadow: 0 1px 3px rgba(5,150,105,0.25);"
+                            onmouseover="this.style.background='#047857'" onmouseout="this.style.background='#059669'">
+                            <i data-lucide="edit-3" style="width: 13px; height: 13px;"></i> Ver Venda
+                        </button>
+                    </td>
+                `;
+            } else {
+                // Linha de movimentação Avulsa (Compra, Ajuste, etc.)
+                const typeColor = rec.tipo === 'ENTRADA' ? '#059669' : (rec.tipo === 'AJUSTE' ? '#2563eb' : '#d97706');
+                const bgColor = rec.tipo === 'ENTRADA' ? '#ecfdf5' : (rec.tipo === 'AJUSTE' ? '#eff6ff' : '#fffbeb');
+                const borderColor = rec.tipo === 'ENTRADA' ? '#a7f3d0' : (rec.tipo === 'AJUSTE' ? '#bfdbfe' : '#fde68a');
+
+                row.innerHTML = `
+                    <td data-label="DATA" style="padding: 0.85rem 0.8rem; vertical-align: middle; border: 1px solid #e2e8f0; border-right: none; border-radius: 10px 0 0 10px; white-space: nowrap;">
+                        <span style="font-size: 0.82rem; font-weight: 700; color: #475569;">${dateStr}</span>
+                    </td>
+                    <td data-label="CÓDIGO / TIPO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                        <span style="white-space: nowrap; font-size: 0.68rem; font-weight: 800; color: ${typeColor}; background: ${bgColor}; border: 1px solid ${borderColor}; padding: 0.25rem 0.6rem; border-radius: 6px; text-transform: uppercase;">
+                            ${rec.tipo}
+                        </span>
+                    </td>
+                    <td data-label="DESTINO / DETALHES" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                        <div style="font-size: 0.76rem; color: #475569; font-weight: 600; line-height: 1.3;">
+                            ${(rec.motivo || 'Movimentação Avulsa').replace('[AJUSTE]', '').trim()}
+                        </div>
+                    </td>
+                    <td data-label="RESUMO DOS ITENS" style="padding: 0.6rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                            <div style="display: flex; flex-direction: column; min-width: 0;">
+                                <span onclick="openProductViewModal('${rec.item_id}')" style="font-weight: 800; color: #059669; font-size: 0.8rem; cursor: pointer; text-decoration: underline; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 240px;" title="${rec.item_nome}">
+                                    ${rec.item_nome}
+                                </span>
+                                <span style="font-size: 0.65rem; color: #94a3b8; font-weight: 600;">INT: ${rec.item_cod_int} | REF: ${rec.item_ref}</span>
+                            </div>
+                            <span style="font-size: 0.72rem; font-weight: 800; color: ${typeColor}; white-space: nowrap; background: #ffffff; padding: 1px 6px; border-radius: 4px; border: 1px solid #e2e8f0;">
+                                ${Math.round(rec.quantidade)} un
+                            </span>
+                        </div>
+                    </td>
+                    <td data-label="QTD TOTAL" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: center; white-space: nowrap;">
+                        <span style="font-weight: 900; font-size: 0.95rem; color: ${typeColor};">${Math.round(rec.quantidade)} un</span>
+                    </td>
+                    <td data-label="VALOR TOTAL" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                        <span style="font-weight: 800; font-size: 0.88rem; color: #0f172a;">R$ ${(rec.quantidade * rec.valor_unitario).toFixed(2)}</span>
+                    </td>
+                    <td data-label="LUCRO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                        <span style="font-size: 0.82rem; font-weight: 800; color: #059669;">${rec.lucro > 0 ? 'R$ ' + rec.lucro.toFixed(2) : '---'}</span>
+                    </td>
+                    <td data-label="RESPONSÁVEL" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                        ${respCellHtml}
+                    </td>
+                    <td data-label="AÇÃO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border: 1px solid #e2e8f0; border-left: none; border-radius: 0 10px 10px 0; text-align: right; white-space: nowrap;">
+                        <button type="button" onclick="openProductViewModal('${rec.item_id}')" 
+                            style="white-space: nowrap; background: #f8fafc; color: #334155; border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 12px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s;"
+                            onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
+                            <i data-lucide="eye" style="width: 13px; height: 13px;"></i> Ver Item
+                        </button>
+                    </td>
+                `;
+            }
+
+            tbody.appendChild(row);
+        });
+    } else {
+        // Modo por Item (visão detalhada)
+        const saldoMap = {};
+        inventoryData.forEach(p => saldoMap[p.id] = p.estoque_atual);
+
+        pageRecords.forEach(rec => {
+            const h = rec.raw;
+            const row = document.createElement('tr');
+            row.style.background = '#ffffff';
+            row.style.boxShadow = '0 1px 3px rgba(0,0,0,0.03)';
+            row.style.borderRadius = '10px';
+            row.style.transition = 'all 0.15s ease';
+            row.onmouseover = () => row.style.background = '#f8fafc';
+            row.onmouseout = () => row.style.background = '#ffffff';
+
+            const dateStr = new Date(rec.data).toLocaleDateString('pt-BR');
+            const isSaida = h.tipo === 'SAIDA';
+            const isEstorno = h.tipo === 'ESTORNO';
+            const isAjuste = rec.tipo === 'AJUSTE';
+            const isVenda = !!rec.vendaCodigo;
+
+            const currentSaldo = saldoMap[h.item_id] || 0;
+            const rowSaldo = currentSaldo;
+            if (h.tipo === 'ENTRADA' || h.tipo === 'ESTORNO') {
+                saldoMap[h.item_id] -= h.quantidade;
+            } else {
+                saldoMap[h.item_id] += h.quantidade;
+            }
+
+            let typeColor = '#059669';
+            if (isAjuste) typeColor = '#2563eb';
+            else if (isSaida) typeColor = '#dc2626';
+            else if (isEstorno) typeColor = '#d97706';
+
+            // Formatação do Responsável
+            const rawResp = h.responsavel || '---';
+            let cleanResp = rawResp.includes('@') ? rawResp.split('@')[0] : rawResp;
+            cleanResp = cleanResp.replace(/[._]/g, ' ').trim();
+            if (!cleanResp) cleanResp = 'Sistema';
+
+            const respCellHtml = `
+                <div style="display: flex; align-items: center; gap: 6px;" title="${rawResp}">
+                    <div style="width: 22px; height: 22px; border-radius: 50%; background: #f1f5f9; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #475569; font-size: 0.65rem; font-weight: 800; text-transform: uppercase;">
+                        ${cleanResp.charAt(0)}
+                    </div>
+                    <span style="font-size: 0.74rem; font-weight: 700; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 105px; text-transform: capitalize;">
+                        ${cleanResp}
+                    </span>
+                </div>
+            `;
+
+            row.innerHTML = `
+                <td data-label="DATA" style="padding: 0.85rem 0.8rem; vertical-align: middle; border: 1px solid #e2e8f0; border-right: none; border-radius: 10px 0 0 10px; white-space: nowrap;">
+                    <span style="font-size: 0.82rem; font-weight: 700; color: #475569;">${dateStr}</span>
+                </td>
+                <td data-label="PRODUTO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; ${rec.isCancelled ? 'opacity: 0.5;' : ''}">
+                    <div style="display: flex; flex-direction: column;">
+                        <span class="product-name" onclick="openProductViewModal('${h.item_id}')" style="font-weight: 800; color: #059669; font-size: 0.85rem; cursor: pointer; text-decoration: underline; ${rec.isCancelled ? 'text-decoration: line-through;' : ''}">${rec.item_nome}</span>
+                        <span style="font-size: 0.65rem; color: #94a3b8; font-weight: 600;">INT: ${rec.item_cod_int}</span>
+                    </div>
+                </td>
+                <td data-label="LOTE / REF" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap; ${rec.isCancelled ? 'opacity: 0.5;' : ''}">
+                    <span style="font-size: 0.75rem; color: #64748b; font-weight: 600; ${rec.isCancelled ? 'text-decoration: line-through;' : ''}">${rec.item_ref}</span>
+                </td>
+                <td data-label="TIPO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                    <span style="font-size: 0.65rem; font-weight: 800; color: ${rec.isCancelled ? '#9ca3af' : typeColor}; background: ${rec.isCancelled ? '#9ca3af20' : typeColor + '15'}; padding: 0.25rem 0.55rem; border-radius: 6px; text-transform: uppercase; ${rec.isCancelled ? 'text-decoration: line-through;' : ''}">
+                        ${rec.isCancelled ? 'CANCELADA' : rec.tipo}
+                    </span>
+                </td>
+                <td data-label="QUANTIDADE" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: center; white-space: nowrap;">
+                    <span style="font-weight: 900; font-size: 0.95rem; color: ${rec.isCancelled ? '#9ca3af' : (isSaida ? '#dc2626' : (isAjuste ? '#2563eb' : '#059669'))}; ${rec.isCancelled ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${Math.round(h.quantidade)}</span>
+                </td>
+                <td data-label="SALDO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: center; white-space: nowrap;">
+                    <span style="font-weight: 900; font-size: 1rem; color: #059669;">${Math.round(rowSaldo)}</span>
+                </td>
+                <td data-label="VLR. UNITÁRIO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap; ${rec.isCancelled ? 'opacity: 0.5;' : ''}">
+                    <span style="font-size: 0.82rem; font-weight: 700; color: #475569; ${rec.isCancelled ? 'text-decoration: line-through;' : ''}">R$ ${parseFloat(h.valor_unitario || 0).toFixed(2)}</span>
+                </td>
+                <td data-label="LUCRO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                    <span style="font-size: 0.82rem; font-weight: 800; color: #059669; ${rec.isCancelled ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${h.lucro > 0 ? 'R$ ' + parseFloat(h.lucro).toFixed(2) : '---'}</span>
+                </td>
+                <td data-label="MOTIVO / FORNECEDOR" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                    <span style="font-size: 0.76rem; color: ${rec.isCancelled ? '#ef4444' : (isVenda ? '#059669' : '#475569')}; font-weight: 600; line-height: 1.3; ${isVenda ? 'cursor: pointer; text-decoration: underline;' : ''} ${rec.isCancelled ? 'text-decoration: none !important;' : ''}" 
+                          ${isVenda ? `onclick="editSaleByCodigo('${rec.vendaCodigo}')"` : ''}>
+                        ${(h.motivo || 'N/A').replace(' | ', '<br><span style="color:#059669; font-weight:800; font-style:normal;">')}</span>
+                    </span>
+                </td>
+                <td data-label="RESPONSÁVEL" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                    ${respCellHtml}
+                </td>
+                <td data-label="AÇÕES" style="padding: 0.85rem 0.8rem; vertical-align: middle; border: 1px solid #e2e8f0; border-left: none; border-radius: 0 10px 10px 0; text-align: right; white-space: nowrap;">
+                    ${isVenda ? `
+                        <button type="button" onclick="editSaleByCodigo('${rec.vendaCodigo}')" 
+                            style="white-space: nowrap; background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; border-radius: 8px; padding: 5px 10px; font-size: 0.75rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                            <i data-lucide="edit-3" style="width: 12px; height: 12px;"></i> Venda
+                        </button>
+                    ` : ''}
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    renderHistoryPagination(totalRecords, totalPages, startIdx, endIdx);
+    if (window.lucide) lucide.createIcons();
+}
+
+function renderHistoryPagination(totalRecords, totalPages, startIdx, endIdx) {
+    const infoEl = document.getElementById('history_pagination_info');
+    const prevBtn = document.getElementById('btn_history_prev');
+    const nextBtn = document.getElementById('btn_history_next');
+    const pageNumbersEl = document.getElementById('history_page_numbers');
+
+    if (infoEl) {
+        if (totalRecords === 0) {
+            infoEl.innerText = 'Mostrando 0 registros';
+        } else {
+            infoEl.innerText = `Mostrando ${startIdx + 1} a ${endIdx} de ${totalRecords} registros`;
+        }
+    }
+
+    if (prevBtn) {
+        prevBtn.disabled = historyCurrentPage <= 1;
+        prevBtn.style.opacity = historyCurrentPage <= 1 ? '0.5' : '1';
+        prevBtn.style.cursor = historyCurrentPage <= 1 ? 'not-allowed' : 'pointer';
+    }
+
+    if (nextBtn) {
+        nextBtn.disabled = historyCurrentPage >= totalPages;
+        nextBtn.style.opacity = historyCurrentPage >= totalPages ? '0.5' : '1';
+        nextBtn.style.cursor = historyCurrentPage >= totalPages ? 'not-allowed' : 'pointer';
+    }
+
+    if (pageNumbersEl) {
+        pageNumbersEl.innerHTML = '';
+        if (totalPages <= 1) return;
+
+        // Limita botões numéricos ao redor da página atual
+        let startPage = Math.max(1, historyCurrentPage - 2);
+        let endPage = Math.min(totalPages, historyCurrentPage + 2);
+
+        if (startPage > 1) {
+            const firstBtn = createPageBtn(1);
+            pageNumbersEl.appendChild(firstBtn);
+            if (startPage > 2) {
+                const dots = document.createElement('span');
+                dots.innerText = '...';
+                dots.style.padding = '0 4px';
+                dots.style.color = '#94a3b8';
+                dots.style.alignSelf = 'center';
+                pageNumbersEl.appendChild(dots);
+            }
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            pageNumbersEl.appendChild(createPageBtn(i));
+        }
+
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                const dots = document.createElement('span');
+                dots.innerText = '...';
+                dots.style.padding = '0 4px';
+                dots.style.color = '#94a3b8';
+                dots.style.alignSelf = 'center';
+                pageNumbersEl.appendChild(dots);
+            }
+            const lastBtn = createPageBtn(totalPages);
+            pageNumbersEl.appendChild(lastBtn);
+        }
+    }
+}
+
+function createPageBtn(page) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.innerText = page;
+    const isCurrent = page === historyCurrentPage;
+
+    btn.style.height = '34px';
+    btn.style.minWidth = '34px';
+    btn.style.padding = '0 6px';
+    btn.style.borderRadius = '8px';
+    btn.style.fontSize = '0.78rem';
+    btn.style.fontWeight = '800';
+    btn.style.cursor = 'pointer';
+    btn.style.transition = 'all 0.2s';
+
+    if (isCurrent) {
+        btn.style.background = '#059669';
+        btn.style.color = '#ffffff';
+        btn.style.border = 'none';
+        btn.style.boxShadow = '0 2px 4px rgba(5,150,105,0.2)';
+    } else {
+        btn.style.background = '#f8fafc';
+        btn.style.color = '#334155';
+        btn.style.border = '1px solid #cbd5e1';
+        btn.onmouseover = () => btn.style.background = '#f1f5f9';
+        btn.onmouseout = () => btn.style.background = '#f8fafc';
+    }
+
+    btn.onclick = () => goToHistoryPage(page);
+    return btn;
 }
 
 function updateHistoryFilterDropdowns(searchTerm, typeFilter, periodFilter) {
@@ -1182,7 +1890,7 @@ function updateHistoryFilterDropdowns(searchTerm, typeFilter, periodFilter) {
 
     // --- Update Type Options ---
     const availableTypes = new Set();
-    historyData.forEach(h => {
+    (historyData || []).forEach(h => {
         const matchesSearch = !searchTerm || 
             (h.estoque?.nome || '').toLowerCase().includes(searchTerm) || 
             (h.motivo || '').toLowerCase().includes(searchTerm) ||
@@ -1190,7 +1898,7 @@ function updateHistoryFilterDropdowns(searchTerm, typeFilter, periodFilter) {
 
         let matchesPeriod = true;
         const now = new Date();
-        const itemDate = new Date(h.data);
+        const itemDate = new Date(h.data || h.created_at);
         if (periodFilter === 'hoje') {
             const todayStr = now.toISOString().split('T')[0];
             const itemStr = itemDate.toISOString().split('T')[0];
@@ -1247,7 +1955,7 @@ function updateHistoryFilterDropdowns(searchTerm, typeFilter, periodFilter) {
 
     // --- Update Period Options ---
     const availablePeriods = new Set(['todos', 'custom']);
-    historyData.forEach(h => {
+    (historyData || []).forEach(h => {
         const matchesSearch = !searchTerm || 
             (h.estoque?.nome || '').toLowerCase().includes(searchTerm) || 
             (h.motivo || '').toLowerCase().includes(searchTerm) ||
@@ -1264,7 +1972,7 @@ function updateHistoryFilterDropdowns(searchTerm, typeFilter, periodFilter) {
 
         if (matchesSearch && matchesType) {
             const now = new Date();
-            const itemDate = new Date(h.data);
+            const itemDate = new Date(h.data || h.created_at);
             
             const todayStr = now.toISOString().split('T')[0];
             const itemStr = itemDate.toISOString().split('T')[0];
@@ -1309,121 +2017,24 @@ function updateHistoryStats(data) {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
-    const thisMonth = data.filter(h => {
-        const d = new Date(h.data);
+    const thisMonth = (data || []).filter(h => {
+        const d = new Date(h.data || h.created_at);
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     });
 
-    const entradas = thisMonth.filter(h => h.tipo === 'ENTRADA' && !(h.motivo && h.motivo.includes('[CANCELADA]'))).reduce((acc, h) => acc + h.quantidade, 0);
-    const saidas = thisMonth.filter(h => h.tipo === 'SAIDA' && !(h.motivo && h.motivo.includes('[CANCELADA]'))).reduce((acc, h) => acc + h.quantidade, 0);
-    const lucro = thisMonth.filter(h => h.tipo === 'SAIDA' && !(h.motivo && h.motivo.includes('[CANCELADA]'))).reduce((acc, h) => acc + (h.lucro || 0), 0);
+    const entradas = thisMonth.filter(h => h.tipo === 'ENTRADA' && !(h.motivo && h.motivo.includes('[CANCELADA]'))).reduce((acc, h) => acc + (parseFloat(h.quantidade) || 0), 0);
+    const saidas = thisMonth.filter(h => h.tipo === 'SAIDA' && !(h.motivo && h.motivo.includes('[CANCELADA]'))).reduce((acc, h) => acc + (parseFloat(h.quantidade) || 0), 0);
+    const lucro = thisMonth.filter(h => h.tipo === 'SAIDA' && !(h.motivo && h.motivo.includes('[CANCELADA]'))).reduce((acc, h) => acc + (parseFloat(h.lucro) || 0), 0);
 
-    document.getElementById('stat_entradas').innerText = `${Math.round(entradas)} itens`;
-    document.getElementById('stat_saidas').innerText = `${Math.round(saidas)} itens`;
-    document.getElementById('stat_lucro').innerText = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lucro);
+    const elEntradas = document.getElementById('stat_entradas');
+    const elSaidas = document.getElementById('stat_saidas');
+    const elLucro = document.getElementById('stat_lucro');
+
+    if (elEntradas) elEntradas.innerText = `${Math.round(entradas)} itens`;
+    if (elSaidas) elSaidas.innerText = `${Math.round(saidas)} itens`;
+    if (elLucro) elLucro.innerText = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lucro);
 }
 
-function renderHistory(history) {
-    const tbody = document.getElementById('history_body');
-    if (!tbody) return;
-    tbody.innerHTML = '';
-
-    // Agrupar por item_id para calcular saldos progressivos
-    const saldoMap = {};
-    inventoryData.forEach(p => saldoMap[p.id] = p.estoque_atual);
-
-    history.forEach(h => {
-        const row = document.createElement('tr');
-        row.style.background = 'rgba(255,255,255,0.01)';
-        row.style.marginBottom = '0.5rem';
-
-        const date = new Date(h.data).toLocaleDateString('pt-BR');
-        const isSaida = h.tipo === 'SAIDA';
-        const isEstorno = h.tipo === 'ESTORNO';
-        const isAjuste = h.motivo && h.motivo.startsWith('[AJUSTE]');
-        const isVenda = h.motivo && h.motivo.includes('VENDA:');
-        
-        // Cálculo de Saldo para este item específico
-        const currentSaldo = saldoMap[h.item_id] || 0;
-        const rowSaldo = currentSaldo;
-        
-        // Atualiza o mapa para a próxima linha (retrocedendo)
-        if (h.tipo === 'ENTRADA' || h.tipo === 'ESTORNO') {
-            saldoMap[h.item_id] -= h.quantidade;
-        } else {
-            saldoMap[h.item_id] += h.quantidade;
-        }
-
-        let vendaCodigo = null;
-        if (isVenda) {
-            const parts = h.motivo.split('VENDA:');
-            if (parts.length > 1) {
-                // Pega apenas a primeira palavra após 'VENDA:' para ignorar '(EDITADO)' ou outros textos
-                vendaCodigo = parts[1].trim().split(' ')[0];
-            }
-        }
-
-        let displayTipo = h.tipo;
-        let typeColor = '#10b981'; // Entrada
-        
-        if (isAjuste) {
-            displayTipo = 'AJUSTE';
-            typeColor = '#3b82f6';
-        } else if (isSaida) {
-            typeColor = '#ef4444';
-        } else if (isEstorno) {
-            typeColor = '#f59e0b';
-        }
-
-        const isCancelled = h.motivo && h.motivo.includes('[CANCELADA]');
-
-        row.innerHTML = `
-            <td data-label="DATA" style="padding: 1.2rem 1rem; border-radius: 12px 0 0 12px;">
-                <span style="font-size: 0.85rem; font-weight: 500; color: var(--text-muted);">${date}</span>
-            </td>
-            <td data-label="PRODUTO" style="${isCancelled ? 'opacity: 0.5;' : ''}">
-                <div style="display: flex; flex-direction: column;">
-                    <span class="product-name" onclick="openProductViewModal('${h.item_id}')" style="font-weight: 800; color: var(--primary-light); font-size: 0.9rem; cursor: pointer; text-decoration: underline; ${isCancelled ? 'text-decoration: line-through;' : ''}">${h.estoque?.nome || 'Item Removido'}</span>
-                    <span style="font-size: 0.65rem; color: var(--text-muted); font-weight: 600;">INT: ${h.estoque?.codigo_interno || '---'}</span>
-                </div>
-            </td>
-            <td data-label="LOTE / REF" style="${isCancelled ? 'opacity: 0.5;' : ''}">
-                <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 600; ${isCancelled ? 'text-decoration: line-through;' : ''}">${h.estoque?.ref || '---'}</span>
-            </td>
-            <td data-label="TIPO">
-                <span style="font-size: 0.65rem; font-weight: 800; color: ${isCancelled ? '#9ca3af' : typeColor}; background: ${isCancelled ? '#9ca3af20' : typeColor + '15'}; padding: 0.3rem 0.6rem; border-radius: 6px; text-transform: uppercase; ${isCancelled ? 'text-decoration: line-through;' : ''}">
-                    ${isCancelled ? 'CANCELADA' : displayTipo}
-                </span>
-            </td>
-            <td data-label="QUANTIDADE" style="text-align: center;">
-                <span style="font-weight: 900; font-size: 1rem; color: ${isCancelled ? '#9ca3af' : (isSaida ? '#dc2626' : (isAjuste ? '#2563eb' : '#059669'))}; ${isCancelled ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${Math.round(h.quantidade)}</span>
-            </td>
-            <td data-label="SALDO" style="text-align: center;">
-                <span style="font-weight: 900; font-size: 1.1rem; color: #10b981;">${Math.round(rowSaldo)}</span>
-            </td>
-            <td data-label="VLR. UNITÁRIO" style="${isCancelled ? 'opacity: 0.5;' : ''}">
-                <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); ${isCancelled ? 'text-decoration: line-through;' : ''}">R$ ${parseFloat(h.valor_unitario || 0).toFixed(2)}</span>
-            </td>
-            <td data-label="LUCRO">
-                <span style="font-size: 0.85rem; font-weight: 800; color: ${isCancelled ? '#9ca3af' : '#10b981'}; ${isCancelled ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${h.lucro > 0 ? 'R$ ' + parseFloat(h.lucro).toFixed(2) : '---'}</span>
-            </td>
-            <td data-label="MOTIVO / FORNECEDOR">
-                <span style="font-size: 0.75rem; color: ${isCancelled ? '#ef4444' : (isVenda ? 'var(--primary-light)' : 'var(--text-muted)')}; font-style: italic; ${isVenda ? 'cursor: pointer; text-decoration: underline; font-weight: 700;' : ''} ${isCancelled ? 'text-decoration: none !important;' : ''}" 
-                      ${isVenda ? `onclick="editSaleByCodigo('${vendaCodigo}')"` : ''}>
-                    ${(h.motivo || 'N/A').replace(' | ', '<br><span style="color:var(--primary); font-weight:800; font-style:normal;">')}</span>
-                </span>
-            </td>
-            <td data-label="RESPONSÁVEL">
-                <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">${h.responsavel}</span>
-            </td>
-            <td data-label="Ações" style="padding-right: 1rem; border-radius: 0 12px 12px 0; text-align: right;">
-                <!-- Deletion disabled to preserve audit trail -->
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-    lucide.createIcons();
-}
 
 async function undoMovement(id) {
     if (typeof canDo === 'function' && !canDo('estoque_historico', 'delete')) {
@@ -2038,13 +2649,73 @@ function renderApplications() {
 let currentVendaId = null;
 let vendaItems = [];
 let vehiclesData = [];
+let stockMaintTypes = [];
+let stockMaintActions = [];
+let stockDrivers = [];
+let vItemCurrentLinkType = 'veiculo';
+let vItemMaintControlActive = false;
+
+// Formatador de KM padronizado
+if (!window.formatKM) {
+    window.formatKM = function(val) {
+        if (val === undefined || val === null || val === '') return '';
+        const clean = val.toString().replace(/\D/g, '');
+        if (!clean) return '';
+        return parseInt(clean, 10).toLocaleString('pt-BR');
+    };
+}
+
+async function loadStockMaintenanceConfigs() {
+    if (!supabaseClient) return;
+    try {
+        const [tRes, aRes, dRes] = await Promise.all([
+            supabaseClient.from('manutencao_tipos').select('*').order('descricao'),
+            supabaseClient.from('manutencao_acoes').select('*').order('descricao'),
+            supabaseClient.from('motoristas').select('id, nome_completo, cpf').order('nome_completo')
+        ]);
+        if (tRes.data) stockMaintTypes = tRes.data;
+        if (aRes.data) stockMaintActions = aRes.data;
+        if (dRes.data) stockDrivers = dRes.data;
+        populateStockMaintSelects();
+    } catch (e) {
+        console.error("Erro ao carregar configurações de manutenção no estoque:", e);
+    }
+}
+
+async function getLatestVehicleKm(veiculoId) {
+    if (!veiculoId) return null;
+    try {
+        const { data, error } = await supabaseClient
+            .from('manutencoes')
+            .select('km_atual')
+            .eq('veiculo_id', veiculoId)
+            .order('data_manutencao', { ascending: false })
+            .limit(1);
+        if (data && data.length > 0 && data[0].km_atual) {
+            return data[0].km_atual;
+        }
+    } catch (e) {
+        console.warn('Erro ao buscar último KM do veículo:', e);
+    }
+    return null;
+}
+window.getLatestVehicleKm = getLatestVehicleKm;
+
+function formatKMInput(el) {
+    if (!el) return;
+    const clean = (el.value || '').replace(/\D/g, '');
+    if (!clean) {
+        el.value = '';
+        return;
+    }
+    el.value = parseInt(clean, 10).toLocaleString('pt-BR');
+}
+window.formatKMInput = formatKMInput;
 
 async function loadVehicles() {
     try {
         const select = document.getElementById('v_veiculo_id');
-        if (!select) return;
-        
-        select.innerHTML = '<option value="">Carregando veículos...</option>';
+        if (select) select.innerHTML = '<option value="">Carregando veículos...</option>';
         
         const { data, error } = await supabaseClient
             .from('veiculos')
@@ -2052,15 +2723,17 @@ async function loadVehicles() {
             .order('placa', { ascending: true });
 
         if (error) throw error;
-        vehiclesData = data;
+        vehiclesData = data || [];
 
-        select.innerHTML = '<option value="">Selecione uma placa...</option>';
-        data.forEach(v => {
-            const option = document.createElement('option');
-            option.value = v.id;
-            option.innerText = `${v.placa} - ${v.marca} ${v.modelo}`;
-            select.appendChild(option);
-        });
+        if (select) {
+            select.innerHTML = '<option value="">Nenhum / Definir veículos por item</option>';
+            vehiclesData.forEach(v => {
+                const option = document.createElement('option');
+                option.value = v.id;
+                option.innerText = `${v.placa} - ${v.marca || ''} ${v.modelo || ''}`.trim();
+                select.appendChild(option);
+            });
+        }
     } catch (err) {
         console.error('Erro ao carregar veículos:', err);
         const select = document.getElementById('v_veiculo_id');
@@ -2094,18 +2767,18 @@ async function openVendaModal() {
         const dateInput = document.getElementById('v_data_venda');
         if (dateInput) dateInput.value = today;
         
+        // Carregar veículos e configs de manutenção
+        if (typeof loadVehicles === 'function') {
+            await loadVehicles();
+        }
+        if (typeof loadStockMaintenanceConfigs === 'function') {
+            await loadStockMaintenanceConfigs();
+        }
+
         vendaItems = [];
-        renderVendaItems();
-        
-        // Reset search UI
-        const btnAdd = document.getElementById('v_btn_add_item');
-        if (btnAdd) btnAdd.style.display = 'none';
-
-        const searchRes = document.getElementById('v_search_results');
-        if (searchRes) searchRes.style.display = 'none';
-
-        const selectedProd = document.getElementById('v_selected_product_id');
-        if (selectedProd) selectedProd.value = '';
+        const container = document.getElementById('v_itens_container');
+        if (container) container.innerHTML = '';
+        addVendaItemRow({}, true);
         
         currentVendaId = null; // Reset ID de edição
         const btnConfirm = document.getElementById('btn_confirm_venda');
@@ -2126,19 +2799,9 @@ async function openVendaModal() {
             vModal.style.display = 'block';
             vModal.style.opacity = '1';
             vModal.style.visibility = 'visible';
-            vModal.style.zIndex = '9999';
+            vModal.style.zIndex = '10010';
             vModal.classList.add('active');
-        }
-        
-        // Foco automático no 1º campo (Tipo de Saída)
-        setTimeout(() => {
-            const firstInput = document.getElementById('v_tipo');
-            if (firstInput) firstInput.focus();
-        }, 50);
-
-        // Carregar veículos
-        if (typeof loadVehicles === 'function') {
-            await loadVehicles();
+            document.body.classList.add('venda-modal-open');
         }
     } catch (err) {
         console.error('Erro ao abrir modal de saída/venda:', err);
@@ -2146,6 +2809,9 @@ async function openVendaModal() {
 }
 
 function closeVendaModal() {
+    if (typeof closeBarcodeScanner === 'function') {
+        closeBarcodeScanner();
+    }
     const vModal = document.getElementById('vendaModal');
     if (vModal) {
         vModal.classList.remove('active');
@@ -2153,6 +2819,7 @@ function closeVendaModal() {
         vModal.style.opacity = '0';
         vModal.style.visibility = 'hidden';
     }
+    document.body.classList.remove('venda-modal-open');
 }
 
 // Garantir vínculo no escopo global window
@@ -2190,276 +2857,827 @@ function toggleVendaTypeFields() {
     }
 }
 
-function searchVendaProduct(query) {
-    const resultsDiv = document.getElementById('v_search_results');
-    if (!query || query.length < 2) {
-        resultsDiv.style.display = 'none';
-        return;
+function addVendaItemRow(data = {}, shouldFocus = true) {
+    const container = document.getElementById('v_itens_container');
+    if (!container) return;
+
+    const rowId = 'v_row_' + Date.now() + Math.random().toString(36).substr(2, 5);
+    const card = document.createElement('div');
+    card.className = 'v-item-card';
+    card.id = rowId;
+
+    // Buscar dados do produto pré-selecionado (se houver)
+    const selectedProd = inventoryData.find(p => p.id === data.produto_id) || null;
+    const prodDisplay = selectedProd ? `${selectedProd.nome} ${selectedProd.marca ? `(${selectedProd.marca})` : ''}` : (data.nome || '');
+    const stockQty = selectedProd ? selectedProd.estoque_atual : null;
+    const stockUnit = selectedProd ? (selectedProd.unidade || 'UN') : (data.unidade || 'UN');
+
+    const isPessoa = data.vinculo_tipo === 'pessoa' || (!!data.vinculo_pessoa && !data.vinculo_veiculo_id);
+    const selectedVeh = vehiclesData.find(v => v.id === data.vinculo_veiculo_id) || null;
+    const vehDisplay = selectedVeh ? selectedVeh.placa : (data.vinculo_veiculo_placa || '');
+    const maintActive = !!data.maint_control;
+
+    const qtd = data.quantidade !== undefined ? data.quantidade : 1;
+    const unitPrice = data.valor_unitario !== undefined ? data.valor_unitario : (selectedProd?.valor_venda || 0);
+    const subtotal = qtd * unitPrice;
+
+    card.innerHTML = `
+        <!-- Linha 1: Produto, Qtd, Preço Unitário, Subtotal, Excluir -->
+        <div class="v-item-line-1">
+            <div class="autocomplete-wrapper" style="position: relative; min-width: 0;">
+                <div style="position: relative; display: flex; align-items: center;">
+                    <i data-lucide="search" style="position: absolute; left: 10px; width: 14px; height: 14px; color: #94a3b8; pointer-events: none;"></i>
+                    <input type="text" class="v-item-prod-search" placeholder="Buscar peça ou ler código de barras..." value="${prodDisplay}" oninput="handleVendaProdSearch(this)" onfocus="handleVendaProdSearch(this)" autocomplete="off" style="width: 100%; height: 38px; padding-left: 32px; padding-right: 135px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.82rem; font-weight: 600; color: #0f172a;">
+                    <span class="v-item-stock-tag" style="position: absolute; right: 42px; font-size: 0.65rem; font-weight: 700; color: #059669; background: #ecfdf5; padding: 2px 6px; border-radius: 6px; border: 1px solid #a7f3d0; ${stockQty !== null ? '' : 'display:none;'}">Estoque: ${stockQty !== null ? stockQty : 0} ${stockUnit}</span>
+                    <button type="button" class="btn-scan-item-row" onclick="openBarcodeScanner('${rowId}')" title="Bipar código de barras com a câmera" style="position: absolute; right: 6px; width: 30px; height: 28px; background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
+                        <i data-lucide="scan-barcode" style="width: 16px; height: 16px;"></i>
+                    </button>
+                </div>
+                <input type="hidden" class="v-item-prod-id" value="${data.produto_id || ''}">
+                <input type="hidden" class="v-item-prod-nome" value="${data.nome || (selectedProd ? selectedProd.nome : '')}">
+                <input type="hidden" class="v-item-prod-unidade" value="${stockUnit}">
+                <input type="hidden" class="v-item-prod-custo" value="${selectedProd?.valor_custo || data.valor_custo || 0}">
+                <div class="autocomplete-results"></div>
+            </div>
+
+            <div class="v-item-calc-group">
+                <div>
+                    <span class="v-mobile-mini-label">Qtd</span>
+                    <input type="number" class="v-item-qtd" min="1" step="1" placeholder="QTD" value="${qtd}" oninput="updateVendaCardSubtotal(this)" style="width: 100%; height: 38px; text-align: center; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
+                </div>
+
+                <div style="position: relative;">
+                    <span class="v-mobile-mini-label">Unitário</span>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 0.68rem; font-weight: 700;">R$</span>
+                        <input type="number" class="v-item-unit" min="0" step="0.01" placeholder="0,00" value="${unitPrice || ''}" oninput="updateVendaCardSubtotal(this)" style="width: 100%; height: 38px; padding-left: 24px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
+                    </div>
+                </div>
+
+                <div>
+                    <span class="v-mobile-mini-label">Subtotal</span>
+                    <input type="text" class="v-item-subtotal" readonly placeholder="R$ 0,00" value="${subtotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}" style="width: 100%; height: 38px; text-align: right; background: #f0fdf4; border: 1px solid #a7f3d0; border-radius: 8px; font-size: 0.85rem; font-weight: 800; color: #059669; padding: 0 0.6rem;">
+                </div>
+
+                <div style="text-align: center;">
+                    <span class="v-mobile-mini-label">&nbsp;</span>
+                    <button type="button" class="btn-remove-v-item" onclick="removeVendaItemCard('${rowId}')" title="Excluir Item" style="width: 38px; height: 38px; background: #fee2e2; border: 1px solid #fecaca; color: #ef4444; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                        <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Linha 2: Vínculo (Placa/Pessoa) e Toggle Manutenção -->
+        <div class="v-item-line-2">
+            <div style="display: flex; align-items: center; gap: 0.6rem; flex: 1; min-width: 280px;">
+                <label style="font-size: 0.72rem; font-weight: 700; color: #475569; min-width: 65px;">Vincular a:</label>
+                <div class="vinculo-btns" style="display: flex; gap: 4px;">
+                    <button type="button" class="btn-vinculo-type btn-v-veic ${!isPessoa ? 'active' : ''}" onclick="setVendaCardLinkType(this, 'veiculo')" title="Vincular a Veículo" style="height: 34px; padding: 0 10px; border-radius: 6px; border: 1px solid ${!isPessoa ? '#059669' : '#cbd5e1'}; background: ${!isPessoa ? '#059669' : '#f1f5f9'}; color: ${!isPessoa ? '#fff' : '#64748b'}; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <i data-lucide="truck" style="width: 14px; height: 14px;"></i>
+                    </button>
+                    <button type="button" class="btn-vinculo-type btn-v-pess ${isPessoa ? 'active' : ''}" onclick="setVendaCardLinkType(this, 'pessoa')" title="Vincular a Pessoa/Motorista" style="height: 34px; padding: 0 10px; border-radius: 6px; border: 1px solid ${isPessoa ? '#059669' : '#cbd5e1'}; background: ${isPessoa ? '#059669' : '#f1f5f9'}; color: ${isPessoa ? '#fff' : '#64748b'}; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <i data-lucide="user-plus" style="width: 14px; height: 14px;"></i>
+                    </button>
+                </div>
+
+                <!-- Busca Veículo (Placa) -->
+                <div class="v-item-veic-wrapper autocomplete-wrapper" style="flex: 1; position: relative; ${isPessoa ? 'display: none;' : ''}">
+                    <input type="text" class="v-item-veic-search" placeholder="BUSCAR PLACA..." value="${vehDisplay}" oninput="handleVendaCardVehicleSearch(this)" onfocus="handleVendaCardVehicleSearch(this)" autocomplete="off" style="width: 100%; height: 34px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; color: #0f172a; padding: 0 0.6rem; text-transform: uppercase;">
+                    <input type="hidden" class="v-item-veic-id" value="${data.vinculo_veiculo_id || ''}">
+                    <div class="autocomplete-results"></div>
+                </div>
+
+                <!-- Busca Pessoa -->
+                <div class="v-item-pess-wrapper autocomplete-wrapper" style="flex: 1; position: relative; ${isPessoa ? '' : 'display: none;'}">
+                    <input type="text" class="v-item-pess-search" placeholder="NOME DO MOTORISTA / PESSOA..." value="${data.vinculo_pessoa || ''}" oninput="handleVendaCardDriverSearch(this)" onfocus="handleVendaCardDriverSearch(this)" autocomplete="off" style="width: 100%; height: 34px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 600; color: #0f172a; padding: 0 0.6rem;">
+                    <div class="autocomplete-results"></div>
+                </div>
+            </div>
+
+            <!-- Toggle Controlar Manutenção -->
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <label style="font-size: 0.72rem; font-weight: 700; color: #475569;">Controlar Manutenção?</label>
+                <div class="v-maint-switch-wrap" style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; user-select: none;" onclick="toggleVendaCardMaint(this)">
+                    <div class="v-maint-switch-track" style="width: 40px; height: 22px; background: ${maintActive ? '#059669' : '#cbd5e1'}; border-radius: 12px; position: relative; transition: all 0.2s;">
+                        <div class="v-maint-switch-knob" style="width: 16px; height: 16px; background: #ffffff; border-radius: 50%; position: absolute; top: 3px; left: ${maintActive ? '21px' : '3px'}; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"></div>
+                    </div>
+                    <span class="v-maint-switch-label" style="font-size: 0.68rem; font-weight: 800; color: ${maintActive ? '#059669' : '#64748b'};">${maintActive ? 'SIM' : 'NÃO'}</span>
+                    <input type="hidden" class="v-item-maint-active" value="${maintActive ? 'true' : 'false'}">
+                </div>
+            </div>
+        </div>
+
+        <!-- Linha 3: Painel de Manutenção Expansível -->
+        <div class="v-item-maint-panel" style="display: ${maintActive ? 'grid' : 'none'};">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 0.65rem; font-weight: 800; color: #475569; text-transform: uppercase;">Tipo Manutenção*</label>
+                <select class="v-item-maint-tipo" style="height: 36px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; color: #0f172a; padding: 0 0.5rem;">
+                    <option value="">SELECIONE...</option>
+                    ${(stockMaintTypes || []).map(t => `<option value="${t.id}" ${data.maint_tipo_id === t.id ? 'selected' : ''}>${t.descricao}</option>`).join('')}
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 0.65rem; font-weight: 800; color: #475569; text-transform: uppercase;">Ação / Categoria*</label>
+                <select class="v-item-maint-acao" style="height: 36px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; color: #0f172a; padding: 0 0.5rem;">
+                    <option value="">SELECIONE...</option>
+                    ${(stockMaintActions || []).map(a => `<option value="${a.id}" ${data.maint_acao_id === a.id ? 'selected' : ''}>${a.descricao}</option>`).join('')}
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 0.65rem; font-weight: 800; color: #475569; text-transform: uppercase;">KM Atual*</label>
+                <input type="text" class="v-item-maint-km" placeholder="EX: 105.000" value="${data.maint_km ? window.formatKM(data.maint_km) : ''}" oninput="formatKMInput(this)" style="height: 36px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; color: #0f172a; padding: 0 0.5rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 0.65rem; font-weight: 800; color: #475569; text-transform: uppercase;">Status*</label>
+                <select class="v-item-maint-status" style="height: 36px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; color: #0f172a; padding: 0 0.5rem;">
+                    <option value="CONCLUIDO" ${(data.maint_status || 'CONCLUIDO') === 'CONCLUIDO' ? 'selected' : ''}>CONCLUÍDO</option>
+                    <option value="PENDENTE" ${data.maint_status === 'PENDENTE' ? 'selected' : ''}>PENDENTE</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 0.65rem; font-weight: 800; color: #475569; text-transform: uppercase;">Controle de Troca</label>
+                <select class="v-item-maint-controle" onchange="handleCardMaintControleChange(this)" style="height: 36px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; color: #0f172a; padding: 0 0.5rem;">
+                    <option value="NENHUMA" ${(data.maint_controle || 'NENHUMA') === 'NENHUMA' ? 'selected' : ''}>NÃO CONTROLA</option>
+                    <option value="KM" ${data.maint_controle === 'KM' ? 'selected' : ''}>POR KM</option>
+                    <option value="DATA" ${data.maint_controle === 'DATA' ? 'selected' : ''}>POR DATA</option>
+                </select>
+            </div>
+
+            <!-- Condicionais de KM e Data -->
+            <div class="v-card-maint-km-extra" style="grid-column: span 2; display: ${data.maint_controle === 'KM' ? 'block' : 'none'};">
+                <label style="font-size: 0.65rem; font-weight: 800; color: #475569; text-transform: uppercase;">Intervalo KM</label>
+                <input type="text" class="v-item-maint-intervalo-km" placeholder="Ex: 10.000" value="${data.maint_intervalo_km ? window.formatKM(data.maint_intervalo_km) : ''}" oninput="formatKMInput(this)" style="width: 100%; height: 36px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; color: #0f172a; padding: 0 0.5rem;">
+            </div>
+
+            <div class="v-card-maint-data-extra" style="grid-column: span 2; display: ${data.maint_controle === 'DATA' ? 'block' : 'none'};">
+                <label style="font-size: 0.65rem; font-weight: 800; color: #475569; text-transform: uppercase;">Meses de Intervalo</label>
+                <input type="number" class="v-item-maint-intervalo-meses" min="1" placeholder="Ex: 6" value="${data.maint_intervalo_meses || ''}" style="width: 100%; height: 36px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; color: #0f172a; padding: 0 0.5rem;">
+            </div>
+
+            <!-- Garantia -->
+            <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 0.65rem; font-weight: 800; color: #475569; text-transform: uppercase;">Garantia?</label>
+                <select class="v-item-maint-garantia" onchange="handleCardMaintGarantiaChange(this)" style="height: 36px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; color: #0f172a; padding: 0 0.5rem;">
+                    <option value="false" ${!data.maint_garantia ? 'selected' : ''}>NÃO</option>
+                    <option value="true" ${data.maint_garantia ? 'selected' : ''}>SIM</option>
+                </select>
+            </div>
+
+            <div class="v-card-maint-garantia-extra" style="display: ${data.maint_garantia ? 'block' : 'none'};">
+                <label style="font-size: 0.65rem; font-weight: 800; color: #475569; text-transform: uppercase;">Meses Garantia</label>
+                <input type="number" class="v-item-maint-meses-garantia" min="1" placeholder="Ex: 3" value="${data.maint_meses_garantia || ''}" style="width: 100%; height: 36px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; color: #0f172a; padding: 0 0.5rem;">
+            </div>
+        </div>
+    `;
+
+    container.appendChild(card);
+    if (window.lucide) lucide.createIcons();
+
+    updateVendaItemsCount();
+    calculateVendaTotal();
+
+    if (shouldFocus) {
+        setTimeout(() => {
+            const input = card.querySelector('.v-item-prod-search');
+            if (input) input.focus();
+        }, 50);
     }
+}
+window.addVendaItemRow = addVendaItemRow;
 
-    const activeItems = inventoryData.filter(item => item.status !== 'INATIVO');
+function removeVendaItemCard(rowId) {
+    const el = document.getElementById(rowId);
+    if (el) {
+        el.remove();
+        updateVendaItemsCount();
+        calculateVendaTotal();
 
-    const filtered = activeItems.filter(item => 
-        item.nome.toLowerCase().includes(query.toLowerCase()) || 
-        (item.ref && item.ref.toLowerCase().includes(query.toLowerCase())) ||
-        (item.marca && item.marca.toLowerCase().includes(query.toLowerCase())) ||
-        (item.codigo_barras && item.codigo_barras.toLowerCase().includes(query.toLowerCase())) ||
-        (item.codigo_interno && item.codigo_interno.toLowerCase().includes(query.toLowerCase()))
-    );
-
-    // Check for exact barcode/internal code match to auto-select
-    const exactMatch = activeItems.find(item => 
-        (item.codigo_barras && item.codigo_barras.toLowerCase() === query.trim().toLowerCase()) || 
-        (item.codigo_interno && item.codigo_interno.toLowerCase() === query.trim().toLowerCase())
-    );
-
-    if (exactMatch) {
-        selectVendaProduct(exactMatch.id);
-        resultsDiv.style.display = 'none';
-        const qtyInput = document.getElementById('v_quantidade');
-        if (qtyInput) {
-            qtyInput.focus();
-            qtyInput.select();
+        // Se remover o último, cria um novo em branco para manter a tela amigável
+        const container = document.getElementById('v_itens_container');
+        if (container && container.querySelectorAll('.v-item-card').length === 0) {
+            addVendaItemRow({}, false);
         }
-        return;
     }
+}
+window.removeVendaItemCard = removeVendaItemCard;
+
+function updateVendaItemsCount() {
+    const cards = document.querySelectorAll('#v_itens_container .v-item-card');
+    const badge = document.getElementById('v_items_count_badge');
+    if (badge) {
+        badge.innerText = `${cards.length} item(s)`;
+    }
+}
+window.updateVendaItemsCount = updateVendaItemsCount;
+
+function updateVendaCardSubtotal(inputEl) {
+    const card = inputEl.closest('.v-item-card');
+    if (!card) return;
+    const qtd = parseFloat(card.querySelector('.v-item-qtd').value) || 0;
+    const unit = parseFloat(card.querySelector('.v-item-unit').value) || 0;
+    const subtotal = qtd * unit;
+    const subtotalEl = card.querySelector('.v-item-subtotal');
+    if (subtotalEl) {
+        subtotalEl.value = subtotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+    calculateVendaTotal();
+}
+window.updateVendaCardSubtotal = updateVendaCardSubtotal;
+
+function setVendaCardLinkType(btnEl, type) {
+    const card = btnEl.closest('.v-item-card');
+    if (!card) return;
+    const btnVeic = card.querySelector('.btn-v-veic');
+    const btnPess = card.querySelector('.btn-v-pess');
+    const wrapVeic = card.querySelector('.v-item-veic-wrapper');
+    const wrapPess = card.querySelector('.v-item-pess-wrapper');
+
+    if (type === 'veiculo') {
+        if (btnVeic) {
+            btnVeic.style.background = '#059669';
+            btnVeic.style.borderColor = '#059669';
+            btnVeic.style.color = '#ffffff';
+            btnVeic.classList.add('active');
+        }
+        if (btnPess) {
+            btnPess.style.background = '#f1f5f9';
+            btnPess.style.borderColor = '#cbd5e1';
+            btnPess.style.color = '#64748b';
+            btnPess.classList.remove('active');
+        }
+        if (wrapVeic) wrapVeic.style.display = 'block';
+        if (wrapPess) wrapPess.style.display = 'none';
+    } else {
+        if (btnPess) {
+            btnPess.style.background = '#059669';
+            btnPess.style.borderColor = '#059669';
+            btnPess.style.color = '#ffffff';
+            btnPess.classList.add('active');
+        }
+        if (btnVeic) {
+            btnVeic.style.background = '#f1f5f9';
+            btnVeic.style.borderColor = '#cbd5e1';
+            btnVeic.style.color = '#64748b';
+            btnVeic.classList.remove('active');
+        }
+        if (wrapVeic) wrapVeic.style.display = 'none';
+        if (wrapPess) wrapPess.style.display = 'block';
+    }
+}
+window.setVendaCardLinkType = setVendaCardLinkType;
+
+function toggleVendaCardMaint(switchWrap) {
+    const card = switchWrap.closest('.v-item-card');
+    if (!card) return;
+    const track = card.querySelector('.v-maint-switch-track');
+    const knob = card.querySelector('.v-maint-switch-knob');
+    const label = card.querySelector('.v-maint-switch-label');
+    const hidden = card.querySelector('.v-item-maint-active');
+    const panel = card.querySelector('.v-item-maint-panel');
+
+    const isCurrentlyActive = hidden.value === 'true';
+    const nextActive = !isCurrentlyActive;
+    hidden.value = nextActive ? 'true' : 'false';
+
+    if (nextActive) {
+        track.style.background = '#059669';
+        knob.style.left = '21px';
+        label.innerText = 'SIM';
+        label.style.color = '#059669';
+        panel.style.display = 'grid';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        // Se já tem veículo selecionado e o campo KM estiver vazio, sugere o último KM automaticamente!
+        const vehId = card.querySelector('.v-item-veic-id')?.value;
+        const kmInput = card.querySelector('.v-item-maint-km');
+        if (vehId && kmInput && !kmInput.value) {
+            getLatestVehicleKm(vehId).then(km => {
+                if (km && !kmInput.value) kmInput.value = window.formatKM(km);
+            });
+        }
+    } else {
+        track.style.background = '#cbd5e1';
+        knob.style.left = '3px';
+        label.innerText = 'NÃO';
+        label.style.color = '#64748b';
+        panel.style.display = 'none';
+    }
+}
+window.toggleVendaCardMaint = toggleVendaCardMaint;
+
+function handleCardMaintControleChange(selectEl) {
+    const card = selectEl.closest('.v-item-card');
+    if (!card) return;
+    const val = selectEl.value;
+    const kmExtra = card.querySelector('.v-card-maint-km-extra');
+    const dataExtra = card.querySelector('.v-card-maint-data-extra');
+    if (kmExtra) kmExtra.style.display = val === 'KM' ? 'block' : 'none';
+    if (dataExtra) dataExtra.style.display = val === 'DATA' ? 'block' : 'none';
+}
+window.handleCardMaintControleChange = handleCardMaintControleChange;
+
+function handleCardMaintGarantiaChange(selectEl) {
+    const card = selectEl.closest('.v-item-card');
+    if (!card) return;
+    const extra = card.querySelector('.v-card-maint-garantia-extra');
+    if (extra) extra.style.display = selectEl.value === 'true' ? 'block' : 'none';
+}
+window.handleCardMaintGarantiaChange = handleCardMaintGarantiaChange;
+
+// Autocomplete Busca de Produtos no Card
+function handleVendaProdSearch(inputEl) {
+    const wrapper = inputEl.closest('.autocomplete-wrapper');
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
+    const query = (inputEl.value || '').toLowerCase().trim();
+
+    const activeItems = (inventoryData || []).filter(item => item.status !== 'INATIVO');
+
+    const filtered = query.length === 0
+        ? activeItems.slice(0, 30)
+        : activeItems.filter(item => 
+            (item.nome && item.nome.toLowerCase().includes(query)) || 
+            (item.ref && item.ref.toLowerCase().includes(query)) ||
+            (item.marca && item.marca.toLowerCase().includes(query)) ||
+            (item.codigo_barras && item.codigo_barras.toLowerCase().includes(query)) ||
+            (item.codigo_interno && item.codigo_interno.toLowerCase().includes(query))
+        ).slice(0, 25);
 
     if (filtered.length === 0) {
-        resultsDiv.innerHTML = '<div class="search-item"><span class="name">Nenhum produto encontrado</span></div>';
+        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color: #64748b;">Nenhum produto ativo encontrado</div>';
     } else {
         resultsDiv.innerHTML = filtered.map(item => `
-            <div class="search-item" onclick="selectVendaProduct('${item.id}')">
-                <span class="name">${item.nome} (${item.marca || 'S/M'})</span>
-                <span class="info">${item.codigo_barras ? `Barras: ${item.codigo_barras} | ` : ''}Ref: ${item.ref || 'S/R'} | Estoque: ${item.estoque_atual} ${item.unidade} | R$ ${parseFloat(item.valor_venda).toLocaleString('pt-BR')}</span>
+            <div class="autocomplete-item" onclick="selectVendaCardProduct('${item.id}', '${item.nome.replace(/'/g, "\\'")}', '${(item.marca || '').replace(/'/g, "\\'")}', ${parseFloat(item.valor_venda || 0)}, ${parseFloat(item.estoque_atual || 0)}, '${item.unidade || 'UN'}', ${parseFloat(item.valor_custo || 0)}, this)">
+                <div>
+                    <div style="font-weight: 700; color: #0f172a;">${item.nome} ${item.marca ? `(${item.marca})` : ''}</div>
+                    <div style="font-size: 0.7rem; color: #64748b;">Ref: ${item.ref || 'S/R'} | Cód: ${item.codigo_interno || item.codigo_barras || '--'}</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-weight: 800; color: #059669;">R$ ${parseFloat(item.valor_venda || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+                    <div style="font-size: 0.7rem; color: #475569;">Saldo: <b>${item.estoque_atual} ${item.unidade || 'UN'}</b></div>
+                </div>
             </div>
         `).join('');
     }
     resultsDiv.style.display = 'block';
 }
+window.handleVendaProdSearch = handleVendaProdSearch;
 
-function selectVendaProduct(id) {
-    const item = inventoryData.find(p => p.id === id);
-    if (!item) return;
+function selectVendaCardProduct(id, nome, marca, valVenda, estoqueAtual, unidade, valorCusto, itemEl) {
+    if (!itemEl) return;
+    const card = itemEl.classList?.contains('v-item-card') ? itemEl : (itemEl.closest ? itemEl.closest('.v-item-card') : null);
+    if (!card) return;
 
-    if (item.status === 'INATIVO') {
-        alert('Este produto encontra-se INATIVO no sistema e não pode ter saída lançada.');
-        return;
+    const searchInput = card.querySelector('.v-item-prod-search');
+    const hiddenId = card.querySelector('.v-item-prod-id');
+    const hiddenNome = card.querySelector('.v-item-prod-nome');
+    const hiddenUnidade = card.querySelector('.v-item-prod-unidade');
+    const hiddenCusto = card.querySelector('.v-item-prod-custo');
+    const stockTag = card.querySelector('.v-item-stock-tag');
+    const unitInput = card.querySelector('.v-item-unit');
+    const resultsDiv = card.querySelector('.autocomplete-results');
+
+    searchInput.value = `${nome} ${marca ? `(${marca})` : ''}`.trim();
+    hiddenId.value = id;
+    hiddenNome.value = nome;
+    hiddenUnidade.value = unidade;
+    hiddenCusto.value = valorCusto || 0;
+
+    if (stockTag) {
+        stockTag.innerText = `Estoque: ${estoqueAtual} ${unidade}`;
+        stockTag.style.display = 'block';
     }
 
-    document.getElementById('v_selected_product_id').value = item.id;
-    document.getElementById('v_search_input').value = item.nome;
-    document.getElementById('v_search_results').style.display = 'none';
-    
-    // Fill values
-    document.getElementById('v_valor_unitario').value = item.valor_venda || 0;
-    
-    // Show Info
-    const infoDiv = document.getElementById('v_product_selection_info');
-    document.getElementById('v_info_name').innerText = `${item.nome} (${item.marca || 'S/M'})`;
-    document.getElementById('v_info_stock').innerText = `Estoque: ${item.estoque_atual} ${item.unidade}`;
-    document.getElementById('v_info_price').innerText = `R$ ${parseFloat(item.valor_venda).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-    
-    // Visual Feedback: dynamic animation
-    if (!document.getElementById('pulse-green-style')) {
-        const style = document.createElement('style');
-        style.id = 'pulse-green-style';
-        style.innerHTML = `
-            @keyframes pulseGreen {
-                0% { background: rgba(16, 185, 129, 0.4); border-color: rgba(16, 185, 129, 0.8); transform: scale(1.02); }
-                100% { background: rgba(16, 185, 129, 0.05); border-color: rgba(16, 185, 129, 0.1); transform: scale(1); }
-            }
-        `;
-        document.head.appendChild(style);
+    if (unitInput) {
+        unitInput.value = valVenda;
     }
-    
-    infoDiv.style.display = 'block';
-    infoDiv.style.animation = 'none';
-    void infoDiv.offsetHeight; // trigger reflow
-    infoDiv.style.animation = 'pulseGreen 0.6s ease-out';
-    infoDiv.style.transition = 'transform 0.2s ease, background 0.2s ease, border-color 0.2s ease';
-    
-    document.getElementById('v_btn_add_item').style.display = 'flex';
-    updateVendaItemPreview();
+
+    if (resultsDiv) {
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+    }
+
+    updateVendaCardSubtotal(unitInput);
 }
+window.selectVendaCardProduct = selectVendaCardProduct;
 
-function updateVendaItemPreview() {
-    const qty = parseFloat(document.getElementById('v_quantidade').value) || 0;
-    const price = parseFloat(document.getElementById('v_valor_unitario').value) || 0;
-    
-    const descTipo = document.getElementById('v_item_desconto_tipo').value;
-    const descValor = parseFloat(document.getElementById('v_item_desconto_valor').value) || 0;
-    const acresTipo = document.getElementById('v_item_acrescimo_tipo').value;
-    const acresValor = parseFloat(document.getElementById('v_item_acrescimo_valor').value) || 0;
+// =========================================================================
+// SCANNER DE CÓDIGO DE BARRAS VIA CÂMERA (HTML5-QRCODE + HAPTIC & AUDIO)
+// =========================================================================
+let html5QrCodeInstance = null;
+let currentScannerTargetCardId = null;
+let currentCameraFacing = "environment"; // "environment" (traseira) ou "user" (frontal)
+let isScanningActive = false;
 
-    let subtotal = qty * price;
-    let adjustment = 0;
+async function openBarcodeScanner(targetCardId = null) {
+    currentScannerTargetCardId = targetCardId;
+    const modal = document.getElementById('barcodeScannerModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('active');
+    }
+    const manualInput = document.getElementById('manual_barcode_input');
+    if (manualInput) manualInput.value = '';
 
-    // Desconto
-    if (descValor > 0) {
-        if (descTipo === 'PORCENTAGEM') {
-            adjustment -= (subtotal * (descValor / 100));
-        } else {
-            adjustment -= descValor;
+    await startCameraScanner();
+}
+window.openBarcodeScanner = openBarcodeScanner;
+
+async function startCameraScanner() {
+    const statusEl = document.getElementById('scanner_status_msg');
+    try {
+        if (statusEl) {
+            statusEl.innerText = "Iniciando câmera...";
+            statusEl.style.color = "#94a3b8";
+        }
+
+        if (html5QrCodeInstance) {
+            try {
+                await html5QrCodeInstance.stop();
+            } catch (e) {}
+            html5QrCodeInstance = null;
+        }
+
+        if (typeof Html5Qrcode === 'undefined') {
+            if (statusEl) {
+                statusEl.innerText = "Biblioteca do scanner indisponível. Digite manualmente abaixo.";
+                statusEl.style.color = "#ef4444";
+            }
+            return;
+        }
+
+        html5QrCodeInstance = new Html5Qrcode("scanner_reader_container");
+        isScanningActive = true;
+
+        const config = {
+            fps: 15,
+            qrbox: { width: 250, height: 160 },
+            aspectRatio: 1.0,
+            experimentalFeatures: {
+                useBarCodeDetectorIfSupported: true
+            }
+        };
+
+        const cameraConfig = { facingMode: currentCameraFacing };
+
+        await html5QrCodeInstance.start(
+            cameraConfig,
+            config,
+            (decodedText) => {
+                onBarcodeDetected(decodedText);
+            },
+            () => {
+                // frame sem leitura ignorado silenciosamente
+            }
+        );
+
+        if (statusEl) {
+            statusEl.innerText = "Aponte para o código de barras...";
+            statusEl.style.color = "#10b981";
+        }
+    } catch (err) {
+        console.error('Erro ao iniciar câmera para scanner:', err);
+        if (statusEl) {
+            statusEl.innerText = "Câmera indisponível. Verifique permissões ou use o campo manual.";
+            statusEl.style.color = "#f59e0b";
+        }
+    }
+}
+window.startCameraScanner = startCameraScanner;
+
+async function toggleCameraFacing() {
+    currentCameraFacing = (currentCameraFacing === "environment") ? "user" : "environment";
+    await startCameraScanner();
+}
+window.toggleCameraFacing = toggleCameraFacing;
+
+async function closeBarcodeScanner() {
+    isScanningActive = false;
+    if (html5QrCodeInstance) {
+        try {
+            await html5QrCodeInstance.stop();
+        } catch (e) {}
+        html5QrCodeInstance = null;
+    }
+    const modal = document.getElementById('barcodeScannerModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+    }
+}
+window.closeBarcodeScanner = closeBarcodeScanner;
+
+function playScanBeep() {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1200, audioCtx.currentTime); // Beep agradável 1200 Hz
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.08);
+    } catch (e) {}
+
+    if (navigator.vibrate) {
+        try { navigator.vibrate(80); } catch (e) {}
+    }
+}
+window.playScanBeep = playScanBeep;
+
+function onBarcodeDetected(rawCode) {
+    if (!isScanningActive) return;
+    const code = (rawCode || '').trim();
+    if (!code) return;
+
+    // Pausar novas leituras no mesmo scan
+    isScanningActive = false;
+    playScanBeep();
+
+    const statusEl = document.getElementById('scanner_status_msg');
+    if (statusEl) {
+        statusEl.innerText = `Lido: ${code} - Processando...`;
+        statusEl.style.color = "#10b981";
+    }
+
+    // Busca no inventário por codigo_barras, codigo_interno ou ref (case-insensitive)
+    const codeLower = code.toLowerCase();
+    const item = (inventoryData || []).find(p => 
+        (p.codigo_barras && String(p.codigo_barras).toLowerCase() === codeLower) ||
+        (p.codigo_interno && String(p.codigo_interno).toLowerCase() === codeLower) ||
+        (p.ref && String(p.ref).toLowerCase() === codeLower)
+    );
+
+    setTimeout(() => {
+        closeBarcodeScanner();
+        applyScannedBarcode(code, item);
+    }, 250);
+}
+window.onBarcodeDetected = onBarcodeDetected;
+
+function submitManualBarcode() {
+    const input = document.getElementById('manual_barcode_input');
+    if (!input) return;
+    const code = (input.value || '').trim();
+    if (!code) return;
+    input.value = '';
+    onBarcodeDetected(code);
+}
+window.submitManualBarcode = submitManualBarcode;
+
+function applyScannedBarcode(code, item) {
+    let card = null;
+
+    if (currentScannerTargetCardId) {
+        card = document.getElementById(currentScannerTargetCardId);
+    }
+
+    if (!card) {
+        // Se não foi especificado card, verifica se o último card existente está vazio
+        const cards = document.querySelectorAll('#v_itens_container .v-item-card');
+        if (cards.length > 0) {
+            const lastCard = cards[cards.length - 1];
+            const prodId = lastCard.querySelector('.v-item-prod-id')?.value;
+            const prodSearch = lastCard.querySelector('.v-item-prod-search')?.value;
+            if (!prodId && (!prodSearch || prodSearch.trim() === '')) {
+                card = lastCard;
+            }
         }
     }
 
-    // Acréscimo
-    if (acresValor > 0) {
-        if (acresTipo === 'PORCENTAGEM') {
-            adjustment += (subtotal * (acresValor / 100));
-        } else {
-            adjustment += acresValor;
-        }
+    // Se ainda não encontrou card vazio, cria uma nova linha
+    if (!card) {
+        addVendaItemRow({}, false);
+        const cards = document.querySelectorAll('#v_itens_container .v-item-card');
+        card = cards[cards.length - 1];
     }
 
-    const finalSubtotal = subtotal + adjustment;
-    document.getElementById('v_info_price').innerText = `R$ ${finalSubtotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-};
+    if (!card) return;
 
-function addItemToVendaList() {
-    const productId = document.getElementById('v_selected_product_id').value;
-    const item = inventoryData.find(p => p.id === productId);
-    const qtd = parseFloat(document.getElementById('v_quantidade').value) || 0;
-    const unitVal = parseFloat(document.getElementById('v_valor_unitario').value) || 0;
+    if (item) {
+        // Encontrou o produto no estoque!
+        selectVendaCardProduct(
+            item.id,
+            item.nome,
+            item.marca || '',
+            parseFloat(item.valor_venda || 0),
+            parseFloat(item.estoque_atual || 0),
+            item.unidade || 'UN',
+            parseFloat(item.valor_custo || 0),
+            card
+        );
 
-    if (!item || item.status === 'INATIVO' || qtd <= 0) {
-        alert('Selecione um produto ativo e informe uma quantidade válida.');
-        return;
-    }
-
-    // Calcula ajustes do item
-    let subtotal = qtd * unitVal;
-    let adjustment = 0;
-
-    const descTipo = document.getElementById('v_item_desconto_tipo').value;
-    const descVal = parseFloat(document.getElementById('v_item_desconto_valor').value) || 0;
-    if (descTipo === 'PORCENTAGEM') adjustment -= (subtotal * (descVal / 100));
-    else adjustment -= descVal;
-
-    const acrTipo = document.getElementById('v_item_acrescimo_tipo').value;
-    const acrVal = parseFloat(document.getElementById('v_item_acrescimo_valor').value) || 0;
-    if (acrTipo === 'PORCENTAGEM') adjustment += (subtotal * (acrVal / 100));
-    else adjustment += acrVal;
-
-    const finalSubtotal = subtotal + adjustment;
-
-    // Check if already in list
-    const existing = vendaItems.find(i => i.produto_id === productId);
-    if (existing) {
-        existing.quantidade += qtd;
-        existing.subtotal += finalSubtotal;
-        existing.adjustment += adjustment;
+        // Foca automaticamente no campo de quantidade para confirmação manual
+        setTimeout(() => {
+            const qtdInput = card.querySelector('.v-item-qtd');
+            if (qtdInput) {
+                qtdInput.focus();
+                qtdInput.select();
+            }
+        }, 150);
     } else {
-        vendaItems.push({
-            produto_id: item.id,
-            nome: item.nome,
-            quantidade: qtd,
-            valor_unitario: unitVal,
-            adjustment: adjustment,
-            subtotal: finalSubtotal,
-            unidade: item.unidade,
-            valor_custo: item.valor_custo,
-            desconto_tipo: descTipo,
-            desconto_valor: descVal,
-            acrescimo_tipo: acrTipo,
-            acrescimo_valor: acrVal
+        // Produto não encontrado no estoque: preenche o texto da busca com o código lido
+        const searchInput = card.querySelector('.v-item-prod-search');
+        if (searchInput) {
+            searchInput.value = code;
+            handleVendaProdSearch(searchInput);
+            searchInput.focus();
+        }
+
+        if (typeof showAlertModal === 'function') {
+            showAlertModal({
+                title: 'Código Não Cadastrado',
+                message: `O código de barras "${code}" não foi localizado em nenhum produto ativo. O código foi preenchido na busca para você conferir ou cadastrar.`,
+                type: 'warning',
+                confirmText: 'ENTENDI'
+            });
+        } else {
+            alert(`Nenhum produto cadastrado com o código "${code}". O código foi preenchido na busca.`);
+        }
+    }
+}
+window.applyScannedBarcode = applyScannedBarcode;
+
+// Autocomplete Busca de Veículos no Card
+function handleVendaCardVehicleSearch(inputEl) {
+    const wrapper = inputEl.closest('.autocomplete-wrapper');
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
+    const query = (inputEl.value || '').toUpperCase().trim();
+
+    const filtered = query.length === 0
+        ? (vehiclesData || []).slice(0, 30)
+        : (vehiclesData || []).filter(v => 
+            (v.placa && v.placa.toUpperCase().includes(query)) ||
+            (v.modelo && v.modelo.toUpperCase().includes(query)) ||
+            (v.marca && v.marca.toUpperCase().includes(query))
+        ).slice(0, 20);
+
+    if (filtered.length === 0) {
+        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color: #64748b;">Nenhum veículo encontrado...</div>';
+    } else {
+        resultsDiv.innerHTML = filtered.map(v => `
+            <div class="autocomplete-item" onclick="selectVendaCardVehicle('${v.id}', '${v.placa}', this)">
+                <span style="font-weight: 800; color: #0f172a;">${v.placa}</span>
+                <span style="font-size: 0.72rem; color: #64748b;">${v.marca || ''} ${v.modelo || ''}</span>
+            </div>
+        `).join('');
+    }
+    resultsDiv.style.display = 'block';
+}
+window.handleVendaCardVehicleSearch = handleVendaCardVehicleSearch;
+
+function selectVendaCardVehicle(id, placa, itemEl) {
+    const card = itemEl.closest('.v-item-card');
+    if (!card) return;
+
+    const searchInput = card.querySelector('.v-item-veic-search');
+    const hiddenId = card.querySelector('.v-item-veic-id');
+    const resultsDiv = card.querySelector('.v-item-veic-wrapper .autocomplete-results');
+
+    searchInput.value = placa;
+    hiddenId.value = id;
+    resultsDiv.style.display = 'none';
+    resultsDiv.innerHTML = '';
+
+    // Sugestão automática de último KM caso esteja vazio
+    const kmInput = card.querySelector('.v-item-maint-km');
+    if (kmInput && !kmInput.value) {
+        getLatestVehicleKm(id).then(km => {
+            if (km && !kmInput.value) kmInput.value = window.formatKM(km);
         });
     }
-
-    // Reset Item selection and adjustments
-    document.getElementById('v_selected_product_id').value = '';
-    document.getElementById('v_search_input').value = '';
-    document.getElementById('v_quantidade').value = 1;
-    document.getElementById('v_item_desconto_valor').value = 0;
-    document.getElementById('v_item_acrescimo_valor').value = 0;
-    document.getElementById('v_product_selection_info').style.display = 'none';
-    document.getElementById('v_btn_add_item').style.display = 'none';
-
-    renderVendaItems();
-    const searchInput = document.getElementById('v_search_input');
-    if (searchInput) {
-        searchInput.focus();
-    }
 }
+window.selectVendaCardVehicle = selectVendaCardVehicle;
 
-function editVendaItem(index) {
-    const item = vendaItems[index];
-    if (!item) return;
+// Autocomplete Busca de Condutor/Pessoa no Card
+function handleVendaCardDriverSearch(inputEl) {
+    const wrapper = inputEl.closest('.autocomplete-wrapper');
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
+    const query = (inputEl.value || '').toUpperCase().trim();
 
-    // Popula campos de adição com os dados do item
-    document.getElementById('v_selected_product_id').value = item.produto_id;
-    document.getElementById('v_search_input').value = item.nome;
-    document.getElementById('v_quantidade').value = item.quantidade;
-    document.getElementById('v_valor_unitario').value = item.valor_unitario;
-    
-    document.getElementById('v_item_desconto_tipo').value = item.desconto_tipo || 'PORCENTAGEM';
-    document.getElementById('v_item_desconto_valor').value = item.desconto_valor || 0;
-    document.getElementById('v_item_acrescimo_tipo').value = item.acrescimo_tipo || 'PORCENTAGEM';
-    document.getElementById('v_item_acrescimo_valor').value = item.acrescimo_valor || 0;
+    const filtered = query.length === 0
+        ? (stockDrivers || []).slice(0, 30)
+        : (stockDrivers || []).filter(d => 
+            d.nome_completo && d.nome_completo.toUpperCase().includes(query)
+        ).slice(0, 20);
 
-    // Mostra info do produto
-    const infoDiv = document.getElementById('v_product_selection_info');
-    document.getElementById('v_info_name').innerText = item.nome;
-    document.getElementById('v_info_stock').innerText = `Estoque: -- ${item.unidade}`;
-    document.getElementById('v_info_price').innerText = `R$ ${item.valor_unitario.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-    infoDiv.style.display = 'block';
-    document.getElementById('v_btn_add_item').style.display = 'flex';
-
-    // Remove do carrinho para ser "re-adicionado" após edição
-    vendaItems.splice(index, 1);
-    renderVendaItems();
-    updateVendaItemPreview();
-}
-
-function removeItemFromVenda(index) {
-    if (confirm('Deseja remover este item do carrinho?')) {
-        vendaItems.splice(index, 1);
-        renderVendaItems();
-    }
-}
-
-function renderVendaItems() {
-    const tbody = document.getElementById('v_items_tbody');
-    if (vendaItems.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">Nenhum item adicionado ao carrinho.</td></tr>';
-        document.getElementById('btn_confirm_venda').disabled = true;
-        document.getElementById('btn_confirm_venda').style.opacity = '0.5';
+    if (filtered.length === 0) {
+        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color: #64748b;">Nenhum condutor encontrado...</div>';
     } else {
-        tbody.innerHTML = vendaItems.map((item, index) => `
-            <tr>
-                <td style="font-weight: 700;">${item.nome}</td>
-                <td style="text-align: center;">${item.quantidade} ${item.unidade}</td>
-                <td style="text-align: right;">R$ ${item.valor_unitario.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                <td style="text-align: right; color: ${item.adjustment < 0 ? '#ef4444' : '#10b981'};">
-                    ${item.adjustment < 0 ? '-' : '+'} R$ ${Math.abs(item.adjustment).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                </td>
-                <td style="text-align: right; font-weight: 700; color: #10b981;">R$ ${item.subtotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                <td style="text-align: center;">
-                    <div style="display: flex; gap: 0.5rem; justify-content: center;">
-                        <button type="button" onclick="editVendaItem(${index})" style="background: rgba(59, 130, 246, 0.1); border: none; color: #3b82f6; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-                            <i data-lucide="pencil" style="width: 16px;"></i>
-                        </button>
-                        <button type="button" onclick="removeItemFromVenda(${index})" style="background: rgba(239, 68, 68, 0.1); border: none; color: #ef4444; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-                            <i data-lucide="trash-2" style="width: 16px;"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
+        resultsDiv.innerHTML = filtered.map(d => `
+            <div class="autocomplete-item" onclick="selectVendaCardDriver('${(d.nome_completo || '').replace(/'/g, "\\'")}', this)">
+                <span style="font-weight: 700; color: #0f172a;">${d.nome_completo}</span>
+            </div>
         `).join('');
-        document.getElementById('btn_confirm_venda').disabled = false;
-        document.getElementById('btn_confirm_venda').style.opacity = '1';
-        document.getElementById('btn_confirm_venda').style.cursor = 'pointer';
-        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
-    calculateVendaTotal();
+    resultsDiv.style.display = 'block';
 }
+window.handleVendaCardDriverSearch = handleVendaCardDriverSearch;
 
+function selectVendaCardDriver(nome, itemEl) {
+    const card = itemEl.closest('.v-item-card');
+    if (!card) return;
+
+    const searchInput = card.querySelector('.v-item-pess-search');
+    const resultsDiv = card.querySelector('.v-item-pess-wrapper .autocomplete-results');
+
+    searchInput.value = nome;
+    resultsDiv.style.display = 'none';
+    resultsDiv.innerHTML = '';
+}
+window.selectVendaCardDriver = selectVendaCardDriver;
+
+// Coletor de itens dos Cards
+function collectVendaItemsFromCards() {
+    const cards = document.querySelectorAll('#v_itens_container .v-item-card');
+    const items = [];
+
+    cards.forEach(card => {
+        const prodId = card.querySelector('.v-item-prod-id')?.value;
+        const nome = card.querySelector('.v-item-prod-nome')?.value || card.querySelector('.v-item-prod-search')?.value;
+        const qtd = parseFloat(card.querySelector('.v-item-qtd')?.value) || 0;
+        const unitVal = parseFloat(card.querySelector('.v-item-unit')?.value) || 0;
+        const unidade = card.querySelector('.v-item-prod-unidade')?.value || 'UN';
+        const valorCusto = parseFloat(card.querySelector('.v-item-prod-custo')?.value) || 0;
+
+        if (!prodId || qtd <= 0) return; // ignora cards em branco vazios
+
+        const btnPess = card.querySelector('.btn-v-pess');
+        const isPessoa = btnPess && btnPess.classList.contains('active');
+        const vinculoTipo = isPessoa ? 'pessoa' : 'veiculo';
+        const vinculoVeiculoId = card.querySelector('.v-item-veic-id')?.value || null;
+        const vinculoVeiculoPlaca = card.querySelector('.v-item-veic-search')?.value || '';
+        const vinculoPessoa = card.querySelector('.v-item-pess-search')?.value || null;
+
+        const maintControl = card.querySelector('.v-item-maint-active')?.value === 'true';
+        const maintTipoId = card.querySelector('.v-item-maint-tipo')?.value || null;
+        const maintTipoNome = stockMaintTypes.find(t => t.id === maintTipoId)?.descricao || '';
+        const maintAcaoId = card.querySelector('.v-item-maint-acao')?.value || null;
+        const maintAcaoNome = stockMaintActions.find(a => a.id === maintAcaoId)?.descricao || '';
+
+        const rawKm = (card.querySelector('.v-item-maint-km')?.value || '').replace(/\D/g, '');
+        const maintKm = rawKm ? parseFloat(rawKm) : 0;
+        const maintStatus = card.querySelector('.v-item-maint-status')?.value || 'CONCLUIDO';
+        const maintControle = card.querySelector('.v-item-maint-controle')?.value || 'NENHUMA';
+
+        const rawIntervaloKm = (card.querySelector('.v-item-maint-intervalo-km')?.value || '').replace(/\D/g, '');
+        const maintIntervaloKm = rawIntervaloKm ? parseFloat(rawIntervaloKm) : null;
+        const maintIntervaloMeses = parseInt(card.querySelector('.v-item-maint-intervalo-meses')?.value) || null;
+
+        const maintGarantia = card.querySelector('.v-item-maint-garantia')?.value === 'true';
+        const maintMesesGarantia = parseInt(card.querySelector('.v-item-maint-meses-garantia')?.value) || null;
+
+        const subtotal = qtd * unitVal;
+
+        items.push({
+            produto_id: prodId,
+            nome: nome,
+            quantidade: qtd,
+            valor_unitario: unitVal,
+            adjustment: 0,
+            subtotal: subtotal,
+            unidade: unidade,
+            valor_custo: valorCusto,
+            desconto_tipo: 'VALOR',
+            desconto_valor: 0,
+            acrescimo_tipo: 'VALOR',
+            acrescimo_valor: 0,
+            vinculo_tipo: vinculoTipo,
+            vinculo_veiculo_id: vinculoVeiculoId,
+            vinculo_veiculo_placa: vinculoVeiculoPlaca,
+            vinculo_pessoa: vinculoPessoa,
+            maint_control: maintControl,
+            maint_tipo_id: maintTipoId,
+            maint_tipo_nome: maintTipoNome,
+            maint_acao_id: maintAcaoId,
+            maint_acao_nome: maintAcaoNome,
+            maint_km: maintKm,
+            maint_status: maintStatus,
+            maint_controle: maintControle,
+            maint_intervalo_km: maintIntervaloKm,
+            maint_intervalo_meses: maintIntervaloMeses,
+            maint_garantia: maintGarantia,
+            maint_meses_garantia: maintMesesGarantia
+        });
+    });
+
+    return items;
+}
+window.collectVendaItemsFromCards = collectVendaItemsFromCards;
 
 function calculateVendaTotal() {
-    const finalTotal = vendaItems.reduce((acc, item) => acc + item.subtotal, 0);
-    const bruteTotal = vendaItems.reduce((acc, item) => acc + (item.quantidade * item.valor_unitario), 0);
-    const adjustmentTotal = vendaItems.reduce((acc, item) => acc + (item.adjustment || 0), 0);
-    
+    const items = collectVendaItemsFromCards();
+    const bruteTotal = items.reduce((acc, item) => acc + (item.quantidade * item.valor_unitario), 0);
+    const adjustmentTotal = items.reduce((acc, item) => acc + (item.adjustment || 0), 0);
+    const finalTotal = items.reduce((acc, item) => acc + item.subtotal, 0);
+
     lastCalculatedVendaTotal = finalTotal;
 
     const elBruto = document.getElementById('v_total_bruto');
@@ -2469,11 +3687,23 @@ function calculateVendaTotal() {
     if (elBruto) elBruto.innerText = bruteTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     if (elAjustes) elAjustes.innerText = adjustmentTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     if (elLiquido) elLiquido.innerText = finalTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    const btnConfirm = document.getElementById('btn_confirm_venda');
+    if (btnConfirm) {
+        btnConfirm.disabled = items.length === 0;
+        btnConfirm.style.opacity = items.length === 0 ? '0.5' : '1';
+        btnConfirm.style.cursor = items.length === 0 ? 'not-allowed' : 'pointer';
+    }
 }
+window.calculateVendaTotal = calculateVendaTotal;
 
 async function saveVenda(event) {
     if (event) event.preventDefault();
-    if (vendaItems.length === 0) return;
+    vendaItems = collectVendaItemsFromCards();
+    if (vendaItems.length === 0) {
+        alert('Por favor, informe pelo menos 1 item com produto e quantidade válidos para registrar a saída.');
+        return;
+    }
 
     if (typeof canDo === 'function') {
         if (!currentVendaId && !canDo('estoque_vendas', 'add')) {
@@ -2486,6 +3716,13 @@ async function saveVenda(event) {
         }
     }
 
+    // Validação: cada item marcado para manutenção deve ter sua própria placa informada
+    const itemSemVeiculo = vendaItems.find(i => i.maint_control && !i.vinculo_veiculo_id);
+    if (itemSemVeiculo) {
+        alert(`O item "${itemSemVeiculo.nome}" está marcado para "Controlar Manutenção", mas nenhuma placa foi vinculada a ele.\n\nPor favor, informe a placa do veículo no card do item.`);
+        return;
+    }
+
     const tipo = document.getElementById('v_tipo').value;
     const veiculoId = document.getElementById('v_veiculo_id').value;
     const veiculo = vehiclesData.find(v => v.id === veiculoId);
@@ -2493,11 +3730,15 @@ async function saveVenda(event) {
 
     const totalAjuste = vendaItems.reduce((acc, i) => acc + i.adjustment, 0);
 
+    // Se o cabeçalho não tem veículo geral, usa a placa do primeiro item vinculado como referência
+    const fallbackPlaca = (vendaItems.find(i => i.vinculo_veiculo_placa)?.vinculo_veiculo_placa) || null;
+    const fallbackVeicId = (vendaItems.find(i => i.vinculo_veiculo_id)?.vinculo_veiculo_id) || null;
+
     const vendaObj = {
         tipo: tipo,
         data: dataVenda + 'T12:00:00Z', // Use midday to avoid timezone shifts
-        veiculo_id: veiculoId || null,
-        placa: veiculo ? veiculo.placa : null,
+        veiculo_id: veiculoId || fallbackVeicId,
+        placa: veiculo ? veiculo.placa : fallbackPlaca,
         os_id: document.getElementById('v_os_id').value || null,
         cliente_nome: document.getElementById('v_cliente_nome').value.trim() || 'Consumidor Final',
         valor_bruto: vendaItems.reduce((acc, i) => acc + (i.quantidade * i.valor_unitario), 0),
@@ -2514,13 +3755,37 @@ async function saveVenda(event) {
     };
 
     try {
-        let newVenda;
-        
-        if (currentVendaId) {
-            // 1. Reverter estoque dos itens antigos
-            const { data: oldItems, error: oldErr } = await supabaseClient.from('venda_itens').select('*').eq('venda_id', currentVendaId);
-            if (oldErr) throw oldErr;
+        let existingVenda = null;
+        let oldItems = [];
 
+        if (currentVendaId) {
+            // 0. Buscar a venda atual para garantir o código correto da venda
+            const { data: vOld } = await supabaseClient.from('vendas').select('*').eq('id', currentVendaId).single();
+            existingVenda = vOld;
+
+            // 1. Buscar itens antigos: primeiro em venda_itens
+            const { data: viData, error: oldErr } = await supabaseClient.from('venda_itens').select('*').eq('venda_id', currentVendaId);
+            if (oldErr) throw oldErr;
+            if (viData && viData.length > 0) {
+                oldItems = viData;
+            } else {
+                // Fallback: se venda_itens estava vazia, recuperar do histórico de movimentações
+                const searchCod = existingVenda ? existingVenda.codigo : currentVendaId;
+                const { data: hItens } = await supabaseClient
+                    .from('estoque_movimentacoes')
+                    .select('*')
+                    .ilike('motivo', `%VENDA: ${searchCod}%`)
+                    .eq('tipo', 'SAIDA');
+                if (hItens && hItens.length > 0) {
+                    oldItems = hItens.map(h => ({
+                        produto_id: h.item_id,
+                        quantidade: h.quantidade,
+                        valor_unitario: h.valor_unitario
+                    }));
+                }
+            }
+
+            // 2. Reverter (devolver) o saldo em estoque de TODOS os itens antigos
             for (const old of oldItems) {
                 const { data: prod } = await supabaseClient.from('estoque').select('estoque_atual').eq('id', old.produto_id).single();
                 if (prod) {
@@ -2532,30 +3797,58 @@ async function saveVenda(event) {
                 }
             }
 
-            // Fallback: Se não havia itens em venda_itens, buscar no histórico para estornar antes de salvar novo estado
-            if (!oldItems || oldItems.length === 0) {
-                console.log('Edição: Revertendo estoque via histórico (fallback)...');
-                const { data: hItens } = await supabaseClient
-                    .from('estoque_movimentacoes')
-                    .select('*')
-                    .ilike('motivo', `%VENDA: ${newVenda ? newVenda.codigo : currentVendaId}%`); // Tenta pelo ID ou código se disponível
-                
-                if (hItens && hItens.length > 0) {
-                    for (const h of hItens) {
-                        const { data: p } = await supabaseClient.from('estoque').select('estoque_atual').eq('id', h.item_id).single();
-                        if (p) {
-                            await supabaseClient.from('estoque')
-                                .update({ estoque_atual: (p.estoque_atual || 0) + h.quantidade })
-                                .eq('id', h.item_id);
-                        }
-                    }
+            // 3. Registrar histórico de ESTORNO explícito para itens removidos ou com quantidade reduzida
+            const oldQtyMap = {};
+            const oldPriceMap = {};
+            for (const old of oldItems) {
+                if (old.produto_id) {
+                    oldQtyMap[old.produto_id] = (oldQtyMap[old.produto_id] || 0) + parseFloat(old.quantidade || 0);
+                    if (old.valor_unitario) oldPriceMap[old.produto_id] = old.valor_unitario;
                 }
             }
 
-            // 2. Deletar itens antigos da venda
+            const newQtyMap = {};
+            for (const it of vendaItems) {
+                if (it.produto_id) {
+                    newQtyMap[it.produto_id] = (newQtyMap[it.produto_id] || 0) + parseFloat(it.quantidade || 0);
+                }
+            }
+
+            const userEmail = getCurrentUserEmail();
+            for (const prodId of Object.keys(oldQtyMap)) {
+                const oQty = oldQtyMap[prodId] || 0;
+                const nQty = newQtyMap[prodId] || 0;
+                if (oQty > nQty) {
+                    const diffEstorno = oQty - nQty;
+                    const codRef = existingVenda ? existingVenda.codigo : currentVendaId;
+                    const motivoEstorno = nQty === 0 
+                        ? `ESTORNO DE VENDA: ${codRef} (ITEM EXCLUÍDO NA EDIÇÃO)`
+                        : `ESTORNO DE VENDA: ${codRef} (QTD REDUZIDA NA EDIÇÃO: -${diffEstorno})`;
+                    
+                    await supabaseClient.from('estoque_movimentacoes').insert([{
+                        item_id: prodId,
+                        tipo: 'ESTORNO',
+                        quantidade: diffEstorno,
+                        valor_unitario: oldPriceMap[prodId] || 0,
+                        motivo: motivoEstorno,
+                        responsavel: userEmail ? `${userEmail} (EDIÇÃO)` : 'SISTEMA (EDIÇÃO)',
+                        data: new Date().toISOString()
+                    }]);
+                }
+            }
+
+            // 4. Limpar movimentações antigas do tipo SAIDA desta venda
+            if (existingVenda) {
+                await supabaseClient.from('estoque_movimentacoes')
+                    .delete()
+                    .ilike('motivo', `%VENDA: ${existingVenda.codigo}%`)
+                    .eq('tipo', 'SAIDA');
+            }
+
+            // 5. Deletar registros antigos em venda_itens
             await supabaseClient.from('venda_itens').delete().eq('venda_id', currentVendaId);
 
-            // 3. Atualizar registro da venda
+            // 6. Atualizar registro da venda
             let { data: vData, error: vErr } = await supabaseClient
                 .from('vendas')
                 .update(vendaObj)
@@ -2596,30 +3889,50 @@ async function saveVenda(event) {
             newVenda = vData[0];
         }
 
-        // 2. Criar Novos Itens e Atualizar Estoque Atualizado
+        // Criar Novos Itens e Atualizar Saldo do Estoque
         for (const item of vendaItems) {
-            // Item da Venda
-            await supabaseClient.from('venda_itens').insert([{
+            // Item da Venda com metadados de manutenção
+            const itemPayload = {
                 venda_id: newVenda.id,
                 produto_id: item.produto_id,
                 quantidade: item.quantidade,
                 valor_unitario: item.valor_unitario,
-                desconto_tipo: item.desconto_tipo,
-                desconto_valor: item.desconto_valor,
-                acrescimo_tipo: item.acrescimo_tipo,
-                acrescimo_valor: item.acrescimo_valor,
-                subtotal: item.subtotal
-            }]);
+                subtotal: item.subtotal,
+                vinculo_tipo: item.vinculo_tipo || 'veiculo',
+                vinculo_veiculo_id: item.vinculo_veiculo_id || null,
+                vinculo_pessoa: item.vinculo_pessoa || null,
+                maint_control: !!item.maint_control,
+                maint_tipo_id: item.maint_tipo_id || null,
+                maint_acao_id: item.maint_acao_id || null,
+                maint_km: item.maint_km || null,
+                maint_status: item.maint_status || 'CONCLUIDO',
+                maint_controle: item.maint_controle || 'NENHUMA',
+                maint_intervalo_km: item.maint_intervalo_km || null,
+                maint_intervalo_meses: item.maint_intervalo_meses || null,
+                maint_garantia: !!item.maint_garantia,
+                maint_meses_garantia: item.maint_meses_garantia || null
+            };
 
-            // Movimentação (Se for edição, o estorno já foi feito ao carregar ou ao salvar?)
-            // Aqui estamos criando novas movimentações. Idealmente deveríamos limpar as antigas também.
-            if (currentVendaId) {
-                // Opcional: deletar as movimentações antigas vinculadas a esta venda no motivo
-                await supabaseClient.from('estoque_movimentacoes')
-                    .delete()
-                    .ilike('motivo', `%VENDA: ${newVenda.codigo}%`);
+            let { error: itemErr } = await supabaseClient.from('venda_itens').insert([itemPayload]);
+            if (itemErr) {
+                console.warn("Aviso ao inserir item em venda_itens, tentando fallback básico:", itemErr);
+                delete itemPayload.vinculo_tipo;
+                delete itemPayload.vinculo_veiculo_id;
+                delete itemPayload.vinculo_pessoa;
+                delete itemPayload.maint_control;
+                delete itemPayload.maint_tipo_id;
+                delete itemPayload.maint_acao_id;
+                delete itemPayload.maint_km;
+                delete itemPayload.maint_status;
+                delete itemPayload.maint_controle;
+                delete itemPayload.maint_intervalo_km;
+                delete itemPayload.maint_intervalo_meses;
+                delete itemPayload.maint_garantia;
+                delete itemPayload.maint_meses_garantia;
+                await supabaseClient.from('venda_itens').insert([itemPayload]);
             }
 
+            // Inserir Movimentação de Saída para o item
             const userEmail = getCurrentUserEmail();
             const moveObj = {
                 item_id: item.produto_id,
@@ -2641,14 +3954,121 @@ async function saveVenda(event) {
                 await supabaseClient.from('estoque_movimentacoes').insert([moveObj]);
             }
 
-            // Saldo Final
-            const prod = inventoryData.find(p => p.id === item.produto_id);
-            if (prod) {
-                // Buscar saldo atualizado do banco para evitar drift
-                const { data: pReal } = await supabaseClient.from('estoque').select('estoque_atual').eq('id', item.produto_id).single();
+            // Atualizar Saldo Final no Estoque
+            const { data: pReal } = await supabaseClient.from('estoque').select('estoque_atual').eq('id', item.produto_id).single();
+            if (pReal) {
                 await supabaseClient.from('estoque')
                     .update({ estoque_atual: (pReal.estoque_atual || 0) - item.quantidade })
                     .eq('id', item.produto_id);
+            }
+        }
+
+        // Se estiver editando, limpa manutenções antigas vinculadas a esta venda
+        if (currentVendaId) {
+            try {
+                const { data: oldMaintItems } = await supabaseClient
+                    .from('manutencao_itens')
+                    .select('id, manutencao_id')
+                    .ilike('descricao', `%[ID:VENDA-${newVenda.codigo}]%`);
+                if (oldMaintItems && oldMaintItems.length > 0) {
+                    const mIds = [...new Set(oldMaintItems.map(i => i.manutencao_id))];
+                    await supabaseClient.from('manutencao_itens').delete().in('id', oldMaintItems.map(i => i.id));
+                    for (const mId of mIds) {
+                        const { data: remaining } = await supabaseClient.from('manutencao_itens').select('id').eq('manutencao_id', mId).limit(1);
+                        if (!remaining || remaining.length === 0) {
+                            await supabaseClient.from('manutencoes').delete().eq('id', mId);
+                        }
+                    }
+                }
+            } catch (cleanErr) {
+                console.warn("Aviso ao limpar manutenções anteriores na edição:", cleanErr);
+            }
+        }
+
+        // 3. Sincronização com o Módulo de Manutenção
+        const maintItemsToSync = vendaItems.filter(i => i.maint_control);
+        if (maintItemsToSync.length > 0) {
+            console.log(`🛠️ Sincronizando ${maintItemsToSync.length} item(ns) com Manutenção...`);
+            for (const it of maintItemsToSync) {
+                try {
+                    // O veículo de manutenção é estritamente o veículo selecionado para este item
+                    const targetVehId = it.vinculo_veiculo_id;
+                    if (!targetVehId) {
+                        console.warn("⚠️ Item com controle de manutenção sem veículo vinculado:", it.nome);
+                        continue;
+                    }
+
+                    const currentKm = parseFloat(it.maint_km) || 0;
+                    const intervalKm = parseFloat(it.maint_intervalo_km) || 0;
+                    const intervalMonths = parseInt(it.maint_intervalo_meses) || 0;
+                    const warrantyMonths = parseInt(it.maint_meses_garantia) || 0;
+
+                    const proxima_troca_km = it.maint_controle === 'KM' ? (currentKm + intervalKm) : null;
+                    let proxima_troca_data = null;
+                    if (it.maint_controle === 'DATA' && intervalMonths > 0) {
+                        const baseDate = new Date(dataVenda);
+                        baseDate.setMonth(baseDate.getMonth() + intervalMonths);
+                        proxima_troca_data = baseDate.toISOString().split('T')[0];
+                    }
+
+                    let vencimento_garantia = null;
+                    if (it.maint_garantia && warrantyMonths > 0) {
+                        const baseDate = new Date(dataVenda);
+                        baseDate.setMonth(baseDate.getMonth() + warrantyMonths);
+                        vencimento_garantia = baseDate.toISOString().split('T')[0];
+                    }
+
+                    // Cabeçalho manutencoes
+                    const maintPayload = {
+                        veiculo_id: targetVehId,
+                        tipo_id: it.maint_tipo_id || null,
+                        data: dataVenda,
+                        km_atual: currentKm,
+                        status: it.maint_status || 'CONCLUIDO',
+                        descricao_servico: `Aplicação de Estoque [ID:VENDA-${newVenda.codigo}]`,
+                        observacoes: `Saída de estoque registrada via Módulo de Estoque (Venda #${newVenda.codigo}). Responsável: ${userEmail || 'SISTEMA'}`,
+                        empresa_id: window.currentEmpresaId || null
+                    };
+
+                    const { data: newMaint, error: maintError } = await supabaseClient.from('manutencoes').insert([maintPayload]).select().single();
+                    if (maintError) {
+                        console.error("❌ Erro ao criar cabeçalho de manutenção:", maintError);
+                        continue;
+                    }
+
+                    // Detalhe manutencao_itens
+                    if (newMaint) {
+                        const itemMaintPayload = {
+                            manutencao_id: newMaint.id,
+                            acao_id: it.maint_acao_id || null,
+                            descricao: `[ID:VENDA-${newVenda.codigo}] ${it.nome}`,
+                            quantidade: parseFloat(it.quantidade) || 1,
+                            valor_pecas: parseFloat(it.subtotal || (it.quantidade * it.valor_unitario)) || 0,
+                            valor_servicos: 0,
+                            possui_garantia: !!it.maint_garantia,
+                            meses_garantia: warrantyMonths || null,
+                            vencimento_garantia: vencimento_garantia,
+                            origem_garantia: 'ESTOQUE',
+                            controle_proxima_troca: it.maint_controle || 'NENHUMA',
+                            intervalo_km: intervalKm || null,
+                            intervalo_meses: intervalMonths || null,
+                            proxima_troca_km: proxima_troca_km,
+                            proxima_troca_data: proxima_troca_data
+                        };
+
+                        let { error: itemError } = await supabaseClient.from('manutencao_itens').insert([itemMaintPayload]);
+                        if (itemError && itemError.message && (itemError.message.includes('quantidade') || itemError.message.includes('schema cache'))) {
+                            delete itemMaintPayload.quantidade;
+                            const retryRes = await supabaseClient.from('manutencao_itens').insert([itemMaintPayload]);
+                            itemError = retryRes.error;
+                        }
+                        if (itemError) {
+                            console.error("❌ Erro ao criar detalhe de manutenção:", itemError);
+                        }
+                    }
+                } catch (syncEx) {
+                    console.error("❌ Erro inesperado ao sincronizar manutenção da venda:", syncEx);
+                }
             }
         }
 
@@ -2704,7 +4124,8 @@ async function openReceiptModal(vendaCodigo) {
             const { data: hItens } = await supabaseClient
                 .from('estoque_movimentacoes')
                 .select('*, estoque(nome, unidade)')
-                .ilike('motivo', `%VENDA: ${vendaCodigo}%`);
+                .ilike('motivo', `%VENDA: ${vendaCodigo}%`)
+                .eq('tipo', 'SAIDA');
             
             if (hItens && hItens.length > 0) {
                 itens = hItens.map(h => ({
@@ -2804,7 +4225,8 @@ async function deleteSale(vendaId) {
             const { data: hItens } = await supabaseClient
                 .from('estoque_movimentacoes')
                 .select('*')
-                .ilike('motivo', `%VENDA: ${venda.codigo}%`);
+                .ilike('motivo', `%VENDA: ${venda.codigo}%`)
+                .eq('tipo', 'SAIDA');
             
             if (hItens && hItens.length > 0) {
                 itens = hItens.map(h => ({
@@ -2866,6 +4288,28 @@ async function deleteSale(vendaId) {
         } else {
             logEstoque('EXCLUSÃO', `DETALHE: Cancelou saída de estoque [${venda.codigo}] - Estoque revertido para os produtos e venda marcada como CANCELADA.`);
             alert('Venda cancelada e estoque revertido com sucesso! O registro de auditoria foi mantido.');
+        }
+
+        // 6. Limpar manutenções vinculadas a esta venda
+        try {
+            const { data: linkedMaintItems } = await supabaseClient
+                .from('manutencao_itens')
+                .select('id, manutencao_id')
+                .ilike('descricao', `%[ID:VENDA-${venda.codigo}]%`);
+
+            if (linkedMaintItems && linkedMaintItems.length > 0) {
+                const maintIds = [...new Set(linkedMaintItems.map(i => i.manutencao_id))];
+                await supabaseClient.from('manutencao_itens').delete().in('id', linkedMaintItems.map(i => i.id));
+                for (const mId of maintIds) {
+                    const { data: remaining } = await supabaseClient.from('manutencao_itens').select('id').eq('manutencao_id', mId).limit(1);
+                    if (!remaining || remaining.length === 0) {
+                        await supabaseClient.from('manutencoes').delete().eq('id', mId);
+                    }
+                }
+                console.log(`🧹 ${linkedMaintItems.length} item(ns) de manutenção cancelados junto com a venda.`);
+            }
+        } catch (cleanMaintErr) {
+            console.warn("Aviso ao limpar manutenções da venda cancelada:", cleanMaintErr);
         }
 
         closeReceiptModal();
@@ -2939,7 +4383,8 @@ async function editSale(vendaId) {
                 const { data: historyItens, error: hErr } = await supabaseClient
                     .from('estoque_movimentacoes')
                     .select('*, estoque(nome, unidade, valor_custo)')
-                    .ilike('motivo', `%VENDA: ${venda.codigo}%`);
+                    .ilike('motivo', `%VENDA: ${venda.codigo}%`)
+                    .eq('tipo', 'SAIDA');
                 
                 if (!hErr && historyItens && historyItens.length > 0) {
                     console.log(`Recuperados ${historyItens.length} itens do histórico.`);
@@ -2972,6 +4417,9 @@ async function editSale(vendaId) {
                 prodInfo = pData;
             }
 
+            const veh = item.vinculo_veiculo_id ? vehiclesData.find(v => v.id === item.vinculo_veiculo_id) : (venda.veiculo_id ? vehiclesData.find(v => v.id === venda.veiculo_id) : null);
+            const vehPlaca = veh ? veh.placa : (venda.placa || '');
+
             vendaItems.push({
                 produto_id: item.produto_id,
                 nome: prodInfo?.nome || 'Produto Removido',
@@ -2984,14 +4432,36 @@ async function editSale(vendaId) {
                 desconto_tipo: item.desconto_tipo || 'VALOR',
                 desconto_valor: item.desconto_valor || 0,
                 acrescimo_tipo: item.acrescimo_tipo || 'VALOR',
-                acrescimo_valor: item.acrescimo_valor || 0
+                acrescimo_valor: item.acrescimo_valor || 0,
+                vinculo_tipo: item.vinculo_tipo || 'veiculo',
+                vinculo_veiculo_id: item.vinculo_veiculo_id || null,
+                vinculo_veiculo_placa: vehPlaca,
+                vinculo_pessoa: item.vinculo_pessoa || '',
+                maint_control: !!item.maint_control,
+                maint_tipo_id: item.maint_tipo_id || null,
+                maint_tipo_nome: stockMaintTypes.find(t => t.id === item.maint_tipo_id)?.descricao || '',
+                maint_acao_id: item.maint_acao_id || null,
+                maint_acao_nome: stockMaintActions.find(a => a.id === item.maint_acao_id)?.descricao || '',
+                maint_km: item.maint_km || null,
+                maint_status: item.maint_status || 'CONCLUIDO',
+                maint_controle: item.maint_controle || 'NENHUMA',
+                maint_intervalo_km: item.maint_intervalo_km || null,
+                maint_intervalo_meses: item.maint_intervalo_meses || null,
+                maint_garantia: !!item.maint_garantia,
+                maint_meses_garantia: item.maint_meses_garantia || null
             });
         }
 
         console.log('vendaItems populado:', vendaItems.length);
 
-        // Renderizar itens
-        renderVendaItems();
+        // Renderizar cards de itens
+        const container = document.getElementById('v_itens_container');
+        if (container) container.innerHTML = '';
+        if (vendaItems.length > 0) {
+            vendaItems.forEach(it => addVendaItemRow(it, false));
+        } else {
+            addVendaItemRow({}, false);
+        }
         
         // 5. Preencher campos do cabeçalho
         document.getElementById('v_tipo').value = venda.tipo;
@@ -3051,13 +4521,21 @@ async function confirmDeleteFromEdit() {
 }
 window.confirmDeleteFromEdit = confirmDeleteFromEdit;
 
-// Fechar autocomplete de clientes/prestadores ao clicar fora
+// Fechar autocompletes ao clicar fora
 document.addEventListener('click', function(e) {
     const resultsDiv = document.getElementById('v_cliente_search_results');
     const input = document.getElementById('v_cliente_nome');
     if (resultsDiv && input && !input.contains(e.target) && !resultsDiv.contains(e.target)) {
         resultsDiv.style.display = 'none';
     }
+
+    // Fechar autocompletes dos cards de itens de saída/venda
+    const activeWrapper = e.target.closest('.autocomplete-wrapper');
+    document.querySelectorAll('#v_itens_container .autocomplete-results').forEach(res => {
+        if (!activeWrapper || !activeWrapper.contains(res)) {
+            res.style.display = 'none';
+        }
+    });
 });
 
 // =========================================================================
@@ -3338,3 +4816,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// History Controls Window Exports
+window.setHistoryViewMode = setHistoryViewMode;
+window.changeHistoryPageSize = changeHistoryPageSize;
+window.prevHistoryPage = prevHistoryPage;
+window.nextHistoryPage = nextHistoryPage;
+window.goToHistoryPage = goToHistoryPage;
+window.applyHistoryFilters = applyHistoryFilters;
+window.editSaleByCodigo = editSaleByCodigo;
