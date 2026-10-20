@@ -8284,7 +8284,7 @@ window.handleFinEntidadeSearch = (el) => {
                 : p.nome;
 
             return `
-                <div class="autocomplete-item" onclick="selectFinEntidade('${p.nome.replace(/'/g, "\\'")}', this)" style="padding: 0.6rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;">
+                <div class="autocomplete-item" onclick="selectFinEntidade('${p.nome.replace(/'/g, "\\'")}', this, '${p.tipo}')" style="padding: 0.6rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;">
                     <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom: 2px;">
                         <span class="fav-badge ${p.badgeClass}">${p.badgeLabel}</span>
                         <span class="prod-name" style="font-weight:700; font-size:0.83rem; color: #0f172a;">${displayName}</span>
@@ -8349,7 +8349,7 @@ window.selectFinCliente = (nome, doc, itemEl) => {
     }
 };
 
-window.selectFinEntidade = (nome, itemEl) => {
+window.selectFinEntidade = (nome, itemEl, tipo = null) => {
     const wrapper = itemEl.closest('.autocomplete-wrapper');
     const searchInput = document.getElementById('entryEntidadeSearch');
     const hiddenId = document.getElementById('entryEntidade');
@@ -8362,23 +8362,71 @@ window.selectFinEntidade = (nome, itemEl) => {
         resultsDiv.innerHTML = '';
     }
 
-    // Auto-preenchimento do Plano de Contas padrão do Fornecedor
+    const catSearch = document.getElementById('entryCategoriaSearch');
+    const catId = document.getElementById('entryCategoriaId');
+
+    // Determinar o tipo da entidade caso não tenha sido fornecido diretamente
+    let entidadeTipo = tipo;
+    const nomeNorm = (nome || '').trim().toLowerCase();
+
+    if (!entidadeTipo) {
+        if (state.prestadoresComercial && state.prestadoresComercial.some(p => (p.nome_prestador || '').trim().toLowerCase() === nomeNorm)) {
+            entidadeTipo = 'COMERCIAL';
+        } else if (state.fornecedores && state.fornecedores.some(f => (f.nome || '').trim().toLowerCase() === nomeNorm)) {
+            entidadeTipo = 'FORNECEDOR';
+        } else if (state.funcionariosDP && state.funcionariosDP.some(dp => (dp.nome_completo || '').trim().toLowerCase() === nomeNorm)) {
+            entidadeTipo = 'DP';
+        } else if (state.motoristasFrota && state.motoristasFrota.some(m => (m.nome_completo || '').trim().toLowerCase() === nomeNorm)) {
+            entidadeTipo = 'FROTA';
+        }
+    }
+
     try {
-        if (state.fornecedores && state.fornecedores.length > 0) {
-            const forn = state.fornecedores.find(f => (f.nome || '').trim().toLowerCase() === (nome || '').trim().toLowerCase());
-            if (forn && forn.plano_contas_id && state.categorias) {
-                const cat = state.categorias.find(c => c.id === forn.plano_contas_id);
-                if (cat) {
-                    const catSearch = document.getElementById('entryCategoriaSearch');
-                    const catId = document.getElementById('entryCategoriaId');
-                    const catLabel = (cat.codigo ? `${cat.codigo} - ` : '') + cat.nome;
-                    if (catSearch) catSearch.value = catLabel;
-                    if (catId) catId.value = cat.id;
+        if (entidadeTipo === 'COMERCIAL') {
+            // 🌿 1. Prestador Comercial -> Auto-preencher '04.004.0001.0492 - 0492 - COMISSAO AGREGADO'
+            const catComissao = (state.categorias || []).find(c => 
+                c.codigo === '04.004.0001.0492' || 
+                (c.codigo && (c.codigo.endsWith('.0492') || c.codigo === '0492')) || 
+                (c.nome && c.nome.toUpperCase().includes('COMISSAO AGREGADO'))
+            );
+
+            if (catComissao) {
+                const catLabel = (catComissao.codigo ? `${catComissao.codigo} - ` : '') + catComissao.nome;
+                if (catSearch) catSearch.value = catLabel;
+                if (catId) catId.value = catComissao.id;
+            }
+
+            // 🌿 2. Auto-preencher Descrição do primeiro item como 'Comissão Agregado' caso esteja vazia
+            const firstItemDesc = document.querySelector('#itemsContainer .item-row-v2 .item-desc');
+            if (firstItemDesc && !firstItemDesc.value.trim()) {
+                firstItemDesc.value = 'Comissão Agregado';
+            }
+        } else if (entidadeTipo === 'FORNECEDOR') {
+            // Fornecedor: aplicar o plano de contas padrão cadastrado nele, se existir
+            let applied = false;
+            if (state.fornecedores && state.fornecedores.length > 0) {
+                const forn = state.fornecedores.find(f => (f.nome || '').trim().toLowerCase() === nomeNorm);
+                if (forn && forn.plano_contas_id && state.categorias) {
+                    const cat = state.categorias.find(c => c.id === forn.plano_contas_id);
+                    if (cat) {
+                        const catLabel = (cat.codigo ? `${cat.codigo} - ` : '') + cat.nome;
+                        if (catSearch) catSearch.value = catLabel;
+                        if (catId) catId.value = cat.id;
+                        applied = true;
+                    }
                 }
             }
+            if (!applied) {
+                if (catSearch) catSearch.value = '';
+                if (catId) catId.value = '';
+            }
+        } else {
+            // Outro favorecido (DP, Frota, Cliente, etc.) -> Limpar plano de contas
+            if (catSearch) catSearch.value = '';
+            if (catId) catId.value = '';
         }
     } catch (err) {
-        console.warn('Erro ao auto-preencher plano de contas do fornecedor:', err);
+        console.warn('Erro ao auto-preencher plano de contas para o favorecido:', err);
     }
 };
 

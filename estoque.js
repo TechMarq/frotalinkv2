@@ -2778,7 +2778,7 @@ async function openVendaModal() {
         vendaItems = [];
         const container = document.getElementById('v_itens_container');
         if (container) container.innerHTML = '';
-        addVendaItemRow({}, true);
+        addVendaItemRow({}, false);
         
         currentVendaId = null; // Reset ID de edição
         const btnConfirm = document.getElementById('btn_confirm_venda');
@@ -2802,6 +2802,12 @@ async function openVendaModal() {
             vModal.style.zIndex = '10010';
             vModal.classList.add('active');
             document.body.classList.add('venda-modal-open');
+
+            // Foco inicial imediato no campo 'Tipo de Saída'
+            setTimeout(() => {
+                const tipoEl = document.getElementById('v_tipo');
+                if (tipoEl) tipoEl.focus();
+            }, 100);
         }
     } catch (err) {
         console.error('Erro ao abrir modal de saída/venda:', err);
@@ -3278,7 +3284,9 @@ async function openBarcodeScanner(targetCardId = null) {
     const modal = document.getElementById('barcodeScannerModal');
     if (modal) {
         modal.style.display = 'flex';
+        modal.style.zIndex = '20000';
         modal.classList.add('active');
+        if (window.lucide) lucide.createIcons();
     }
     const manualInput = document.getElementById('manual_barcode_input');
     if (manualInput) manualInput.value = '';
@@ -3304,7 +3312,7 @@ async function startCameraScanner() {
 
         if (typeof Html5Qrcode === 'undefined') {
             if (statusEl) {
-                statusEl.innerText = "Biblioteca do scanner indisponível. Digite manualmente abaixo.";
+                statusEl.innerText = "Biblioteca do scanner indisponível. Use 'Tirar Foto' ou digite abaixo.";
                 statusEl.style.color = "#ef4444";
             }
             return;
@@ -3314,8 +3322,8 @@ async function startCameraScanner() {
         isScanningActive = true;
 
         const config = {
-            fps: 15,
-            qrbox: { width: 250, height: 160 },
+            fps: 20,
+            qrbox: { width: 260, height: 160 },
             aspectRatio: 1.0,
             experimentalFeatures: {
                 useBarCodeDetectorIfSupported: true
@@ -3335,6 +3343,17 @@ async function startCameraScanner() {
             }
         );
 
+        // Garantir atributos no video para iOS WebKit/Safari
+        const videoEl = document.querySelector('#scanner_reader_container video');
+        if (videoEl) {
+            videoEl.setAttribute('playsinline', 'true');
+            videoEl.setAttribute('webkit-playsinline', 'true');
+            videoEl.muted = true;
+            videoEl.style.width = '100%';
+            videoEl.style.height = '100%';
+            videoEl.style.objectFit = 'cover';
+        }
+
         if (statusEl) {
             statusEl.innerText = "Aponte para o código de barras...";
             statusEl.style.color = "#10b981";
@@ -3342,12 +3361,70 @@ async function startCameraScanner() {
     } catch (err) {
         console.error('Erro ao iniciar câmera para scanner:', err);
         if (statusEl) {
-            statusEl.innerText = "Câmera indisponível. Verifique permissões ou use o campo manual.";
+            statusEl.innerText = "Câmera ao vivo indisponível. Toque em 'Tirar Foto da Peça' acima.";
             statusEl.style.color = "#f59e0b";
         }
     }
 }
 window.startCameraScanner = startCameraScanner;
+
+// Disparar Câmera Nativa em Modo FOTO (Alta Resolução / Macro)
+async function triggerBarcodePhotoCapture() {
+    if (html5QrCodeInstance && isScanningActive) {
+        try {
+            await html5QrCodeInstance.stop();
+        } catch (e) {}
+        isScanningActive = false;
+    }
+    const fileInput = document.getElementById('barcode_file_input');
+    if (fileInput) {
+        fileInput.click();
+    }
+}
+window.triggerBarcodePhotoCapture = triggerBarcodePhotoCapture;
+
+// Processar a foto capturada pela câmera nativa
+async function handleBarcodeImageUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) {
+        // Se o usuário cancelou a foto, reinicia a câmera ao vivo
+        await startCameraScanner();
+        return;
+    }
+
+    const statusEl = document.getElementById('scanner_status_msg');
+    if (statusEl) {
+        statusEl.innerText = "Analisando foto da peça...";
+        statusEl.style.color = "#38bdf8";
+    }
+
+    try {
+        if (!html5QrCodeInstance) {
+            html5QrCodeInstance = new Html5Qrcode("scanner_reader_container");
+        }
+        
+        // Ler código da imagem diretamente via scanFile
+        const decodedText = await html5QrCodeInstance.scanFile(file, true);
+        if (decodedText) {
+            isScanningActive = true;
+            onBarcodeDetected(decodedText);
+        } else {
+            throw new Error("Código não localizado na foto");
+        }
+    } catch (err) {
+        console.warn('Erro ao decodificar código da foto:', err);
+        if (statusEl) {
+            statusEl.innerText = "Código não detectado na foto. Tente aproximar ou use o campo manual.";
+            statusEl.style.color = "#f59e0b";
+        }
+        setTimeout(() => {
+            if (!isScanningActive) startCameraScanner();
+        }, 2200);
+    } finally {
+        event.target.value = '';
+    }
+}
+window.handleBarcodeImageUpload = handleBarcodeImageUpload;
 
 async function toggleCameraFacing() {
     currentCameraFacing = (currentCameraFacing === "environment") ? "user" : "environment";
@@ -3368,6 +3445,8 @@ async function closeBarcodeScanner() {
         modal.style.display = 'none';
         modal.classList.remove('active');
     }
+    const fileInput = document.getElementById('barcode_file_input');
+    if (fileInput) fileInput.value = '';
 }
 window.closeBarcodeScanner = closeBarcodeScanner;
 
