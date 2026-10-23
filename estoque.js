@@ -986,8 +986,15 @@ async function loadProductHistory(productId) {
                     if (match) vendaCodigo = match[1].trim();
                 }
 
+                // Detectar se há referência a compra/nota
+                let compraNumNota = null;
+                if (h.motivo && (h.motivo.includes('COMPRA:') || h.motivo.includes('COMPRA (') || h.motivo.includes('AJUSTE DE NOTA #') || h.motivo.includes('SUBSTITUIÇÃO NOTA #'))) {
+                    const matchNota = h.motivo.match(/Nota\s*#([A-Za-z0-9_-]+)/i);
+                    if (matchNota) compraNumNota = matchNota[1].trim();
+                }
+
                 let cellContent = '';
-                if (isAjuste) {
+                if (isAjuste && !compraNumNota) {
                     const reasonClean = h.motivo.replace('[AJUSTE] ', '');
                     const userEmail = (h.responsavel && h.responsavel.includes('@')) ? h.responsavel : '';
                     cellContent = `
@@ -1006,6 +1013,19 @@ async function loadProductHistory(productId) {
                                 ${salePart}
                             </span>
                         </div>
+                    `;
+                } else if (compraNumNota) {
+                    const motivoParts = (h.motivo || '').split(' | ');
+                    const mainPart = motivoParts[0] || '';
+                    const fornPart = motivoParts[1] ? `<div style="color: #059669; font-weight: 700; font-size: 0.72rem; margin-top: 4px; line-height: 1.2;">${motivoParts[1]}</div>` : '';
+                    cellContent = `
+                        <div>
+                            <span onclick="openCompraDetailsFromStock('${compraNumNota}')" title="Clique para abrir os detalhes da Nota #${compraNumNota}" style="display: inline-flex; align-items: center; gap: 5px; color: #0284c7; background: #f0f9ff; border: 1px solid #bae6fd; padding: 3px 8px; border-radius: 6px; font-weight: 800; font-size: 0.72rem; cursor: pointer; text-decoration: none; transition: all 0.2s;" onmouseover="this.style.background='#e0f2fe'; this.style.borderColor='#0284c7';" onmouseout="this.style.background='#f0f9ff'; this.style.borderColor='#bae6fd';">
+                                <i data-lucide="file-text" style="width: 12px; height: 12px; color: #0284c7;"></i>
+                                ${mainPart}
+                            </span>
+                        </div>
+                        ${fornPart}
                     `;
                 } else {
                     cellContent = (h.motivo || '---').replace(' | ', '<br><span style="color:#059669; font-weight:700;">');
@@ -4904,3 +4924,304 @@ window.nextHistoryPage = nextHistoryPage;
 window.goToHistoryPage = goToHistoryPage;
 window.applyHistoryFilters = applyHistoryFilters;
 window.editSaleByCodigo = editSaleByCodigo;
+
+// =========================================================================
+// MODAL DETALHES DA COMPRA DENTRO DO ESTOQUE
+// =========================================================================
+function formatEstoqueDateBR(dateStr) {
+    if (!dateStr) return 'N/A';
+    try {
+        const d = new Date(dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`);
+        if (isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString('pt-BR');
+    } catch { return dateStr; }
+}
+
+function formatEstoqueDateTimeBR(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    } catch { return dateStr; }
+}
+
+window.openCompraDetailsFromStock = async function(numNota) {
+    if (!numNota) return;
+    try {
+        if (!supabaseClient) {
+            alert('Conexão com o banco de dados não disponível.');
+            return;
+        }
+
+        const modal = document.getElementById('viewCompraModalEstoque');
+        if (!modal) return;
+
+        // Abrir modal com estado inicial de carregamento
+        document.getElementById('viewEstoqueCodUnico').innerText = 'COD: Carregando...';
+        document.getElementById('viewEstoqueNumNota').innerText = `#${numNota}`;
+        document.getElementById('viewEstoqueItemsList').innerHTML = '<div style="text-align:center; padding: 2.5rem; color: #64748b; font-weight:600;"><i data-lucide="loader-2" class="animate-spin" style="width:24px; height:24px; margin-bottom:8px; display:inline-block;"></i><br>Carregando detalhes da compra...</div>';
+        document.getElementById('viewEstoqueActionContainer').innerHTML = '';
+        modal.classList.add('active');
+        if (window.lucide) lucide.createIcons();
+
+        // 1. Buscar compra pelo número da nota
+        const { data: comprasList, error: errCompra } = await supabaseClient
+            .from('compras')
+            .select(`
+                *,
+                fornecedores:fornecedor_id(id, nome, fantasia, cnpj),
+                especies:especie_id(id, nome),
+                formas_pagamento:forma_pagamento_id(id, nome),
+                categorias:categoria_id(id, nome, codigo)
+            `)
+            .eq('numero_nota', numNota)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+        if (errCompra || !comprasList || comprasList.length === 0) {
+            document.getElementById('viewEstoqueItemsList').innerHTML = `<div style="text-align:center; padding: 2rem; color: #ef4444; font-weight:700;">Nota #${numNota} não foi localizada no banco de dados.</div>`;
+            return;
+        }
+
+        const c = comprasList[0];
+
+        // 2. Buscar itens da compra vinculados
+        const { data: itens } = await supabaseClient
+            .from('compra_itens')
+            .select(`
+                *,
+                centros_custo:centro_custo_id(id, nome),
+                veiculos:vinculo_veiculo_id(id, placa, modelo),
+                manutencao_tipos:maint_tipo_id(id, descricao),
+                manutencao_acoes:maint_acao_id(id, descricao)
+            `)
+            .eq('compra_id', c.id)
+            .order('created_at', { ascending: true });
+
+        // 3. Buscar adicionais e descontos
+        const { data: adicionais } = await supabaseClient
+            .from('compra_adicionais')
+            .select('*')
+            .eq('compra_id', c.id);
+
+        // 4. Buscar parcelas
+        const { data: parcelas } = await supabaseClient
+            .from('compra_parcelas')
+            .select('*')
+            .eq('compra_id', c.id)
+            .order('numero_parcela', { ascending: true });
+
+        // Renderizar dados no modal
+        renderCompraDetailsModalEstoque(c, itens || [], adicionais || [], parcelas || []);
+
+    } catch (err) {
+        console.error('Erro ao abrir compra no estoque:', err);
+        alert('Erro ao carregar detalhes da compra: ' + err.message);
+    }
+};
+
+window.closeCompraDetailsFromStock = function() {
+    const modal = document.getElementById('viewCompraModalEstoque');
+    if (modal) modal.classList.remove('active');
+};
+
+function renderCompraDetailsModalEstoque(c, itens, adicionais, parcelas) {
+    document.getElementById('viewEstoqueCodUnico').innerText = 'COD: ' + (c.id || 'N/A');
+    document.getElementById('viewEstoqueData').innerText = formatEstoqueDateBR(c.data_emissao || c.data);
+    document.getElementById('viewEstoqueNumNota').innerText = '#' + (c.numero_nota || c.numeroNota || 'S/N');
+    
+    const vencText = c.data_vencimento ? formatEstoqueDateBR(c.data_vencimento) : 'N/A';
+    document.getElementById('viewEstoqueVencimento').innerText = vencText;
+
+    const isParcelado = c.financeiro_parcelado || ((c.qtd_parcelas || 1) > 1) || (parcelas && parcelas.length > 0);
+    const qtdParc = c.qtd_parcelas || (parcelas ? parcelas.length : 1);
+    const elParcelado = document.getElementById('viewEstoqueParcelado');
+    if (elParcelado) {
+        elParcelado.innerText = isParcelado ? `SIM (${qtdParc}x)` : 'NÃO (À vista)';
+        elParcelado.style.color = isParcelado ? '#059669' : '#475569';
+    }
+
+    const fornNome = c.fornecedores?.nome || c.fornecedores?.fantasia || 'FORNECEDOR NÃO INFORMADO';
+    document.getElementById('viewEstoqueFornecedor').innerText = fornNome;
+
+    document.getElementById('viewEstoqueEspecie').innerText = c.especies?.nome || 'NFE - NOTA FISCAL ELETRONICA';
+    document.getElementById('viewEstoqueFormaPgto').innerText = c.formas_pagamento?.nome || 'BOLETO';
+
+    // Plano de contas
+    let planoContasFormatted = 'NÃO ESPECIFICADO';
+    if (c.categorias) {
+        const cod = c.categorias.codigo || c.categorias.cod;
+        planoContasFormatted = cod ? `${cod} - ${c.categorias.nome}` : c.categorias.nome;
+    }
+    document.getElementById('viewEstoquePlanoContas').innerText = planoContasFormatted;
+
+    // Usuário e registro
+    const usuarioNome = c.usuario_registro || c.responsavel || 'SISTEMA';
+    const regDateStr = c.created_at ? formatEstoqueDateTimeBR(c.created_at) : formatEstoqueDateBR(c.data_emissao);
+    
+    let alteracaoHtml = '';
+    const altUsuarioNome = c.usuario_alteracao || c.alterado_por;
+    if (altUsuarioNome) {
+        const altDateStr = c.data_alteracao || c.updated_at ? formatEstoqueDateTimeBR(c.data_alteracao || c.updated_at) : '';
+        alteracaoHtml = `
+            <div style="margin-top: 4px; font-size: 0.78rem; color: #b45309; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+                <span style="display:inline-flex; align-items:center; gap:4px; font-weight:700;"><i data-lucide="edit-3" style="width:13px; height:13px; color:#d97706; vertical-align:middle;"></i> Alterado por: <strong>${altUsuarioNome}</strong></span>
+                ${altDateStr ? `<span style="color:#cbd5e1; margin:0 2px;">•</span><span style="color:#64748b; font-weight:600;"><i data-lucide="clock" style="width:12px; height:12px; vertical-align:middle;"></i> ${altDateStr}</span>` : ''}
+            </div>
+        `;
+    }
+
+    document.getElementById('viewEstoqueUsuario').innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+                <span style="display:inline-flex; align-items:center; gap:4px;"><i data-lucide="user-check" style="width:14px; height:14px; color:#059669; vertical-align:middle;"></i> <strong>${usuarioNome}</strong></span>
+                <span style="color:#cbd5e1; margin:0 4px;">•</span>
+                <span style="color:#475569; font-size:0.82rem; font-weight:600; display:inline-flex; align-items:center; gap:4px;"><i data-lucide="calendar" style="width:13px; height:13px; color:#d97706; vertical-align:middle;"></i> ${regDateStr}</span>
+            </div>
+            ${alteracaoHtml}
+        </div>
+    `;
+
+    // Itens da Nota
+    const itemsList = document.getElementById('viewEstoqueItemsList');
+    if (!itens || itens.length === 0) {
+        itemsList.innerHTML = '<div style="text-align:center; padding: 1.5rem; color: #64748b; font-weight: 600;">Nenhum item cadastrado para esta compra.</div>';
+    } else {
+        itemsList.innerHTML = itens.map(it => {
+            const isS = it.tipo === 'servico';
+            const label = isS ? 'S' : 'P';
+            const color = isS ? '#d97706' : '#059669';
+            const ccName = it.centros_custo?.nome || 'SEM CENTRO DE CUSTO';
+
+            let linkInfo = '';
+            if (it.veiculos?.placa) {
+                linkInfo = `<span style="font-size:0.68rem; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 8px; border-radius:4px; font-weight:700;">🚗 ${it.veiculos.placa}</span>`;
+            } else if (it.vinculo_pessoa) {
+                linkInfo = `<span style="font-size:0.68rem; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 8px; border-radius:4px; font-weight:700;">👤 ${it.vinculo_pessoa}</span>`;
+            }
+
+            const isStockLinked = (it.estoque === true || it.estoque === 'true');
+            const stockAction = isStockLinked ? `
+                <span style="color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;">📦 ESTOQUE</span>
+            ` : '';
+
+            const qtd = parseFloat(it.quantidade || 0);
+            const unit = parseFloat(it.valor_unitario || 0);
+            const totalItem = (qtd * unit).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+
+            return `
+                <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem 1.2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+                        <div style="display: flex; align-items: flex-start; gap: 10px; flex: 1;">
+                            <span style="color:${color}; font-weight:900; font-size:0.75rem; border:1px solid ${color}33; width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; border-radius:6px; background:${color}12; flex-shrink: 0; margin-top: 2px;">${label}</span>
+                            <div>
+                                <h4 style="font-weight: 800; font-size: 0.95rem; color: #0f172a; margin: 0 0 0.4rem 0; line-height: 1.3;">${it.produto}</h4>
+                                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                    <span style="font-size: 0.72rem; color: #475569; font-weight: 700; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; border: 1px solid #e2e8f0;">QTD: ${qtd}</span>
+                                    <span style="font-size: 0.72rem; color: #475569; font-weight: 700; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; border: 1px solid #e2e8f0;">Unit: R$ ${unit.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                                    <span style="color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 4px;">${ccName}</span>
+                                    ${linkInfo}
+                                    ${stockAction}
+                                </div>
+                            </div>
+                        </div>
+                        <div style="text-align: right; flex-shrink: 0;">
+                            <span style="font-size: 0.65rem; color: #64748b; font-weight: 800; text-transform: uppercase; display: block; margin-bottom: 2px;">Valor Subtotal</span>
+                            <span style="font-weight: 900; color: #047857; font-size: 1.15rem; line-height: 1;">R$ ${totalItem}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Custos Adicionais & Descontos
+    const adSection = document.getElementById('viewEstoqueAdicionaisSection');
+    const adList = document.getElementById('viewEstoqueAdicionaisList');
+    if (adicionais && adicionais.length > 0) {
+        adSection.style.display = 'block';
+        adList.innerHTML = adicionais.map(ad => {
+            const isDesc = parseFloat(ad.valor || 0) < 0 || (ad.descricao && ad.descricao.includes('[DESCONTO]'));
+            const color = isDesc ? '#ef4444' : '#2563eb';
+            const bg = isDesc ? '#fef2f2' : '#eff6ff';
+            const border = isDesc ? '#fecaca' : '#bfdbfe';
+            const valStr = Math.abs(parseFloat(ad.valor || 0)).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+            return `
+                <div style="display:flex; justify-content:space-between; align-items:center; background:${bg}; border:1px solid ${border}; padding:0.6rem 1rem; border-radius:8px;">
+                    <span style="font-weight:700; font-size:0.8rem; color:${color};">${ad.descricao}</span>
+                    <span style="font-weight:900; font-size:0.85rem; color:${color};">${isDesc ? '-' : '+'} R$ ${valStr}</span>
+                </div>
+            `;
+        }).join('');
+    } else {
+        adSection.style.display = 'none';
+    }
+
+    // Parcelas
+    const parcSection = document.getElementById('viewEstoqueParcelasSection');
+    const parcList = document.getElementById('viewEstoqueParcelasList');
+    if (parcelas && parcelas.length > 0) {
+        parcSection.style.display = 'block';
+        parcList.innerHTML = parcelas.map(p => {
+            const dateStr = formatEstoqueDateBR(p.data_vencimento);
+            const valStr = parseFloat(p.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+            return `
+                <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.8rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
+                    <span style="font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Parcela #${p.numero_parcela}</span>
+                    <h4 style="font-size: 0.95rem; font-weight: 900; color: #047857; margin: 4px 0 2px 0;">R$ ${valStr}</h4>
+                    <p style="font-size: 0.72rem; font-weight: 700; color: #d97706; margin: 2px 0 0 0;">📅 ${dateStr}</p>
+                </div>
+            `;
+        }).join('');
+    } else {
+        parcSection.style.display = 'none';
+    }
+
+    // Observações
+    const obsSection = document.getElementById('viewEstoqueObsSection');
+    if (c.observacoes) {
+        obsSection.style.display = 'block';
+        document.getElementById('viewEstoqueObservacoes').innerText = c.observacoes;
+    } else {
+        obsSection.style.display = 'none';
+    }
+
+    // Total
+    const totalVal = parseFloat(c.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('viewEstoqueTotalValue').innerText = `R$ ${totalVal}`;
+
+    // Ação do Botão
+    const isIntegrada = c.integrado_financeiro === true || c.integradoFinanceiro === true;
+    const actionContainer = document.getElementById('viewEstoqueActionContainer');
+    if (isIntegrada) {
+        actionContainer.innerHTML = `
+            <button type="button" onclick="alert('⚠️ Esta nota fiscal já está integrada ao setor Financeiro e não pode ser alterada diretamente.\\n\\nPara modificá-la, solicite ao setor Financeiro que estorne/exclua o lançamento correspondente.')"
+                style="background: #059669; color: #ffffff; border: none; font-weight: 800; border-radius: 10px; padding: 0.75rem 1.8rem; cursor: not-allowed; box-shadow: 0 4px 12px rgba(5,150,105,0.25); display: flex; align-items: center; gap: 0.5rem; opacity: 0.95;">
+                <i data-lucide="lock" style="width:16px; height:16px;"></i>
+                NOTA INTEGRADA AO FINANCEIRO (BLOQUEADA)
+            </button>
+        `;
+    } else {
+        actionContainer.innerHTML = `
+            <button type="button" onclick="window.location.href = 'compras.html?editId=' + encodeURIComponent('${c.id}')"
+                style="background: #059669; color: #ffffff; border: none; font-weight: 800; border-radius: 10px; padding: 0.75rem 1.8rem; cursor: pointer; box-shadow: 0 4px 12px rgba(5,150,105,0.25); display: flex; align-items: center; gap: 0.5rem; transition: all 0.2s;"
+                onmouseover="this.style.background='#047857';" onmouseout="this.style.background='#059669';">
+                <i data-lucide="edit-3" style="width:16px; height:16px;"></i>
+                EDITAR COMPRA
+            </button>
+        `;
+    }
+
+    if (window.lucide) lucide.createIcons();
+}
+
+// Fechar com ESC
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('viewCompraModalEstoque');
+        if (modal && modal.classList.contains('active')) {
+            closeCompraDetailsFromStock();
+        }
+    }
+});

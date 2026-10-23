@@ -1552,7 +1552,7 @@
                 <!-- SEÇÃO FIXA SUPERIOR -->
                 <div class="modal-fixed-top"
                     style="padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 1rem;">
-                    <div class="form-row grid-header-1" style="grid-template-columns: 1fr 1fr 1.2fr 1.8fr;">
+                    <div class="form-row grid-header-1" style="grid-template-columns: 1fr 1fr 1.2fr;">
                         <div class="input-group">
                             <label>Data Emissão</label>
                             <input type="date" id="dataCompra" class="compra-input" required>
@@ -1569,20 +1569,8 @@
                                         data-lucide="plus"></i></button>
                             </div>
                         </div>
-                        <div class="input-group">
-                            <label>Plano de Contas / Categoria</label>
-                            <div class="autocomplete-wrapper" style="flex: 1;">
-                                <input type="text" id="categoriaSearch" class="compra-input"
-                                    placeholder="Buscar categoria..." required autocomplete="off"
-                                    oninput="handleCategoriaSearch(this)" onfocus="handleCategoriaSearch(this)"
-                                    onkeydown="handleAutocompleteKeydown(event, this)"
-                                    style="width: 100%; box-sizing: border-box;">
-                                <input type="hidden" id="categoriaId" required>
-                                <div class="autocomplete-results"></div>
-                            </div>
-                        </div>
                     </div>
-                    <div class="form-row grid-header-2">
+                    <div class="form-row grid-header-2" style="grid-template-columns: 1.2fr 1fr; margin-top: 0.8rem;">
                         <div class="input-group">
                             <label>Fornecedor</label>
                             <div class="input-with-btn">
@@ -1597,6 +1585,18 @@
                                 </div>
                                 <button type="button" class="btn-plus" onclick="quickAdd('fornecedor')"><i
                                         data-lucide="plus"></i></button>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>Plano de Contas / Categoria</label>
+                            <div class="autocomplete-wrapper" style="flex: 1;">
+                                <input type="text" id="categoriaSearch" class="compra-input"
+                                    placeholder="Buscar categoria..." required autocomplete="off"
+                                    oninput="handleCategoriaSearch(this)" onfocus="handleCategoriaSearch(this)"
+                                    onkeydown="handleAutocompleteKeydown(event, this)"
+                                    style="width: 100%; box-sizing: border-box;">
+                                <input type="hidden" id="categoriaId" required>
+                                <div class="autocomplete-results"></div>
                             </div>
                         </div>
                     </div>
@@ -1995,7 +1995,7 @@
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1.5fr; gap: 1rem;">
                     <div class="input-group" style="margin-bottom: 0;">
                         <label>Espécie de Nota</label>
-                        <select id="fatValesEspecieId" class="compra-input" required></select>
+                        <select id="fatValesEspecieId" class="compra-input" required autofocus></select>
                     </div>
                     <div class="input-group" style="margin-bottom: 0;">
                         <label>Número da Nota Fiscal</label>

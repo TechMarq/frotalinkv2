@@ -94,6 +94,16 @@ function setupSearchableInputs() {
             hidden.value = match ? match.id : '';
         });
     }
+
+    const inputEntidade = document.getElementById('entryEntidadeSearch');
+    if (inputEntidade) {
+        inputEntidade.addEventListener('change', () => {
+            const val = inputEntidade.value.trim();
+            if (val) {
+                window.selectFinEntidade(val, inputEntidade);
+            }
+        });
+    }
 }
 
 function initSupabase() {
@@ -8350,7 +8360,7 @@ window.selectFinCliente = (nome, doc, itemEl) => {
 };
 
 window.selectFinEntidade = (nome, itemEl, tipo = null) => {
-    const wrapper = itemEl.closest('.autocomplete-wrapper');
+    const wrapper = (itemEl && typeof itemEl.closest === 'function') ? itemEl.closest('.autocomplete-wrapper') : document.getElementById('entryEntidadeSearch')?.closest('.autocomplete-wrapper');
     const searchInput = document.getElementById('entryEntidadeSearch');
     const hiddenId = document.getElementById('entryEntidade');
     const resultsDiv = wrapper ? wrapper.querySelector('.autocomplete-results') : null;
@@ -8372,17 +8382,39 @@ window.selectFinEntidade = (nome, itemEl, tipo = null) => {
     if (!entidadeTipo) {
         if (state.prestadoresComercial && state.prestadoresComercial.some(p => (p.nome_prestador || '').trim().toLowerCase() === nomeNorm)) {
             entidadeTipo = 'COMERCIAL';
+        } else if (state.motoristasFrota && state.motoristasFrota.some(m => (m.nome_completo || '').trim().toLowerCase() === nomeNorm)) {
+            entidadeTipo = 'FROTA';
         } else if (state.fornecedores && state.fornecedores.some(f => (f.nome || '').trim().toLowerCase() === nomeNorm)) {
             entidadeTipo = 'FORNECEDOR';
         } else if (state.funcionariosDP && state.funcionariosDP.some(dp => (dp.nome_completo || '').trim().toLowerCase() === nomeNorm)) {
             entidadeTipo = 'DP';
-        } else if (state.motoristasFrota && state.motoristasFrota.some(m => (m.nome_completo || '').trim().toLowerCase() === nomeNorm)) {
-            entidadeTipo = 'FROTA';
         }
     }
 
     try {
-        if (entidadeTipo === 'COMERCIAL') {
+        const isMotorista = entidadeTipo === 'FROTA' || entidadeTipo === 'MOTORISTA' || 
+            (state.motoristasFrota && state.motoristasFrota.some(m => (m.nome_completo || '').trim().toLowerCase() === nomeNorm));
+
+        if (isMotorista) {
+            // 🚛 1. Motorista (Frota/Casa) -> Auto-preencher '04.004.0001.0493 - 0493 - COMISSAO CASA'
+            const catComissaoCasa = (state.categorias || []).find(c => 
+                c.codigo === '04.004.0001.0493' || 
+                (c.codigo && (c.codigo.endsWith('.0493') || c.codigo === '0493')) || 
+                (c.nome && c.nome.toUpperCase().includes('COMISSAO CASA'))
+            );
+
+            if (catComissaoCasa) {
+                const catLabel = (catComissaoCasa.codigo ? `${catComissaoCasa.codigo} - ` : '') + catComissaoCasa.nome;
+                if (catSearch) catSearch.value = catLabel;
+                if (catId) catId.value = catComissaoCasa.id;
+            }
+
+            // 🚛 2. Auto-preencher Descrição do primeiro item como 'Comissão Casa' caso esteja vazia
+            const firstItemDesc = document.querySelector('#itemsContainer .item-row-v2 .item-desc');
+            if (firstItemDesc && !firstItemDesc.value.trim()) {
+                firstItemDesc.value = 'Comissão Casa';
+            }
+        } else if (entidadeTipo === 'COMERCIAL') {
             // 🌿 1. Prestador Comercial -> Auto-preencher '04.004.0001.0492 - 0492 - COMISSAO AGREGADO'
             const catComissao = (state.categorias || []).find(c => 
                 c.codigo === '04.004.0001.0492' || 
@@ -8421,7 +8453,7 @@ window.selectFinEntidade = (nome, itemEl, tipo = null) => {
                 if (catId) catId.value = '';
             }
         } else {
-            // Outro favorecido (DP, Frota, Cliente, etc.) -> Limpar plano de contas
+            // Outro favorecido (DP, Cliente, etc.) -> Limpar plano de contas
             if (catSearch) catSearch.value = '';
             if (catId) catId.value = '';
         }

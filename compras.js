@@ -3539,7 +3539,7 @@ async function handleSaveCompra(e) {
                     }
                 }
 
-                // Atualiza valor_custo e valor_venda nos itens originais que tiveram qty/unit/venda alterados
+                // Atualiza valor_custo, valor_venda e ajusta estoque nos itens originais que tiveram qty/unit/venda alterados
                 for (let i = 0; i < Math.min(oldExistingItems.length, finalItens.length); i++) {
                     const orig = oldExistingItems[i];
                     const updated = finalItens[i];
@@ -3555,6 +3555,41 @@ async function handleSaveCompra(e) {
                             await client.from('estoque').update(patch).eq('id', updated.produtoId);
                             console.log(`✅ Preços atualizados no estoque para produto ${updated.produtoId}:`, patch);
                         } catch (err) { console.warn('⚠️ Não foi possível atualizar preços no estoque:', err); }
+                    }
+
+                    // Se a quantidade mudou e o item está vinculado ao estoque, registrar movimentação de ajuste e atualizar estoque_atual
+                    if (qtdChanged && (updated.estoque || orig.estoque)) {
+                        try {
+                            const diff = (parseFloat(updated.quantidade) || 0) - (parseFloat(orig.quantidade) || 0);
+                            if (Math.abs(diff) > 0.0001) {
+                                const activeUser = (window.currentUserAccess?.nome_completo || window.currentUserAccess?.nome || window.currentUser?.email || localStorage.getItem('user_email') || 'SISTEMA COMPRAS').toUpperCase();
+                                const tipoMov = diff > 0 ? 'ENTRADA' : 'ESTORNO';
+                                const qtdMov = Math.abs(diff);
+                                const motivoAjuste = `[AJUSTE DE NOTA #${compraData.numeroNota}]: ${diff > 0 ? `Correção de quantidade (+${diff})` : `Redução de quantidade (-${qtdMov})`}`;
+                                
+                                await client.from('estoque_movimentacoes').insert([{
+                                    item_id: updated.produtoId,
+                                    tipo: tipoMov,
+                                    quantidade: qtdMov,
+                                    motivo: motivoAjuste,
+                                    responsavel: activeUser,
+                                    valor_unitario: updated.valorUnitario,
+                                    data: new Date().toISOString(),
+                                    empresa_id: window.currentEmpresaId || null
+                                }]);
+
+                                const { data: prod } = await client.from('estoque').select('estoque_atual').eq('id', updated.produtoId).single();
+                                if (prod) {
+                                    const newStock = (parseFloat(prod.estoque_atual) || 0) + diff;
+                                    await client.from('estoque').update({
+                                        estoque_atual: newStock
+                                    }).eq('id', updated.produtoId);
+                                    console.log(`✅ Estoque ajustado por alteração de quantidade na Nota #${compraData.numeroNota} para produto ${updated.produtoId}: diff ${diff} (Novo saldo: ${newStock})`);
+                                }
+                            }
+                        } catch (errQtd) {
+                            console.error("❌ Erro ao registrar ajuste de quantidade no estoque:", errQtd);
+                        }
                     }
                 }
             } else {
@@ -6776,11 +6811,31 @@ window.openFaturamentoValesModal = async () => {
     document.getElementById('fatValesVencimento').valueAsDate = new Date();
     document.getElementById('fatValesParcelado').checked = false;
     document.getElementById('fatValesQtdParcelas').value = 1;
-    document.getElementById('fatValesObservacoes').value = '';
-    
     toggleFatValesParcelado(document.getElementById('fatValesParcelado'));
 
+    // Auto-preenchimento do Plano de Contas padrão do Fornecedor (ou em branco se não vinculado)
+    const catSearch = document.getElementById('fatValesCategoriaSearch');
+    const catId = document.getElementById('fatValesCategoriaId');
+    if (catSearch && catId) {
+        catSearch.value = '';
+        catId.value = '';
+        const planoId = forn?.plano_contas_id || forn?.categoria_id;
+        if (planoId && config.categorias) {
+            const cat = config.categorias.find(c => String(c.id) === String(planoId));
+            if (cat) {
+                const catLabel = (cat.codigo ? `${cat.codigo} - ` : '') + cat.nome;
+                catSearch.value = catLabel;
+                catId.value = cat.id;
+            }
+        }
+    }
+
     document.getElementById('faturamentoValesModal').classList.add('active');
+
+    setTimeout(() => {
+        const el = document.getElementById('fatValesEspecieId');
+        if (el) el.focus();
+    }, 120);
 };
 
 window.atualizarValorTotalFinalFaturamento = () => {
