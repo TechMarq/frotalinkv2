@@ -151,10 +151,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         if (window.lucide) lucide.createIcons();
 
-        // Verificação proativa de duplicidade
-        if (window.checkDuplicateNota) {
-            document.getElementById('numNota')?.addEventListener('change', window.checkDuplicateNota);
-            document.getElementById('fornecedorId')?.addEventListener('change', window.checkDuplicateNota);
+        // Verificação proativa de duplicidade em tempo real
+        const numNotaEl = document.getElementById('numNota');
+        if (numNotaEl) {
+            numNotaEl.addEventListener('input', () => {
+                clearTimeout(window._checkDupTimeout);
+                window._checkDupTimeout = setTimeout(() => {
+                    if (typeof window.checkDuplicateNota === 'function') window.checkDuplicateNota();
+                }, 300);
+            });
+            numNotaEl.addEventListener('blur', () => {
+                if (typeof window.checkDuplicateNota === 'function') window.checkDuplicateNota();
+            });
+            numNotaEl.addEventListener('change', () => {
+                if (typeof window.checkDuplicateNota === 'function') window.checkDuplicateNota();
+            });
         }
 
         // Atalhos de Teclado Globais
@@ -226,6 +237,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         });
+
+        // Verificar parâmetros de URL (ex: redirecionamento a partir do Estoque)
+        const urlParams = new URLSearchParams(window.location.search);
+        const editIdParam = urlParams.get('editId');
+        const viewIdParam = urlParams.get('viewId');
+        if (editIdParam) {
+            setTimeout(() => {
+                if (typeof openCompraModal === 'function') openCompraModal(editIdParam);
+            }, 300);
+        } else if (viewIdParam) {
+            setTimeout(() => {
+                if (typeof openViewModal === 'function') openViewModal(viewIdParam);
+            }, 300);
+        }
     } catch (initErr) {
         console.error("❌ Erro durante a inicialização do módulo de compras:", initErr);
     } finally {
@@ -1316,7 +1341,68 @@ window.openCompraModal = async (id = null) => {
     if (typeof window.showLoader === 'function') window.showLoader();
     try {
         if (id) {
-            const comp = compras.find(c => String(c.id) === String(id));
+            let comp = compras.find(c => String(c.id) === String(id));
+            if (!comp) {
+                const client = window.authClient || supabaseClient;
+                if (client) {
+                    const { data: dbComp } = await client.from('compras').select('*').eq('id', id).maybeSingle();
+                    if (dbComp) {
+                        const [itensRes, addsRes, parcsRes] = await Promise.all([
+                            client.from('compra_itens').select('*').eq('compra_id', id),
+                            client.from('compra_adicionais').select('*').eq('compra_id', id),
+                            client.from('compra_parcelas').select('*').eq('compra_id', id)
+                        ]);
+                        comp = {
+                            ...dbComp,
+                            data: toStandardYYYYMMDD(dbComp.data_emissao),
+                            numeroNota: dbComp.numero_nota,
+                            especieId: dbComp.especie_id,
+                            fornecedorId: dbComp.fornecedor_id,
+                            formaPgtoId: dbComp.forma_pagamento_id,
+                            categoriaId: dbComp.categoria_id,
+                            vencimento: toStandardYYYYMMDD(dbComp.data_vencimento),
+                            valorTotal: parseFloat(dbComp.valor_total || 0),
+                            qtdParcelas: dbComp.qtd_parcelas,
+                            financeiro: dbComp.financeiro_parcelado,
+                            integradoFinanceiro: dbComp.integrado_financeiro,
+                            dataIntegracao: dbComp.data_integracao,
+                            parentFaturamentoId: dbComp.parent_faturamento_id,
+                            consolidadoVales: dbComp.consolidado_vales || false,
+                            itens: (itensRes.data || []).map(it => ({
+                                id: it.id,
+                                tipo: it.tipo,
+                                produto: it.produto,
+                                marca: it.marca,
+                                quantidade: parseFloat(it.quantidade),
+                                valorUnitario: parseFloat(it.valor_unitario),
+                                valorVenda: 0,
+                                estoque: it.estoque,
+                                veiculoId: it.vinculo_veiculo_id,
+                                pessoa: it.vinculo_pessoa,
+                                centroCustoId: it.centro_custo_id,
+                                categoriaId: it.categoria_id,
+                                produtoId: it.produto_id,
+                                maintControl: it.maint_control,
+                                maintTipoId: it.maint_tipo_id,
+                                maintAcaoId: it.maint_acao_id,
+                                maintControle: it.maint_controle,
+                                maintIntervaloKm: it.maint_intervalo_km,
+                                maintIntervaloMeses: it.maint_intervalo_meses,
+                                maintGarantia: it.maint_garantia,
+                                maintMesesGarantia: it.maint_meses_garantia,
+                                maintKm: it.maint_km
+                            })),
+                            adicionais: addsRes.data || [],
+                            parcelasData: (parcsRes.data || []).map(p => ({
+                                data: p.data_vencimento || p.data,
+                                valor: parseFloat(p.valor || 0)
+                            }))
+                        };
+                        compras.unshift(comp);
+                    }
+                }
+            }
+
             if (comp && (comp.integradoFinanceiro === true || comp.integrado_financeiro === true)) {
                 if (typeof window.hideLoader === 'function') window.hideLoader();
                 alert('⚠️ Esta nota fiscal já foi integrada ao setor Financeiro (Contas a Pagar) e não pode ser alterada.\n\nPara modificá-la, solicite ao setor Financeiro que exclua o lançamento correspondente para que a nota retorne.');
@@ -1365,12 +1451,31 @@ window.openCompraModal = async (id = null) => {
         const chkCompraFixar = document.getElementById('chkCompraFixarMesmoDia');
         if (chkCompraFixar) chkCompraFixar.checked = false;
 
+        const alertEl = document.getElementById('dupNotaAlert');
+        if (alertEl) alertEl.style.display = 'none';
+        const inputNota = document.getElementById('numNota');
+        if (inputNota) {
+            inputNota.style.borderColor = '';
+            inputNota.style.background = '';
+        }
+        window.compraHasDuplicate = false;
+
+        const editIdHidden = document.getElementById('compraEditId');
+        const modalTitle = document.querySelector('#compraModal .modal-title');
+
         if (id) {
             editId = id;
+            if (editIdHidden) editIdHidden.value = id;
+            if (modalTitle) modalTitle.innerText = 'Editar Compra / Despesa';
+            document.getElementById('labelCodUnico').innerHTML = `<span style="color:#059669; font-weight:800;">COD: ${id}</span> <span style="margin-left:6px; font-size:0.7rem; color:#b45309; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:6px; font-weight:800;">MODO EDIÇÃO</span>`;
+            document.getElementById('labelCodUnico').dataset.value = id;
+
             const c = compras.find(item => item.id == id);
             if (c) populateModal(c);
         } else {
             editId = null;
+            if (editIdHidden) editIdHidden.value = '';
+            if (modalTitle) modalTitle.innerText = 'Entrada de Nota / Despesa';
             if (typeof applyStockItemLock === 'function') applyStockItemLock(false);
             const uniqueId = 'NC-' + Date.now().toString().slice(-6);
             document.getElementById('labelCodUnico').innerText = 'COD: ' + uniqueId;
@@ -1396,8 +1501,59 @@ window.openCompraModal = async (id = null) => {
     }
 };
 
-window.openViewModal = (id) => {
-    const c = compras.find(item => item.id == id);
+window.openViewModal = async (id) => {
+    let c = compras.find(item => item.id == id);
+    if (!c) {
+        const client = window.authClient || supabaseClient;
+        if (client) {
+            const { data: dbComp } = await client.from('compras').select('*').eq('id', id).maybeSingle();
+            if (dbComp) {
+                const [itensRes, addsRes, parcsRes] = await Promise.all([
+                    client.from('compra_itens').select('*').eq('compra_id', id),
+                    client.from('compra_adicionais').select('*').eq('compra_id', id),
+                    client.from('compra_parcelas').select('*').eq('compra_id', id)
+                ]);
+                c = {
+                    ...dbComp,
+                    data: toStandardYYYYMMDD(dbComp.data_emissao),
+                    numeroNota: dbComp.numero_nota,
+                    especieId: dbComp.especie_id,
+                    fornecedorId: dbComp.fornecedor_id,
+                    formaPgtoId: dbComp.forma_pagamento_id,
+                    categoriaId: dbComp.categoria_id,
+                    vencimento: toStandardYYYYMMDD(dbComp.data_vencimento),
+                    valorTotal: parseFloat(dbComp.valor_total || 0),
+                    qtdParcelas: dbComp.qtd_parcelas,
+                    financeiro: dbComp.financeiro_parcelado,
+                    integradoFinanceiro: dbComp.integrado_financeiro,
+                    dataIntegracao: dbComp.data_integracao,
+                    parentFaturamentoId: dbComp.parent_faturamento_id,
+                    consolidadoVales: dbComp.consolidado_vales || false,
+                    itens: (itensRes.data || []).map(it => ({
+                        id: it.id,
+                        tipo: it.tipo,
+                        produto: it.produto,
+                        marca: it.marca,
+                        quantidade: parseFloat(it.quantidade),
+                        valorUnitario: parseFloat(it.valor_unitario),
+                        valorVenda: 0,
+                        estoque: it.estoque,
+                        veiculoId: it.vinculo_veiculo_id,
+                        pessoa: it.vinculo_pessoa,
+                        centroCustoId: it.centro_custo_id,
+                        categoriaId: it.categoria_id,
+                        produtoId: it.produto_id
+                    })),
+                    adicionais: addsRes.data || [],
+                    parcelasData: (parcsRes.data || []).map(p => ({
+                        data: p.data_vencimento || p.data,
+                        valor: parseFloat(p.valor || 0)
+                    }))
+                };
+                compras.unshift(c);
+            }
+        }
+    }
     if (!c) return;
 
     const modal = document.getElementById('viewCompraModal');
@@ -1756,6 +1912,16 @@ window.closeViewModal = () => { document.getElementById('viewCompraModal').class
 window.closeCompraModal = () => { 
     document.getElementById('compraModal').classList.remove('active'); 
     editId = null; 
+    const editIdHidden = document.getElementById('compraEditId');
+    if (editIdHidden) editIdHidden.value = '';
+    window.compraHasDuplicate = false;
+    const alertEl = document.getElementById('dupNotaAlert');
+    if (alertEl) alertEl.style.display = 'none';
+    const inputNota = document.getElementById('numNota');
+    if (inputNota) {
+        inputNota.style.borderColor = '';
+        inputNota.style.background = '';
+    }
     applyStockItemLock(false);
 };
 
@@ -3008,29 +3174,88 @@ function calculateTotal() {
     return totalGeral;
 }
 
-window.checkDuplicateNota = () => {
-    const numNota = document.getElementById('numNota')?.value.trim();
+window.normalizeNotaFiscal = function(num) {
+    if (!num) return '';
+    let s = String(num).trim();
+    s = s.replace(/^[#\s]+/, '');
+    if (/^0+$/.test(s)) return '0';
+    s = s.replace(/^0+([1-9])/, '$1').trim();
+    return s;
+};
+
+window.checkDuplicateNota = async function() {
     const fornecedorId = document.getElementById('fornecedorId')?.value;
-    
-    if (!numNota || !fornecedorId) return;
+    const numNotaRaw = document.getElementById('numNota')?.value;
+    const alertEl = document.getElementById('dupNotaAlert');
+    const inputNota = document.getElementById('numNota');
+    const editId = document.getElementById('compraEditId')?.value || window.editId || null;
 
-    const isDuplicate = compras.some(c => 
-        c.fornecedorId === fornecedorId && 
-        String(c.numeroNota).trim() === numNota && 
-        c.id != editId
-    );
+    const cleanNum = window.normalizeNotaFiscal(numNotaRaw);
+    if (!fornecedorId || !cleanNum) {
+        if (alertEl) alertEl.style.display = 'none';
+        if (inputNota) {
+            inputNota.style.borderColor = '';
+            inputNota.style.background = '';
+        }
+        window.compraHasDuplicate = false;
+        return false;
+    }
 
-    if (isDuplicate) {
-        const fornObj = config.fornecedores.find(f => f.id == fornecedorId);
-        alert(`⚠️ Atenção: Já existe uma nota lançada com o número "${numNota}" para o fornecedor "${fornObj ? fornObj.nome : 'selecionado'}".`);
+    try {
+        const client = window.authClient || supabaseClient;
+        if (!client) return false;
+
+        // Busca rápida no banco para o fornecedor selecionado
+        const { data: list, error } = await client
+            .from('compras')
+            .select('id, numero_nota, data_emissao')
+            .eq('fornecedor_id', fornecedorId)
+            .limit(300);
+
+        if (error) {
+            console.warn('Aviso ao checar duplicidade:', error);
+            return false;
+        }
+
+        const duplicate = (list || []).find(c => {
+            if (editId && String(c.id) === String(editId)) return false;
+            return window.normalizeNotaFiscal(c.numero_nota) === cleanNum;
+        });
+
+        if (duplicate) {
+            window.compraHasDuplicate = true;
+            const dt = duplicate.data_emissao ? formatDateBR(duplicate.data_emissao) : '';
+            if (alertEl) {
+                alertEl.innerHTML = `<i data-lucide="alert-triangle" style="width:13px; height:13px; vertical-align:middle; display:inline-block; margin-right:3px;"></i> Já existe a nota <strong>#${duplicate.numero_nota}</strong> lançada para este fornecedor ${dt ? `em <strong>${dt}</strong>` : ''} (COD: ${duplicate.id}).`;
+                alertEl.style.display = 'block';
+                if (window.lucide) lucide.createIcons();
+            }
+            if (inputNota) {
+                inputNota.style.borderColor = '#ef4444';
+                inputNota.style.background = 'rgba(239, 68, 68, 0.08)';
+            }
+            return true;
+        } else {
+            window.compraHasDuplicate = false;
+            if (alertEl) alertEl.style.display = 'none';
+            if (inputNota) {
+                inputNota.style.borderColor = '';
+                inputNota.style.background = '';
+            }
+            return false;
+        }
+    } catch (err) {
+        console.warn('Erro ao checar duplicidade de nota:', err);
+        return false;
     }
 };
 
 async function handleSaveCompra(e) {
     if (e) e.preventDefault();
-    const isEditing = !!editId;
+    const formEditId = document.getElementById('compraEditId')?.value || editId || null;
+    const isEditing = !!formEditId;
     if (isEditing) {
-        const existingCompra = compras.find(c => String(c.id) === String(editId));
+        const existingCompra = compras.find(c => String(c.id) === String(formEditId));
         if (existingCompra && (existingCompra.integradoFinanceiro === true || existingCompra.integrado_financeiro === true)) {
             alert('⚠️ Operação bloqueada: Esta nota fiscal já está integrada ao setor Financeiro e não pode ser alterada.\n\nPara modificá-la, o setor Financeiro deve excluir o lançamento correspondente.');
             return;
@@ -3045,7 +3270,7 @@ async function handleSaveCompra(e) {
             return;
         }
     }
-    console.log("🚀 CLIQUE NO BOTÃO SALVAR DETECTADO!");
+    console.log("🚀 CLIQUE NO BOTÃO SALVAR DETECTADO! Modo:", isEditing ? `EDIÇÃO (${formEditId})` : "NOVA COMPRA");
     const client = window.authClient || supabaseClient;
     
     try {
@@ -3071,36 +3296,11 @@ async function handleSaveCompra(e) {
             return;
         }
 
-        // 2. Duplicate Validation (Same supplier + Same invoice number)
-        // Passo 1: Checagem instantânea em memória local (0ms, 0 requisições)
-        const localDuplicate = compras.find(c => 
-            c.fornecedorId === fornecedorId && 
-            String(c.numeroNota).trim() === numNota && 
-            c.id != editId
-        );
-
-        if (localDuplicate) {
+        // 2. Duplicate Validation (Bloqueio estrito no envio)
+        const isDup = await window.checkDuplicateNota();
+        if (isDup || window.compraHasDuplicate) {
             const fornObj = config.fornecedores.find(f => f.id == fornecedorId);
-            alert(`⚠️ Bloqueado: Já existe uma nota lançada com o número "${numNota}" para o fornecedor "${fornObj ? fornObj.nome : 'selecionado'}" (Data: ${formatDateBR(localDuplicate.data)}).`);
-            return;
-        }
-
-        // Passo 2: Se não estava na memória do mês atual, faz uma única consulta pontual e leve no banco (~20ms)
-        let queryDup = client
-            .from('compras')
-            .select('id, data_emissao')
-            .eq('fornecedor_id', fornecedorId)
-            .eq('numero_nota', numNota);
-            
-        if (editId) {
-            queryDup = queryDup.neq('id', editId);
-        }
-
-        const { data: dbDup } = await queryDup.maybeSingle();
-
-        if (dbDup) {
-            const fornObj = config.fornecedores.find(f => f.id == fornecedorId);
-            alert(`⚠️ Bloqueado: Já existe a nota "${numNota}" lançada para o fornecedor "${fornObj ? fornObj.nome : 'selecionado'}" em ${formatDateBR(dbDup.data_emissao)}.`);
+            alert(`⚠️ Operação Bloqueada: Já existe uma nota lançada com o número "${numNota}" para o fornecedor "${fornObj ? fornObj.nome : 'selecionado'}".\n\nAltere o número da nota ou selecione o fornecedor correto.`);
             return;
         }
 
@@ -3285,9 +3485,11 @@ async function handleSaveCompra(e) {
             }
         }
 
+        const formEditId = document.getElementById('compraEditId')?.value || editId || null;
+
         const compraData = {
-            id: editId || codUnico, 
-            codUnico,
+            id: formEditId || codUnico, 
+            codUnico: formEditId || codUnico,
             data: dataCompra,
             numeroNota: numNota,
             especieId,
@@ -3389,19 +3591,47 @@ async function handleSaveCompra(e) {
                     data_alteracao: compraData.data_alteracao || null
                 };
 
-                console.log("📤 Enviando para Supabase:", dbCompra);
-                let { error: compError } = await client.from('compras').upsert([dbCompra]);
-                if (compError && compError.message && (compError.message.includes('usuario_registro') || compError.message.includes('usuario_alteracao') || compError.message.includes('data_alteracao'))) {
+                console.log("📤 Processando no Supabase:", { isEditing, id: dbCompra.id, numNota: dbCompra.numero_nota });
+
+                let compError = null;
+                if (isEditing) {
+                    dbCompra.id = formEditId;
                     delete dbCompra.usuario_registro;
-                    delete dbCompra.usuario_alteracao;
-                    delete dbCompra.data_alteracao;
-                    const retryRes = await client.from('compras').upsert([dbCompra]);
-                    compError = retryRes.error;
-                }
-                if (compError) {
-                    console.error("❌ Erro ao salvar compra:", compError);
-                    alert("Erro ao salvar compra no banco de dados: " + compError.message);
-                    return;
+                    dbCompra.usuario_alteracao = activeUserName;
+                    dbCompra.data_alteracao = new Date().toISOString();
+
+                    console.log("📤 Executando UPDATE explícito na compra existente:", dbCompra);
+                    const updateRes = await client.from('compras').update(dbCompra).eq('id', formEditId);
+                    compError = updateRes.error;
+                    if (compError && compError.message && (compError.message.includes('usuario_alteracao') || compError.message.includes('data_alteracao'))) {
+                        delete dbCompra.usuario_alteracao;
+                        delete dbCompra.data_alteracao;
+                        const retryRes = await client.from('compras').update(dbCompra).eq('id', formEditId);
+                        compError = retryRes.error;
+                    }
+                    if (compError) {
+                        console.error("❌ Erro ao atualizar compra:", compError);
+                        alert("Erro ao atualizar compra no banco de dados: " + compError.message);
+                        return;
+                    }
+                } else {
+                    dbCompra.id = codUnico;
+                    dbCompra.usuario_registro = activeUserName;
+                    dbCompra.created_at = new Date().toISOString();
+
+                    console.log("📤 Executando INSERT explícito em nova compra:", dbCompra);
+                    const insertRes = await client.from('compras').insert([dbCompra]);
+                    compError = insertRes.error;
+                    if (compError && compError.message && compError.message.includes('usuario_registro')) {
+                        delete dbCompra.usuario_registro;
+                        const retryRes = await client.from('compras').insert([dbCompra]);
+                        compError = retryRes.error;
+                    }
+                    if (compError) {
+                        console.error("❌ Erro ao salvar compra:", compError);
+                        alert("Erro ao salvar compra no banco de dados: " + compError.message);
+                        return;
+                    }
                 }
 
                 // 2. Sync Items

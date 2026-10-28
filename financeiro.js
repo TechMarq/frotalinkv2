@@ -849,11 +849,20 @@ function renderLancamentos(tipo) {
         const dateStr = (l.data_vencimento || l.previsao_pagamento || l.data_emissao || '').substring(0, 10);
         const isDatePast = dateStr ? dateStr < todayStr : false;
         
+        const vTotCheck = parseFloat(l.valor_total) || 0;
+        const vPagoCheck = parseFloat(l.valor_pago) || 0;
+        const isLiquidado = (l.status === 'PAGO' || l.status === 'RECEBIDO' || l.status === 'CONCLUIDO') || 
+                            (vPagoCheck > 0 && vTotCheck > 0 && (vPagoCheck >= vTotCheck || Math.abs(vPagoCheck - vTotCheck) < 0.05));
+
         let isOverdue = false;
         let displayStatus = l.status;
         let statusClass = `status-${(l.status || '').toLowerCase()}`;
         
-        if (l.status === 'ABERTO') {
+        if (isLiquidado) {
+            displayStatus = tipo === 'RECEBER' ? 'RECEBIDO' : 'PAGO';
+            statusClass = tipo === 'RECEBER' ? 'status-recebido' : 'status-pago';
+            isOverdue = false;
+        } else if (l.status === 'ABERTO') {
             if (isDatePast) {
                 isOverdue = true;
                 displayStatus = 'ATRASADO';
@@ -926,7 +935,7 @@ function renderLancamentos(tipo) {
                     <td class="actions-cell">
                         <div class="actions-wrapper">
                             <button class="btn-action history" onclick="showRecordHistory('${l.id}')" title="Histórico de Alterações"><i data-lucide="history"></i></button>
-                            ${(l.status === 'PAGO' || l.status === 'RECEBIDO')
+                            ${(l.status === 'PAGO' || l.status === 'RECEBIDO' || isLiquidado)
                                 ? `<button class="btn-action edit-pay" onclick="openEditPaymentModal('${l.id}')" title="Alterar Recebimento (Banco, Forma ou Valor)"><i data-lucide="credit-card"></i></button>
                                    <button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar / Voltar para Pendente"><i data-lucide="rotate-ccw"></i></button>`
                                 : l.status === 'PARCIAL'
@@ -1030,7 +1039,7 @@ function renderLancamentos(tipo) {
                 <td class="actions-cell">
                     <div class="actions-wrapper">
                         <button class="btn-action history" onclick="showRecordHistory('${l.id}')" title="Histórico de Alterações"><i data-lucide="history"></i></button>
-                        ${l.status === 'PAGO'
+                        ${(l.status === 'PAGO' || isLiquidado)
                             ? `<button class="btn-action edit-pay" onclick="openEditPaymentModal('${l.id}')" title="Alterar Pagamento (Banco, Forma ou Valor)"><i data-lucide="credit-card"></i></button>
                                <button class="btn-action unpay" onclick="reverterPagamento('${l.id}')" title="Estornar / Voltar para Pendente"><i data-lucide="rotate-ccw"></i></button>`
                             : l.status === 'PARCIAL'
@@ -1846,7 +1855,7 @@ async function openEntryModal(tipo, id = null) {
                 if (it && it.length > 0) {
                     it.forEach(row => addFinItemRow(row));
                     // Recalcula totais após carregar os itens do banco
-                    setTimeout(calculateFinTotal, 200);
+                    setTimeout(() => calculateFinTotal(false), 200);
                 } else {
                     addFinItemRow();
                 }
@@ -1854,7 +1863,7 @@ async function openEntryModal(tipo, id = null) {
                 const { data: ad } = await supabaseClient.from('fin_lancamento_adicionais').select('*').eq('lancamento_id', id);
                 if (ad && ad.length > 0) {
                     ad.forEach(row => addFinAdditionalRow(row));
-                    setTimeout(calculateFinTotal, 250);
+                    setTimeout(() => calculateFinTotal(false), 250);
                 }
 
                 // Carregar descontos do banco
@@ -1862,18 +1871,63 @@ async function openEntryModal(tipo, id = null) {
                     const { data: ds } = await supabaseClient.from('fin_lancamento_descontos').select('*').eq('lancamento_id', id);
                     if (ds && ds.length > 0) {
                         ds.forEach(row => addFinDiscountRow(row));
-                        setTimeout(calculateFinTotal, 250);
+                        setTimeout(() => calculateFinTotal(false), 250);
                     }
                 } catch (eDs) {
                     console.warn("Aviso ao carregar descontos:", eDs);
                 }
 
-                // Carregar parcelas
-                const { data: parc } = await supabaseClient.from('fin_lancamento_parcelas').select('*').eq('lancamento_id', id).order('numero_parcela');
+                // Carregar parcelas e lançamentos vinculados (para checar status de pagamento)
+                const [parcRes, lancGroupRes] = await Promise.all([
+                    supabaseClient.from('fin_lancamento_parcelas').select('*').eq('lancamento_id', id).order('numero_parcela'),
+                    supabaseClient.from('fin_lancamentos').select('id, codigo_sequencial, descricao, status, valor_total, valor_pago, data_pagamento, pai_id, conta_bancaria_id, numero_cheque, data_vencimento').or(`id.eq.${id},pai_id.eq.${id}`).order('created_at', { ascending: true })
+                ]);
+                let parc = parcRes.data || [];
+                const lancGroup = lancGroupRes.data || [];
+
+                // Fallback: se fin_lancamento_parcelas estiver vazio mas houver lançamentos filhos em fin_lancamentos
+                if (parc.length <= 1 && lancGroup.length > 1) {
+                    const sortedLanc = [...lancGroup].sort((a, b) => {
+                        const mA = (a.descricao || '').match(/Parc\s*(\d+)\//i);
+                        const mB = (b.descricao || '').match(/Parc\s*(\d+)\//i);
+                        if (mA && mB) return parseInt(mA[1]) - parseInt(mB[1]);
+                        if (a.id === id) return -1;
+                        if (b.id === id) return 1;
+                        return new Date(a.data_vencimento || 0) - new Date(b.data_vencimento || 0);
+                    });
+                    parc = sortedLanc.map((lItem, idx) => {
+                        const m = (lItem.descricao || '').match(/Parc\s*(\d+)\//i);
+                        const numP = m ? parseInt(m[1]) : (idx + 1);
+                        return {
+                            id: lItem.id,
+                            lancamento_id: id,
+                            numero_parcela: numP,
+                            data_vencimento: lItem.data_vencimento,
+                            valor: lItem.valor_total,
+                            status: lItem.status,
+                            valor_pago: lItem.valor_pago,
+                            data_pagamento: lItem.data_pagamento,
+                            conta_bancaria_id: lItem.conta_bancaria_id,
+                            numero_cheque: lItem.numero_cheque
+                        };
+                    });
+                }
+
+                const formatDt = (d) => {
+                    if (!d) return '';
+                    const s = String(d).substring(0, 10);
+                    const pts = s.split('-');
+                    return pts.length === 3 ? `${pts[2]}/${pts[1]}/${pts[0]}` : s;
+                };
+
                 if (parc && parc.length > 1) {
                     const isChequeParc = (item.forma_pagamento || '').toUpperCase() === 'CHEQUE';
-                    document.getElementById('qtdParcelas').value = item.qtd_parcelas;
+                    const qtdTotalParcs = item.qtd_parcelas || parc.length;
+                    document.getElementById('qtdParcelas').value = qtdTotalParcs;
                     document.getElementById('installmentsWrapper').style.display = 'block';
+
+                    const prazoGroup = document.getElementById('prazoDiasGroup');
+                    if (prazoGroup) prazoGroup.style.display = 'block';
 
                     const chequeWrap = document.getElementById('chequeFieldsWrapper');
                     if (chequeWrap && isChequeParc) chequeWrap.style.display = 'none';
@@ -1901,39 +1955,77 @@ async function openEntryModal(tipo, id = null) {
                         }
                     }
 
+                    let paidCount = 0;
                     document.getElementById('installmentsContainer').innerHTML = parc.map((p, idx) => {
                         const rowContaId = p.conta_bancaria_id || item.conta_bancaria_id || '';
                         const contasOptions = (state.contas || []).map(c => 
                             `<option value="${c.id}" ${c.id === rowContaId ? 'selected' : ''}>${c.nome}</option>`
                         ).join('');
 
+                        // Vincular ao lançamento real correspondente por número de parcela
+                        const lancObj = lancGroup.find(l => {
+                            const m = (l.descricao || '').match(/Parc\s*(\d+)\//i);
+                            if (m && parseInt(m[1]) === p.numero_parcela) return true;
+                            if (p.numero_parcela === 1 && (l.id === id || !l.pai_id)) return true;
+                            return false;
+                        }) || (lancGroup.length > idx ? lancGroup[idx] : null);
+
+                        const vPagoLanc = parseFloat(lancObj?.valor_pago || p.valor_pago || 0);
+                        const vTotalLanc = parseFloat(lancObj?.valor_total || p.valor || 0);
+                        const isPaid = (p.status === 'PAGO' || p.status === 'CONCLUIDO') || 
+                                       (lancObj && (lancObj.status === 'PAGO' || lancObj.status === 'CONCLUIDO')) ||
+                                       (vPagoLanc > 0 && vTotalLanc > 0 && (vPagoLanc >= vTotalLanc || Math.abs(vPagoLanc - vTotalLanc) < 0.05));
+
+                        if (isPaid) paidCount++;
+                        const paidDateRaw = lancObj?.data_pagamento || p.data_pagamento;
+                        const paidDateStr = formatDt(paidDateRaw);
+                        const paidValFormatted = (vPagoLanc || parseFloat(p.valor || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
                         return `
-                        <div class="installment-row" data-index="${idx}" style="${isChequeParc ? 'display: grid; grid-template-columns: 45px 1.1fr 1fr 1.3fr 1fr; gap: 0.8rem;' : 'display: grid; grid-template-columns: 70px 1.1fr 1fr; gap: 1rem;'} margin-bottom: 0.6rem; align-items: center; background: rgba(255,255,255,0.03); padding: 0.65rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); transition: border-color 0.2s;">
-                            <div style="font-weight: 800; color: #818cf8; font-size: 0.85rem; padding-left: 4px;">#${p.numero_parcela}</div>
-                            <div class="input-group" style="margin:0;">
-                                <input type="date" class="financeiro-input parc-date" value="${p.data_vencimento}"
-                                    oninput="window.onInstallmentDateChange(${idx})" onchange="window.onInstallmentDateChange(${idx})">
+                        <div class="installment-row" data-index="${idx}" data-paid="${isPaid ? 'true' : 'false'}" style="${isChequeParc ? 'display: grid; grid-template-columns: 45px 1.1fr 1fr 1.3fr 1fr; gap: 0.8rem;' : 'display: grid; grid-template-columns: 70px 1.1fr 1fr; gap: 1rem;'} margin-bottom: 0.6rem; align-items: center; background: ${isPaid ? 'rgba(16, 185, 129, 0.06)' : 'rgba(255,255,255,0.03)'}; padding: 0.65rem 0.8rem; border-radius: 8px; border: 1px solid ${isPaid ? 'rgba(16, 185, 129, 0.35)' : 'rgba(255,255,255,0.05)'}; transition: border-color 0.2s;">
+                            <div>
+                                <div style="font-weight: 800; color: ${isPaid ? '#059669' : '#818cf8'}; font-size: 0.85rem; padding-left: 4px;">#${p.numero_parcela}</div>
+                                ${isPaid ? `<span style="font-size: 0.65rem; font-weight: 800; color: #047857; background: #d1fae5; border: 1px solid #a7f3d0; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 2px; margin-top: 3px;" title="Parcela já baixada em ${paidDateStr}"><i data-lucide="check" style="width:10px;height:10px;"></i> PAGA</span>` : ''}
                             </div>
                             <div class="input-group" style="margin:0;">
-                                <input type="text" inputmode="decimal" class="financeiro-input parc-val" value="${p.valor}"
+                                <input type="date" class="financeiro-input parc-date" value="${lancObj?.data_vencimento || p.data_vencimento}"
+                                    ${isPaid ? `readonly disabled style="background: rgba(16, 185, 129, 0.08) !important; border-color: #a7f3d0 !important; color: #047857 !important; font-weight: 700; cursor: not-allowed;" title="Esta parcela já foi paga em ${paidDateStr} e não pode ter o vencimento alterado."` : `oninput="window.onInstallmentDateChange(${idx})" onchange="window.onInstallmentDateChange(${idx})"`}>
+                            </div>
+                            <div class="input-group" style="margin:0;">
+                                <input type="text" inputmode="decimal" class="financeiro-input parc-val" value="${(vTotalLanc || parseFloat(p.valor || 0)).toFixed(2)}"
                                     placeholder="0,00"
-                                    oninput="window.onInstallmentValueChange(${idx})" onchange="window.onInstallmentValueChange(${idx})">
+                                    ${isPaid ? `readonly disabled style="background: rgba(16, 185, 129, 0.08) !important; border-color: #a7f3d0 !important; color: #047857 !important; font-weight: 800; cursor: not-allowed;" title="Esta parcela já foi paga (R$ ${paidValFormatted}) e não pode ter o valor alterado."` : `oninput="window.onInstallmentValueChange(${idx})" onchange="window.onInstallmentValueChange(${idx})"`}>
                             </div>
                             ${isChequeParc ? `
                             <div class="input-group" style="margin:0;">
-                                <select class="financeiro-input parc-conta" title="Conta bancária da parcela #${idx + 1}" required>
+                                <select class="financeiro-input parc-conta" title="Conta bancária da parcela #${idx + 1}" ${isPaid ? 'disabled style="background: rgba(16,185,129,0.08); cursor: not-allowed;"' : 'required'}>
                                     <option value="">Selecione a conta...</option>
                                     ${contasOptions}
                                 </select>
                             </div>
                             <div class="input-group" style="margin:0;">
-                                <input type="text" class="financeiro-input parc-cheque" value="${p.numero_cheque || ''}" placeholder="Nº Cheque #${idx + 1}" title="Número da folha de cheque da parcela #${idx + 1}" required>
+                                <input type="text" class="financeiro-input parc-cheque" value="${p.numero_cheque || ''}" placeholder="Nº Cheque #${idx + 1}" title="Número da folha de cheque da parcela #${idx + 1}" ${isPaid ? 'readonly disabled style="background: rgba(16,185,129,0.08); cursor: not-allowed;"' : 'required'}>
                             </div>` : ''}
                         </div>
                     `;
                     }).join('');
-                    if (window.lucide) lucide.createIcons();
+
+                    const qtdInputEl = document.getElementById('qtdParcelas');
+                    if (qtdInputEl) {
+                        qtdInputEl.dataset.minPaid = paidCount;
+                        if (paidCount > 0) qtdInputEl.min = paidCount;
+                    }
+
+                    if (window.lucide && typeof window.lucide.createIcons === 'function') lucide.createIcons();
                     setTimeout(updateInstallmentsSummary, 300);
+                } else if (item.qtd_parcelas && item.qtd_parcelas > 1) {
+                    document.getElementById('qtdParcelas').value = item.qtd_parcelas;
+                    const prazoGroup = document.getElementById('prazoDiasGroup');
+                    if (prazoGroup) prazoGroup.style.display = 'block';
+                    document.getElementById('installmentsWrapper').style.display = 'block';
+                    if (typeof window.generateInstallmentFields === 'function') {
+                        window.generateInstallmentFields();
+                    }
                 }
             } catch (e) {
                 console.error("Erro ao carregar detalhes:", e);
@@ -1963,7 +2055,7 @@ async function openEntryModal(tipo, id = null) {
     }
 
     modal.classList.add('active');
-    calculateFinTotal();
+    calculateFinTotal(false);
 
     // Foca automaticamente no campo de emissão após a abertura
     setTimeout(() => {
@@ -3203,10 +3295,43 @@ async function handleEntrySubmit(e) {
                 const installmentRows = document.querySelectorAll('#installmentsContainer .installment-row');
                 const totalParcs = installmentRows.length || qtdParcelas;
 
+                // Buscar dados atuais do pai e irmãs para preservar status e pagamentos
+                const [currentParentRes, sistersRes] = await Promise.all([
+                    supabaseClient.from('fin_lancamentos').select('id, status, valor_pago, data_pagamento, conta_bancaria_id, codigo_sequencial, descricao, valor_total, data_vencimento').eq('id', id).maybeSingle(),
+                    supabaseClient.from('fin_lancamentos').select('id, status, valor_pago, data_pagamento, conta_bancaria_id, codigo_sequencial, descricao, valor_total, data_vencimento').eq('pai_id', id).order('created_at', { ascending: true })
+                ]);
+                const currentParent = currentParentRes.data;
+                const sisters = sistersRes.data || [];
+
+                // Mapear irmãs existentes pelo número de parcela contido na descrição (Parc X/Y)
+                const sisterByParcNum = {};
+                sisters.forEach(s => {
+                    const match = (s.descricao || '').match(/Parc\s+(\d+)\s*\/\s*(\d+)/i);
+                    if (match) {
+                        sisterByParcNum[parseInt(match[1])] = s;
+                    }
+                });
+
                 // 1ª parcela (Pai)
                 const row1 = installmentRows[0];
-                const parc1Venc = row1 ? row1.querySelector('.parc-date').value : formData.get('data_vencimento');
-                const parc1Val = row1 ? (parseFinNumber(row1.querySelector('.parc-val')?.value) || (finalTotal / totalParcs)) : finalTotal;
+                const row1IsPaidAttr = row1 ? (row1.getAttribute('data-paid') === 'true') : false;
+                const curParentPago = parseFloat(currentParent?.valor_pago || 0);
+                const parc1ValInput = row1 ? (parseFinNumber(row1.querySelector('.parc-val')?.value) || (finalTotal / totalParcs)) : finalTotal;
+
+                const parentIsPaid = row1IsPaidAttr ||
+                    currentParent?.status === 'PAGO' ||
+                    currentParent?.status === 'CONCLUIDO' ||
+                    (curParentPago > 0 && Math.abs(curParentPago - parc1ValInput) < 0.05) ||
+                    (curParentPago >= parc1ValInput && curParentPago > 0);
+
+                const parc1Venc = (parentIsPaid && currentParent?.data_vencimento)
+                    ? currentParent.data_vencimento
+                    : (row1 ? row1.querySelector('.parc-date').value : formData.get('data_vencimento'));
+
+                const parc1Val = (parentIsPaid && currentParent?.valor_total)
+                    ? parseFloat(currentParent.valor_total)
+                    : parc1ValInput;
+
                 const parc1Conta = isChequeForma && row1 ? (row1.querySelector('.parc-conta')?.value || null) : null;
                 const parc1Cheque = isChequeForma && row1 ? (row1.querySelector('.parc-cheque')?.value || null) : null;
 
@@ -3215,31 +3340,45 @@ async function handleEntrySubmit(e) {
                     descricao: `${firstItemDesc} (Parc 1/${totalParcs})`,
                     data_vencimento: parc1Venc,
                     valor_total: parc1Val,
-                    conta_bancaria_id: parc1Conta,
+                    conta_bancaria_id: parentIsPaid ? (currentParent?.conta_bancaria_id || parc1Conta) : parc1Conta,
                     numero_cheque: parc1Cheque,
                     is_parcelado: true,
                     qtd_parcelas: totalParcs,
-                    pai_id: null
+                    pai_id: null,
+                    status: parentIsPaid ? 'PAGO' : 'ABERTO',
+                    valor_pago: parentIsPaid ? (currentParent?.valor_pago || parc1Val) : 0,
+                    data_pagamento: parentIsPaid ? (currentParent?.data_pagamento || new Date().toISOString().split('T')[0]) : null
                 };
 
                 const { error: upErr } = await supabaseClient.from('fin_lancamentos').update(parentUpdate).eq('id', id);
                 if (upErr) throw upErr;
                 allLancamentoIds.push(id);
 
-                // Buscar irmãs existentes
-                const { data: existingSisters } = await supabaseClient
-                    .from('fin_lancamentos')
-                    .select('id')
-                    .eq('pai_id', id)
-                    .order('created_at', { ascending: true });
-
-                const sisters = existingSisters || [];
-
                 for (let idx = 1; idx < installmentRows.length; idx++) {
                     const row = installmentRows[idx];
                     const parcNum = idx + 1;
-                    const pVenc = row.querySelector('.parc-date').value;
-                    const pVal = parseFinNumber(row.querySelector('.parc-val')?.value) || (finalTotal / totalParcs);
+                    const rowIsPaidAttr = row.getAttribute('data-paid') === 'true';
+                    const sisterIndex = idx - 1;
+                    const existingSister = sisterByParcNum[parcNum] || (sisterIndex < sisters.length ? sisters[sisterIndex] : null);
+
+                    const pValInput = parseFinNumber(row.querySelector('.parc-val')?.value) || (finalTotal / totalParcs);
+                    const curSisterPago = parseFloat(existingSister?.valor_pago || 0);
+
+                    const sisterIsPaid = rowIsPaidAttr || (existingSister && (
+                        existingSister.status === 'PAGO' ||
+                        existingSister.status === 'CONCLUIDO' ||
+                        (curSisterPago > 0 && Math.abs(curSisterPago - pValInput) < 0.05) ||
+                        (curSisterPago >= pValInput && curSisterPago > 0)
+                    ));
+
+                    const pVenc = (sisterIsPaid && existingSister?.data_vencimento)
+                        ? existingSister.data_vencimento
+                        : row.querySelector('.parc-date').value;
+
+                    const pVal = (sisterIsPaid && existingSister?.valor_total)
+                        ? parseFloat(existingSister.valor_total)
+                        : pValInput;
+
                     const pConta = isChequeForma ? (row.querySelector('.parc-conta')?.value || null) : null;
                     const pCheque = isChequeForma ? (row.querySelector('.parc-cheque')?.value || null) : null;
 
@@ -3248,17 +3387,18 @@ async function handleEntrySubmit(e) {
                         descricao: `${firstItemDesc} (Parc ${parcNum}/${totalParcs})`,
                         data_vencimento: pVenc,
                         valor_total: pVal,
-                        conta_bancaria_id: pConta,
+                        conta_bancaria_id: sisterIsPaid ? (existingSister?.conta_bancaria_id || pConta) : pConta,
                         numero_cheque: pCheque,
                         is_parcelado: true,
                         qtd_parcelas: totalParcs,
                         pai_id: id,
-                        status: 'ABERTO'
+                        status: sisterIsPaid ? 'PAGO' : 'ABERTO',
+                        valor_pago: sisterIsPaid ? (existingSister?.valor_pago || pVal) : 0,
+                        data_pagamento: sisterIsPaid ? (existingSister?.data_pagamento || new Date().toISOString().split('T')[0]) : null
                     };
 
-                    const sisterIndex = idx - 1;
-                    if (sisterIndex < sisters.length) {
-                        const sisterId = sisters[sisterIndex].id;
+                    if (existingSister) {
+                        const sisterId = existingSister.id;
                         await supabaseClient.from('fin_lancamentos').update(sisterData).eq('id', sisterId);
                         allLancamentoIds.push(sisterId);
                     } else {
@@ -3272,17 +3412,39 @@ async function handleEntrySubmit(e) {
                     }
                 }
 
-                // Se diminuiu parcelas, remove as excedentes
+                // Se diminuiu parcelas, remove as excedentes (NUNCA DELETA SE ESTIVER PAGA)
                 const neededSistersCount = totalParcs - 1;
                 if (sisters.length > neededSistersCount) {
-                    const sistersToDelete = sisters.slice(neededSistersCount).map(s => s.id);
+                    const sistersToDelete = sisters.filter(s => {
+                        const match = (s.descricao || '').match(/Parc\s+(\d+)\s*\/\s*(\d+)/i);
+                        const pNum = match ? parseInt(match[1]) : null;
+                        const isExceeding = pNum ? (pNum > totalParcs) : false;
+                        const isPaid = s.status === 'PAGO' || s.status === 'CONCLUIDO' || parseFloat(s.valor_pago || 0) > 0;
+                        return isExceeding && !isPaid;
+                    }).map(s => s.id);
                     if (sistersToDelete.length > 0) {
                         await supabaseClient.from('fin_lancamentos').delete().in('id', sistersToDelete);
                     }
                 }
             } else {
-                // Edição de registro não parcelado
-                const { error: upErr } = await supabaseClient.from('fin_lancamentos').update(mainRecord).eq('id', id);
+                // Edição de registro não parcelado - Preservar status de pagamento
+                const { data: currentRec } = await supabaseClient.from('fin_lancamentos').select('status, valor_pago, data_pagamento, conta_bancaria_id, valor_total').eq('id', id).maybeSingle();
+                const curPago = parseFloat(currentRec?.valor_pago || 0);
+                const isPaidRec = currentRec && (
+                    currentRec.status === 'PAGO' ||
+                    currentRec.status === 'CONCLUIDO' ||
+                    (curPago > 0 && Math.abs(curPago - finalTotal) < 0.05) ||
+                    (curPago >= finalTotal && curPago > 0)
+                );
+                
+                const singleUpdate = {
+                    ...mainRecord,
+                    status: isPaidRec ? 'PAGO' : 'ABERTO',
+                    valor_pago: isPaidRec ? (currentRec.valor_pago || finalTotal) : 0,
+                    data_pagamento: isPaidRec ? (currentRec.data_pagamento || new Date().toISOString().split('T')[0]) : null,
+                    conta_bancaria_id: isPaidRec ? (currentRec.conta_bancaria_id || mainRecord.conta_bancaria_id) : mainRecord.conta_bancaria_id
+                };
+                const { error: upErr } = await supabaseClient.from('fin_lancamentos').update(singleUpdate).eq('id', id);
                 if (upErr) throw upErr;
                 allLancamentoIds.push(id);
             }
@@ -3487,16 +3649,17 @@ async function handleEntrySubmit(e) {
         if (isParcelado) {
             const parcelas = [];
             document.querySelectorAll('#installmentsContainer .installment-row').forEach((row, idx) => {
+                const isRowPaid = row.getAttribute('data-paid') === 'true';
                 const pConta = isChequeForma ? (row.querySelector('.parc-conta')?.value || null) : null;
                 const pCheque = isChequeForma ? (row.querySelector('.parc-cheque')?.value || null) : null;
                 parcelas.push({
                     lancamento_id: lancamentoId,
                     numero_parcela: idx + 1,
                     data_vencimento: row.querySelector('.parc-date').value,
-                    valor: parseFloat(row.querySelector('.parc-val').value) || 0,
+                    valor: parseFinNumber(row.querySelector('.parc-val')?.value) || 0,
                     numero_cheque: pCheque || null,
                     conta_bancaria_id: pConta || null,
-                    status: 'ABERTO'
+                    status: isRowPaid ? 'PAGO' : 'ABERTO'
                 });
             });
             if (parcelas.length > 0) await supabaseClient.from('fin_lancamento_parcelas').insert(parcelas);
@@ -4614,6 +4777,10 @@ window.recalcEditParcIntegradas = function() {
 
     somaAtual = Number(somaAtual.toFixed(2));
     const diff = Number((somaAtual - totalNota).toFixed(2));
+    const absDiff = Math.abs(diff);
+
+    const lastSister = st.sisters && st.sisters.length > 0 ? st.sisters[st.sisters.length - 1] : null;
+    const isLastSisterOpen = lastSister && lastSister.status !== 'PAGO' && lastSister.status !== 'RECEBIDO';
 
     const somaEl = document.getElementById('editParcValSomaDigitada');
     const diffEl = document.getElementById('editParcValDiferenca');
@@ -4623,30 +4790,46 @@ window.recalcEditParcIntegradas = function() {
     if (somaEl) somaEl.textContent = formatCurrency(somaAtual);
     if (diffEl) {
         diffEl.textContent = (diff > 0 ? '+ ' : '') + formatCurrency(diff);
-        if (Math.abs(diff) < 0.009) {
+        if (absDiff < 0.009) {
             diffEl.style.color = '#15803d';
+        } else if (absDiff <= 0.99 && isLastSisterOpen) {
+            diffEl.style.color = '#d97706';
         } else {
             diffEl.style.color = '#dc2626';
         }
     }
 
     if (statusMsg) {
-        if (Math.abs(diff) < 0.009) {
+        if (absDiff < 0.009) {
             statusMsg.innerHTML = `<i data-lucide="check-circle" style="width:14px;height:14px;color:#15803d;"></i> <span style="color:#15803d;">Os valores das parcelas coincidem perfeitamente com o total da nota.</span>`;
             if (btnSave) {
                 btnSave.disabled = false;
                 btnSave.style.opacity = '1';
                 btnSave.style.cursor = 'pointer';
             }
+        } else if (absDiff <= 0.99 && isLastSisterOpen) {
+            statusMsg.innerHTML = `<i data-lucide="alert-triangle" style="width:14px;height:14px;color:#d97706;"></i> <span style="color:#b45309;">Diferença mínima de <strong>${formatCurrency(absDiff)}</strong> (${diff > 0 ? '+' : '-'}) permitida na última parcela (arredondamento). Será gravado no histórico.</span>`;
+            if (btnSave) {
+                btnSave.disabled = false;
+                btnSave.style.opacity = '1';
+                btnSave.style.cursor = 'pointer';
+            }
+        } else if (absDiff <= 0.99 && !isLastSisterOpen) {
+            statusMsg.innerHTML = `<i data-lucide="alert-circle" style="width:14px;height:14px;color:#dc2626;"></i> <span style="color:#dc2626;">Diferença de <strong>${formatCurrency(absDiff)}</strong> não permitida: a última parcela já está quitada e não pode absorver arredondamento.</span>`;
+            if (btnSave) {
+                btnSave.disabled = true;
+                btnSave.style.opacity = '0.5';
+                btnSave.style.cursor = 'not-allowed';
+            }
         } else if (diff > 0) {
-            statusMsg.innerHTML = `<i data-lucide="alert-circle" style="width:14px;height:14px;color:#dc2626;"></i> <span style="color:#dc2626;">A soma das parcelas ultrapassa o total da nota em <strong>${formatCurrency(diff)}</strong>.</span>`;
+            statusMsg.innerHTML = `<i data-lucide="alert-circle" style="width:14px;height:14px;color:#dc2626;"></i> <span style="color:#dc2626;">A soma das parcelas ultrapassa o total da nota em <strong>${formatCurrency(diff)}</strong> (tolerância máx: R$ 0,99 na última parcela).</span>`;
             if (btnSave) {
                 btnSave.disabled = true;
                 btnSave.style.opacity = '0.5';
                 btnSave.style.cursor = 'not-allowed';
             }
         } else {
-            statusMsg.innerHTML = `<i data-lucide="alert-circle" style="width:14px;height:14px;color:#d97706;"></i> <span style="color:#b45309;">Falta distribuir <strong>${formatCurrency(Math.abs(diff))}</strong> para bater o total da nota.</span>`;
+            statusMsg.innerHTML = `<i data-lucide="alert-circle" style="width:14px;height:14px;color:#dc2626;"></i> <span style="color:#dc2626;">Falta distribuir <strong>${formatCurrency(absDiff)}</strong> para bater o total da nota (tolerância máx: R$ 0,99 na última parcela).</span>`;
             if (btnSave) {
                 btnSave.disabled = true;
                 btnSave.style.opacity = '0.5';
@@ -4713,9 +4896,20 @@ window.handleSalvarParcelasIntegradas = async function(e) {
 
     somaAtual = Number(somaAtual.toFixed(2));
     const diff = Number((somaAtual - totalNota).toFixed(2));
-    if (Math.abs(diff) >= 0.01) {
-        showToast(`A soma das parcelas (${formatCurrency(somaAtual)}) deve coincidir com o total da nota (${formatCurrency(totalNota)})!`, 'error');
-        return;
+    const absDiff = Math.abs(diff);
+
+    const lastSister = st.sisters && st.sisters.length > 0 ? st.sisters[st.sisters.length - 1] : null;
+    const isLastSisterOpen = lastSister && lastSister.status !== 'PAGO' && lastSister.status !== 'RECEBIDO';
+
+    if (absDiff >= 0.01) {
+        if (absDiff > 0.99) {
+            showToast(`A diferença de ${formatCurrency(absDiff)} excede o limite tolerado de centavos (máximo R$ 0,99)!`, 'error');
+            return;
+        }
+        if (!isLastSisterOpen) {
+            showToast('A diferença de centavos só é permitida se a última parcela da nota estiver em aberto!', 'error');
+            return;
+        }
     }
 
     const btnSave = document.getElementById('btnSalvarParcelasIntegradas');
@@ -4732,6 +4926,10 @@ window.handleSalvarParcelasIntegradas = async function(e) {
         const loggedUser = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
         const hojeStr = formatDate(getLocalDateStr());
 
+        const diffLogMsg = absDiff >= 0.01 
+            ? `[ARREDONDAMENTO DE CENTAVOS (${hojeStr}) por ${loggedUser}]: Diferença de ${diff > 0 ? '+' : ''}${formatCurrency(diff)} na última parcela. Total parcelas: ${formatCurrency(somaAtual)} vs Total nota: ${formatCurrency(totalNota)}.`
+            : null;
+
         for (const up of updates) {
             const oldVenc = (up.sister.data_vencimento || '').substring(0, 10);
             const newVenc = (up.data_vencimento || '').substring(0, 10);
@@ -4740,6 +4938,7 @@ window.handleSalvarParcelasIntegradas = async function(e) {
 
             const mudouVenc = oldVenc !== newVenc;
             const mudouVal = Math.abs(oldVal - newVal) >= 0.01;
+            const isLast = lastSister && up.id === lastSister.id;
 
             if (mudouVenc || mudouVal) {
                 const parts = [];
@@ -4753,10 +4952,16 @@ window.handleSalvarParcelasIntegradas = async function(e) {
                 valor_total: up.valor_total
             };
 
-            // Se houve alteração, grava na observação da própria parcela
+            // Se houve alteração de vencimento ou valor, grava na observação da própria parcela
             if (mudouVenc || mudouVal) {
                 const logItem = `[AJUSTE DE PARCELA (${hojeStr}) por ${loggedUser}]: ${mudouVenc ? `Vencimento ${formatDate(oldVenc)} -> ${formatDate(newVenc)}. ` : ''}${mudouVal ? `Valor ${formatCurrency(oldVal)} -> ${formatCurrency(newVal)}` : ''}`;
                 payload.observacoes = up.sister.observacoes ? `${up.sister.observacoes}\n${logItem}` : logItem;
+            }
+
+            // Grava a observação específica de arredondamento de centavos na última parcela
+            if (diffLogMsg && isLast) {
+                const currentObs = payload.observacoes || up.sister.observacoes || '';
+                payload.observacoes = currentObs ? `${currentObs}\n${diffLogMsg}` : diffLogMsg;
             }
 
             const { error: updErr } = await supabaseClient
@@ -4767,10 +4972,68 @@ window.handleSalvarParcelasIntegradas = async function(e) {
             if (updErr) throw updErr;
         }
 
+        // Se houve divergência de centavos, registrar também no lançamento pai (se houver)
+        if (diffLogMsg && lastSister && lastSister.pai_id && lastSister.pai_id !== lastSister.id) {
+            try {
+                const { data: parentData } = await supabaseClient
+                    .from('fin_lancamentos')
+                    .select('id, observacoes')
+                    .eq('id', lastSister.pai_id)
+                    .maybeSingle();
+                if (parentData) {
+                    const parentObs = parentData.observacoes ? `${parentData.observacoes}\n${diffLogMsg}` : diffLogMsg;
+                    await supabaseClient.from('fin_lancamentos').update({ observacoes: parentObs }).eq('id', lastSister.pai_id);
+                }
+            } catch (errParent) {
+                console.warn('Erro ao atualizar observações do lançamento pai:', errParent);
+            }
+        }
+
+        // Se a nota veio integrada de Compras ou Manutenção, gravar também na nota de origem
+        if (diffLogMsg) {
+            const compraId = st.mainItem?.compra_id || st.sisters.find(s => s.compra_id)?.compra_id;
+            if (compraId) {
+                try {
+                    const { data: cData } = await supabaseClient
+                        .from('compras')
+                        .select('id, observacoes')
+                        .eq('id', compraId)
+                        .maybeSingle();
+                    if (cData) {
+                        const novaObs = cData.observacoes ? `${cData.observacoes}\n${diffLogMsg}` : diffLogMsg;
+                        await supabaseClient.from('compras').update({ observacoes: novaObs }).eq('id', compraId);
+                    }
+                } catch (errC) {
+                    console.warn('Erro ao gravar histórico na compra integrada:', errC);
+                }
+            }
+
+            const manutId = st.mainItem?.manutencao_id || st.sisters.find(s => s.manutencao_id)?.manutencao_id;
+            if (manutId) {
+                try {
+                    const { data: mData } = await supabaseClient
+                        .from('manutencoes')
+                        .select('id, observacoes')
+                        .eq('id', manutId)
+                        .maybeSingle();
+                    if (mData) {
+                        const novaObs = mData.observacoes ? `${mData.observacoes}\n${diffLogMsg}` : diffLogMsg;
+                        await supabaseClient.from('manutencoes').update({ observacoes: novaObs }).eq('id', manutId);
+                    }
+                } catch (errM) {
+                    console.warn('Erro ao gravar histórico na manutenção integrada:', errM);
+                }
+            }
+        }
+
         // Registrar em logs_atividade para auditoria geral
-        if (alteracoesDetalhadas.length > 0 && typeof registrarLog === 'function') {
-            const mainSister = updates[0]?.sister;
-            await registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Ajustou parcelas integradas ${mainSister?.codigo_sequencial ? '(' + mainSister.codigo_sequencial + ')' : ''} [${mainSister?.id}]: ${alteracoesDetalhadas.join(' | ')}`);
+        if ((alteracoesDetalhadas.length > 0 || diffLogMsg) && typeof registrarLog === 'function') {
+            const mainSister = updates[0]?.sister || st.mainItem;
+            let logText = `DETALHE: Ajustou parcelas integradas ${mainSister?.codigo_sequencial ? '(' + mainSister.codigo_sequencial + ')' : ''} [${mainSister?.id}]: ${alteracoesDetalhadas.join(' | ')}`;
+            if (diffLogMsg) {
+                logText += ` | ${diffLogMsg}`;
+            }
+            await registrarLog('financeiro', 'ALTERAÇÃO', logText);
         }
 
         showToast('Parcelas e vencimentos atualizados com sucesso!', 'success');
@@ -5529,15 +5792,46 @@ window.onInstallmentValueChange = function(changedIndex) {
 
 window.rebalanceInstallments = function() {
     const totalNota = typeof window.getFinTotalAmount === 'function' ? window.getFinTotalAmount() : 0;
-    const parcRows = document.querySelectorAll('#installmentsContainer .installment-row');
+    const parcRows = Array.from(document.querySelectorAll('#installmentsContainer .installment-row'));
     const totalParcs = parcRows.length;
     if (totalParcs <= 0) return;
 
-    let centavosRestantes = Math.round(totalNota * 100);
-    const baseCentavos = Math.floor(centavosRestantes / totalParcs);
-    let restoCentavos = centavosRestantes % totalParcs;
+    let paidTotalCentavos = 0;
+    const openRows = [];
 
-    parcRows.forEach((row, i) => {
+    parcRows.forEach(row => {
+        const isPaid = row.getAttribute('data-paid') === 'true';
+        if (isPaid) {
+            const valInput = row.querySelector('.parc-val');
+            const val = parseFinNumber(valInput?.value) || 0;
+            paidTotalCentavos += Math.round(val * 100);
+        } else {
+            openRows.push(row);
+        }
+    });
+
+    if (openRows.length === 0) {
+        if (typeof showToast === 'function') {
+            showToast('Todas as parcelas deste lançamento já estão quitadas.', 'info');
+        }
+        updateInstallmentsSummary();
+        return;
+    }
+
+    const totalCentavos = Math.round(totalNota * 100);
+    const remainingCentavos = totalCentavos - paidTotalCentavos;
+
+    if (remainingCentavos < 0) {
+        if (typeof showToast === 'function') {
+            showToast('O valor já pago nas parcelas é maior que o valor total da nota.', 'error');
+        }
+        return;
+    }
+
+    const baseCentavos = Math.floor(remainingCentavos / openRows.length);
+    let restoCentavos = remainingCentavos % openRows.length;
+
+    openRows.forEach(row => {
         let parcelaCentavos = baseCentavos;
         if (restoCentavos > 0) {
             parcelaCentavos += 1;
@@ -5551,7 +5845,7 @@ window.rebalanceInstallments = function() {
 
     updateInstallmentsSummary();
     if (typeof showToast === 'function') {
-        showToast('Parcelas reequilibradas com sucesso!', 'success');
+        showToast('Parcelas em aberto reequilibradas com sucesso!', 'success');
     }
 };
 
@@ -5626,6 +5920,7 @@ window.onTopVencimentoChange = function() {
     const fixarMesmoDia = document.getElementById('chkFixarMesmoDia')?.checked || false;
 
     parcRows.forEach((row, idx) => {
+        if (row.getAttribute('data-paid') === 'true') return; // Não altera vencimento de parcelas já pagas
         const dateInput = row.querySelector('.parc-date');
         if (dateInput) {
             dateInput.value = calculateInstallmentDate(topVenc, idx, intervalDays, fixarMesmoDia);
@@ -5645,6 +5940,7 @@ window.onIntervaloPrazoChange = function() {
     const fixarMesmoDia = document.getElementById('chkFixarMesmoDia')?.checked || false;
 
     for (let i = 1; i < parcRows.length; i++) {
+        if (parcRows[i].getAttribute('data-paid') === 'true') continue; // Pula parcelas já pagas
         const dateInput = parcRows[i].querySelector('.parc-date');
         if (dateInput) {
             dateInput.value = calculateInstallmentDate(firstDate, i, intervalDays, fixarMesmoDia);
@@ -5663,6 +5959,7 @@ window.onFixarMesmoDiaToggle = function(checked) {
     const intervalDays = parseInt(intervalInput ? intervalInput.value : 30) || 30;
 
     for (let i = 1; i < parcRows.length; i++) {
+        if (parcRows[i].getAttribute('data-paid') === 'true') continue; // Pula parcelas já pagas
         const dateInput = parcRows[i].querySelector('.parc-date');
         if (dateInput) {
             dateInput.value = calculateInstallmentDate(firstDate, i, intervalDays, checked);
@@ -5708,6 +6005,17 @@ window.generateInstallmentFields = function(forcedTotal = null) {
 
     if (prazoGroup) prazoGroup.style.display = 'block';
     if (wrapper) wrapper.style.display = 'block';
+
+    // Se já existirem parcelas carregadas e algumas já estiverem pagas, NÃO reseta o container em branco!
+    // Apenas reequilibra as parcelas abertas para que as pagas permaneçam bloqueadas e preservadas.
+    const existingPaidRows = container ? container.querySelectorAll('.installment-row[data-paid="true"]') : [];
+    if (existingPaidRows.length > 0 && container.children.length === qtd) {
+        if (typeof window.rebalanceInstallments === 'function') {
+            window.rebalanceInstallments();
+        }
+        return;
+    }
+
     if (container) container.innerHTML = '';
 
     // Atualiza o cabeçalho das colunas das parcelas
@@ -5943,7 +6251,8 @@ window.calculateFinTotal = function(autoRegenerateInstallments = true) {
         try {
             const instWrapper = document.getElementById('installmentsWrapper');
             if (instWrapper && instWrapper.style.display !== 'none') {
-                if (autoRegenerateInstallments) {
+                const isEditingMode = !!document.getElementById('entryId')?.value;
+                if (autoRegenerateInstallments && !isEditingMode) {
                     generateInstallmentFields(finalTotal);
                 } else {
                     updateInstallmentsSummary();
@@ -6314,12 +6623,22 @@ function setupEventListeners() {
 
         // 2. Carregar Itens, Adicionais, Descontos e Parcelas (Assíncrono)
         try {
-            const [itensRes, addsRes, discsRes, parcsRes] = await Promise.all([
+            const [itensRes, addsRes, discsRes, parcsRes, lancGroupRes] = await Promise.all([
                 supabaseClient.from('fin_lancamento_itens').select('*').eq('lancamento_id', id),
                 supabaseClient.from('fin_lancamento_adicionais').select('*').eq('lancamento_id', parentLancamentoId),
                 supabaseClient.from('fin_lancamento_descontos').select('*').eq('lancamento_id', parentLancamentoId),
-                supabaseClient.from('fin_lancamento_parcelas').select('*').eq('lancamento_id', parentLancamentoId).order('numero_parcela')
+                supabaseClient.from('fin_lancamento_parcelas').select('*').eq('lancamento_id', parentLancamentoId).order('numero_parcela'),
+                supabaseClient.from('fin_lancamentos').select('id, codigo_sequencial, descricao, status, valor_total, valor_pago, data_pagamento, pai_id, conta_bancaria_id, numero_cheque, data_vencimento').or(`id.eq.${parentLancamentoId},pai_id.eq.${parentLancamentoId}`).order('created_at', { ascending: true })
             ]);
+
+            const dbLancGroup = lancGroupRes.data || [];
+            if (dbLancGroup.length > 0) {
+                dbLancGroup.forEach(item => {
+                    const idx = grupoParcelas.findIndex(g => g.id === item.id);
+                    if (idx >= 0) grupoParcelas[idx] = item;
+                    else grupoParcelas.push(item);
+                });
+            }
 
             let itens = itensRes.data || [];
             // Fallback de itens: se a parcela consultada não possuir itens salvos e for filha, busca do pai
@@ -6510,9 +6829,30 @@ function setupEventListeners() {
                 }
 
                 parcList.innerHTML = parcelas.map(p => {
-                    const isCurrentParc = (p.id === l.id || p.lancamento_id === l.id) || (numParcAtual !== null && p.numero_parcela === numParcAtual);
-                    const chequeInfo = p.numero_cheque ? `<div style="font-size:0.75rem; color:#6366f1; font-weight:700; margin-top:2px;"><i data-lucide="ticket" style="width:11px; height:11px; display:inline-block; vertical-align:middle;"></i> Cheque nº ${p.numero_cheque}</div>` : '';
-                    const contaObj = p.conta_bancaria_id ? (state.contas || []).find(c => c.id === p.conta_bancaria_id) : null;
+                    // Sincronizar com o registro real em grupoParcelas (fin_lancamentos) estritamente pelo número da parcela
+                    const liveLanc = (grupoParcelas || []).find(g => {
+                        let numG = null;
+                        const matchG = (g.descricao || '').match(/Parc\s*(\d+)\s*\//i);
+                        if (matchG) {
+                            numG = parseInt(matchG[1]);
+                        } else if (g.id === parentLancamentoId || !g.pai_id) {
+                            numG = 1;
+                        }
+                        if (numG !== null && numG === p.numero_parcela) return true;
+                        if (g.id === p.id) return true;
+                        return false;
+                    });
+
+                    const isCurrentParc = (liveLanc && liveLanc.id === l.id) || (p.id === l.id) || (numParcAtual !== null && p.numero_parcela === numParcAtual);
+
+                    const effectiveValor = liveLanc ? (parseFloat(liveLanc.valor_total) || p.valor) : p.valor;
+                    const effectiveStatus = liveLanc ? (liveLanc.status || p.status) : (p.status || 'ABERTO');
+                    const effectiveVenc = liveLanc ? (liveLanc.data_vencimento || p.data_vencimento) : p.data_vencimento;
+                    const effectiveContaId = liveLanc ? (liveLanc.conta_bancaria_id || p.conta_bancaria_id) : p.conta_bancaria_id;
+                    const effectiveCheque = liveLanc ? (liveLanc.numero_cheque || p.numero_cheque) : p.numero_cheque;
+
+                    const chequeInfo = effectiveCheque ? `<div style="font-size:0.75rem; color:#6366f1; font-weight:700; margin-top:2px;"><i data-lucide="ticket" style="width:11px; height:11px; display:inline-block; vertical-align:middle;"></i> Cheque nº ${effectiveCheque}</div>` : '';
+                    const contaObj = effectiveContaId ? (state.contas || []).find(c => c.id === effectiveContaId) : null;
                     const bancoInfo = contaObj ? `<div style="font-size:0.72rem; color:var(--text-muted); margin-top:2px;"><i data-lucide="landmark" style="width:10px; height:10px; display:inline-block; vertical-align:middle;"></i> ${contaObj.nome}</div>` : '';
 
                     const borderHighlight = isCurrentParc 
@@ -6525,11 +6865,11 @@ function setupEventListeners() {
 
                     // Checagem dinâmica de atraso da parcela no cronograma
                     const todayStr = getLocalDateStr();
-                    const pVencStr = (p.data_vencimento || '').substring(0, 10);
-                    const isParcOverdue = pVencStr && pVencStr < todayStr && p.status === 'ABERTO';
-                    const displayStatus = isParcOverdue ? 'ATRASADO' : (p.status || 'ABERTO');
-                    const badgeClass = isParcOverdue ? 'status-atrasado' : `status-${(p.status || 'aberto').toLowerCase()}`;
-                    const borderLeftColor = p.status === 'PAGO' ? '#10b981' : (isParcOverdue ? '#ef4444' : '#f59e0b');
+                    const pVencStr = (effectiveVenc || '').substring(0, 10);
+                    const isParcOverdue = pVencStr && pVencStr < todayStr && effectiveStatus === 'ABERTO';
+                    const displayStatus = isParcOverdue ? 'ATRASADO' : (effectiveStatus || 'ABERTO');
+                    const badgeClass = isParcOverdue ? 'status-atrasado' : `status-${(effectiveStatus || 'aberto').toLowerCase()}`;
+                    const borderLeftColor = effectiveStatus === 'PAGO' ? '#10b981' : (isParcOverdue ? '#ef4444' : '#f59e0b');
 
                     return `
                     <div class="info-card" style="padding:0.8rem; border-left: 3px solid ${borderLeftColor}; ${borderHighlight}">
@@ -6540,8 +6880,8 @@ function setupEventListeners() {
                             </div>
                             <span class="status-badge ${badgeClass}" style="font-size:0.65rem; padding:2px 6px;">${displayStatus}</span>
                         </div>
-                        <div style="font-weight:800; font-size:0.95rem;">${formatCurrency(p.valor)}</div>
-                        <div style="font-size:0.75rem; opacity:0.7; margin-top:2px;">Venc: ${formatDate(p.data_vencimento)}</div>
+                        <div style="font-weight:800; font-size:0.95rem;">${formatCurrency(effectiveValor)}</div>
+                        <div style="font-size:0.75rem; opacity:0.7; margin-top:2px;">Venc: ${formatDate(effectiveVenc)}</div>
                         ${chequeInfo}
                         ${bancoInfo}
                     </div>

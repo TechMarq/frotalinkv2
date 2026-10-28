@@ -8,6 +8,14 @@ let clientesData = [];
 let prestadoresData = [];
 let historyData = [];
 
+// ── Paginação Server-Side ──
+let paginaAtual = 1;
+let itensPorPagina = 25;
+let totalRegistros = 0;
+let _searchDebounceTimer = null;
+let _isLoadingPage = false;
+let _hasBaixoEstoqueCol = null;
+
 function logEstoque(acao, descricao) {
     if (typeof window.registrarLog === 'function') {
         window.registrarLog('estoque', acao, descricao);
@@ -18,10 +26,11 @@ function logEstoque(acao, descricao) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     initSupabase();
-    await loadInventory();
-    await loadSetup(); // Carregar categorias e unidades para os selects
+    await loadInventory();      // Cache completo para lookups internos
+    await loadInventoryKPIs();  // KPIs globais (consulta leve)
+    await loadInventoryPage(1); // Primeira página da tabela (server-side)
+    await loadSetup();          // Carregar categorias e unidades para os selects
     setupEventListeners();
-    updateKPIs();
 });
 
 function initSupabase() {
@@ -49,63 +58,217 @@ function updateConnectionStatus(online) {
     }
 }
 
+// ── loadInventory: Cache COMPLETO para lookups internos (venda, barcode, edição) ──
 async function loadInventory() {
     try {
         const { data, error } = await supabaseClient
             .from('estoque')
-            .select('*')
+            .select('id,nome,marca,ref,categoria,aplicacao,estoque_atual,estoque_minimo,unidade,valor_custo,valor_venda,status,created_at,codigo_barras,codigo_interno,descricao,local_setor,local_rua,local_prateleira,local_nivel,local_gaveta,empresa_id')
             .order('nome', { ascending: true });
 
         if (error) throw error;
         inventoryData = data || [];
-        applyFilters();
     } catch (err) {
-        console.error('Erro ao carregar estoque:', err);
-        // Fallback for demo if table doesn't exist
+        console.error('Erro ao carregar cache do estoque:', err);
         if (inventoryData.length === 0) {
-            inventoryData = [
-                { id: '1', nome: 'DISCO FREIO', marca: 'COBREQ', ref: 'REF-54', categoria: 'MECÂNICA', aplicacao: 'Multiveículos (Universal)', estoque_atual: 10, estoque_minimo: 5, unidade: 'CJ', valor_custo: 10.00, valor_venda: 15.00, status: 'ATIVO' },
-                { id: '2', nome: 'Pastilha Freio', marca: 'BOSCH', ref: 'REF-P094', categoria: 'MECÂNICA', aplicacao: 'VIRTUS 1.6 MSI 2020, POLO 2020', estoque_atual: 4, estoque_minimo: 5, unidade: 'JG', valor_custo: 21.33, valor_venda: 25.00, status: 'ATIVO' },
-                { id: '3', nome: 'TEste', marca: 'TESTE', ref: 'REF-1558', categoria: 'OUTROS', aplicacao: 'Multiveículos (Universal)', estoque_atual: 15, estoque_minimo: 5, unidade: 'CJ', valor_custo: 15.00, valor_venda: 25.00, status: 'ATIVO' }
-            ];
-            applyFilters();
+            inventoryData = [];
         }
     }
 }
 
-function applyFilters() {
-    const searchTerm = document.getElementById('inventory_search')?.value.toLowerCase().trim() || '';
-    const categoryFilter = document.getElementById('filter_category')?.value || '';
-    const statusFilter = document.getElementById('filter_status')?.value || 'TODOS';
+// ── loadInventoryKPIs: Consulta leve e global para cards de KPI ──
+async function loadInventoryKPIs() {
+    try {
+        const { data, error } = await supabaseClient
+            .from('estoque')
+            .select('status,estoque_atual,estoque_minimo,valor_custo');
 
-    filteredData = inventoryData.filter(item => {
-        const itemStatus = (item.status || 'ATIVO').toUpperCase();
+        if (error) throw error;
+        const all = data || [];
+        const activeProducts = all.filter(item => (item.status || 'ATIVO').toUpperCase() !== 'INATIVO');
+        const totalSku = activeProducts.length;
+        const lowStockCount = activeProducts.filter(item => (Number(item.estoque_atual) || 0) <= (Number(item.estoque_minimo) || 0)).length;
+        const totalValue = activeProducts.reduce((acc, item) => acc + ((Number(item.estoque_atual) || 0) * (Number(item.valor_custo) || 0)), 0);
 
-        // Se o status do item for INATIVO e o filtro de status não pedir explicitamente "TODOS" ou "INATIVO", oculta da lista
-        if (itemStatus === 'INATIVO' && statusFilter !== 'TODOS' && statusFilter !== 'INATIVO') return false;
+        const skuEl = document.getElementById('stat_total_sku');
+        const lowEl = document.getElementById('stat_low_stock');
+        const valEl = document.getElementById('stat_total_value');
 
-        const matchesSearch = !searchTerm || 
-                             (item.nome || '').toLowerCase().includes(searchTerm) || 
-                             (item.marca || '').toLowerCase().includes(searchTerm) || 
-                             (item.ref || '').toLowerCase().includes(searchTerm) ||
-                             (item.codigo_barras || '').toLowerCase().includes(searchTerm) ||
-                             (item.codigo_interno || '').toLowerCase().includes(searchTerm) ||
-                             (item.aplicacao || '').toLowerCase().includes(searchTerm) ||
-                             (item.categoria || '').toLowerCase().includes(searchTerm);
-        
-        const matchesCategory = categoryFilter === '' || item.categoria === categoryFilter;
-        const matchesStatus = statusFilter === 'TODOS' || itemStatus === statusFilter.toUpperCase();
-        const matchesLowStock = !showLowStockOnly || (Number(item.estoque_atual || 0) <= Number(item.estoque_minimo || 0));
+        if (skuEl) skuEl.innerText = totalSku;
+        if (lowEl) lowEl.innerText = lowStockCount;
+        if (valEl) valEl.innerText = `R$ ${totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-        return matchesSearch && matchesCategory && matchesStatus && matchesLowStock;
-    });
-
-    renderInventory(filteredData);
-    updateKPIs();
+        const cardLowStock = document.getElementById('card_low_stock');
+        const msgEl = document.getElementById('stat_alert_msg');
+        if (cardLowStock) {
+            if (lowStockCount > 0) {
+                cardLowStock.classList.add('alert');
+                if (msgEl) msgEl.innerText = `Atenção: ${lowStockCount} itens com estoque baixo.`;
+            } else {
+                cardLowStock.classList.remove('alert');
+                if (msgEl) msgEl.innerText = `Mantenha seu estoque abastecido.`;
+            }
+        }
+    } catch (err) {
+        console.error('Erro ao carregar KPIs do estoque:', err);
+    }
 }
 
+// ── reloadEstoque: Atualiza cache de busca, KPIs e página corrente da tabela ──
+async function reloadEstoque() {
+    await loadInventory();
+    await loadInventoryKPIs();
+    await loadInventoryPage(paginaAtual);
+}
+window.reloadEstoque = reloadEstoque;
+
+// ── loadInventoryPage: Paginação Server-Side com filtros ──
+async function loadInventoryPage(page = 1) {
+    if (_isLoadingPage) return;
+    _isLoadingPage = true;
+
+    const tableBody = document.getElementById('inventory_body');
+    if (tableBody) {
+        tableBody.style.opacity = '0.45';
+        tableBody.style.pointerEvents = 'none';
+    }
+
+    try {
+        paginaAtual = page;
+        const searchTerm = (document.getElementById('inventory_search')?.value || '').trim();
+        const categoryFilter = document.getElementById('filter_category')?.value || '';
+        const statusFilter = document.getElementById('filter_status')?.value || 'ATIVO';
+
+        // Construir query com filtros server-side
+        let query = supabaseClient
+            .from('estoque')
+            .select('*', { count: 'exact' })
+            .order('nome', { ascending: true });
+
+        // Filtro de status
+        if (statusFilter && statusFilter !== 'TODOS') {
+            query = query.eq('status', statusFilter.toUpperCase());
+        }
+
+        // Filtro de categoria
+        if (categoryFilter) {
+            query = query.eq('categoria', categoryFilter);
+        }
+
+        // Filtro de baixo estoque (se coluna existe ou testar na primeira vez)
+        if (showLowStockOnly && _hasBaixoEstoqueCol === false) {
+            // Executa fallback client-side diretamente sem gerar erro 400 no console
+            let fallbackQuery = supabaseClient
+                .from('estoque')
+                .select('*', { count: 'exact' })
+                .order('nome', { ascending: true });
+
+            if (statusFilter && statusFilter !== 'TODOS') {
+                fallbackQuery = fallbackQuery.eq('status', statusFilter.toUpperCase());
+            }
+            if (categoryFilter) {
+                fallbackQuery = fallbackQuery.eq('categoria', categoryFilter);
+            }
+            if (searchTerm) {
+                const term = `%${searchTerm}%`;
+                fallbackQuery = fallbackQuery.or(`nome.ilike.${term},marca.ilike.${term},ref.ilike.${term},codigo_barras.ilike.${term},codigo_interno.ilike.${term},aplicacao.ilike.${term},categoria.ilike.${term}`);
+            }
+            const { data: fbData, error: fbError } = await fallbackQuery;
+            if (fbError) throw fbError;
+
+            const lowStockItems = (fbData || []).filter(item => (Number(item.estoque_atual) || 0) <= (Number(item.estoque_minimo) || 0));
+            totalRegistros = lowStockItems.length;
+            const from = (paginaAtual - 1) * itensPorPagina;
+            const to = from + itensPorPagina - 1;
+            const pageItems = lowStockItems.slice(from, to + 1);
+            filteredData = pageItems;
+            renderInventory(pageItems);
+            renderPagination();
+            return;
+        }
+
+        if (showLowStockOnly && _hasBaixoEstoqueCol !== false) {
+            query = query.eq('baixo_estoque', true);
+        }
+
+        // Filtro de busca textual (ILIKE em múltiplos campos via OR)
+        if (searchTerm) {
+            const term = `%${searchTerm}%`;
+            query = query.or(`nome.ilike.${term},marca.ilike.${term},ref.ilike.${term},codigo_barras.ilike.${term},codigo_interno.ilike.${term},aplicacao.ilike.${term},categoria.ilike.${term}`);
+        }
+
+        // Paginação com .range()
+        const from = (paginaAtual - 1) * itensPorPagina;
+        const to = from + itensPorPagina - 1;
+        query = query.range(from, to);
+
+        const { data, error, count } = await query;
+
+        if (error) {
+            // Fallback: se a coluna baixo_estoque não existir ainda, marcar flag e usar fallback client-side
+            if (showLowStockOnly && error.message && error.message.includes('baixo_estoque')) {
+                _hasBaixoEstoqueCol = false;
+                console.warn('Coluna baixo_estoque não encontrada no banco. Usando filtragem client-side.');
+                let fallbackQuery = supabaseClient
+                    .from('estoque')
+                    .select('*', { count: 'exact' })
+                    .order('nome', { ascending: true });
+
+                if (statusFilter && statusFilter !== 'TODOS') {
+                    fallbackQuery = fallbackQuery.eq('status', statusFilter.toUpperCase());
+                }
+                if (categoryFilter) {
+                    fallbackQuery = fallbackQuery.eq('categoria', categoryFilter);
+                }
+                if (searchTerm) {
+                    const term = `%${searchTerm}%`;
+                    fallbackQuery = fallbackQuery.or(`nome.ilike.${term},marca.ilike.${term},ref.ilike.${term},codigo_barras.ilike.${term},codigo_interno.ilike.${term},aplicacao.ilike.${term},categoria.ilike.${term}`);
+                }
+                const { data: fbData, error: fbError } = await fallbackQuery;
+                if (fbError) throw fbError;
+
+                const lowStockItems = (fbData || []).filter(item => (Number(item.estoque_atual) || 0) <= (Number(item.estoque_minimo) || 0));
+                totalRegistros = lowStockItems.length;
+                const pageItems = lowStockItems.slice(from, to + 1);
+                filteredData = pageItems;
+                renderInventory(pageItems);
+                renderPagination();
+                return;
+            }
+            throw error;
+        }
+
+        if (showLowStockOnly && _hasBaixoEstoqueCol === null) {
+            _hasBaixoEstoqueCol = true;
+        }
+
+        totalRegistros = count || 0;
+        filteredData = data || [];
+        renderInventory(filteredData);
+        renderPagination();
+    } catch (err) {
+        console.error('Erro ao carregar página do estoque:', err);
+    } finally {
+        _isLoadingPage = false;
+        if (tableBody) {
+            tableBody.style.opacity = '1';
+            tableBody.style.pointerEvents = '';
+        }
+    }
+}
+
+// ── Funções de Filtro (resetam para página 1 e disparam loadInventoryPage) ──
 function filterInventory() {
-    applyFilters();
+    paginaAtual = 1;
+    loadInventoryPage(1);
+}
+
+function filterInventoryDebounced() {
+    clearTimeout(_searchDebounceTimer);
+    _searchDebounceTimer = setTimeout(() => {
+        paginaAtual = 1;
+        loadInventoryPage(1);
+    }, 350);
 }
 
 function toggleLowStockOnly() {
@@ -122,12 +285,85 @@ function toggleLowStockOnly() {
             btn.style.color = '';
         }
     }
-    applyFilters();
+    paginaAtual = 1;
+    loadInventoryPage(1);
+}
+
+// Compatibilidade: applyFilters agora é alias para loadInventoryPage(1)
+function applyFilters() {
+    paginaAtual = 1;
+    loadInventoryPage(1);
 }
 
 window.filterInventory = filterInventory;
 window.toggleLowStockOnly = toggleLowStockOnly;
 window.applyFilters = applyFilters;
+window.loadInventoryPage = loadInventoryPage;
+window.changePageSize = changePageSize;
+
+// ── changePageSize: Alterar quantidade de itens por página ──
+function changePageSize(newSize) {
+    itensPorPagina = parseInt(newSize) || 25;
+    paginaAtual = 1;
+    loadInventoryPage(1);
+}
+
+// ── renderPagination: Renderizar controles de paginação ──
+function renderPagination() {
+    const container = document.getElementById('estoque_pagination');
+    if (!container) return;
+
+    const totalPages = Math.max(1, Math.ceil(totalRegistros / itensPorPagina));
+    const from = (paginaAtual - 1) * itensPorPagina + 1;
+    const to = Math.min(paginaAtual * itensPorPagina, totalRegistros);
+
+    // Gerar botões de página (máx 7 visíveis com reticências)
+    let pageButtons = '';
+    const maxVisible = 7;
+    let startPage = Math.max(1, paginaAtual - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    if (endPage - startPage < maxVisible - 1) {
+        startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+
+    if (startPage > 1) {
+        pageButtons += `<button class="pg-btn" onclick="loadInventoryPage(1)">1</button>`;
+        if (startPage > 2) pageButtons += `<span class="pg-ellipsis">…</span>`;
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+        const activeClass = i === paginaAtual ? 'pg-btn-active' : '';
+        pageButtons += `<button class="pg-btn ${activeClass}" onclick="loadInventoryPage(${i})">${i}</button>`;
+    }
+
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) pageButtons += `<span class="pg-ellipsis">…</span>`;
+        pageButtons += `<button class="pg-btn" onclick="loadInventoryPage(${totalPages})">${totalPages}</button>`;
+    }
+
+    container.innerHTML = `
+        <div class="pg-left">
+            <span class="pg-label">Exibir</span>
+            <select class="pg-select" onchange="changePageSize(this.value)">
+                ${[10, 25, 50, 100].map(n => `<option value="${n}" ${n === itensPorPagina ? 'selected' : ''}>${n}</option>`).join('')}
+            </select>
+            <span class="pg-label">por página</span>
+        </div>
+        <div class="pg-center">
+            <span class="pg-info">${totalRegistros === 0 ? 'Nenhum produto encontrado' : `Mostrando ${from} a ${to} de ${totalRegistros} produtos`}</span>
+        </div>
+        <div class="pg-right">
+            <button class="pg-btn pg-nav" ${paginaAtual <= 1 ? 'disabled' : ''} onclick="loadInventoryPage(${paginaAtual - 1})">
+                <i data-lucide="chevron-left" style="width:14px;height:14px;"></i> Anterior
+            </button>
+            ${pageButtons}
+            <button class="pg-btn pg-nav" ${paginaAtual >= totalPages ? 'disabled' : ''} onclick="loadInventoryPage(${paginaAtual + 1})">
+                Próxima <i data-lucide="chevron-right" style="width:14px;height:14px;"></i>
+            </button>
+        </div>
+    `;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
 
 function renderInventory(data = filteredData) {
     const tableBody = document.getElementById('inventory_body');
@@ -140,6 +376,22 @@ function renderInventory(data = filteredData) {
     const thAcoes = document.getElementById('th_acoes_inventario');
     if (thAcoes) {
         thAcoes.style.display = (!canEdit && !canDel) ? 'none' : '';
+    }
+
+    if (data.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 3rem 1rem; color: var(--text-muted);">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 0.6rem;">
+                        <i data-lucide="package-x" style="width: 40px; height: 40px; opacity: 0.4;"></i>
+                        <span style="font-size: 0.95rem; font-weight: 600;">Nenhum produto encontrado</span>
+                        <span style="font-size: 0.8rem;">Tente ajustar os filtros ou termos de busca.</span>
+                    </div>
+                </td>
+            </tr>
+        `;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        return;
     }
 
     data.forEach(item => {
@@ -182,33 +434,9 @@ function renderInventory(data = filteredData) {
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
+// Manter updateKPIs como alias para compatibilidade
 function updateKPIs() {
-    // Considerar apenas produtos ATIVOS no calculo das estatísticas
-    const activeProducts = inventoryData.filter(item => (item.status || 'ATIVO').toUpperCase() !== 'INATIVO');
-    const totalSku = activeProducts.length;
-    const lowStockCount = activeProducts.filter(item => (Number(item.estoque_atual) || 0) <= (Number(item.estoque_minimo) || 0)).length;
-    const totalValue = activeProducts.reduce((acc, item) => acc + ((Number(item.estoque_atual) || 0) * (Number(item.valor_custo) || 0)), 0);
-
-    const skuEl = document.getElementById('stat_total_sku');
-    const lowEl = document.getElementById('stat_low_stock');
-    const valEl = document.getElementById('stat_total_value');
-
-    if (skuEl) skuEl.innerText = totalSku;
-    if (lowEl) lowEl.innerText = lowStockCount;
-    if (valEl) valEl.innerText = `R$ ${totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-    const cardLowStock = document.getElementById('card_low_stock');
-    const msgEl = document.getElementById('stat_alert_msg');
-
-    if (cardLowStock) {
-        if (lowStockCount > 0) {
-            cardLowStock.classList.add('alert');
-            if (msgEl) msgEl.innerText = `Atenção: ${lowStockCount} itens com estoque baixo.`;
-        } else {
-            cardLowStock.classList.remove('alert');
-            if (msgEl) msgEl.innerText = `Mantenha seu estoque abastecido.`;
-        }
-    }
+    loadInventoryKPIs();
 }
 
 // Modal & Form Logic
@@ -472,7 +700,7 @@ async function deleteProduct(id) {
 
         if (!error) {
             logEstoque('EXCLUSÃO', `DETALHE: Excluiu produto permanentemente do estoque (ID: ${id})`);
-            await loadInventory();
+            await reloadEstoque();
             if (typeof showToast === 'function') showToast('Produto excluído permanentemente!', 'success');
             return;
         }
@@ -495,7 +723,7 @@ async function deleteProduct(id) {
                 if (forceErr) throw forceErr;
 
                 logEstoque('EXCLUSÃO_FORÇADA', `DETALHE: Forçou exclusão de produto com vínculos (ID: ${id})`);
-                await loadInventory();
+                await reloadEstoque();
                 if (typeof showToast === 'function') showToast('Produto e seus vínculos foram excluídos permanentemente!', 'success');
             } catch (err) {
                 console.error('Erro ao forçar exclusão:', err);
@@ -539,7 +767,7 @@ async function deleteProduct(id) {
 
                 if (updateErr) throw updateErr;
                 logEstoque('ALTERAÇÃO', `DETALHE: Inativou produto no estoque (ID: ${id})`);
-                await loadInventory();
+                await reloadEstoque();
                 if (typeof showToast === 'function') showToast('Produto inativado com sucesso!', 'success');
             } else {
                 // Usuário clicou em FORÇAR EXCLUSÃO DEFINITIVA
@@ -565,7 +793,7 @@ async function deleteProduct(id) {
             message: 'Não foi possível excluir o produto do banco de dados:<br><br><code>' + (err.message || err) + '</code>',
             type: 'error'
         });
-        await loadInventory();
+        await reloadEstoque();
     }
 }
 
@@ -635,7 +863,7 @@ async function saveProduct(event) {
         alert('Produto salvo com sucesso!');
         prepareNewProduct(); // Reseta e habilita campos
         switchTab('list');
-        await loadInventory();
+        await reloadEstoque();
     } catch (err) {
         console.error('Erro ao salvar produto:', err);
         alert('Erro ao salvar produto: ' + (err.message || 'Verifique o console'));
@@ -645,16 +873,17 @@ async function saveProduct(event) {
 function setupEventListeners() {
     const invSearchInput = document.getElementById('inventory_search');
     if (invSearchInput) {
-        invSearchInput.addEventListener('input', applyFilters);
-        invSearchInput.addEventListener('keyup', applyFilters);
+        // Remover oninput inline (caso exista) e usar debounce
+        invSearchInput.removeAttribute('oninput');
+        invSearchInput.addEventListener('input', filterInventoryDebounced);
     }
     const catFilterInput = document.getElementById('filter_category');
     if (catFilterInput) {
-        catFilterInput.addEventListener('change', applyFilters);
+        catFilterInput.addEventListener('change', filterInventory);
     }
     const statusFilterInput = document.getElementById('filter_status');
     if (statusFilterInput) {
-        statusFilterInput.addEventListener('change', applyFilters);
+        statusFilterInput.addEventListener('change', filterInventory);
     }
 
     const barrasInput = document.getElementById('mp_barras');
@@ -988,9 +1217,14 @@ async function loadProductHistory(productId) {
 
                 // Detectar se há referência a compra/nota
                 let compraNumNota = null;
-                if (h.motivo && (h.motivo.includes('COMPRA:') || h.motivo.includes('COMPRA (') || h.motivo.includes('AJUSTE DE NOTA #') || h.motivo.includes('SUBSTITUIÇÃO NOTA #'))) {
+                if (h.motivo && (h.motivo.includes('COMPRA') || h.motivo.includes('NOTA #') || h.motivo.includes('NC-') || h.motivo.includes('SUBSTITUIÇÃO'))) {
                     const matchNota = h.motivo.match(/Nota\s*#([A-Za-z0-9_-]+)/i);
-                    if (matchNota) compraNumNota = matchNota[1].trim();
+                    if (matchNota) {
+                        compraNumNota = matchNota[1].trim();
+                    } else {
+                        const matchNC = h.motivo.match(/(NC-[A-Za-z0-9_-]+)/i);
+                        if (matchNC) compraNumNota = matchNC[1].trim();
+                    }
                 }
 
                 let cellContent = '';
@@ -1119,7 +1353,7 @@ async function saveQuickAdjustment() {
         logEstoque('ALTERAÇÃO', `DETALHE: Reajuste manual de saldo do produto "${item.nome}": Saldo anterior: ${item.estoque_atual} ${item.unidade} ➡️ Novo saldo: ${newQty} ${item.unidade} (${diff > 0 ? '+' : ''}${diff}). Motivo: ${reason}`);
 
         alert('Saldo reajustado com sucesso!');
-        await loadInventory();
+        await reloadEstoque();
         if (typeof loadHistory === 'function') await loadHistory(true);
         await openProductViewModal(id); // Refresh view
     } catch (err) {
@@ -2091,7 +2325,7 @@ async function undoMovement(id) {
         logEstoque('ALTERAÇÃO', `DETALHE: Estornou movimentação de estoque (ID: ${id}) de ${mov.quantidade} unidade(s) - Motivo original: ${mov.motivo}`);
         alert('Estorno realizado com sucesso!');
         await loadHistory(true);
-        await loadInventory();
+        await reloadEstoque();
     } catch (err) {
         console.error(err);
         alert('Erro ao estornar.');
@@ -4183,7 +4417,7 @@ async function saveVenda(event) {
         alert(currentVendaId ? 'Venda atualizada com sucesso!' : `Saída registrada com sucesso! Código: ${newVenda.codigo}`);
         closeVendaModal();
         currentVendaId = null;
-        await loadInventory();
+        await reloadEstoque();
         if (typeof loadHistory === 'function') await loadHistory(true);
 
     } catch (err) {
@@ -4414,7 +4648,7 @@ async function deleteSale(vendaId) {
         closeReceiptModal();
         
         // Atualizar interface
-        await loadInventory();
+        await reloadEstoque();
         if (typeof loadHistory === 'function') await loadHistory(true);
     } catch (err) {
         console.error('Erro ao cancelar venda:', err);
@@ -4926,14 +5160,16 @@ window.applyHistoryFilters = applyHistoryFilters;
 window.editSaleByCodigo = editSaleByCodigo;
 
 // =========================================================================
-// MODAL DETALHES DA COMPRA DENTRO DO ESTOQUE
+// MODAL DETALHES DA COMPRA DENTRO DO ESTOQUE (REAPROVEITAMENTO OFICIAL DO COMPRAS)
 // =========================================================================
 function formatEstoqueDateBR(dateStr) {
-    if (!dateStr) return 'N/A';
+    if (!dateStr) return '-';
     try {
-        const d = new Date(dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`);
-        if (isNaN(d.getTime())) return dateStr;
-        return d.toLocaleDateString('pt-BR');
+        const parts = dateStr.split('T')[0].split('-');
+        if (parts.length === 3) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return dateStr;
     } catch { return dateStr; }
 }
 
@@ -4946,117 +5182,168 @@ function formatEstoqueDateTimeBR(dateStr) {
     } catch { return dateStr; }
 }
 
-window.openCompraDetailsFromStock = async function(numNota) {
-    if (!numNota) return;
+window.closeViewModal = function() {
+    const modal = document.getElementById('viewCompraModal');
+    if (modal) modal.classList.remove('active');
+};
+window.closeCompraDetailsFromStock = window.closeViewModal;
+
+window.openCompraDetailsFromStock = async function(compraRef) {
+    if (!compraRef) return;
     try {
+        const modal = document.getElementById('viewCompraModal');
+        if (!modal) return;
+
+        const cleanRef = String(compraRef).replace(/^#/, '').trim();
+
+        // 1. Abrir modal imediatamente com estado de carregamento
+        document.getElementById('viewCodUnico').innerText = 'COD: Carregando...';
+        document.getElementById('viewData').innerText = '-';
+        document.getElementById('viewNumNota').innerText = '#' + cleanRef;
+        document.getElementById('viewVencimento').innerText = '-';
+        document.getElementById('viewParcelado').innerText = '-';
+        document.getElementById('viewFornecedor').innerText = 'Carregando...';
+        document.getElementById('viewEspecie').innerText = '-';
+        document.getElementById('viewFormaPgto').innerText = '-';
+        document.getElementById('viewPlanoContas').innerText = '-';
+        document.getElementById('viewUsuario').innerHTML = '';
+        document.getElementById('viewTotalValue').innerText = 'R$ 0,00';
+        document.getElementById('viewItemsList').innerHTML = '<div style="text-align:center; padding: 2.5rem; color: #64748b; font-weight:600;"><i data-lucide="loader-2" class="animate-spin" style="width:24px; height:24px; margin-bottom:8px; display:inline-block;"></i><br>Carregando detalhes da compra...</div>';
+
+        document.getElementById('viewValesVinculadosSection').style.display = 'none';
+        document.getElementById('viewAdicionaisSection').style.display = 'none';
+        document.getElementById('viewParcelasSection').style.display = 'none';
+        document.getElementById('viewObsSection').style.display = 'none';
+
+        modal.classList.add('active');
+        if (window.lucide) lucide.createIcons();
+
         if (!supabaseClient) {
             alert('Conexão com o banco de dados não disponível.');
             return;
         }
 
-        const modal = document.getElementById('viewCompraModalEstoque');
-        if (!modal) return;
-
-        // Abrir modal com estado inicial de carregamento
-        document.getElementById('viewEstoqueCodUnico').innerText = 'COD: Carregando...';
-        document.getElementById('viewEstoqueNumNota').innerText = `#${numNota}`;
-        document.getElementById('viewEstoqueItemsList').innerHTML = '<div style="text-align:center; padding: 2.5rem; color: #64748b; font-weight:600;"><i data-lucide="loader-2" class="animate-spin" style="width:24px; height:24px; margin-bottom:8px; display:inline-block;"></i><br>Carregando detalhes da compra...</div>';
-        document.getElementById('viewEstoqueActionContainer').innerHTML = '';
-        modal.classList.add('active');
-        if (window.lucide) lucide.createIcons();
-
-        // 1. Buscar compra pelo número da nota
-        const { data: comprasList, error: errCompra } = await supabaseClient
+        // 2. Buscar a compra na tabela compras (por número da nota ou por ID NC-...)
+        let compra = null;
+        const { data: byNota, error: errNota } = await supabaseClient
             .from('compras')
-            .select(`
-                *,
-                fornecedores:fornecedor_id(id, nome, fantasia, cnpj),
-                especies:especie_id(id, nome),
-                formas_pagamento:forma_pagamento_id(id, nome),
-                categorias:categoria_id(id, nome, codigo)
-            `)
-            .eq('numero_nota', numNota)
+            .select('*')
+            .eq('numero_nota', cleanRef)
             .order('created_at', { ascending: false })
             .limit(1);
 
-        if (errCompra || !comprasList || comprasList.length === 0) {
-            document.getElementById('viewEstoqueItemsList').innerHTML = `<div style="text-align:center; padding: 2rem; color: #ef4444; font-weight:700;">Nota #${numNota} não foi localizada no banco de dados.</div>`;
+        if (!errNota && byNota && byNota.length > 0) {
+            compra = byNota[0];
+        } else {
+            const { data: byId } = await supabaseClient
+                .from('compras')
+                .select('*')
+                .eq('id', cleanRef)
+                .limit(1);
+            if (byId && byId.length > 0) {
+                compra = byId[0];
+            } else {
+                const { data: byIlike } = await supabaseClient
+                    .from('compras')
+                    .select('*')
+                    .ilike('numero_nota', `%${cleanRef}%`)
+                    .limit(1);
+                if (byIlike && byIlike.length > 0) compra = byIlike[0];
+            }
+        }
+
+        if (!compra) {
+            document.getElementById('viewItemsList').innerHTML = `<div style="text-align:center; padding: 2.5rem; color: #ef4444; font-weight:700;">Nota #${cleanRef} não foi localizada no banco de dados.</div>`;
             return;
         }
 
-        const c = comprasList[0];
+        // 3. Buscar filhos e dados complementares em consultas isoladas e seguras
+        const [itensRes, addsRes, parcsRes, fornRes, espRes, pgtoRes, catRes, centrosRes, veicsRes, maintTypesRes, maintActionsRes] = await Promise.all([
+            supabaseClient.from('compra_itens').select('*').eq('compra_id', compra.id).order('created_at', { ascending: true }),
+            supabaseClient.from('compra_adicionais').select('*').eq('compra_id', compra.id),
+            supabaseClient.from('compra_parcelas').select('*').eq('compra_id', compra.id).order('numero_parcela', { ascending: true }),
+            compra.fornecedor_id ? supabaseClient.from('fornecedores').select('id, nome, nome_fantasia, cnpj_cpf').eq('id', compra.fornecedor_id).maybeSingle() : Promise.resolve({ data: null }),
+            compra.especie_id ? supabaseClient.from('especies_nota').select('id, nome').eq('id', compra.especie_id).maybeSingle() : Promise.resolve({ data: null }),
+            compra.forma_pagamento_id ? supabaseClient.from('formas_pagamento').select('id, nome').eq('id', compra.forma_pagamento_id).maybeSingle() : Promise.resolve({ data: null }),
+            compra.categoria_id ? supabaseClient.from('fin_plano_contas').select('id, nome, codigo').eq('id', compra.categoria_id).maybeSingle() : Promise.resolve({ data: null }),
+            supabaseClient.from('centros_custo').select('id, nome'),
+            supabaseClient.from('veiculos').select('id, placa, modelo'),
+            supabaseClient.from('manutencao_tipos').select('id, descricao'),
+            supabaseClient.from('manutencao_acoes').select('id, descricao')
+        ]);
 
-        // 2. Buscar itens da compra vinculados
-        const { data: itens } = await supabaseClient
-            .from('compra_itens')
-            .select(`
-                *,
-                centros_custo:centro_custo_id(id, nome),
-                veiculos:vinculo_veiculo_id(id, placa, modelo),
-                manutencao_tipos:maint_tipo_id(id, descricao),
-                manutencao_acoes:maint_acao_id(id, descricao)
-            `)
-            .eq('compra_id', c.id)
-            .order('created_at', { ascending: true });
+        const fornData = fornRes?.data;
+        const espData = espRes?.data;
+        const pgtoData = pgtoRes?.data;
+        const catData = catRes?.data;
+        const centrosCusto = centrosRes?.data || [];
+        const vehicles = veicsRes?.data || [];
+        const maintTypes = maintTypesRes?.data || [];
+        const maintActions = maintActionsRes?.data || [];
 
-        // 3. Buscar adicionais e descontos
-        const { data: adicionais } = await supabaseClient
-            .from('compra_adicionais')
-            .select('*')
-            .eq('compra_id', c.id);
-
-        // 4. Buscar parcelas
-        const { data: parcelas } = await supabaseClient
-            .from('compra_parcelas')
-            .select('*')
-            .eq('compra_id', c.id)
-            .order('numero_parcela', { ascending: true });
-
-        // Renderizar dados no modal
-        renderCompraDetailsModalEstoque(c, itens || [], adicionais || [], parcelas || []);
+        // 4. Renderizar tudo com a mecânica oficial do Compras
+        renderCompraModalInStock({
+            compra,
+            itens: itensRes?.data || [],
+            adicionais: addsRes?.data || [],
+            parcelas: parcsRes?.data || [],
+            fornData,
+            espData,
+            pgtoData,
+            catData,
+            centrosCusto,
+            vehicles,
+            maintTypes,
+            maintActions
+        });
 
     } catch (err) {
         console.error('Erro ao abrir compra no estoque:', err);
-        alert('Erro ao carregar detalhes da compra: ' + err.message);
+        const list = document.getElementById('viewItemsList');
+        if (list) list.innerHTML = `<div style="text-align:center; padding: 2rem; color: #ef4444; font-weight:700;">Erro ao carregar detalhes da compra: ${err.message}</div>`;
     }
 };
 
-window.closeCompraDetailsFromStock = function() {
-    const modal = document.getElementById('viewCompraModalEstoque');
-    if (modal) modal.classList.remove('active');
-};
+function renderCompraModalInStock(ctx) {
+    const { compra: c, itens, adicionais, parcelas, fornData, espData, pgtoData, catData, centrosCusto, vehicles, maintTypes, maintActions } = ctx;
 
-function renderCompraDetailsModalEstoque(c, itens, adicionais, parcelas) {
-    document.getElementById('viewEstoqueCodUnico').innerText = 'COD: ' + (c.id || 'N/A');
-    document.getElementById('viewEstoqueData').innerText = formatEstoqueDateBR(c.data_emissao || c.data);
-    document.getElementById('viewEstoqueNumNota').innerText = '#' + (c.numero_nota || c.numeroNota || 'S/N');
+    // Código, Data e Número
+    document.getElementById('viewCodUnico').innerText = 'COD: ' + (c.id || 'N/A');
+    document.getElementById('viewData').innerText = formatEstoqueDateBR(c.data_emissao || c.data);
+    document.getElementById('viewNumNota').innerText = '#' + (c.numero_nota || c.numeroNota || 'S/N');
     
+    // Vencimento
     const vencText = c.data_vencimento ? formatEstoqueDateBR(c.data_vencimento) : 'N/A';
-    document.getElementById('viewEstoqueVencimento').innerText = vencText;
+    document.getElementById('viewVencimento').innerText = vencText;
 
+    // Parcelado status
     const isParcelado = c.financeiro_parcelado || ((c.qtd_parcelas || 1) > 1) || (parcelas && parcelas.length > 0);
     const qtdParc = c.qtd_parcelas || (parcelas ? parcelas.length : 1);
-    const elParcelado = document.getElementById('viewEstoqueParcelado');
+    const elParcelado = document.getElementById('viewParcelado');
     if (elParcelado) {
         elParcelado.innerText = isParcelado ? `SIM (${qtdParc}x)` : 'NÃO (À vista)';
         elParcelado.style.color = isParcelado ? '#059669' : '#475569';
     }
 
-    const fornNome = c.fornecedores?.nome || c.fornecedores?.fantasia || 'FORNECEDOR NÃO INFORMADO';
-    document.getElementById('viewEstoqueFornecedor').innerText = fornNome;
+    // Fornecedor
+    const fornNome = fornData?.nome || fornData?.nome_fantasia || c.fornecedor_nome || c.fornecedor || 'FORNECEDOR NÃO INFORMADO';
+    document.getElementById('viewFornecedor').innerText = fornNome;
 
-    document.getElementById('viewEstoqueEspecie').innerText = c.especies?.nome || 'NFE - NOTA FISCAL ELETRONICA';
-    document.getElementById('viewEstoqueFormaPgto').innerText = c.formas_pagamento?.nome || 'BOLETO';
+    // Espécie e Forma Pgto
+    document.getElementById('viewEspecie').innerText = espData?.nome || 'NFE - NOTA FISCAL ELETRONICA';
+    document.getElementById('viewFormaPgto').innerText = pgtoData?.nome || 'A VISTA';
 
-    // Plano de contas
+    // Plano de Contas
     let planoContasFormatted = 'NÃO ESPECIFICADO';
-    if (c.categorias) {
-        const cod = c.categorias.codigo || c.categorias.cod;
-        planoContasFormatted = cod ? `${cod} - ${c.categorias.nome}` : c.categorias.nome;
+    if (catData) {
+        const cod = catData.codigo || catData.cod;
+        planoContasFormatted = cod ? `${cod} - ${catData.nome}` : catData.nome;
+    } else if (c.categoria_nome || c.categoriaNome) {
+        planoContasFormatted = c.categoria_nome || c.categoriaNome;
     }
-    document.getElementById('viewEstoquePlanoContas').innerText = planoContasFormatted;
+    document.getElementById('viewPlanoContas').innerText = planoContasFormatted;
 
-    // Usuário e registro
+    // Usuário de registro e data
     const usuarioNome = c.usuario_registro || c.responsavel || 'SISTEMA';
     const regDateStr = c.created_at ? formatEstoqueDateTimeBR(c.created_at) : formatEstoqueDateBR(c.data_emissao);
     
@@ -5072,7 +5359,7 @@ function renderCompraDetailsModalEstoque(c, itens, adicionais, parcelas) {
         `;
     }
 
-    document.getElementById('viewEstoqueUsuario').innerHTML = `
+    document.getElementById('viewUsuario').innerHTML = `
         <div style="display:flex; flex-direction:column; gap:2px;">
             <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
                 <span style="display:inline-flex; align-items:center; gap:4px;"><i data-lucide="user-check" style="width:14px; height:14px; color:#059669; vertical-align:middle;"></i> <strong>${usuarioNome}</strong></span>
@@ -5084,7 +5371,7 @@ function renderCompraDetailsModalEstoque(c, itens, adicionais, parcelas) {
     `;
 
     // Itens da Nota
-    const itemsList = document.getElementById('viewEstoqueItemsList');
+    const itemsList = document.getElementById('viewItemsList');
     if (!itens || itens.length === 0) {
         itemsList.innerHTML = '<div style="text-align:center; padding: 1.5rem; color: #64748b; font-weight: 600;">Nenhum item cadastrado para esta compra.</div>';
     } else {
@@ -5092,26 +5379,50 @@ function renderCompraDetailsModalEstoque(c, itens, adicionais, parcelas) {
             const isS = it.tipo === 'servico';
             const label = isS ? 'S' : 'P';
             const color = isS ? '#d97706' : '#059669';
-            const ccName = it.centros_custo?.nome || 'SEM CENTRO DE CUSTO';
+            
+            const cc = centrosCusto.find(x => x.id == it.centro_custo_id);
+            const ccName = cc ? cc.nome : 'SEM CENTRO DE CUSTO';
 
             let linkInfo = '';
-            if (it.veiculos?.placa) {
-                linkInfo = `<span style="font-size:0.68rem; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 8px; border-radius:4px; font-weight:700;">🚗 ${it.veiculos.placa}</span>`;
+            if (it.vinculo_veiculo_id) {
+                const v = vehicles.find(veh => veh.id == it.vinculo_veiculo_id);
+                if (v) linkInfo = `<span class="placa-badge" style="font-size:0.65rem; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 6px; border-radius:4px; font-weight:700;">🚗 ${v.placa}</span>`;
             } else if (it.vinculo_pessoa) {
-                linkInfo = `<span style="font-size:0.68rem; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 8px; border-radius:4px; font-weight:700;">👤 ${it.vinculo_pessoa}</span>`;
+                linkInfo = `<span class="placa-badge" style="font-size:0.65rem; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 6px; border-radius:4px; font-weight:700;">👤 ${it.vinculo_pessoa}</span>`;
             }
 
             const isStockLinked = (it.estoque === true || it.estoque === 'true');
             const stockAction = isStockLinked ? `
                 <span style="color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;">📦 ESTOQUE</span>
+                <button type="button" class="btn-subst-view" onclick="closeViewModal(); window.location.href='compras.html?editId=${encodeURIComponent(c.id)}';" style="padding: 2px 8px; border-radius: 4px; border: 1px solid #93c5fd; background: #ffffff; color: #1d4ed8; font-size: 0.7rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; transition: all 0.2s;" title="Substituir produto na edição da compra"><i data-lucide="refresh-cw" style="width:11px; height:11px;"></i> Substituir Produto</button>
             ` : '';
+
+            // Manutenção Vinculada
+            const hasMaint = it.maint_control;
+            const typeObj = maintTypes.find(t => t.id == it.maint_tipo_id);
+            const actionObj = maintActions.find(a => a.id == it.maint_acao_id);
+            const tipoDesc = typeObj ? typeObj.descricao : null;
+            const acaoDesc = actionObj ? actionObj.descricao : null;
+            const kmVal = it.maint_km ? `${it.maint_km} KM` : null;
+
+            let controleInfo = null;
+            if (it.maint_controle === 'KM' && it.maint_intervalo_km) {
+                controleInfo = `A cada ${it.maint_intervalo_km} KM`;
+            } else if (it.maint_controle === 'DATA' && it.maint_intervalo_meses) {
+                controleInfo = `A cada ${it.maint_intervalo_meses} Meses`;
+            }
+
+            let garantiaInfo = null;
+            if (it.maint_garantia) {
+                garantiaInfo = it.maint_meses_garantia ? `${it.maint_meses_garantia} Meses` : 'Sim';
+            }
 
             const qtd = parseFloat(it.quantidade || 0);
             const unit = parseFloat(it.valor_unitario || 0);
             const totalItem = (qtd * unit).toLocaleString('pt-BR', {minimumFractionDigits: 2});
 
             return `
-                <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem 1.2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                <div class="view-item-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 0.6rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
                         <div style="display: flex; align-items: flex-start; gap: 10px; flex: 1;">
                             <span style="color:${color}; font-weight:900; font-size:0.75rem; border:1px solid ${color}33; width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; border-radius:6px; background:${color}12; flex-shrink: 0; margin-top: 2px;">${label}</span>
@@ -5131,14 +5442,29 @@ function renderCompraDetailsModalEstoque(c, itens, adicionais, parcelas) {
                             <span style="font-weight: 900; color: #047857; font-size: 1.15rem; line-height: 1;">R$ ${totalItem}</span>
                         </div>
                     </div>
+
+                    ${hasMaint ? `
+                        <div style="margin-top: 0.8rem; padding: 0.75rem 1rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px;">
+                            <div style="display:flex; align-items:center; gap:6px; font-weight:800; font-size:0.75rem; color:#047857; margin-bottom: 0.5rem; text-transform: uppercase;">
+                                <i data-lucide="wrench" style="width:14px; height:14px; color:#047857;"></i> Manutenção Vinculada
+                            </div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                                ${tipoDesc ? `<span style="font-size:0.72rem; background:#ffffff; border:1px solid #a7f3d0; padding:3px 10px; border-radius:6px; color:#0f172a; font-weight:700;"><span style="color:#64748b; font-weight:600;">Tipo:</span> ${tipoDesc}</span>` : ''}
+                                ${acaoDesc ? `<span style="font-size:0.72rem; background:#ffffff; border:1px solid #a7f3d0; padding:3px 10px; border-radius:6px; color:#0f172a; font-weight:700;"><span style="color:#64748b; font-weight:600;">Ação:</span> ${acaoDesc}</span>` : ''}
+                                ${kmVal ? `<span style="font-size:0.72rem; background:#ffffff; border:1px solid #a7f3d0; padding:3px 10px; border-radius:6px; color:#0f172a; font-weight:700;"><span style="color:#64748b; font-weight:600;">KM Execução:</span> ${kmVal}</span>` : ''}
+                                ${controleInfo ? `<span style="font-size:0.72rem; background:#fffbeb; border:1px solid #fde68a; padding:3px 10px; border-radius:6px; color:#d97706; font-weight:800;"><span style="color:#b45309; font-weight:600;">Próx. Troca:</span> ${controleInfo}</span>` : ''}
+                                ${garantiaInfo ? `<span style="font-size:0.72rem; background:#eff6ff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; color:#1d4ed8; font-weight:800;"><span style="color:#2563eb; font-weight:600;">Garantia:</span> ${garantiaInfo}</span>` : ''}
+                            </div>
+                        </div>
+                    ` : ''}
                 </div>
             `;
         }).join('');
     }
 
     // Custos Adicionais & Descontos
-    const adSection = document.getElementById('viewEstoqueAdicionaisSection');
-    const adList = document.getElementById('viewEstoqueAdicionaisList');
+    const adSection = document.getElementById('viewAdicionaisSection');
+    const adList = document.getElementById('viewAdicionaisList');
     if (adicionais && adicionais.length > 0) {
         adSection.style.display = 'block';
         adList.innerHTML = adicionais.map(ad => {
@@ -5159,17 +5485,17 @@ function renderCompraDetailsModalEstoque(c, itens, adicionais, parcelas) {
     }
 
     // Parcelas
-    const parcSection = document.getElementById('viewEstoqueParcelasSection');
-    const parcList = document.getElementById('viewEstoqueParcelasList');
+    const parcSection = document.getElementById('viewParcelasSection');
+    const parcList = document.getElementById('viewParcelasList');
     if (parcelas && parcelas.length > 0) {
         parcSection.style.display = 'block';
-        parcList.innerHTML = parcelas.map(p => {
-            const dateStr = formatEstoqueDateBR(p.data_vencimento);
+        parcList.innerHTML = parcelas.map((p, idx) => {
+            const dateStr = formatEstoqueDateBR(p.data_vencimento || p.data);
             const valStr = parseFloat(p.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
             return `
-                <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.8rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
-                    <span style="font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Parcela #${p.numero_parcela}</span>
-                    <h4 style="font-size: 0.95rem; font-weight: 900; color: #047857; margin: 4px 0 2px 0;">R$ ${valStr}</h4>
+                <div class="view-parc-badge" style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 0.75rem 0.6rem; border-radius: 10px; text-align: center;">
+                    <p style="font-size:0.65rem; font-weight: 800; color: #047857; text-transform: uppercase; margin: 0 0 2px 0;">PARCELA ${idx + 1}/${parcelas.length}</p>
+                    <p style="font-weight: 800; font-size: 0.95rem; color: #0f172a; margin: 2px 0;">R$ ${valStr}</p>
                     <p style="font-size: 0.72rem; font-weight: 700; color: #d97706; margin: 2px 0 0 0;">📅 ${dateStr}</p>
                 </div>
             `;
@@ -5179,49 +5505,54 @@ function renderCompraDetailsModalEstoque(c, itens, adicionais, parcelas) {
     }
 
     // Observações
-    const obsSection = document.getElementById('viewEstoqueObsSection');
+    const obsSection = document.getElementById('viewObsSection');
     if (c.observacoes) {
         obsSection.style.display = 'block';
-        document.getElementById('viewEstoqueObservacoes').innerText = c.observacoes;
+        document.getElementById('viewObservacoes').innerText = c.observacoes;
     } else {
         obsSection.style.display = 'none';
     }
 
     // Total
     const totalVal = parseFloat(c.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
-    document.getElementById('viewEstoqueTotalValue').innerText = `R$ ${totalVal}`;
+    document.getElementById('viewTotalValue').innerText = `R$ ${totalVal}`;
 
-    // Ação do Botão
+    // Botão Editar / Bloqueado
     const isIntegrada = c.integrado_financeiro === true || c.integradoFinanceiro === true;
-    const actionContainer = document.getElementById('viewEstoqueActionContainer');
-    if (isIntegrada) {
-        actionContainer.innerHTML = `
-            <button type="button" onclick="alert('⚠️ Esta nota fiscal já está integrada ao setor Financeiro e não pode ser alterada diretamente.\\n\\nPara modificá-la, solicite ao setor Financeiro que estorne/exclua o lançamento correspondente.')"
-                style="background: #059669; color: #ffffff; border: none; font-weight: 800; border-radius: 10px; padding: 0.75rem 1.8rem; cursor: not-allowed; box-shadow: 0 4px 12px rgba(5,150,105,0.25); display: flex; align-items: center; gap: 0.5rem; opacity: 0.95;">
-                <i data-lucide="lock" style="width:16px; height:16px;"></i>
-                NOTA INTEGRADA AO FINANCEIRO (BLOQUEADA)
-            </button>
-        `;
-    } else {
-        actionContainer.innerHTML = `
-            <button type="button" onclick="window.location.href = 'compras.html?editId=' + encodeURIComponent('${c.id}')"
-                style="background: #059669; color: #ffffff; border: none; font-weight: 800; border-radius: 10px; padding: 0.75rem 1.8rem; cursor: pointer; box-shadow: 0 4px 12px rgba(5,150,105,0.25); display: flex; align-items: center; gap: 0.5rem; transition: all 0.2s;"
-                onmouseover="this.style.background='#047857';" onmouseout="this.style.background='#059669';">
-                <i data-lucide="edit-3" style="width:16px; height:16px;"></i>
-                EDITAR COMPRA
-            </button>
-        `;
+    const btnEdit = document.getElementById('btnEditFromView');
+    if (btnEdit) {
+        if (isIntegrada) {
+            btnEdit.style.background = '#64748b';
+            btnEdit.style.cursor = 'not-allowed';
+            btnEdit.style.boxShadow = 'none';
+            btnEdit.innerHTML = '<i data-lucide="lock" style="width:16px; height:16px;"></i> NOTA INTEGRADA AO FINANCEIRO (BLOQUEADA)';
+            btnEdit.onclick = () => {
+                alert('⚠️ Esta nota fiscal já está integrada ao setor Financeiro e não pode ser alterada.\n\nPara modificá-la, solicite ao setor Financeiro que exclua o lançamento correspondente para que a nota retorne.');
+            };
+        } else {
+            btnEdit.style.background = '#059669';
+            btnEdit.style.cursor = 'pointer';
+            btnEdit.style.boxShadow = '0 4px 12px rgba(5,150,105,0.25)';
+            btnEdit.innerHTML = '<i data-lucide="edit-3" style="width:16px; height:16px;"></i> EDITAR NOTA';
+            btnEdit.onclick = () => {
+                closeViewModal();
+                window.location.href = `compras.html?editId=${encodeURIComponent(c.id)}`;
+            };
+        }
     }
 
     if (window.lucide) lucide.createIcons();
 }
 
-// Fechar com ESC
+// Fechar com ESC específico para o modal de compra no estoque
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        const modal = document.getElementById('viewCompraModalEstoque');
+        const modal = document.getElementById('viewCompraModal');
         if (modal && modal.classList.contains('active')) {
-            closeCompraDetailsFromStock();
+            e.preventDefault();
+            e.stopPropagation();
+            closeViewModal();
         }
     }
-});
+}, true);
+

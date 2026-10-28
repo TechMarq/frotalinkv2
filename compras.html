@@ -1549,6 +1549,7 @@
                 parcelas.</p>
 
             <form id="compraForm" style="display:flex; flex-direction:column; height:100%; overflow:hidden;">
+                <input type="hidden" id="compraEditId" value="">
                 <!-- SEÇÃO FIXA SUPERIOR -->
                 <div class="modal-fixed-top"
                     style="padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 1rem;">
@@ -1560,6 +1561,7 @@
                         <div class="input-group">
                             <label>Nº Nota</label>
                             <input type="text" id="numNota" class="compra-input" placeholder="000.000">
+                            <div id="dupNotaAlert" style="display: none; color: #ef4444; font-size: 0.72rem; font-weight: 700; margin-top: 4px; line-height: 1.2;"></div>
                         </div>
                         <div class="input-group">
                             <label>Espécie</label>
