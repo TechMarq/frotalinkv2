@@ -2699,7 +2699,34 @@ function exportAllocationsToPDF() {
     doc.save(`FrotaLink_Alocacoes_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
-function exportFleetToExcel() {
+// ─── DROPDOWN DO BOTÃO EXCEL ────────────────────────────────────────────────
+
+function toggleExcelDropdown(e) {
+    const menu = document.getElementById('excelDropdownMenu');
+    if (!menu) return;
+    const isOpen = menu.style.display === 'block';
+    menu.style.display = isOpen ? 'none' : 'block';
+    if (!isOpen) {
+        // Fecha ao clicar fora
+        setTimeout(() => {
+            function closeOnOutside(ev) {
+                const wrapper = document.getElementById('excelDropdownWrapper');
+                if (wrapper && !wrapper.contains(ev.target)) {
+                    menu.style.display = 'none';
+                    document.removeEventListener('click', closeOnOutside);
+                }
+            }
+            document.addEventListener('click', closeOnOutside);
+        }, 10);
+    }
+    if (window.lucide) lucide.createIcons();
+}
+
+// ─── EXPORTAÇÃO EXCEL: DADOS FILTRADOS (colunas e veículos da tela) ─────────
+
+function exportFleetToExcelFiltered() {
+    if (typeof XLSX === 'undefined') { alert('Biblioteca Excel não carregada.'); return; }
+
     let filtered;
     let isManualSelection = false;
 
@@ -2712,9 +2739,90 @@ function exportFleetToExcel() {
 
     if (filtered.length === 0) return alert('Nenhum veículo encontrado para exportação.');
 
-    // Ordenar de acordo com a ordenação da tela
-    const sort = currentSort.vehicles;
-    sortVehiclesList(filtered, sort);
+    // Ordenar conforme a ordenação da tela
+    sortVehiclesList(filtered, currentSort.vehicles);
+
+    // Usar apenas as colunas visíveis na tela (exceto a coluna de Ações)
+    const activeCols = getActiveCols('vehicles').filter(c => c.key !== 'actions');
+
+    // Helper para mapear cada chave ao valor correto do veículo
+    function colValue(v, key) {
+        switch (key) {
+            case 'placa':              return v.placa || '-';
+            case 'marca_modelo':       return `${v.marca || ''} ${v.modelo || ''}`.trim() || '-';
+            case 'proprietario':       return v.proprietario || '-';
+            case 'venc_seguro':        return formatDate(v.vencimento_seguro);
+            case 'seguradora':         return v.seguradora || '-';
+            case 'numero_apolice':     return v.numero_apolice || '-';
+            case 'valor_premio':       return v.valor_premio ? Number(v.valor_premio) : '-';
+            case 'valor_franquia':     return v.valor_franquia ? Number(v.valor_franquia) : '-';
+            case 'forma_pagamento':    return v.forma_pagamento || '-';
+            case 'corretor_seguro':    return v.corretor_seguro || '-';
+            case 'proponente_seguro':  return v.proponente_seguro || '-';
+            case 'endosso_proposta':   return v.endosso_proposta || '-';
+            case 'ci_seguro':          return v.ci_seguro || '-';
+            case 'parcelas_pagamento': return v.parcelas_pagamento || '-';
+            case 'classificacao':      return v.classificacao || '-';
+            case 'status':             return v.status || 'ATIVO';
+            case 'cor':                return v.cor || '-';
+            case 'ano_fabricacao':     return v.ano_fabricacao || '-';
+            case 'ano_modelo':         return v.ano_modelo || '-';
+            case 'renavam':            return v.renavam || '-';
+            case 'chassi':             return v.chassi || '-';
+            case 'numero_motor':       return v.numero_motor || '-';
+            case 'codigo_fipe':        return v.codigo_fipe || '-';
+            case 'valor_fipe_mes':     return v.valor_fipe_mes ? Number(v.valor_fipe_mes) : '-';
+            case 'nome_documento':     return v.nome_documento || '-';
+            case 'cpf_cnpj':           return v.cpf_cnpj || '-';
+            case 'condutor_principal': return v.motoristas ? v.motoristas.nome_completo : '-';
+            case 'motorista_alocado':  return getVehicleAllocationDisplay(v);
+            case 'data_aquisicao_nf':  return formatDate(v.data_aquisicao_nf);
+            case 'data_saida_nf':      return formatDate(v.data_saida_nf);
+            case 'fornecedor_aquisicao': return v.fornecedor_aquisicao || '-';
+            case 'tipo_combustivel':   return v.tipo_combustivel || '-';
+            default: return v[key] !== undefined && v[key] !== null ? v[key] : '-';
+        }
+    }
+
+    // Gerar dados respeitando a ordem e visibilidade das colunas
+    const exportData = filtered.map(v => {
+        const row = {};
+        activeCols.forEach(col => {
+            row[col.label] = colValue(v, col.key);
+        });
+        return row;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportData, { header: activeCols.map(c => c.label) });
+
+    // Estilizar largura das colunas
+    ws['!cols'] = activeCols.map(() => ({ wch: 20 }));
+
+    const wb = XLSX.utils.book_new();
+    const sheetName = isManualSelection ? 'Frota_Selecionados' : 'Frota_Filtrada';
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    const fileSuffix = isManualSelection ? 'Selecionados' : 'Filtrada';
+    XLSX.writeFile(wb, `Frota_${fileSuffix}_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+// ─── EXPORTAÇÃO EXCEL: TODOS OS DADOS (todos os campos, sem filtro de colunas) ──
+
+function exportFleetToExcelFull() {
+    if (typeof XLSX === 'undefined') { alert('Biblioteca Excel não carregada.'); return; }
+
+    let filtered;
+    let isManualSelection = false;
+
+    if (selectedVehicleIds && selectedVehicleIds.size > 0) {
+        filtered = vehicles.filter(v => selectedVehicleIds.has(String(v.id)));
+        isManualSelection = true;
+    } else {
+        filtered = getFilteredVehicles();
+    }
+
+    if (filtered.length === 0) return alert('Nenhum veículo encontrado para exportação.');
+
+    sortVehiclesList(filtered, currentSort.vehicles);
 
     const exportData = filtered.map(v => ({
         'Placa': v.placa,
@@ -2722,39 +2830,48 @@ function exportFleetToExcel() {
         'Modelo': v.modelo,
         'Status': v.status,
         'Proprietário': v.proprietario,
+        'Classificação': v.classificacao,
+        'Alocação Atual': getVehicleAllocationDisplay(v),
         'RENAVAM': v.renavam,
         'Chassi': v.chassi,
         'Nº Motor': v.numero_motor,
         'Ano Fabricação': v.ano_fabricacao,
         'Ano Modelo': v.ano_modelo,
         'Cor': v.cor,
+        'Tipo Combustível': v.tipo_combustivel,
         'Seguradora': v.seguradora,
         'Venc. Seguro': formatDate(v.vencimento_seguro),
         'Proponente': v.proponente_seguro,
         'Corretor': v.corretor_seguro,
         'Nº Apólice': v.numero_apolice,
-        'Valor Franquia': v.valor_franquia,
-        'Valor Prêmio': v.valor_premio,
+        'Endosso/Proposta': v.endosso_proposta,
+        'CI Seguro': v.ci_seguro,
+        'Valor Franquia': v.valor_franquia ? Number(v.valor_franquia) : '',
+        'Valor Prêmio': v.valor_premio ? Number(v.valor_premio) : '',
         'Parcelas': v.parcelas_pagamento,
         'Forma Pagamento': v.forma_pagamento,
         'Código FIPE': v.codigo_fipe,
-        'Valor FIPE': v.valor_fipe_mes,
+        'Valor FIPE': v.valor_fipe_mes ? Number(v.valor_fipe_mes) : '',
         'CPF/CNPJ Documento': v.cpf_cnpj,
         'Nome no Documento': v.nome_documento,
+        'Condutor Principal': v.motoristas ? v.motoristas.nome_completo : '',
         'Fornecedor': v.fornecedor_aquisicao,
         'Data Aquisição': formatDate(v.data_aquisicao_nf),
         'Data Saída': formatDate(v.data_saida_nf),
-        'Classificação': v.classificacao,
-        'Alocação Atual': getVehicleAllocationDisplay(v)
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
+    ws['!cols'] = Object.keys(exportData[0] || {}).map(() => ({ wch: 20 }));
+
     const wb = XLSX.utils.book_new();
-    const sheetName = isManualSelection ? "Frota_Selecionados" : "Frota_Filtrada";
+    const sheetName = isManualSelection ? 'Frota_Selecionados_Full' : 'Frota_Completa';
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    const fileSuffix = isManualSelection ? "Selecionados" : "Filtrada";
-    XLSX.writeFile(wb, `Frota_${fileSuffix}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
+    const fileSuffix = isManualSelection ? 'Selecionados_Completo' : 'Completo';
+    XLSX.writeFile(wb, `Frota_${fileSuffix}_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
+
+// Alias mantido por compatibilidade (caso algum lugar ainda chame a função antiga)
+function exportFleetToExcel() { exportFleetToExcelFiltered(); }
 
 function exportFleetToPDF() {
     let filtered;

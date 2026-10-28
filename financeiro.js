@@ -3915,6 +3915,31 @@ function checkPaymentDivergence() {
 
 window.checkPaymentDivergence = checkPaymentDivergence;
 
+window.handlePayFormaChange = function(forma) {
+    const isCheque = (forma || '').toUpperCase() === 'CHEQUE';
+    const chequeInfoWrapper = document.getElementById('payChequeInfoWrapper');
+    const inputNumeroCheque = document.getElementById('payNumeroCheque');
+    const labelConta = document.getElementById('payContaLabel');
+
+    if (isCheque) {
+        if (chequeInfoWrapper) chequeInfoWrapper.style.display = 'flex';
+        if (inputNumeroCheque) inputNumeroCheque.required = true;
+        if (labelConta) labelConta.innerHTML = 'Conta Bancária (Emissão do Cheque) <span style="color:#ef4444; font-weight:800;">*</span>';
+    } else {
+        if (chequeInfoWrapper) chequeInfoWrapper.style.display = 'none';
+        if (inputNumeroCheque) inputNumeroCheque.required = false;
+        if (labelConta) labelConta.innerHTML = 'Conta de Origem/Destino <span style="color:#ef4444; font-weight:800;">*</span>';
+    }
+};
+
+window.handleEditPayFormaChange = function(forma) {
+    const isCheque = (forma || '').toUpperCase() === 'CHEQUE';
+    const wrapper = document.getElementById('editPayChequeWrapper');
+    const input = document.getElementById('editPayNumeroCheque');
+    if (wrapper) wrapper.style.display = isCheque ? 'flex' : 'none';
+    if (input) input.required = isCheque;
+};
+
 async function openPaymentModal(id) {
     const l = state.lancamentos.find(item => item.id === id);
     if (!l) return;
@@ -3944,7 +3969,7 @@ async function openPaymentModal(id) {
     const novoVencGroup = document.getElementById('payNovoVencimentoGroup');
     if (novoVencGroup) novoVencGroup.style.display = 'none';
 
-    // 1. Bloqueia a Forma de Pagamento e garante que ela reflete exatamente o que foi lançado
+    // 1. Forma de Pagamento - Totalmente liberada para alteração na baixa
     const selectForma = document.getElementById('payForma');
     if (selectForma) {
         let formas = state.formasPagamento || [];
@@ -3979,44 +4004,35 @@ async function openPaymentModal(id) {
                 selectForma.value = l.forma_pagamento;
             }
         }
-        selectForma.disabled = true;
-        selectForma.style.opacity = '0.9';
-        selectForma.style.cursor = 'not-allowed';
-        selectForma.style.background = 'rgba(0,0,0,0.2)';
+        selectForma.disabled = false;
+        selectForma.style.opacity = '1';
+        selectForma.style.cursor = 'default';
+        selectForma.style.background = '';
     }
 
-    // 2. Tratar Cheque vs Outras Formas
-    const isCheque = (l.forma_pagamento || '').toUpperCase() === 'CHEQUE';
-    const chequeInfoWrapper = document.getElementById('payChequeInfoWrapper');
-    const chequeNumDisplay = document.getElementById('payChequeNumDisplay');
-
-    if (isCheque) {
-        if (chequeInfoWrapper) chequeInfoWrapper.style.display = 'flex';
-        if (chequeNumDisplay) chequeNumDisplay.innerText = l.numero_cheque ? `#${l.numero_cheque}` : 'Não informado';
-    } else {
-        if (chequeInfoWrapper) chequeInfoWrapper.style.display = 'none';
+    // 2. Preencher número do cheque se já existir
+    const inputNumeroCheque = document.getElementById('payNumeroCheque');
+    if (inputNumeroCheque) {
+        inputNumeroCheque.value = l.numero_cheque || '';
     }
 
+    // Disparar sincronização visual da forma de pagamento
+    window.handlePayFormaChange(selectForma ? selectForma.value : (l.forma_pagamento || 'BOLETO'));
+
+    // 3. Conta Bancária - Sempre liberada para o operador escolher/confirmar o banco
     const selectConta = document.getElementById('payConta');
     const contasOptions = state.contas.map(c => `<option value="${c.id}">${c.nome} (Saldo: ${formatCurrency(c.saldo_atual)})</option>`).join('');
 
-    if (isCheque) {
-        // Se for cheque: conta já vem preenchida com o banco vinculado e travada
-        selectConta.innerHTML = contasOptions;
-        if (l.conta_bancaria_id) selectConta.value = l.conta_bancaria_id;
-        selectConta.disabled = true;
-        selectConta.style.opacity = '0.9';
-        selectConta.style.cursor = 'not-allowed';
-        selectConta.style.background = 'rgba(0,0,0,0.2)';
+    selectConta.innerHTML = `<option value="">Selecione a conta de origem/destino...</option>` + contasOptions;
+    if (l.conta_bancaria_id) {
+        selectConta.value = l.conta_bancaria_id;
     } else {
-        // Se for PIX, Boleto, etc.: conta inicia sem preencher e é obrigatório o usuário escolher
-        selectConta.innerHTML = `<option value="">Selecione a conta de origem/destino...</option>` + contasOptions;
         selectConta.value = '';
-        selectConta.disabled = false;
-        selectConta.style.opacity = '1';
-        selectConta.style.cursor = 'default';
-        selectConta.style.background = '';
     }
+    selectConta.disabled = false;
+    selectConta.style.opacity = '1';
+    selectConta.style.cursor = 'default';
+    selectConta.style.background = '';
 
     // Cálculo do Valor Líquido (se houver tributos) vs Valor Bruto
     const bruto = parseFloat(l.valor_total) || 0;
@@ -4064,7 +4080,9 @@ async function openPaymentModal(id) {
     if (payValorEl) payValorEl.value = currentPayExpectedValue.toFixed(2);
 
     // Se for cheque e o lançamento não tiver conta/número de cheque explícito, busca na parcela correspondente
-    if (isCheque && (!l.numero_cheque || !l.conta_bancaria_id)) {
+    const formaAtualModal = selectForma ? selectForma.value : (l.forma_pagamento || '');
+    const isChequeAtual = (formaAtualModal || '').toUpperCase() === 'CHEQUE';
+    if (isChequeAtual && (!l.numero_cheque || !l.conta_bancaria_id)) {
         try {
             const parentId = l.pai_id || l.id;
             const { data: parcs } = await supabaseClient
@@ -4088,8 +4106,8 @@ async function openPaymentModal(id) {
                 }
 
                 if (target) {
-                    if (!l.numero_cheque && target.numero_cheque && chequeNumDisplay) {
-                        chequeNumDisplay.innerText = `#${target.numero_cheque}`;
+                    if (!l.numero_cheque && target.numero_cheque && inputNumeroCheque) {
+                        inputNumeroCheque.value = target.numero_cheque;
                     }
                     if (!l.conta_bancaria_id && target.conta_bancaria_id && selectConta) {
                         selectConta.value = target.conta_bancaria_id;
@@ -4121,6 +4139,7 @@ async function handlePayment(e) {
     const isCheque = (forma || '').toUpperCase() === 'CHEQUE';
     const contaId = document.getElementById('payConta').value || (isCheque && l ? l.conta_bancaria_id : null);
     const motivoText = (document.getElementById('payMotivo')?.value || '').trim();
+    const numCheque = isCheque ? (document.getElementById('payNumeroCheque')?.value || '').trim() : null;
 
     try {
         if (!l) throw new Error('Lançamento não encontrado');
@@ -4130,6 +4149,13 @@ async function handlePayment(e) {
             showToast('Por favor, selecione a Conta de Origem/Destino antes de confirmar a baixa.', 'warning');
             alert('Por favor, selecione a Conta Bancária de Origem/Destino para efetuar a baixa.');
             document.getElementById('payConta')?.focus();
+            return;
+        }
+
+        if (isCheque && !numCheque) {
+            showToast('Por favor, informe o Número do Cheque antes de confirmar a baixa.', 'warning');
+            alert('Por favor, preencha o campo "Número da Folha de Cheque" para efetuar o pagamento com cheque.');
+            document.getElementById('payNumeroCheque')?.focus();
             return;
         }
 
@@ -4202,9 +4228,16 @@ async function handlePayment(e) {
                 }
 
                 if (targetParc) {
+                    const parcUpdateObj = { status: novoStatus };
+                    if (isCheque && numCheque) {
+                        parcUpdateObj.numero_cheque = numCheque;
+                    }
+                    if (contaId) {
+                        parcUpdateObj.conta_bancaria_id = contaId;
+                    }
                     await supabaseClient
                         .from('fin_lancamento_parcelas')
-                        .update({ status: novoStatus })
+                        .update(parcUpdateObj)
                         .eq('id', targetParc.id);
                 }
             }
@@ -4220,6 +4253,9 @@ async function handlePayment(e) {
             conta_bancaria_id: contaId,
             forma_pagamento: forma
         };
+        if (isCheque && numCheque) {
+            updateObj.numero_cheque = numCheque;
+        }
 
         const loggedUser = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
 
@@ -4517,6 +4553,15 @@ window.openEditPaymentModal = async function(id) {
     const selForma = document.getElementById('editPayForma');
     if (l.forma_pagamento && selForma) {
         selForma.value = l.forma_pagamento;
+    }
+
+    // Cheque número e exibição se for CHEQUE
+    const inputNumChequeEdit = document.getElementById('editPayNumeroCheque');
+    if (inputNumChequeEdit) {
+        inputNumChequeEdit.value = l.numero_cheque || '';
+    }
+    if (window.handleEditPayFormaChange && selForma) {
+        window.handleEditPayFormaChange(selForma.value);
     }
 
     const isReceber = l.tipo === 'RECEBER';
@@ -5067,6 +5112,8 @@ window.handleEditPaymentSubmit = async function(e) {
     const novoValorPago = parseFloat(document.getElementById('editPayValor').value) || 0;
     const novaContaId = document.getElementById('editPayConta').value;
     const novaForma = document.getElementById('editPayForma').value;
+    const isCheque = (novaForma || '').toUpperCase() === 'CHEQUE';
+    const novoNumCheque = isCheque ? (document.getElementById('editPayNumeroCheque')?.value || '').trim() : null;
     const motivoText = document.getElementById('editPayMotivo').value.trim();
 
     if (novoValorPago <= 0) {
@@ -5075,6 +5122,11 @@ window.handleEditPaymentSubmit = async function(e) {
     }
     if (!novaContaId) {
         showToast('Selecione a conta bancária.', 'error');
+        return;
+    }
+    if (isCheque && !novoNumCheque) {
+        showToast('Por favor, informe o Número do Cheque.', 'error');
+        document.getElementById('editPayNumeroCheque')?.focus();
         return;
     }
     if (!motivoText) {
@@ -5130,7 +5182,8 @@ window.handleEditPaymentSubmit = async function(e) {
         const nomeContaNova = contaNovaObj ? contaNovaObj.nome : novaContaId;
         const nomeContaAntiga = contaAntigaObj ? contaAntigaObj.nome : (contaAntigaId || 'Não definida');
 
-        const logAlteracao = `[ALTERAÇÃO DE PAGAMENTO (${hojeStr}) por ${loggedUser}]: Valor anterior: ${formatCurrency(valorPagoAntigo)} -> Novo valor: ${formatCurrency(novoValorPago)} | Conta anterior: ${nomeContaAntiga} -> Nova conta: ${nomeContaNova} | Forma: ${novaForma} | Motivo: ${motivoText}`;
+        const chequeLog = isCheque ? ` | Cheque: #${novoNumCheque}` : '';
+        const logAlteracao = `[ALTERAÇÃO DE PAGAMENTO (${hojeStr}) por ${loggedUser}]: Valor anterior: ${formatCurrency(valorPagoAntigo)} -> Novo valor: ${formatCurrency(novoValorPago)} | Conta anterior: ${nomeContaAntiga} -> Nova conta: ${nomeContaNova} | Forma: ${novaForma}${chequeLog} | Motivo: ${motivoText}`;
         const novasObs = l.observacoes ? `${l.observacoes}\n${logAlteracao}` : logAlteracao;
 
         // 3. Atualizar o lançamento no Supabase
@@ -5140,13 +5193,56 @@ window.handleEditPaymentSubmit = async function(e) {
             forma_pagamento: novaForma,
             observacoes: novasObs
         };
+        if (isCheque && novoNumCheque) {
+            updateData.numero_cheque = novoNumCheque;
+        }
 
         const { error: errUp } = await supabaseClient.from('fin_lancamentos').update(updateData).eq('id', id);
         if (errUp) throw errUp;
 
+        // Sincronizar parcela correspondente se houver
+        try {
+            const parentId = l.pai_id || l.id;
+            const { data: parcs } = await supabaseClient
+                .from('fin_lancamento_parcelas')
+                .select('id, numero_parcela, data_vencimento, valor')
+                .eq('lancamento_id', parentId)
+                .order('numero_parcela');
+
+            if (parcs && parcs.length > 0) {
+                let targetParc = null;
+                if (!l.pai_id) {
+                    targetParc = parcs.find(p => p.numero_parcela === 1) || parcs[0];
+                } else {
+                    targetParc = parcs.find(p => p.data_vencimento === l.data_vencimento && Math.abs(parseFloat(p.valor) - parseFloat(l.valor_total)) < 0.05);
+                    if (!targetParc) {
+                        const matchDesc = (l.descricao || '').match(/Parc\s+(\d+)\//i);
+                        if (matchDesc && matchDesc[1]) {
+                            targetParc = parcs.find(p => p.numero_parcela === parseInt(matchDesc[1]));
+                        }
+                    }
+                }
+
+                if (targetParc) {
+                    const parcUpdate = {
+                        conta_bancaria_id: novaContaId
+                    };
+                    if (isCheque && novoNumCheque) {
+                        parcUpdate.numero_cheque = novoNumCheque;
+                    }
+                    await supabaseClient
+                        .from('fin_lancamento_parcelas')
+                        .update(parcUpdate)
+                        .eq('id', targetParc.id);
+                }
+            }
+        } catch (errSyncParc) {
+            console.warn('Aviso ao sincronizar parcela no editPayment:', errSyncParc);
+        }
+
         // 4. Registrar em logs_atividade para auditoria completa
         if (typeof registrarLog === 'function') {
-            await registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Alterou pagamento do lançamento ${l.codigo_sequencial ? '(' + l.codigo_sequencial + ')' : ''} [${l.id}]: Valor: ${formatCurrency(valorPagoAntigo)} -> ${formatCurrency(novoValorPago)} (Conta: ${nomeContaNova}, Forma: ${novaForma}) - Motivo: ${motivoText}`);
+            await registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Alterou pagamento do lançamento ${l.codigo_sequencial ? '(' + l.codigo_sequencial + ')' : ''} [${l.id}]: Valor: ${formatCurrency(valorPagoAntigo)} -> ${formatCurrency(novoValorPago)} (Conta: ${nomeContaNova}, Forma: ${novaForma}${chequeLog}) - Motivo: ${motivoText}`);
         }
 
         closeModal('editPaymentModal');

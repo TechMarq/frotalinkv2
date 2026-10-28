@@ -1585,8 +1585,8 @@
                     </div>
 
                     <div class="input-group">
-                        <label>Forma de Pagamento</label>
-                        <select id="payForma" class="financeiro-input" disabled style="opacity: 0.9; cursor: not-allowed; background: rgba(0,0,0,0.2);">
+                        <label>Forma de Pagamento <span style="color:#ef4444; font-weight:800;">*</span></label>
+                        <select id="payForma" class="financeiro-input" onchange="window.handlePayFormaChange ? window.handlePayFormaChange(this.value) : null" required>
                             <option value="BOLETO">Boleto</option>
                             <option value="PIX">PIX</option>
                             <option value="CARTAO">Cartão de Crédito</option>
@@ -1598,13 +1598,13 @@
                     </div>
                 </div>
 
-                <!-- Info da Folha de Cheque quando for CHEQUE -->
-                <div id="payChequeInfoWrapper" style="display: none; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 10px; padding: 0.75rem 1rem; align-items: center; justify-content: space-between;">
-                    <div style="display: flex; align-items: center; gap: 0.5rem; color: #818cf8; font-weight: 700; font-size: 0.85rem;">
-                        <i data-lucide="file-check" style="width: 18px; height: 18px;"></i>
-                        <span>Folha de Cheque Vinculada:</span>
-                    </div>
-                    <strong id="payChequeNumDisplay" style="font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; color: #fff; background: rgba(0,0,0,0.3); padding: 3px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);">-</strong>
+                <!-- Campo de Folha de Cheque quando for CHEQUE -->
+                <div id="payChequeInfoWrapper" style="display: none; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 10px; padding: 0.8rem 1rem; flex-direction: column; gap: 0.4rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; color: #818cf8; font-weight: 700; font-size: 0.85rem;">
+                        <i data-lucide="ticket" style="width: 16px; height: 16px;"></i>
+                        <span>Número da Folha de Cheque <span style="color:#ef4444; font-weight:800;">*</span></span>
+                    </label>
+                    <input type="text" id="payNumeroCheque" class="financeiro-input" placeholder="Informe o número do cheque (ex: 000123)" style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">
                 </div>
 
                 <div class="input-group">
@@ -2697,7 +2697,7 @@
 
                 <div class="input-group">
                     <label id="labelEditPayForma">Forma de Pagamento</label>
-                    <select id="editPayForma" class="financeiro-input">
+                    <select id="editPayForma" class="financeiro-input" onchange="window.handleEditPayFormaChange ? window.handleEditPayFormaChange(this.value) : null">
                         <option value="BOLETO">Boleto</option>
                         <option value="PIX">PIX</option>
                         <option value="CARTAO_CREDITO">Cartão de Crédito</option>
@@ -2706,6 +2706,15 @@
                         <option value="CHEQUE">Cheque</option>
                         <option value="OUTROS">Outros</option>
                     </select>
+                </div>
+
+                <!-- Campo de Folha de Cheque quando for CHEQUE no Alterar Pagamento -->
+                <div id="editPayChequeWrapper" style="display: none; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 10px; padding: 0.8rem 1rem; flex-direction: column; gap: 0.4rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; color: #818cf8; font-weight: 700; font-size: 0.85rem;">
+                        <i data-lucide="ticket" style="width: 16px; height: 16px;"></i>
+                        <span>Número da Folha de Cheque <span style="color:#ef4444; font-weight:800;">*</span></span>
+                    </label>
+                    <input type="text" id="editPayNumeroCheque" class="financeiro-input" placeholder="Informe o número do cheque (ex: 000123)" style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">
                 </div>
 
                 <div class="input-group" style="background: rgba(245, 158, 11, 0.06); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 10px; padding: 0.8rem;">
@@ -2862,7 +2871,7 @@
         </div>
     </div>
 
-    <script src="financeiro.js?v=20261028_05"></script>
+    <script src="financeiro.js?v=20261028_06"></script>
     <script src="orb_menu.js?v=20260910_02"></script>
 </body>
 

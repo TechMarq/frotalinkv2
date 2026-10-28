@@ -1306,10 +1306,38 @@
                     <button class="btn-col-config" onclick="toggleColPanel('vehicles')">
                         <i data-lucide="settings-2" style="width:14px;"></i> Colunas
                     </button>
-                    <button class="btn" onclick="exportFleetToExcel()"
-                        style="padding: 0.5rem 1rem; background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2); font-size: 0.8rem;">
-                        <span id="excelBtnLabel" style="display: inline-flex; align-items: center; gap: 0.4rem;"><i data-lucide="file-spreadsheet" style="width: 14px;"></i> Excel</span>
-                    </button>
+                    <!-- Botão Excel com dropdown de opções -->
+                    <div class="excel-export-dropdown" id="excelDropdownWrapper" style="position:relative; display:inline-block;">
+                        <button class="btn" id="excelDropdownBtn"
+                            onclick="toggleExcelDropdown(event)"
+                            style="padding: 0.5rem 1rem; background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2); font-size: 0.8rem; display:inline-flex; align-items:center; gap:0.4rem; cursor:pointer;">
+                            <i data-lucide="file-spreadsheet" style="width: 14px;"></i> Excel
+                            <i data-lucide="chevron-down" style="width:12px; margin-left:2px;"></i>
+                        </button>
+                        <div id="excelDropdownMenu" style="display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:999; background:#1e293b; border:1px solid rgba(255,255,255,0.1); border-radius:10px; min-width:210px; box-shadow:0 8px 24px rgba(0,0,0,0.35); overflow:hidden;">
+                            <button type="button"
+                                onclick="exportFleetToExcelFiltered(); toggleExcelDropdown()"
+                                style="width:100%; padding:0.65rem 1rem; background:none; border:none; color:#f1f5f9; font-size:0.82rem; font-weight:600; text-align:left; cursor:pointer; display:flex; align-items:center; gap:0.5rem; transition:background 0.15s;"
+                                onmouseover="this.style.background='rgba(16,185,129,0.15)'" onmouseout="this.style.background='none'">
+                                <i data-lucide="table-2" style="width:14px; color:#10b981;"></i>
+                                <div>
+                                    <div style="color:#10b981; font-weight:700;">Dados Filtrados</div>
+                                    <div style="font-size:0.72rem; color:#94a3b8; margin-top:1px;">Veículos e colunas visíveis na tela</div>
+                                </div>
+                            </button>
+                            <div style="height:1px; background:rgba(255,255,255,0.07); margin:0 0.5rem;"></div>
+                            <button type="button"
+                                onclick="exportFleetToExcelFull(); toggleExcelDropdown()"
+                                style="width:100%; padding:0.65rem 1rem; background:none; border:none; color:#f1f5f9; font-size:0.82rem; font-weight:600; text-align:left; cursor:pointer; display:flex; align-items:center; gap:0.5rem; transition:background 0.15s;"
+                                onmouseover="this.style.background='rgba(99,102,241,0.15)'" onmouseout="this.style.background='none'">
+                                <i data-lucide="database" style="width:14px; color:#818cf8;"></i>
+                                <div>
+                                    <div style="color:#818cf8; font-weight:700;">Todos os Dados</div>
+                                    <div style="font-size:0.72rem; color:#94a3b8; margin-top:1px;">Exporta todos os campos da frota</div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
                     <button class="btn" onclick="exportFleetToPDF()"
                         style="padding: 0.5rem 1rem; background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2); font-size: 0.8rem;">
                         <span id="pdfBtnLabel" style="display: inline-flex; align-items: center; gap: 0.4rem;"><i data-lucide="file-text" style="width: 14px;"></i> PDF</span>
