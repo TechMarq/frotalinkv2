@@ -10,6 +10,7 @@ const state = {
     oficinas: [],
     acoes: [],
     tipos: [],
+    servicos: [],
     editingId: null,
     currentMaintItems: [],
     currentSetupTab: 'fornecedores',
@@ -75,11 +76,13 @@ async function loadInitialData() {
         const { data: o } = await supabaseClient.from('fornecedores').select('*').order('nome');
         const { data: a } = await supabaseClient.from('manutencao_acoes').select('*').order('descricao');
         const { data: t } = await supabaseClient.from('manutencao_tipos').select('*').order('descricao');
+        const { data: sv } = await supabaseClient.from('manutencao_servicos').select('*').order('descricao');
 
         state.vehicles = v || [];
         state.oficinas = o || [];
         state.acoes = a || [];
         state.tipos = t || [];
+        state.servicos = sv || [];
 
         // Busca dados de manutenções com suporte para esquema relacional ativo no Supabase
         let mData = null;
@@ -424,6 +427,12 @@ function renderSetupTables() {
                 </tr>
             `}).join('');
         }
+    } else if (state.currentSetupTab === 'servicos') {
+        // Respeita filtro de busca já digitado
+        const searchInput = document.getElementById('servicos_search');
+        const currentQuery = searchInput ? searchInput.value : '';
+        filterServicosTable(currentQuery);
+        return; // filterServicosTable já chama lucide.createIcons()
     }
     if (window.lucide) lucide.createIcons();
 }
@@ -1885,7 +1894,14 @@ function renderMaintItems() {
             <div class="form-grid" style="grid-template-columns: 2fr 100px 1.2fr 1.2fr; gap: 0.6rem;">
                 <div class="form-group">
                     <label>Descrição do Item / Serviço</label>
-                    <input type="text" id="maint_desc_${item.id}" value="${item.descricao || ''}" oninput="updateItemField('${item.id}', 'descricao', this.value)" placeholder="Ex: Óleo 5W30">
+                    <div style="position: relative;">
+                        <input type="text" id="maint_desc_${item.id}" value="${item.descricao || ''}"
+                            oninput="updateItemField('${item.id}', 'descricao', this.value); handleServicosSearch(this)"
+                            onfocus="handleServicosSearch(this)"
+                            onkeydown="handleMaintServicoKeydown(event, this)"
+                            placeholder="Ex: Óleo 5W30" autocomplete="off">
+                        <div class="autocomplete-results" style="position:absolute; top:100%; left:0; right:0; z-index:500; display:none;"></div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Qtd.</label>
@@ -2239,6 +2255,12 @@ window.switchSetupTab = (tab) => {
     const btn = document.querySelector(`[onclick="switchSetupTab('${tab}')"]`);
     if (btn) btn.classList.add('active');
 
+    // Limpa busca de serviços ao sair da aba
+    if (tab !== 'servicos') {
+        const searchInput = document.getElementById('servicos_search');
+        if (searchInput) searchInput.value = '';
+    }
+
     document.getElementById(`setup_${tab}`).classList.add('active');
     renderSetupTables();
 };
@@ -2503,6 +2525,9 @@ function setupFormListeners() {
     const tipoForm = document.getElementById('tipoForm');
     if (tipoForm) tipoForm.onsubmit = (e) => handleSetupSubmit(e, 'manutencao_tipos', 'modalTipo');
 
+    const servicoForm = document.getElementById('servicoForm');
+    if (servicoForm) servicoForm.onsubmit = (e) => handleSetupSubmit(e, 'manutencao_servicos', 'modalServico');
+
     const fornecedorForm = document.getElementById('fornecedorForm');
     if (fornecedorForm) fornecedorForm.onsubmit = (e) => handleSetupSubmit(e, 'fornecedores', 'modalFornecedor');
 
@@ -2521,6 +2546,7 @@ function setupFormListeners() {
             } else {
                 closeModal('modalAcao');
                 closeModal('modalTipo');
+                closeModal('modalServico');
                 closeModal('modalFornecedor');
                 closeModal('modalAuth');
                 closeModal('modalAjusteKm');
@@ -2618,6 +2644,8 @@ async function handleSetupSubmit(e, table, modalId) {
         data = { descricao: document.getElementById('acao_desc').value };
     } else if (table === 'manutencao_tipos') {
         data = { descricao: document.getElementById('tipo_desc').value };
+    } else if (table === 'manutencao_servicos') {
+        data = { descricao: document.getElementById('servico_desc').value };
     } else if (table === 'fornecedores') {
         data = { 
             nome: document.getElementById('fornecedor_nome').value,
@@ -2673,6 +2701,22 @@ window.openTipoModal = (id = null) => {
         if (t) document.getElementById('tipo_desc').value = t.descricao;
     }
     document.getElementById('modalTipo').classList.add('active');
+};
+
+window.openServicoModal = (id = null) => {
+    if (!canDo('manutencao_cadastros', id ? 'edit' : 'add')) {
+        alert(`Você não tem permissão para ${id ? 'editar' : 'cadastrar'} serviços.`);
+        return;
+    }
+    const form = document.getElementById('servicoForm');
+    form.reset();
+    document.getElementById('servico_id').value = id || '';
+    document.getElementById('servicoModalTitle').innerText = id ? 'Editar Serviço' : 'Cadastrar Serviço';
+    if (id) {
+        const s = state.servicos.find(x => x.id === id);
+        if (s) document.getElementById('servico_desc').value = s.descricao;
+    }
+    document.getElementById('modalServico').classList.add('active');
 };
 
 window.openFornecedorModal = (id = null) => {
@@ -2893,5 +2937,123 @@ window.closeMaintModal = (force = false) => {
         return;
     }
     modal.classList.remove('active');
+};
+
+// =========================================================
+// BUSCA NA TAB SERVIÇOS
+// =========================================================
+
+window.filterServicosTable = (query) => {
+    const q = (query || '').toLowerCase().trim();
+    const tbody = document.getElementById('setup_servicos_list');
+    if (!tbody) return;
+
+    const filtered = q.length === 0
+        ? state.servicos
+        : state.servicos.filter(s => s.descricao.toLowerCase().includes(q));
+
+    const count = filtered.length;
+    const total = state.servicos.length;
+
+    tbody.innerHTML = filtered.map(s => `
+        <tr>
+            <td data-label="Descrição do Serviço">${highlightServico(s.descricao, q)}</td>
+            <td data-label="Ações" style="text-align: right; padding-right: 2rem;">
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button class="btn-action edit" onclick="openServicoModal('${s.id}')" data-perm="manutencao_cadastros:edit"><i data-lucide="edit-3" style="width: 14px;"></i></button>
+                    <button class="btn-action delete" onclick="deleteSetupRecord('manutencao_servicos', '${s.id}')" data-perm="manutencao_cadastros:delete"><i data-lucide="trash-2" style="width: 14px;"></i></button>
+                </div>
+            </td>
+        </tr>
+    `).join('') || `<tr><td colspan="2" style="text-align:center; color:var(--text-muted); padding:2rem;">Nenhum serviço encontrado para "<strong>${q}</strong>"</td></tr>`;
+
+    // Atualiza contador de resultados
+    const counter = document.getElementById('servicos_count');
+    if (counter) counter.textContent = q ? `${count} de ${total} serviços` : `${total} serviços`;
+
+    if (window.lucide) lucide.createIcons();
+};
+
+function highlightServico(text, query) {
+    if (!query) return text;
+    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    return text.replace(regex, '<mark style="background:rgba(245,158,11,0.3); color:inherit; border-radius:3px; padding:0 2px;">$1</mark>');
+}
+
+// =========================================================
+// AUTOCOMPLETE: Serviços de Manutenção
+// =========================================================
+window.handleServicosSearch = (el) => {
+    const query = (el.value || '').toLowerCase().trim();
+    const resultsDiv = el.parentElement ? el.parentElement.querySelector('.autocomplete-results') : null;
+    if (!resultsDiv) return;
+
+    if (query.length < 2) {
+        resultsDiv.innerHTML = '';
+        resultsDiv.style.display = 'none';
+        return;
+    }
+
+    const matches = (state.servicos || [])
+        .filter(s => s.descricao.toLowerCase().includes(query))
+        .slice(0, 10);
+
+    if (matches.length === 0) {
+        resultsDiv.style.display = 'none';
+        return;
+    }
+
+    resultsDiv.innerHTML = matches.map(s => `
+        <div class="autocomplete-item"
+             style="padding: 0.6rem 0.8rem; cursor: pointer; background: var(--bg-card, #1e293b); border-bottom: 1px solid rgba(255,255,255,0.05);"
+             onmousedown="event.preventDefault(); selectServico(this, '${s.descricao.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')">
+            <span style="font-size:0.85rem; font-weight:600;">${s.descricao}</span>
+        </div>
+    `).join('');
+    resultsDiv.style.display = 'block';
+};
+
+window.selectServico = (el, descricao) => {
+    const wrapper = el.closest('div[style*="position: relative"]');
+    if (!wrapper) return;
+    const input = wrapper.querySelector('input[type="text"]');
+    if (!input) return;
+    const itemId = input.id ? input.id.replace('maint_desc_', '') : null;
+    input.value = descricao;
+    if (itemId) updateItemField(itemId, 'descricao', descricao);
+    wrapper.querySelector('.autocomplete-results').style.display = 'none';
+};
+
+window.handleMaintServicoKeydown = (e, input) => {
+    const resultsDiv = input.parentElement ? input.parentElement.querySelector('.autocomplete-results') : null;
+    if (!resultsDiv || resultsDiv.style.display === 'none') return;
+    const items = resultsDiv.querySelectorAll('.autocomplete-item');
+    if (!items.length) return;
+
+    let active = resultsDiv.querySelector('.autocomplete-item.active');
+    let idx = Array.from(items).indexOf(active);
+
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        idx = (idx + 1) % items.length;
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        idx = (idx - 1 + items.length) % items.length;
+    } else if (e.key === 'Enter' && active) {
+        e.preventDefault();
+        active.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        return;
+    } else if (e.key === 'Escape') {
+        resultsDiv.style.display = 'none';
+        return;
+    } else {
+        return;
+    }
+
+    items.forEach(i => i.classList.remove('active'));
+    if (items[idx]) {
+        items[idx].classList.add('active');
+        items[idx].style.background = 'rgba(245, 158, 11, 0.2)';
+    }
 };
 

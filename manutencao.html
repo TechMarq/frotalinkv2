@@ -1754,6 +1754,7 @@
             <div class="tabs-header" style="margin-bottom: 2rem;">
                 <div class="tab-item active" onclick="switchSetupTab('acoes')">Ações</div>
                 <div class="tab-item" onclick="switchSetupTab('tipos')">Tipos</div>
+                <div class="tab-item" onclick="switchSetupTab('servicos')">Serviços</div>
             </div>
 
 
@@ -1795,6 +1796,33 @@
                             </tr>
                         </thead>
                         <tbody id="setup_tipos_list"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Serviços List -->
+            <div id="setup_servicos" class="setup-content">
+                <div class="data-header">
+                    <h2>Gerenciar Serviços de Manutenção <span id="servicos_count" style="font-size:0.75rem; font-weight:500; color:var(--text-muted); margin-left:0.5rem;"></span></h2>
+                    <button class="btn-plus" onclick="openServicoModal()" data-perm="manutencao_cadastros:add">
+                        <i data-lucide="plus"></i> Novo Serviço
+                    </button>
+                </div>
+                <div style="margin-bottom: 1rem; position: relative;">
+                    <i data-lucide="search" style="position:absolute; left:0.8rem; top:50%; transform:translateY(-50%); width:16px; color:var(--text-muted); pointer-events:none;"></i>
+                    <input type="text" id="servicos_search" placeholder="Buscar serviço..." autocomplete="off"
+                        oninput="filterServicosTable(this.value)"
+                        style="width:100%; padding:0.6rem 1rem 0.6rem 2.4rem; background:var(--bg-card); border:1px solid var(--border-card); border-radius:10px; color:var(--text-main); font-size:0.85rem; outline:none;">
+                </div>
+                <div class="glass-table-container">
+                    <table style="width: 100%;" class="mobile-cards">
+                        <thead>
+                            <tr>
+                                <th style="width: 80%;">Descrição do Serviço</th>
+                                <th style="text-align: right; padding-right: 2rem;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="setup_servicos_list"></tbody>
                     </table>
                 </div>
             </div>
@@ -1957,6 +1985,26 @@
         </div>
     </div>
 
+    </div>
+
+    <!-- Modal Serviço -->
+    <div id="modalServico" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 id="servicoModalTitle">Cadastrar Serviço</h2>
+                <button class="close-btn" onclick="closeModal('modalServico')"><i data-lucide="x"></i></button>
+            </div>
+            <form id="servicoForm">
+                <input type="hidden" id="servico_id">
+                <div class="form-group">
+                    <label>Descrição do Serviço</label>
+                    <input type="text" id="servico_desc" required placeholder="Ex: TROCA ÓLEO MOTOR">
+                </div>
+                <button type="submit" class="btn-submit">SALVAR SERVIÇO</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Modal Autorização Antecipada -->
     <div id="modalAuth" class="modal">
         <div class="modal-content" style="max-width: 500px;">
@@ -2059,7 +2107,7 @@
         </button>
     </nav>
 
-    <script src="manutencao.js?v=20261007_km_fix"></script>
+    <script src="manutencao.js?v=20261103_servicos"></script>
     <script src="orb_menu.js"></script>
     <script>
         if (typeof lucide !== 'undefined') lucide.createIcons();

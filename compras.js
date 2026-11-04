@@ -350,9 +350,11 @@ async function loadMaintenanceConfigs() {
         try {
             const { data: a } = await supabaseClient.from('manutencao_acoes').select('*').order('descricao');
             const { data: t } = await supabaseClient.from('manutencao_tipos').select('*').order('descricao');
+            const { data: sv } = await supabaseClient.from('manutencao_servicos').select('id, descricao').order('descricao');
             maintActions = a || [];
             maintTypes = t || [];
-            console.log(`✅ ${maintActions.length} ações e ${maintTypes.length} tipos de manutenção carregados.`);
+            window.manutencaoServicos = sv || [];
+            console.log(`✅ ${maintActions.length} ações, ${maintTypes.length} tipos e ${window.manutencaoServicos.length} serviços de manutenção carregados.`);
         } catch (e) { console.error("Error loading maintenance configs:", e); }
     }
 }
@@ -2222,8 +2224,9 @@ function addItemRow(data = {}, shouldFocus = true, itemIndex = null) {
                     <div class="autocomplete-results"></div>
                 </div>
                 <!-- Serviço View -->
-                <div class="servico-input-group" style="flex:1; display:${data.tipo === 'servico' ? 'block' : 'none'}">
-                    <input type="text" class="item-servico-desc compra-input" placeholder="Descrição do serviço ou despesa..." style="width:100%" value="${data.produto || ''}" autocomplete="off" oninput="window.checkSimilarRecentItem(this.closest('.item-row'))">
+                <div class="servico-input-group autocomplete-wrapper" style="flex:1; display:${data.tipo === 'servico' ? 'block' : 'none'}; position:relative;">
+                    <input type="text" class="item-servico-desc compra-input" placeholder="Descrição do serviço ou despesa..." style="width:100%" value="${data.produto || ''}" autocomplete="off" oninput="handleServicoDescSearch(this); window.checkSimilarRecentItem(this.closest('.item-row'))" onfocus="handleServicoDescSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)">
+                    <div class="autocomplete-results" style="position:absolute; top:100%; left:0; right:0; z-index:500; display:none;"></div>
                 </div>
                 
                 <div class="product-actions-group" style="display:${data.tipo === 'servico' ? 'none' : 'flex'}; gap:0.3rem;">
@@ -2824,6 +2827,39 @@ window.selectCategoria = (id, label, itemEl) => {
         resultsDiv.style.display = 'none';
         resultsDiv.innerHTML = '';
     }
+};
+
+window.handleServicoDescSearch = (el) => {
+    const query = (el.value || '').toLowerCase().trim();
+    const resultsDiv = el.parentElement ? el.parentElement.querySelector('.autocomplete-results') : null;
+    if (!resultsDiv) return;
+
+    if (query.length < 2) {
+        resultsDiv.innerHTML = '';
+        resultsDiv.style.display = 'none';
+        return;
+    }
+
+    const matches = (window.manutencaoServicos || [])
+        .filter(s => s.descricao.toLowerCase().includes(query))
+        .slice(0, 10);
+
+    if (matches.length === 0) {
+        resultsDiv.style.display = 'none';
+        return;
+    }
+
+    resultsDiv.innerHTML = matches.map(s => `
+        <div class="autocomplete-item"
+             style="padding: 0.6rem 0.8rem; cursor: pointer; background: var(--bg-card, #1e293b); border-bottom: 1px solid rgba(255,255,255,0.05);"
+             onmousedown="event.preventDefault();
+                 this.closest('.autocomplete-wrapper').querySelector('.item-servico-desc').value='${s.descricao.replace(/'/g, "\\'").replace(/"/g, '&quot;')}';
+                 this.closest('.autocomplete-results').style.display='none';
+                 window.checkSimilarRecentItem(this.closest('.item-row'));">
+            <span style="font-size:0.85rem; font-weight:600;">${s.descricao}</span>
+        </div>
+    `).join('');
+    resultsDiv.style.display = 'block';
 };
 
 window.handleProductSearch = (el) => {

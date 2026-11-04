@@ -1225,6 +1225,46 @@ function processSupplierData(purchases) {
         p.centro_custo = centroCustoNome || '-';
         p.centro = p.centro_custo;
         
+        // Resolução inteligente da Placa / Vínculo (Veículo ou Pessoa)
+        let vinculoInfo = p.placa || p.vinculo || '';
+        if (p.compra_itens && p.compra_itens.length > 0) {
+            const vinculosSet = new Set();
+            p.compra_itens.forEach(it => {
+                let vItem = '';
+                if (it.vinculo_veiculo_id) {
+                    const veh = (state.vehicles || []).find(v => v.id === it.vinculo_veiculo_id);
+                    if (veh && veh.placa) vItem = veh.placa;
+                }
+                if (!vItem && it.vinculo_pessoa) {
+                    vItem = it.vinculo_pessoa;
+                }
+                if (vItem) vinculosSet.add(vItem);
+            });
+            if (vinculosSet.size > 0) {
+                vinculoInfo = Array.from(vinculosSet).join(', ');
+            }
+        }
+        p.placa_vinculo = vinculoInfo || '-';
+
+        // Resolução inteligente da Descrição / Peça / Produto dos itens
+        let itensDesc = '';
+        if (p.compra_itens && p.compra_itens.length > 0) {
+            const itensSet = new Set();
+            p.compra_itens.forEach(it => {
+                const prod = (it.produto || '').trim();
+                const marca = (it.marca || '').trim();
+                const itemLabel = prod + (marca ? ` [${marca}]` : '');
+                if (itemLabel) itensSet.add(itemLabel);
+            });
+            if (itensSet.size > 0) {
+                itensDesc = Array.from(itensSet).join(', ');
+            }
+        }
+        if (!itensDesc && (p.observacoes || p.descricao)) {
+            itensDesc = (p.observacoes || p.descricao).trim();
+        }
+        p.descricao_pecas = itensDesc || '-';
+
         const totalNota = parseFloat(p.valorTotal || p.valor_total || 0);
         grouped[supplier].purchases.push(p);
         grouped[supplier].total += totalNota;
@@ -1910,8 +1950,11 @@ function selectSupplier(sName) {
                         <th class="sortable-th" onclick="sortSupplierTable('especie', '${sName}')">
                             <span>Espécie</span><span class="sort-icon" id="sort-icon-especie">${state.supplierSort.col === 'especie' ? (state.supplierSort.dir === 'asc' ? '↑' : '↓') : '↕'}</span>
                         </th>
-                        <th class="sortable-th" onclick="sortSupplierTable('centro_custo', '${sName}')">
-                            <span>Centro Custo</span><span class="sort-icon" id="sort-icon-centro_custo">${state.supplierSort.col === 'centro_custo' ? (state.supplierSort.dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+                        <th class="sortable-th" onclick="sortSupplierTable('placa_vinculo', '${sName}')">
+                            <span>Placa</span><span class="sort-icon" id="sort-icon-placa_vinculo">${state.supplierSort.col === 'placa_vinculo' ? (state.supplierSort.dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+                        </th>
+                        <th class="sortable-th" onclick="sortSupplierTable('descricao_pecas', '${sName}')">
+                            <span>Descrição / Peça</span><span class="sort-icon" id="sort-icon-descricao_pecas">${state.supplierSort.col === 'descricao_pecas' ? (state.supplierSort.dir === 'asc' ? '↑' : '↓') : '↕'}</span>
                         </th>
                         <th class="sortable-th val-col" onclick="sortSupplierTable('valor_total', '${sName}')">
                             <span>Valor Total</span><span class="sort-icon" id="sort-icon-valor_total">${state.supplierSort.col === 'valor_total' ? (state.supplierSort.dir === 'asc' ? '↑' : '↓') : '↕'}</span>
@@ -1924,11 +1967,12 @@ function selectSupplier(sName) {
                             <td data-label="Data">${new Date(p.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
                             <td data-label="Nº Nota" style="font-weight: 700;">${p.numeroNota || p.numero_nota || '-'}</td>
                             <td data-label="Espécie">${p.especie || '-'}</td>
-                            <td data-label="Centro Custo">${p.centro || p.centro_custo || '-'}</td>
+                            <td data-label="Placa">${p.placa_vinculo && p.placa_vinculo !== '-' ? `<span class="status-pill" style="font-size: 0.7rem; padding: 2px 6px; background: rgba(99, 102, 241, 0.12); color: var(--primary-light); border: 1px solid rgba(99, 102, 241, 0.25);">${p.placa_vinculo}</span>` : '-'}</td>
+                            <td data-label="Descrição / Peça" style="max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${(p.descricao_pecas || '').replace(/"/g, '&quot;')}">${p.descricao_pecas || '-'}</td>
                             <td data-label="Valor Total" class="val-col" style="font-weight: 800; color: var(--primary-light);">R$ ${parseFloat(p.valorTotal || p.valor_total).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
                         </tr>
                         <tr id="items-${p.id}" style="display: none; background: rgba(0,0,0,0.15);">
-                            <td colspan="5" style="padding: 1rem;">
+                            <td colspan="6" style="padding: 1rem;">
                                 <div style="font-size: 0.7rem; font-weight: 800; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase;">Itens da Nota:</div>
                                 <table style="font-size: 0.75rem; background: none; border: none;">
                                     <thead>
@@ -2044,6 +2088,14 @@ function getSortedPurchases(purchases) {
             case 'especie':
                 valA = (a.especie || '').toLowerCase();
                 valB = (b.especie || '').toLowerCase();
+                break;
+            case 'placa_vinculo':
+                valA = (a.placa_vinculo || '').toLowerCase();
+                valB = (b.placa_vinculo || '').toLowerCase();
+                break;
+            case 'descricao_pecas':
+                valA = (a.descricao_pecas || '').toLowerCase();
+                valB = (b.descricao_pecas || '').toLowerCase();
                 break;
             case 'centro_custo':
                 valA = (a.centro || a.centro_custo || '').toLowerCase();
@@ -2412,19 +2464,20 @@ function exportSupplierConsolidatedPDF() {
                 new Date(p.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR'),
                 p.numeroNota || p.numero_nota || '-',
                 p.especie || '-',
-                p.centro_custo || p.centro || '-',
+                p.placa_vinculo || '-',
+                p.descricao_pecas || '-',
                 parseFloat(p.valorTotal || p.valor_total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
             ];
         });
 
         doc.autoTable({
             startY: y,
-            head: [['DATA', 'Nº NOTA', 'ESPÉCIE', 'CENTRO DE CUSTO', 'VALOR TOTAL (R$)']],
+            head: [['DATA', 'Nº NOTA', 'ESPÉCIE', 'PLACA', 'DESCRIÇÃO / PEÇA', 'VALOR TOTAL (R$)']],
             body: noteRows,
             theme: 'grid',
             headStyles: { fillColor: [71, 85, 105], fontSize: 7, cellPadding: 1 },
             styles: { fontSize: 7, cellPadding: 1 },
-            columnStyles: { 4: { halign: 'right' } },
+            columnStyles: { 3: { halign: 'center' }, 5: { halign: 'right' } },
             margin: { left: margin },
             tableWidth: pageWidth - (margin * 2)
         });
@@ -2899,8 +2952,9 @@ function exportSupplierDetailedPDF() {
             doc.setFontSize(7.5);
             doc.setTextColor(79, 70, 229);
             const espStr = p.especie && p.especie !== '-' ? ` | ESPÉCIE: ${p.especie}` : '';
-            const ccStr = (p.centro_custo || p.centro) && (p.centro_custo || p.centro) !== '-' ? ` | CC: ${p.centro_custo || p.centro}` : '';
-            doc.text(`NOTA #${p.numeroNota || p.numero_nota || '-'} | DATA: ${new Date(p.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR')}${espStr}${ccStr} | VALOR: R$ ${parseFloat(p.valorTotal || p.valor_total).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, margin, y);
+            const placaStr = p.placa_vinculo && p.placa_vinculo !== '-' ? ` | PLACA: ${p.placa_vinculo}` : '';
+            const descStr = p.descricao_pecas && p.descricao_pecas !== '-' ? ` | ITENS: ${p.descricao_pecas}` : '';
+            doc.text(`NOTA #${p.numeroNota || p.numero_nota || '-'} | DATA: ${new Date(p.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR')}${espStr}${placaStr}${descStr} | VALOR: R$ ${parseFloat(p.valorTotal || p.valor_total).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, margin, y);
             y += 2.5;
 
             const itemRows = (p.compra_itens || []).map(it => {
@@ -3279,13 +3333,15 @@ function exportSupplierDetailedExcel() {
         const data = state.supplierClosingData[sName];
         data.purchases.forEach(p => {
             (p.compra_itens || []).forEach(it => {
-                const plate = state.vehicles.find(v => v.id === it.vinculo_veiculo_id)?.placa || '-';
+                const plate = it.vinculo_pessoa || state.vehicles.find(v => v.id === it.vinculo_veiculo_id)?.placa || '-';
                 excelRows.push({
                     'FORNECEDOR': sName.toUpperCase(),
                     'NOTA': p.numeroNota || p.numero_nota || '-',
                     'DATA EMISSÃO': new Date(p.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR'),
-                    'ITEM/SERVIÇO': it.produto + (it.marca ? ` [${it.marca}]` : ''),
+                    'ESPÉCIE': p.especie || '-',
                     'PLACA': plate,
+                    'CENTRO DE CUSTO': p.centro_custo || p.centro || '-',
+                    'ITEM/SERVIÇO': it.produto + (it.marca ? ` [${it.marca}]` : ''),
                     'QTD': parseFloat(it.quantidade) || 0,
                     'UNIT': parseFloat(it.valor_unitario) || 0,
                     'TOTAL (R$)': (parseFloat(it.quantidade) || 0) * (parseFloat(it.valor_unitario) || 0)
