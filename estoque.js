@@ -1017,6 +1017,17 @@ function setupEventListeners() {
             }
         }
 
+        // F2: Registrar Saída de Estoque / Venda
+        if (e.key === 'F2') {
+            e.preventDefault();
+            if (!isVendaActive) {
+                if (typeof openVendaModal === 'function') {
+                    openVendaModal();
+                }
+            }
+            return;
+        }
+
         // CTRL + S ou CTRL + ENTER: Salvar / Confirmar
         if ((e.ctrlKey && (e.key === 's' || e.key === 'S')) || (e.ctrlKey && e.key === 'Enter')) {
             if (isVendaActive) {
@@ -3137,17 +3148,38 @@ function addVendaItemRow(data = {}, shouldFocus = true) {
     const vehDisplay = selectedVeh ? selectedVeh.placa : (data.vinculo_veiculo_placa || '');
     const maintActive = !!data.maint_control;
 
+    const descTipo = data.desconto_tipo === 'PERCENT' || data.desconto_tipo === 'PORCENTAGEM' ? 'PERCENT' : 'VALOR';
+    const descVal = parseFloat(data.desconto_valor) || 0;
+    const acrescTipo = data.acrescimo_tipo === 'PERCENT' || data.acrescimo_tipo === 'PORCENTAGEM' ? 'PERCENT' : 'VALOR';
+    const acrescVal = parseFloat(data.acrescimo_valor) || 0;
+    const hasAdjustments = (descVal > 0) || (acrescVal > 0);
+
+    card.dataset.descTipo = descTipo;
+    card.dataset.acrescTipo = acrescTipo;
+
     const qtd = data.quantidade !== undefined ? data.quantidade : 1;
     const unitPrice = data.valor_unitario !== undefined ? data.valor_unitario : (selectedProd?.valor_venda || 0);
-    const subtotal = qtd * unitPrice;
+
+    const baseSubtotal = qtd * unitPrice;
+    const descAmount = descTipo === 'PERCENT' ? (baseSubtotal * descVal / 100) : descVal;
+    const acrescAmount = acrescTipo === 'PERCENT' ? (baseSubtotal * acrescVal / 100) : acrescVal;
+    const subtotal = Math.max(0, baseSubtotal + acrescAmount - descAmount);
+
+    let badgeAjusteText = 'Desconto / Acréscimo';
+    if (descVal > 0 || acrescVal > 0) {
+        const parts = [];
+        if (descVal > 0) parts.push(`-${descTipo === 'PERCENT' ? descVal + '%' : 'R$ ' + descVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+        if (acrescVal > 0) parts.push(`+${acrescTipo === 'PERCENT' ? acrescVal + '%' : 'R$ ' + acrescVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+        badgeAjusteText = parts.join(' | ');
+    }
 
     card.innerHTML = `
         <!-- Linha 1: Produto, Qtd, Preço Unitário, Subtotal, Excluir -->
         <div class="v-item-line-1">
             <div class="autocomplete-wrapper" style="position: relative; min-width: 0;">
                 <div style="position: relative; display: flex; align-items: center;">
-                    <i data-lucide="search" style="position: absolute; left: 10px; width: 14px; height: 14px; color: #94a3b8; pointer-events: none;"></i>
-                    <input type="text" class="v-item-prod-search" placeholder="Buscar peça ou ler código de barras..." value="${prodDisplay}" oninput="handleVendaProdSearch(this)" onfocus="handleVendaProdSearch(this)" autocomplete="off" style="width: 100%; height: 38px; padding-left: 32px; padding-right: 135px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.82rem; font-weight: 600; color: #0f172a;">
+                    <i data-lucide="search" style="position: absolute; left: 12px; width: 14px; height: 14px; color: #94a3b8; pointer-events: none;"></i>
+                    <input type="text" class="v-item-prod-search" placeholder="Buscar peça ou ler código de barras..." value="${prodDisplay}" oninput="handleVendaProdSearch(this)" onfocus="handleVendaProdSearch(this)" autocomplete="off" style="width: 100%; height: 38px; padding-left: 38px; padding-right: 155px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.82rem; font-weight: 600; color: #0f172a;">
                     <span class="v-item-stock-tag" style="position: absolute; right: 42px; font-size: 0.65rem; font-weight: 700; color: #059669; background: #ecfdf5; padding: 2px 6px; border-radius: 6px; border: 1px solid #a7f3d0; ${stockQty !== null ? '' : 'display:none;'}">Estoque: ${stockQty !== null ? stockQty : 0} ${stockUnit}</span>
                     <button type="button" class="btn-scan-item-row" onclick="openBarcodeScanner('${rowId}')" title="Bipar código de barras com a câmera" style="position: absolute; right: 6px; width: 30px; height: 28px; background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
                         <i data-lucide="scan-barcode" style="width: 16px; height: 16px;"></i>
@@ -3170,7 +3202,7 @@ function addVendaItemRow(data = {}, shouldFocus = true) {
                     <span class="v-mobile-mini-label">Unitário</span>
                     <div style="position: relative;">
                         <span style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 0.68rem; font-weight: 700;">R$</span>
-                        <input type="number" class="v-item-unit" min="0" step="0.01" placeholder="0,00" value="${unitPrice || ''}" oninput="updateVendaCardSubtotal(this)" style="width: 100%; height: 38px; padding-left: 24px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
+                        <input type="number" class="v-item-unit" min="0" step="0.01" placeholder="0,00" value="${unitPrice || ''}" oninput="updateVendaCardSubtotal(this)" style="width: 100%; height: 38px; padding-left: 28px !important; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
                     </div>
                 </div>
 
@@ -3188,7 +3220,7 @@ function addVendaItemRow(data = {}, shouldFocus = true) {
             </div>
         </div>
 
-        <!-- Linha 2: Vínculo (Placa/Pessoa) e Toggle Manutenção -->
+        <!-- Linha 2: Vínculo (Placa/Pessoa), Toggle Manutenção e Botão Ajustes -->
         <div class="v-item-line-2">
             <div style="display: flex; align-items: center; gap: 0.6rem; flex: 1; min-width: 280px;">
                 <label style="font-size: 0.72rem; font-weight: 700; color: #475569; min-width: 65px;">Vincular a:</label>
@@ -3215,16 +3247,46 @@ function addVendaItemRow(data = {}, shouldFocus = true) {
                 </div>
             </div>
 
-            <!-- Toggle Controlar Manutenção -->
-            <div style="display: flex; align-items: center; gap: 0.6rem;">
-                <label style="font-size: 0.72rem; font-weight: 700; color: #475569;">Controlar Manutenção?</label>
-                <div class="v-maint-switch-wrap" style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; user-select: none;" onclick="toggleVendaCardMaint(this)">
-                    <div class="v-maint-switch-track" style="width: 40px; height: 22px; background: ${maintActive ? '#059669' : '#cbd5e1'}; border-radius: 12px; position: relative; transition: all 0.2s;">
-                        <div class="v-maint-switch-knob" style="width: 16px; height: 16px; background: #ffffff; border-radius: 50%; position: absolute; top: 3px; left: ${maintActive ? '21px' : '3px'}; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"></div>
+            <!-- Botão Ajustes e Toggle Controlar Manutenção -->
+            <div style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
+                <button type="button" class="btn-open-ajustes ${hasAdjustments ? 'has-adjustments' : ''}" onclick="toggleVendaCardAjustes(this)" title="Aplicar Desconto ou Acréscimo no item">
+                    <i data-lucide="percent" style="width: 12px; height: 12px;"></i>
+                    <span class="btn-ajustes-text">${badgeAjusteText}</span>
+                </button>
+
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                    <label style="font-size: 0.72rem; font-weight: 700; color: #475569;">Controlar Manutenção?</label>
+                    <div class="v-maint-switch-wrap" style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; user-select: none;" onclick="toggleVendaCardMaint(this)">
+                        <div class="v-maint-switch-track" style="width: 40px; height: 22px; background: ${maintActive ? '#059669' : '#cbd5e1'}; border-radius: 12px; position: relative; transition: all 0.2s;">
+                            <div class="v-maint-switch-knob" style="width: 16px; height: 16px; background: #ffffff; border-radius: 50%; position: absolute; top: 3px; left: ${maintActive ? '21px' : '3px'}; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"></div>
+                        </div>
+                        <span class="v-maint-switch-label" style="font-size: 0.68rem; font-weight: 800; color: ${maintActive ? '#059669' : '#64748b'};">${maintActive ? 'SIM' : 'NÃO'}</span>
+                        <input type="hidden" class="v-item-maint-active" value="${maintActive ? 'true' : 'false'}">
                     </div>
-                    <span class="v-maint-switch-label" style="font-size: 0.68rem; font-weight: 800; color: ${maintActive ? '#059669' : '#64748b'};">${maintActive ? 'SIM' : 'NÃO'}</span>
-                    <input type="hidden" class="v-item-maint-active" value="${maintActive ? 'true' : 'false'}">
                 </div>
+            </div>
+        </div>
+
+        <!-- Painel de Desconto e Acréscimo Expansível -->
+        <div class="v-item-ajustes-panel" style="display: ${hasAdjustments ? 'flex' : 'none'};">
+            <!-- Desconto -->
+            <div class="v-item-ajuste-field">
+                <label><i data-lucide="arrow-down-circle" style="width:13px; height:13px; color:#ef4444; vertical-align:middle;"></i> Desconto:</label>
+                <div style="display: inline-flex; background: #e2e8f0; border-radius: 6px; padding: 2px; gap: 2px; align-items: center;">
+                    <button type="button" class="btn-tipo-toggle btn-desc-val ${descTipo === 'VALOR' ? 'active' : ''}" onclick="setVendaCardAjusteTipo(this, 'desconto', 'VALOR')" style="border: none; border-radius: 4px; padding: 3px 8px; font-size: 0.72rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: ${descTipo === 'VALOR' ? '#2563eb' : 'transparent'}; color: ${descTipo === 'VALOR' ? '#ffffff' : '#64748b'};">R$ Valor</button>
+                    <button type="button" class="btn-tipo-toggle btn-desc-pct ${descTipo === 'PERCENT' ? 'active' : ''}" onclick="setVendaCardAjusteTipo(this, 'desconto', 'PERCENT')" style="border: none; border-radius: 4px; padding: 3px 8px; font-size: 0.72rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: ${descTipo === 'PERCENT' ? '#2563eb' : 'transparent'}; color: ${descTipo === 'PERCENT' ? '#ffffff' : '#64748b'};">% Porc.</button>
+                </div>
+                <input type="number" class="v-item-desc-val v-item-ajuste-input" min="0" step="0.01" placeholder="${descTipo === 'PERCENT' ? '0%' : '0,00'}" value="${descVal > 0 ? descVal : ''}" oninput="updateVendaCardSubtotal(this)" style="width: 90px; height: 32px; padding: 0 8px; font-size: 0.78rem; font-weight: 700; color: #0f172a; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; text-align: right;">
+            </div>
+
+            <!-- Acréscimo -->
+            <div class="v-item-ajuste-field">
+                <label><i data-lucide="arrow-up-circle" style="width:13px; height:13px; color:#10b981; vertical-align:middle;"></i> Acréscimo:</label>
+                <div style="display: inline-flex; background: #e2e8f0; border-radius: 6px; padding: 2px; gap: 2px; align-items: center;">
+                    <button type="button" class="btn-tipo-toggle btn-acresc-val-btn ${acrescTipo === 'VALOR' ? 'active' : ''}" onclick="setVendaCardAjusteTipo(this, 'acrescimo', 'VALOR')" style="border: none; border-radius: 4px; padding: 3px 8px; font-size: 0.72rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: ${acrescTipo === 'VALOR' ? '#2563eb' : 'transparent'}; color: ${acrescTipo === 'VALOR' ? '#ffffff' : '#64748b'};">R$ Valor</button>
+                    <button type="button" class="btn-tipo-toggle btn-acresc-pct-btn ${acrescTipo === 'PERCENT' ? 'active' : ''}" onclick="setVendaCardAjusteTipo(this, 'acrescimo', 'PERCENT')" style="border: none; border-radius: 4px; padding: 3px 8px; font-size: 0.72rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: ${acrescTipo === 'PERCENT' ? '#2563eb' : 'transparent'}; color: ${acrescTipo === 'PERCENT' ? '#ffffff' : '#64748b'};">% Porc.</button>
+                </div>
+                <input type="number" class="v-item-acresc-val v-item-ajuste-input" min="0" step="0.01" placeholder="${acrescTipo === 'PERCENT' ? '0%' : '0,00'}" value="${acrescVal > 0 ? acrescVal : ''}" oninput="updateVendaCardSubtotal(this)" style="width: 90px; height: 32px; padding: 0 8px; font-size: 0.78rem; font-weight: 700; color: #0f172a; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; text-align: right;">
             </div>
         </div>
 
@@ -3338,16 +3400,107 @@ window.updateVendaItemsCount = updateVendaItemsCount;
 function updateVendaCardSubtotal(inputEl) {
     const card = inputEl.closest('.v-item-card');
     if (!card) return;
-    const qtd = parseFloat(card.querySelector('.v-item-qtd').value) || 0;
-    const unit = parseFloat(card.querySelector('.v-item-unit').value) || 0;
-    const subtotal = qtd * unit;
+    const qtd = parseFloat(card.querySelector('.v-item-qtd')?.value) || 0;
+    const unit = parseFloat(card.querySelector('.v-item-unit')?.value) || 0;
+    const base = qtd * unit;
+
+    const descTipo = card.dataset.descTipo || 'VALOR';
+    const acrescTipo = card.dataset.acrescTipo || 'VALOR';
+
+    const descRaw = parseFloat(card.querySelector('.v-item-desc-val')?.value) || 0;
+    const acrescRaw = parseFloat(card.querySelector('.v-item-acresc-val')?.value) || 0;
+
+    const descAmount = descTipo === 'PERCENT' ? (base * descRaw / 100) : descRaw;
+    const acrescAmount = acrescTipo === 'PERCENT' ? (base * acrescRaw / 100) : acrescRaw;
+
+    const subtotal = Math.max(0, base + acrescAmount - descAmount);
+
     const subtotalEl = card.querySelector('.v-item-subtotal');
     if (subtotalEl) {
         subtotalEl.value = subtotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     }
+
+    // Atualiza badge do botão de ajustes
+    const btnAjustes = card.querySelector('.btn-open-ajustes');
+    const txtAjustes = card.querySelector('.btn-ajustes-text');
+    if (btnAjustes && txtAjustes) {
+        if (descRaw > 0 || acrescRaw > 0) {
+            btnAjustes.classList.add('has-adjustments');
+            const parts = [];
+            if (descRaw > 0) parts.push(`-${descTipo === 'PERCENT' ? descRaw + '%' : 'R$ ' + descRaw.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+            if (acrescRaw > 0) parts.push(`+${acrescTipo === 'PERCENT' ? acrescRaw + '%' : 'R$ ' + acrescRaw.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+            txtAjustes.innerText = parts.join(' | ');
+        } else {
+            btnAjustes.classList.remove('has-adjustments');
+            txtAjustes.innerText = 'Desconto / Acréscimo';
+        }
+    }
+
     calculateVendaTotal();
 }
 window.updateVendaCardSubtotal = updateVendaCardSubtotal;
+
+function toggleVendaCardAjustes(btn) {
+    const card = btn.closest('.v-item-card');
+    if (!card) return;
+    const panel = card.querySelector('.v-item-ajustes-panel');
+    if (!panel) return;
+    const isHidden = panel.style.display === 'none' || !panel.style.display;
+    panel.style.display = isHidden ? 'flex' : 'none';
+    if (isHidden) {
+        setTimeout(() => {
+            const input = panel.querySelector('.v-item-desc-val');
+            if (input) input.focus();
+        }, 50);
+    }
+}
+window.toggleVendaCardAjustes = toggleVendaCardAjustes;
+
+function setVendaCardAjusteTipo(btn, ajusteTipo, valorTipo) {
+    const card = btn.closest('.v-item-card');
+    if (!card) return;
+    
+    if (ajusteTipo === 'desconto') {
+        card.dataset.descTipo = valorTipo;
+        const btnVal = card.querySelector('.btn-desc-val');
+        const btnPct = card.querySelector('.btn-desc-pct');
+        const inputDesc = card.querySelector('.v-item-desc-val');
+        if (btnVal) {
+            btnVal.style.background = valorTipo === 'VALOR' ? '#2563eb' : 'transparent';
+            btnVal.style.color = valorTipo === 'VALOR' ? '#ffffff' : '#64748b';
+            btnVal.classList.toggle('active', valorTipo === 'VALOR');
+        }
+        if (btnPct) {
+            btnPct.style.background = valorTipo === 'PERCENT' ? '#2563eb' : 'transparent';
+            btnPct.style.color = valorTipo === 'PERCENT' ? '#ffffff' : '#64748b';
+            btnPct.classList.toggle('active', valorTipo === 'PERCENT');
+        }
+        if (inputDesc) {
+            inputDesc.placeholder = valorTipo === 'PERCENT' ? '0%' : '0,00';
+        }
+    } else {
+        card.dataset.acrescTipo = valorTipo;
+        const btnVal = card.querySelector('.btn-acresc-val-btn');
+        const btnPct = card.querySelector('.btn-acresc-pct-btn');
+        const inputAcresc = card.querySelector('.v-item-acresc-val');
+        if (btnVal) {
+            btnVal.style.background = valorTipo === 'VALOR' ? '#2563eb' : 'transparent';
+            btnVal.style.color = valorTipo === 'VALOR' ? '#ffffff' : '#64748b';
+            btnVal.classList.toggle('active', valorTipo === 'VALOR');
+        }
+        if (btnPct) {
+            btnPct.style.background = valorTipo === 'PERCENT' ? '#2563eb' : 'transparent';
+            btnPct.style.color = valorTipo === 'PERCENT' ? '#ffffff' : '#64748b';
+            btnPct.classList.toggle('active', valorTipo === 'PERCENT');
+        }
+        if (inputAcresc) {
+            inputAcresc.placeholder = valorTipo === 'PERCENT' ? '0%' : '0,00';
+        }
+    }
+    
+    updateVendaCardSubtotal(btn);
+}
+window.setVendaCardAjusteTipo = setVendaCardAjusteTipo;
 
 function setVendaCardLinkType(btnEl, type) {
     const card = btnEl.closest('.v-item-card');
@@ -3967,21 +4120,30 @@ function collectVendaItemsFromCards() {
         const maintGarantia = card.querySelector('.v-item-maint-garantia')?.value === 'true';
         const maintMesesGarantia = parseInt(card.querySelector('.v-item-maint-meses-garantia')?.value) || null;
 
-        const subtotal = qtd * unitVal;
+        const descTipo = card.dataset.descTipo || 'VALOR';
+        const acrescTipo = card.dataset.acrescTipo || 'VALOR';
+        const descRaw = parseFloat(card.querySelector('.v-item-desc-val')?.value) || 0;
+        const acrescRaw = parseFloat(card.querySelector('.v-item-acresc-val')?.value) || 0;
+
+        const base = qtd * unitVal;
+        const descAmount = descTipo === 'PERCENT' ? (base * descRaw / 100) : descRaw;
+        const acrescAmount = acrescTipo === 'PERCENT' ? (base * acrescRaw / 100) : acrescRaw;
+        const subtotal = Math.max(0, base + acrescAmount - descAmount);
+        const adjustment = acrescAmount - descAmount;
 
         items.push({
             produto_id: prodId,
             nome: nome,
             quantidade: qtd,
             valor_unitario: unitVal,
-            adjustment: 0,
+            adjustment: adjustment,
             subtotal: subtotal,
             unidade: unidade,
             valor_custo: valorCusto,
-            desconto_tipo: 'VALOR',
-            desconto_valor: 0,
-            acrescimo_tipo: 'VALOR',
-            acrescimo_valor: 0,
+            desconto_tipo: descTipo,
+            desconto_valor: descRaw,
+            acrescimo_tipo: acrescTipo,
+            acrescimo_valor: acrescRaw,
             vinculo_tipo: vinculoTipo,
             vinculo_veiculo_id: vinculoVeiculoId,
             vinculo_veiculo_placa: vinculoVeiculoPlaca,
@@ -4018,7 +4180,11 @@ function calculateVendaTotal() {
     const elLiquido = document.getElementById('v_total_liquido') || document.getElementById('v_total_final');
 
     if (elBruto) elBruto.innerText = bruteTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    if (elAjustes) elAjustes.innerText = adjustmentTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    if (elAjustes) {
+        const sign = adjustmentTotal > 0 ? '+' : '';
+        elAjustes.innerText = `${sign}${adjustmentTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
+        elAjustes.style.color = adjustmentTotal < 0 ? '#ef4444' : (adjustmentTotal > 0 ? '#10b981' : '#0f172a');
+    }
     if (elLiquido) elLiquido.innerText = finalTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
     const btnConfirm = document.getElementById('btn_confirm_venda');
@@ -4418,7 +4584,13 @@ async function saveVenda(event) {
         closeVendaModal();
         currentVendaId = null;
         await reloadEstoque();
-        if (typeof loadHistory === 'function') await loadHistory(true);
+        
+        // Redireciona automaticamente para a aba de Histórico de Movimentação
+        if (typeof switchTab === 'function') {
+            switchTab('history');
+        } else if (typeof loadHistory === 'function') {
+            await loadHistory(true);
+        }
 
     } catch (err) {
         console.error('Erro ao salvar venda:', err);

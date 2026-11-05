@@ -2225,7 +2225,8 @@ function addItemRow(data = {}, shouldFocus = true, itemIndex = null) {
                 </div>
                 <!-- Serviço View -->
                 <div class="servico-input-group autocomplete-wrapper" style="flex:1; display:${data.tipo === 'servico' ? 'block' : 'none'}; position:relative;">
-                    <input type="text" class="item-servico-desc compra-input" placeholder="Descrição do serviço ou despesa..." style="width:100%" value="${data.produto || ''}" autocomplete="off" oninput="handleServicoDescSearch(this); window.checkSimilarRecentItem(this.closest('.item-row'))" onfocus="handleServicoDescSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)">
+                    <input type="text" class="item-servico-desc compra-input" placeholder="Descrição do serviço ou despesa..." style="width:100%" value="${data.produto || ''}" data-servico-id="${data.servicoId || data.servico_id || ''}" autocomplete="off" oninput="handleServicoDescSearch(this); window.checkSimilarRecentItem(this.closest('.item-row'))" onfocus="handleServicoDescSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)">
+                    <input type="hidden" class="item-servico-id" value="${data.servicoId || data.servico_id || ''}">
                     <div class="autocomplete-results" style="position:absolute; top:100%; left:0; right:0; z-index:500; display:none;"></div>
                 </div>
                 
@@ -2852,8 +2853,16 @@ window.handleServicoDescSearch = (el) => {
     resultsDiv.innerHTML = matches.map(s => `
         <div class="autocomplete-item"
              style="padding: 0.6rem 0.8rem; cursor: pointer; background: var(--bg-card, #1e293b); border-bottom: 1px solid rgba(255,255,255,0.05);"
+             data-servico-id="${s.id}"
              onmousedown="event.preventDefault();
-                 this.closest('.autocomplete-wrapper').querySelector('.item-servico-desc').value='${s.descricao.replace(/'/g, "\\'").replace(/"/g, '&quot;')}';
+                 const wrapper = this.closest('.autocomplete-wrapper');
+                 const descInput = wrapper.querySelector('.item-servico-desc');
+                 const idInput = wrapper.querySelector('.item-servico-id');
+                 if (descInput) {
+                     descInput.value = '${s.descricao.replace(/'/g, "\\'").replace(/"/g, '&quot;')}';
+                     descInput.setAttribute('data-servico-id', '${s.id}');
+                 }
+                 if (idInput) idInput.value = '${s.id}';
                  this.closest('.autocomplete-results').style.display='none';
                  window.checkSimilarRecentItem(this.closest('.item-row'));">
             <span style="font-size:0.85rem; font-weight:600;">${s.descricao}</span>
@@ -3402,6 +3411,7 @@ async function handleSaveCompra(e) {
                 items.push({
                     tipo: isServico ? 'servico' : 'peca',
                     produtoId: prodId,
+                    servico_id: (isServico ? (r.querySelector('.item-servico-id')?.value || r.querySelector('.item-servico-desc')?.getAttribute('data-servico-id')) : null) || null,
                     descricaoServico: isServico ? servDesc : manualProdDesc,
                     quantidade: qtd,
                     valorUnitario: unit,
@@ -3573,6 +3583,7 @@ async function handleSaveCompra(e) {
                     intervalo_meses: row.querySelector('.maint-intervalo-meses')?.value || null,
                     possui_garantia: row.querySelector('.maint-possui-garantia').value === 'true',
                     meses_garantia: row.querySelector('.maint-meses-garantia')?.value || null,
+                    servico_id: isServico ? (row.querySelector('.item-servico-id')?.value || row.querySelector('.item-servico-desc')?.getAttribute('data-servico-id') || null) : null,
                     descricao: isServico ? row.querySelector('.item-servico-desc').value : row.querySelector('.item-produto-search').value,
                     quantidade: parseFloat(itemData.quantidade) || 1,
                     valor_pecas: isServico ? 0 : itemData.valorUnitario * itemData.quantidade,
@@ -3694,6 +3705,7 @@ async function handleSaveCompra(e) {
                     maint_intervalo_meses: parseInt(it.maintIntervaloMeses) || null,
                     maint_garantia: it.maintGarantia || false,
                     maint_meses_garantia: parseInt(it.maintMesesGarantia) || null,
+                    servico_id: isUuid(it.servico_id) ? it.servico_id : null,
                     empresa_id: window.currentEmpresaId || null
                 }));
                 if (dbItems.length > 0) {
@@ -3952,11 +3964,20 @@ async function handleSaveCompra(e) {
                                 vencimento_garantia = baseDate.toISOString().split('T')[0];
                             }
 
+                            // Identifica servico_id
+                            let matchedServicoId = m.servico_id || null;
+                            if (!matchedServicoId && m.descricao && (window.manutencaoServicos || []).length > 0) {
+                                const cleanD = m.descricao.trim().toUpperCase();
+                                const foundS = window.manutencaoServicos.find(s => s.descricao.trim().toUpperCase() === cleanD);
+                                if (foundS) matchedServicoId = foundS.id;
+                            }
+                            m.servico_id = matchedServicoId;
+
                             const itemPayload = {
                                 manutencao_id: newMaint.id,
+                                servico_id: matchedServicoId,
                                 acao_id: m.acao_id || null,
                                 descricao: `[ID:${compraData.id}] ${m.descricao}`,
-                                quantidade: parseFloat(m.quantidade) || 1,
                                 valor_pecas: 0,
                                 valor_servicos: parseFloat(m.valor_servicos) || 0,
                                 possui_garantia: m.possui_garantia,
@@ -3971,13 +3992,7 @@ async function handleSaveCompra(e) {
                                 proxima_troca_data: proxima_troca_data
                             };
 
-                            let { error: itemError } = await client.from('manutencao_itens').insert([itemPayload]);
-                            if (itemError && itemError.message && (itemError.message.includes('quantidade') || itemError.message.includes('tipo_id') || itemError.message.includes('schema cache'))) {
-                                if (itemError.message.includes('quantidade')) delete itemPayload.quantidade;
-                                if (itemError.message.includes('tipo_id')) delete itemPayload.tipo_id;
-                                const fbRes = await client.from('manutencao_itens').insert([itemPayload]);
-                                itemError = fbRes.error;
-                            }
+                            const { error: itemError } = await client.from('manutencao_itens').insert([itemPayload]);
 
                             if (itemError) {
                                 console.error("❌ Erro ao criar item de manutenção:", itemError);
@@ -3987,6 +4002,14 @@ async function handleSaveCompra(e) {
                                 } catch (delErr) {
                                     console.warn("Aviso ao limpar cabeçalho órfão de manutenção:", delErr);
                                 }
+                            } else {
+                                // Atualiza dados de controle e proxima troca no cabeçalho da manutenção
+                                await client.from('manutencoes').update({
+                                    proxima_troca_km: proxima_troca_km || null,
+                                    controle_proxima_troca: m.controle_proxima_troca || 'NENHUMA',
+                                    intervalo_km: intervalKm || null,
+                                    intervalo_meses: intervalMonths || null
+                                }).eq('id', newMaint.id);
                             }
                         }
                     } catch (err) {
@@ -3994,6 +4017,80 @@ async function handleSaveCompra(e) {
                     }
                 }
             }
+
+            // --- AUTO-CONCLUSAO DE MANUTENCOES ANTERIORES DO MESMO VEICULO E SERVICO ---
+            if (targetMaintRecords.length > 0) {
+                try {
+                    // Agrupa servicos por veiculo
+                    const servicesByVeh = {};
+                    targetMaintRecords.forEach(rec => {
+                        if (!rec.veiculo_id) return;
+                        if (!servicesByVeh[rec.veiculo_id]) {
+                            servicesByVeh[rec.veiculo_id] = {
+                                km: rec.km_atual || 0,
+                                services: []
+                            };
+                        }
+                        servicesByVeh[rec.veiculo_id].services.push({
+                            id: rec.servico_id || null,
+                            descricao: rec.descricao || ''
+                        });
+                    });
+
+                    for (const vId of Object.keys(servicesByVeh)) {
+                        const grp = servicesByVeh[vId];
+                        const servicoIds = grp.services.map(s => s.id).filter(Boolean);
+                        const cleanNames = grp.services.map(s => (s.descricao || '').trim().toUpperCase()).filter(Boolean);
+
+                        const { data: maintsToClose } = await client
+                            .from('manutencoes')
+                            .select(`
+                                id, data, km_atual, status,
+                                manutencao_itens ( id, servico_id, descricao )
+                            `)
+                            .eq('veiculo_id', vId)
+                            .neq('status', 'CONCLUIDO');
+
+                        if (maintsToClose && maintsToClose.length > 0) {
+                            const idsToComplete = [];
+                            maintsToClose.forEach(m => {
+                                const isOlderOrEqualDate = !compraData.data || !m.data || m.data <= compraData.data;
+                                const isOlderOrEqualKm = !grp.km || !m.km_atual || parseFloat(m.km_atual) <= parseFloat(grp.km);
+                                if (!isOlderOrEqualDate && !isOlderOrEqualKm) return;
+
+                                const items = m.manutencao_itens || [];
+                                const match = items.some(it => {
+                                    if (it.servico_id && servicoIds.includes(it.servico_id)) return true;
+                                    if (it.descricao) {
+                                        const cleanDesc = it.descricao.replace(/\[ID:[^\]]+\]\s*/i, '').trim().toUpperCase();
+                                        if (cleanNames.includes(cleanDesc)) return true;
+                                    }
+                                    return false;
+                                });
+
+                                if (match && !idsToComplete.includes(m.id)) {
+                                    idsToComplete.push(m.id);
+                                }
+                            });
+
+                            if (idsToComplete.length > 0) {
+                                console.log(`[Compras -> Manutenção] Concluindo automaticamente ${idsToComplete.length} OS(s) anterior(es) do veículo:`, idsToComplete);
+                                await client
+                                    .from('manutencoes')
+                                    .update({
+                                        status: 'CONCLUIDO',
+                                        autorizacao_motivo: `Concluído automaticamente pela Nota #${compraData.numeroNota || compraData.id}`,
+                                        autorizado_em: new Date().toISOString()
+                                    })
+                                    .in('id', idsToComplete);
+                            }
+                        }
+                    }
+                } catch (autoMaintErr) {
+                    console.warn('[Compras] Aviso ao concluir manutenções anteriores:', autoMaintErr);
+                }
+            }
+
             alert("✅ Compra e manutenção sincronizadas com sucesso!");
         }
 

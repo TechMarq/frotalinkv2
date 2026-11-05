@@ -926,8 +926,36 @@ function renderMaintTable() {
             proxKmList = [parseFloat(m.proxima_troca_km)];
         }
 
-        const proxKmText = proxKmList.length > 0 
-            ? proxKmList.map(k => k.toLocaleString('pt-BR')).join('<br>')
+        // Mapeia detalhes de cada próxima troca com seu intervalo de KM estipulado
+        const proxKmEntries = [];
+        items.forEach(i => {
+            if (i.proxima_troca_km) {
+                proxKmEntries.push({
+                    km: parseFloat(i.proxima_troca_km),
+                    intervaloKm: i.intervalo_km ? parseFloat(i.intervalo_km) : null,
+                    controle: i.controle_proxima_troca
+                });
+            }
+        });
+        if (proxKmEntries.length === 0 && m.proxima_troca_km) {
+            proxKmEntries.push({
+                km: parseFloat(m.proxima_troca_km),
+                intervaloKm: m.intervalo_km ? parseFloat(m.intervalo_km) : null,
+                controle: m.controle_proxima_troca
+            });
+        }
+
+        const proxKmText = proxKmEntries.length > 0 
+            ? proxKmEntries.map(entry => {
+                const kmFormatted = entry.km.toLocaleString('pt-BR');
+                const tagIntervalo = entry.intervaloKm && entry.intervaloKm > 0
+                    ? `<span style="display: inline-block; white-space: nowrap; margin-top: 2px; padding: 1px 5px; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.22); border-radius: 4px; color: #6366f1; font-size: 0.58rem; font-weight: 800; line-height: 1.1;" title="Intervalo estipulado para esta troca">+${entry.intervaloKm.toLocaleString('pt-BR')} km</span>`
+                    : '';
+                return `<div style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 3px; white-space: nowrap;">
+                            <span>${kmFormatted}</span>
+                            ${tagIntervalo}
+                        </div>`;
+            }).join('')
             : '---';
         
         const kmFaltanteHtml = isConcluido
@@ -1120,8 +1148,15 @@ function renderMaintTable() {
                 let proxKmList = items.map(i => i.proxima_troca_km ? parseFloat(i.proxima_troca_km) : null).filter(k => k !== null);
                 if (proxKmList.length === 0 && m.proxima_troca_km) proxKmList = [parseFloat(m.proxima_troca_km)];
 
+                // Identifica primeiro intervalo disponível para exibir tag no mobile
+                const itemWithInterval = items.find(i => i.proxima_troca_km && i.intervalo_km && parseFloat(i.intervalo_km) > 0);
+                const mobIntervaloKm = itemWithInterval ? parseFloat(itemWithInterval.intervalo_km) : (m.intervalo_km ? parseFloat(m.intervalo_km) : null);
+                const mobIntervaloTag = mobIntervaloKm 
+                    ? `<span style="display: inline-block; white-space: nowrap; font-size: 0.58rem; font-weight: 800; color: #6366f1; background: rgba(99,102,241,0.08); padding: 1px 4px; border-radius: 4px; margin-left: 4px; border: 1px solid rgba(99,102,241,0.22); line-height: 1.1;">+${mobIntervaloKm.toLocaleString('pt-BR')} km</span>` 
+                    : '';
+
                 const kmTrocaText = m.km_atual ? parseFloat(m.km_atual).toLocaleString('pt-BR') : '---';
-                const proxKmText = proxKmList.length > 0 ? proxKmList.map(k => k.toLocaleString('pt-BR')).join(', ') : '---';
+                const proxKmText = proxKmList.length > 0 ? (proxKmList.map(k => k.toLocaleString('pt-BR')).join(', ') + mobIntervaloTag) : '---';
 
                 let kmFaltanteText = '---';
                 let kmFaltanteColorClass = '';
@@ -2359,8 +2394,17 @@ function setupFormListeners() {
                         }
 
                         // OBS: A tabela manutencao_itens no Supabase NÃO possui as colunas 'quantidade' e 'tipo_id'
+                        // Busca servico_id se ainda não estiver preenchido pelo autocomplete
+                        let matchedServicoId = item.servico_id || null;
+                        if (!matchedServicoId && finalDescricao && (state.servicos || []).length > 0) {
+                            const cleanD = finalDescricao.replace(/\[ID:[^\]]+\]\s*/i, '').trim().toUpperCase();
+                            const foundS = state.servicos.find(s => s.descricao.trim().toUpperCase() === cleanD);
+                            if (foundS) matchedServicoId = foundS.id;
+                        }
+
                         const itemPayload = {
                             manutencao_id: targetHeaderId,
+                            servico_id: matchedServicoId,
                             descricao: finalDescricao,
                             acao_id: item.acao_id && item.acao_id !== '' ? item.acao_id : null,
                             valor_pecas: parseFloat(item.valor_pecas) || 0,
@@ -2381,17 +2425,10 @@ function setupFormListeners() {
                             usuario_ajuste_km: item.controle_proxima_troca === 'KM' ? (item.usuario_ajuste_km || null) : null
                         };
 
-                        let { error: iError } = await supabaseClient.from('manutencao_itens').insert([itemPayload]);
+                        const { error: iError } = await supabaseClient.from('manutencao_itens').insert([itemPayload]);
                         if (iError) {
                             console.error('[Manutenção] Erro ao inserir item:', iError, itemPayload);
-                            // Fallback defensivo removendo campos opcionais se coluna não existir no cache
-                            const safePayload = { ...itemPayload };
-                            delete safePayload.km_ajustado_manualmente;
-                            delete safePayload.motivo_ajuste_km;
-                            delete safePayload.data_ajuste_km;
-                            delete safePayload.usuario_ajuste_km;
-                            const { error: fErr } = await supabaseClient.from('manutencao_itens').insert([safePayload]);
-                            if (fErr) throw fErr;
+                            throw iError;
                         }
 
                         // Atualiza proxima_troca_km no cabeçalho (inclusive limpando com null quando NENHUMA)
@@ -2447,8 +2484,16 @@ function setupFormListeners() {
                             }
                         }
 
+                        let matchedServicoId = item.servico_id || null;
+                        if (!matchedServicoId && item.descricao && (state.servicos || []).length > 0) {
+                            const cleanD = item.descricao.replace(/\[ID:[^\]]+\]\s*/i, '').trim().toUpperCase();
+                            const foundS = state.servicos.find(s => s.descricao.trim().toUpperCase() === cleanD);
+                            if (foundS) matchedServicoId = foundS.id;
+                        }
+
                         const itemPayload = {
                             manutencao_id: newH.id,
+                            servico_id: matchedServicoId,
                             descricao: item.descricao,
                             acao_id: item.acao_id && item.acao_id !== '' ? item.acao_id : null,
                             valor_pecas: parseFloat(item.valor_pecas) || 0,
@@ -2469,16 +2514,10 @@ function setupFormListeners() {
                             usuario_ajuste_km: item.controle_proxima_troca === 'KM' ? (item.usuario_ajuste_km || null) : null
                         };
 
-                        let { error: iError } = await supabaseClient.from('manutencao_itens').insert([itemPayload]);
+                        const { error: iError } = await supabaseClient.from('manutencao_itens').insert([itemPayload]);
                         if (iError) {
                             console.error('[Manutenção] Erro ao inserir item:', iError, itemPayload);
-                            const safePayload = { ...itemPayload };
-                            delete safePayload.km_ajustado_manualmente;
-                            delete safePayload.motivo_ajuste_km;
-                            delete safePayload.data_ajuste_km;
-                            delete safePayload.usuario_ajuste_km;
-                            const { error: fErr } = await supabaseClient.from('manutencao_itens').insert([safePayload]);
-                            if (fErr) throw fErr;
+                            throw iError;
                         }
 
                         // Atualiza proxima_troca_km no cabeçalho
@@ -2495,6 +2534,26 @@ function setupFormListeners() {
                             }
                         }
                     }
+                }
+
+                // Baixa / Conclusao automatica de servicos anteriores compativeis para o mesmo veiculo
+                try {
+                    const servicesList = state.currentMaintItems.map(it => ({
+                        id: it.servico_id || null,
+                        descricao: it.descricao || ''
+                    }));
+                    const vehObj = state.vehicles.find(v => v.id === header.veiculo_id);
+                    const placaDoc = vehObj ? vehObj.placa : '';
+                    await window.autoCompletePreviousMaintenance({
+                        veiculoId: header.veiculo_id,
+                        servicos: servicesList,
+                        currentDate: currentDate,
+                        currentKm: currentKm,
+                        excludeMaintIds: state.editingId ? [state.editingId] : [],
+                        refDoc: `OS de ${currentDate} (${placaDoc})`
+                    });
+                } catch (autoErr) {
+                    console.warn('[Manutenção] Aviso na baixa automatica de serviços anteriores:', autoErr);
                 }
 
                 showToast('Manutenção salva com sucesso!');
@@ -2981,8 +3040,117 @@ function highlightServico(text, query) {
 }
 
 // =========================================================
-// AUTOCOMPLETE: Serviços de Manutenção
+// ROTINA DE BAIXA / CONCLUSAO AUTOMATICA DE SERVICOS ANTERIORES
 // =========================================================
+
+window.autoCompletePreviousMaintenance = async function({ veiculoId, servicos, currentDate, currentKm, excludeMaintIds = [], refDoc = '' }) {
+    if (!veiculoId || !supabaseClient) return { updatedCount: 0 };
+    if (!servicos || servicos.length === 0) return { updatedCount: 0 };
+
+    try {
+        console.log(`[AutoConclusao] Verificando servicos anteriores para o veiculo ${veiculoId}...`, { servicos, refDoc });
+
+        // Extrai lista de servico_id validos e descricoes limpas
+        const servicoIds = [];
+        const cleanNames = [];
+
+        servicos.forEach(s => {
+            if (s.id && !servicoIds.includes(s.id)) servicoIds.push(s.id);
+            if (s.descricao) {
+                const norm = s.descricao.replace(/\[ID:[^\]]+\]\s*/i, '').trim().toUpperCase();
+                if (norm && !cleanNames.includes(norm)) cleanNames.push(norm);
+            }
+        });
+
+        // 1. Busca manutencoes deste veiculo que NAO estejam concluidas
+        const { data: maints, error: mErr } = await supabaseClient
+            .from('manutencoes')
+            .select(`
+                id, data, km_atual, status,
+                manutencao_itens (
+                    id, servico_id, descricao
+                )
+            `)
+            .eq('veiculo_id', veiculoId)
+            .neq('status', 'CONCLUIDO');
+
+        if (mErr) {
+            console.warn('[AutoConclusao] Erro ao buscar manutencoes abertas do veiculo:', mErr);
+            return { updatedCount: 0 };
+        }
+
+        if (!maints || maints.length === 0) {
+            console.log('[AutoConclusao] Nenhuma manutencao aberta pendente para este veiculo.');
+            return { updatedCount: 0 };
+        }
+
+        const idsToComplete = [];
+
+        maints.forEach(m => {
+            if (excludeMaintIds && excludeMaintIds.includes(m.id)) return;
+
+            // Se for anterior ou igual em data ou km (ou seja, servico anterior que ainda constava aberto)
+            const isOlderOrEqualDate = !currentDate || !m.data || m.data <= currentDate;
+            const isOlderOrEqualKm = !currentKm || !m.km_atual || parseFloat(m.km_atual) <= parseFloat(currentKm);
+
+            if (!isOlderOrEqualDate && !isOlderOrEqualKm) {
+                // Registro posterior ao atual, nao encerra
+                return;
+            }
+
+            const items = m.manutencao_itens || [];
+            const hasMatchingService = items.some(it => {
+                // Match por servico_id estrito
+                if (it.servico_id && servicoIds.includes(it.servico_id)) return true;
+                // Match complementar por nome limpo exato se nao tiver servico_id gravado
+                if (it.descricao) {
+                    const itClean = it.descricao.replace(/\[ID:[^\]]+\]\s*/i, '').trim().toUpperCase();
+                    if (cleanNames.includes(itClean)) return true;
+                }
+                return false;
+            });
+
+            if (hasMatchingService && !idsToComplete.includes(m.id)) {
+                idsToComplete.push(m.id);
+            }
+        });
+
+        if (idsToComplete.length === 0) {
+            console.log('[AutoConclusao] Nenhuma manutencao anterior compativel encontrada para baixa.');
+            return { updatedCount: 0 };
+        }
+
+        console.log(`[AutoConclusao] Concluindo ${idsToComplete.length} manutencao(oes) anterior(es):`, idsToComplete);
+
+        const motivo = refDoc 
+            ? `Concluído automaticamente pelo novo registro: ${refDoc}`
+            : 'Concluído automaticamente por novo serviço realizado';
+
+        const updatePayload = {
+            status: 'CONCLUIDO',
+            autorizacao_motivo: motivo,
+            autorizado_em: new Date().toISOString()
+        };
+
+        const { error: updErr } = await supabaseClient
+            .from('manutencoes')
+            .update(updatePayload)
+            .in('id', idsToComplete);
+
+        if (updErr) {
+            console.error('[AutoConclusao] Erro ao atualizar status para CONCLUIDO:', updErr);
+            return { updatedCount: 0, error: updErr };
+        }
+
+        console.log(`[AutoConclusao] Sucesso! ${idsToComplete.length} manutencao(oes) anterior(es) marcada(s) como CONCLUIDO.`);
+        return { updatedCount: idsToComplete.length };
+
+    } catch (err) {
+        console.error('[AutoConclusao] Excecao na conclusao automatica:', err);
+        return { updatedCount: 0, error: err };
+    }
+};
+
 window.handleServicosSearch = (el) => {
     const query = (el.value || '').toLowerCase().trim();
     const resultsDiv = el.parentElement ? el.parentElement.querySelector('.autocomplete-results') : null;
@@ -3006,21 +3174,25 @@ window.handleServicosSearch = (el) => {
     resultsDiv.innerHTML = matches.map(s => `
         <div class="autocomplete-item"
              style="padding: 0.6rem 0.8rem; cursor: pointer; background: var(--bg-card, #1e293b); border-bottom: 1px solid rgba(255,255,255,0.05);"
-             onmousedown="event.preventDefault(); selectServico(this, '${s.descricao.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')">
+             data-servico-id="${s.id}"
+             onmousedown="event.preventDefault(); selectServico(this, '${s.descricao.replace(/'/g, "\\'").replace(/"/g, '&quot;')}', '${s.id}')">
             <span style="font-size:0.85rem; font-weight:600;">${s.descricao}</span>
         </div>
     `).join('');
     resultsDiv.style.display = 'block';
 };
 
-window.selectServico = (el, descricao) => {
+window.selectServico = (el, descricao, servicoId = null) => {
     const wrapper = el.closest('div[style*="position: relative"]');
     if (!wrapper) return;
     const input = wrapper.querySelector('input[type="text"]');
     if (!input) return;
     const itemId = input.id ? input.id.replace('maint_desc_', '') : null;
     input.value = descricao;
-    if (itemId) updateItemField(itemId, 'descricao', descricao);
+    if (itemId) {
+        updateItemField(itemId, 'descricao', descricao);
+        if (servicoId) updateItemField(itemId, 'servico_id', servicoId);
+    }
     wrapper.querySelector('.autocomplete-results').style.display = 'none';
 };
 
