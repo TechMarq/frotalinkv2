@@ -193,6 +193,11 @@ const COL_DEFS = {
     drivers: [
         { key: 'nome_completo', label: 'Nome Completo', visible: true },
         { key: 'cpf', label: 'CPF', visible: true },
+        { key: 'tipo_contrato', label: 'Tipo (PF/PJ)', visible: false },
+        { key: 'pj_razao_social', label: 'Razão Social (PJ)', visible: false },
+        { key: 'pj_cnpj', label: 'CNPJ (PJ)', visible: false },
+        { key: 'pj_nome_fantasia', label: 'Nome Fantasia (PJ)', visible: false },
+        { key: 'pj_pix', label: 'Chave PIX (PJ)', visible: false },
         { key: 'cnh_cat', label: 'CNH / Categoria', visible: true },
         { key: 'vencimento_cnh', label: 'Vencimento CNH', visible: true },
         { key: 'idade', label: 'Idade', visible: true },
@@ -395,7 +400,7 @@ function renderThead(tab) {
     let checkCol = '';
     if (tab === 'vehicles') {
         checkCol = `
-            <th class="col-checkbox" style="width: 44px; text-align: center;">
+            <th class="col-checkbox" style="width: 38px; text-align: center;">
                 <input type="checkbox" id="selectAllVehicles" class="checkbox-custom" onchange="toggleSelectAllVehicles(this.checked)" title="Selecionar todos os veículos visíveis">
             </th>`;
     }
@@ -407,10 +412,10 @@ function renderThead(tab) {
 
         return `
             <th ${isSortable ? `onclick="handleSort('${tab}', '${c.key}')" style="cursor:pointer; user-select:none;"` : ''} 
-                class="${isSortable ? 'sortable-header' : ''} ${isSorted ? 'active-sort' : ''} ${c.key === 'actions' ? 'col-actions' : ''}">
-                <div style="display: flex; align-items: center; gap: 0.4rem; justify-content: ${c.key === 'actions' ? 'center' : 'flex-start'}">
-                    ${c.label}
-                    ${isSortable ? `<i data-lucide="${icon}" style="width:12px; height:12px; opacity:${isSorted ? 1 : 0.4}"></i>` : ''}
+                class="col-${c.key} ${isSortable ? 'sortable-header' : ''} ${isSorted ? 'active-sort' : ''} ${c.key === 'actions' ? 'col-actions' : ''}" data-col="${c.key}">
+                <div class="th-content" style="display: flex; align-items: center; gap: 0.35rem; justify-content: ${c.key === 'actions' ? 'center' : 'flex-start'}">
+                    <span class="th-label">${c.label}</span>
+                    ${isSortable ? `<i data-lucide="${icon}" class="sort-icon" style="width:12px; height:12px; flex-shrink:0; opacity:${isSorted ? 1 : 0.4}"></i>` : ''}
                 </div>
             </th>`;
     }).join('') + '</tr>';
@@ -601,12 +606,19 @@ function checkNotifications() {
 
 function updateNotiUI(alerts) {
     const badge = document.getElementById('notiBadge');
+    const mobileBadge = document.getElementById('mobileNotiBadge');
     const list = document.getElementById('notiList');
-    if (!badge || !list) return;
+    if (!list) return;
 
     if (alerts.length > 0) {
-        badge.innerText = alerts.length;
-        badge.style.display = 'flex';
+        if (badge) {
+            badge.innerText = alerts.length;
+            badge.style.display = 'flex';
+        }
+        if (mobileBadge) {
+            mobileBadge.innerText = alerts.length;
+            mobileBadge.style.display = 'flex';
+        }
 
         list.innerHTML = alerts.map(a => `
             <div class="noti-item noti-type-${a.type}" onclick="focusNotiItem('${a.itemType}', '${a.id}')">
@@ -616,7 +628,8 @@ function updateNotiUI(alerts) {
             </div>
         `).join('');
     } else {
-        badge.style.display = 'none';
+        if (badge) badge.style.display = 'none';
+        if (mobileBadge) mobileBadge.style.display = 'none';
         list.innerHTML = '<div class="noti-empty">Nenhuma pendência encontrada ✨</div>';
     }
 }
@@ -777,6 +790,19 @@ function openDriverDetail(id) {
 
     title.innerText = d.nome_completo;
 
+    let pjSection = '';
+    if (d.is_pj || d.pj_cnpj) {
+        pjSection = `
+            <div class="form-section-header" style="color: #818cf8;">Pessoa Jurídica (PJ)</div>
+            <div class="detail-item full-width"><strong>Razão Social</strong>${d.pj_razao_social || '-'}</div>
+            <div class="detail-item"><strong>CNPJ</strong>${maskCnpjDriver(d.pj_cnpj) || '-'}</div>
+            <div class="detail-item"><strong>Nome Fantasia</strong>${d.pj_nome_fantasia || '-'}</div>
+            <div class="detail-item"><strong>Inscrição Estadual</strong>${d.pj_inscricao_estadual || '-'}</div>
+            <div class="detail-item"><strong>E-mail PJ</strong>${d.pj_email || '-'}</div>
+            <div class="detail-item full-width"><strong>Chave PIX (PJ)</strong>${d.pj_pix || '-'}</div>
+        `;
+    }
+
     content.innerHTML = `
         <div class="detail-item full-width"><strong>Nome Completo</strong>${d.nome_completo}</div>
         <div class="detail-item"><strong>CPF</strong>${maskCpfDriver(d.cpf) || '-'}</div>
@@ -789,6 +815,8 @@ function openDriverDetail(id) {
         <div class="detail-item"><strong>Categoria</strong>${d.categoria_cnh || '-'}</div>
         <div class="detail-item full-width"><strong>Vencimento CNH</strong>${formatDate(d.vencimento_cnh)}</div>
         
+        ${pjSection}
+
         <div class="form-section-header">Status atual</div>
         <div class="detail-item full-width"><strong>Status</strong><span class="badge ${d.status === 'ATIVO' ? 'success' : 'danger'}" style="width:fit-content;">${d.status}</span></div>
     `;
@@ -1040,11 +1068,11 @@ function renderVehicles() {
         const cells = activeCols.map(col => {
             switch (col.key) {
                 case 'placa':
-                    return `<td><span class="plate" onclick="event.stopPropagation(); openVehicleDetail('${v.id}')" style="cursor: pointer; transition: transform 0.2s; display: inline-block;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">${v.placa}</span></td>`;
-                case 'modelo': return `<td>${v.modelo}</td>`;
+                    return `<td class="col-placa"><span class="plate" onclick="event.stopPropagation(); openVehicleDetail('${v.id}')" style="cursor: pointer; transition: transform 0.2s; display: inline-block;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">${v.placa}</span></td>`;
+                case 'modelo': return `<td class="col-modelo">${v.modelo}</td>`;
                 case 'km_atual': 
                     const displayKm = (v.km_atual || 0).toLocaleString('pt-BR');
-                    return `<td><span style="font-weight: 700; color: var(--text-main);">${displayKm} <small style="color: var(--text-muted); font-weight: 400;">km</small></span></td>`;
+                    return `<td class="col-km_atual"><span style="font-weight: 700; color: var(--text-main);">${displayKm} <small style="color: var(--text-muted); font-weight: 400;">km</small></span></td>`;
                 case 'condutor':
                     if (isAdmin) {
                         const statusAlocUpper = (v.status_alocacao || '').toUpperCase();
@@ -1081,7 +1109,7 @@ function renderVehicles() {
                             <select class="direct-select direct-select-secondary ${v.motorista_alocado_2_id ? 'status-alocado' : ''}" ${disabledAttr} onchange="updateVehicleDriver('${v.id}', this.value, true); renderAll();">${options2}</select>
                         ` : '';
 
-                        return `<td>
+                        return `<td class="col-condutor">
                             <select class="direct-select ${sClass}" ${disabledAttr} onchange="updateVehicleDriver('${v.id}', this.value, false); renderAll();">${options}</select>
                             ${select2Html}
                             ${maintInfo}
@@ -1138,7 +1166,7 @@ function renderVehicles() {
                             driverDisplay = `<span class="${sClass}" style="font-weight: 600;">${nameText}</span>`;
                         }
 
-                        return `<td>
+                        return `<td class="col-condutor">
                             ${driverDisplay}
                             ${maintDetail}
                         </td>`;
@@ -1157,10 +1185,11 @@ function renderVehicles() {
                         whatsItems.push(`<a href="https://wa.me/${num2}" target="_blank">${waIcon}${raw2}</a>`);
                     }
                     if (whatsItems.length > 0) {
-                        return `<td class="contact">${whatsItems.join('<br>')}</td>`;
+                        return `<td class="col-whats contact">${whatsItems.join('<br>')}</td>`;
                     } else {
-                        return `<td class="contact">-</td>`;
+                        return `<td class="col-whats contact">-</td>`;
                     }
+                default: return `<td class="col-${col.key}">-</td>`;
             }
         }).join('');
 
@@ -1363,6 +1392,56 @@ function updateVehicleStatusCounts() {
     const elTodos = document.getElementById('count-veh-status-TODOS');
     if (elTodos) elTodos.innerText = todos;
 }
+
+// --- Filtros de Status Operacional para Motoristas / Equipe ---
+let currentDriverStatusFilter = 'ATIVO';
+window.currentDriverStatusFilter = 'ATIVO';
+
+function setDriverStatusFilter(status) {
+    currentDriverStatusFilter = status;
+    window.currentDriverStatusFilter = status;
+
+    const btns = {
+        'ATIVO': document.getElementById('filter-drv-status-ATIVO'),
+        'INATIVO': document.getElementById('filter-drv-status-INATIVO'),
+        'TODOS': document.getElementById('filter-drv-status-TODOS')
+    };
+
+    for (const [key, btn] of Object.entries(btns)) {
+        if (btn) {
+            if (key === status) btn.classList.add('active');
+            else btn.classList.remove('active');
+        }
+    }
+
+    renderFullDrivers();
+}
+window.setDriverStatusFilter = setDriverStatusFilter;
+window.renderDrivers = renderFullDrivers;
+
+function updateDriverStatusCounts() {
+    let ativos = 0;
+    let inativos = 0;
+    let todos = drivers.length;
+
+    drivers.forEach(d => {
+        if (d.status === 'INATIVO') {
+            inativos++;
+        } else {
+            ativos++;
+        }
+    });
+
+    const elAtivos = document.getElementById('count-drv-status-ATIVO');
+    if (elAtivos) elAtivos.innerText = ativos;
+
+    const elInativos = document.getElementById('count-drv-status-INATIVO');
+    if (elInativos) elInativos.innerText = inativos;
+
+    const elTodos = document.getElementById('count-drv-status-TODOS');
+    if (elTodos) elTodos.innerText = todos;
+}
+window.updateDriverStatusCounts = updateDriverStatusCounts;
 
 const KNOWN_CLASSIFICATIONS = ['PROPRIO', 'TERCEIRO', 'ALUGADO', 'DIRETORIA', 'ESPECIAL', 'OUTRO'];
 
@@ -2041,47 +2120,47 @@ function renderFullVehicles() {
 
         const cells = activeCols.map(col => {
             switch (col.key) {
-                case 'placa': return `<td><span class="plate">${v.placa}</span></td>`;
-                case 'marca_modelo': return `<td>${v.marca || ''} ${v.modelo}</td>`;
-                case 'proprietario': return `<td>${v.proprietario || '-'}</td>`;
-                case 'venc_seguro': return `<td>${formatDate(v.vencimento_seguro)}</td>`;
-                case 'seguradora': return `<td>${v.seguradora || '-'}</td>`;
-                case 'numero_apolice': return `<td>${v.numero_apolice || '-'}</td>`;
-                case 'valor_premio': return `<td>${v.valor_premio ? 'R$ ' + Number(v.valor_premio).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</td>`;
-                case 'valor_franquia': return `<td>${v.valor_franquia ? 'R$ ' + Number(v.valor_franquia).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</td>`;
-                case 'forma_pagamento': return `<td>${v.forma_pagamento || '-'}</td>`;
-                case 'corretor_seguro': return `<td>${v.corretor_seguro || '-'}</td>`;
-                case 'proponente_seguro': return `<td>${v.proponente_seguro || '-'}</td>`;
-                case 'endosso_proposta': return `<td>${v.endosso_proposta || '-'}</td>`;
-                case 'ci_seguro': return `<td>${v.ci_seguro || '-'}</td>`;
-                case 'parcelas_pagamento': return `<td>${v.parcelas_pagamento || '-'}</td>`;
-                case 'classificacao': return `<td>${v.classificacao || '-'}</td>`;
-                case 'tipo_combustivel': return `<td><span style="font-size: 0.75rem; font-weight: 600; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">${v.tipo_combustivel || '-'}</span></td>`;
-                case 'condutor_principal': return `<td><span style="font-size:0.85rem; font-weight:600;">${v.motoristas ? v.motoristas.nome_completo : '-'}</span></td>`;
+                case 'placa': return `<td class="col-placa"><span class="plate">${v.placa}</span></td>`;
+                case 'marca_modelo': return `<td class="col-marca_modelo">${v.marca || ''} ${v.modelo}</td>`;
+                case 'proprietario': return `<td class="col-proprietario">${v.proprietario || '-'}</td>`;
+                case 'venc_seguro': return `<td class="col-venc_seguro">${formatDate(v.vencimento_seguro)}</td>`;
+                case 'seguradora': return `<td class="col-seguradora">${v.seguradora || '-'}</td>`;
+                case 'numero_apolice': return `<td class="col-numero_apolice">${v.numero_apolice || '-'}</td>`;
+                case 'valor_premio': return `<td class="col-valor_premio">${v.valor_premio ? 'R$ ' + Number(v.valor_premio).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</td>`;
+                case 'valor_franquia': return `<td class="col-valor_franquia">${v.valor_franquia ? 'R$ ' + Number(v.valor_franquia).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</td>`;
+                case 'forma_pagamento': return `<td class="col-forma_pagamento">${v.forma_pagamento || '-'}</td>`;
+                case 'corretor_seguro': return `<td class="col-corretor_seguro">${v.corretor_seguro || '-'}</td>`;
+                case 'proponente_seguro': return `<td class="col-proponente_seguro">${v.proponente_seguro || '-'}</td>`;
+                case 'endosso_proposta': return `<td class="col-endosso_proposta">${v.endosso_proposta || '-'}</td>`;
+                case 'ci_seguro': return `<td class="col-ci_seguro">${v.ci_seguro || '-'}</td>`;
+                case 'parcelas_pagamento': return `<td class="col-parcelas_pagamento">${v.parcelas_pagamento || '-'}</td>`;
+                case 'classificacao': return `<td class="col-classificacao">${v.classificacao || '-'}</td>`;
+                case 'tipo_combustivel': return `<td class="col-tipo_combustivel"><span style="font-size: 0.75rem; font-weight: 600; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">${v.tipo_combustivel || '-'}</span></td>`;
+                case 'condutor_principal': return `<td class="col-condutor_principal"><span style="font-weight:600;">${v.motoristas ? v.motoristas.nome_completo : '-'}</span></td>`;
                 case 'motorista_alocado': 
                     const dName = getVehicleAllocationDisplay(v);
-                    return `<td><span style="font-size:0.85rem; font-weight:600; color: var(--primary);">${dName}</span></td>`;
+                    return `<td class="col-motorista_alocado"><span style="font-weight:600; color: var(--primary);">${dName}</span></td>`;
                 case 'status': 
                     let bClass = 'danger';
                     if (v.status === 'ATIVO' || !v.status) bClass = 'success';
                     else if (v.status === 'ATIVO - NÃO ALOCAR') bClass = 'warning';
-                    return `<td><span class="badge ${bClass}">${v.status || 'ATIVO'}</span></td>`;
-                case 'cor': return `<td>${v.cor || '-'}</td>`;
-                case 'ano_fabricacao': return `<td>${v.ano_fabricacao || '-'}</td>`;
-                case 'ano_modelo': return `<td>${v.ano_modelo || '-'}</td>`;
-                case 'renavam': return `<td>${v.renavam || '-'}</td>`;
-                case 'chassi': return `<td>${v.chassi || '-'}</td>`;
-                case 'numero_motor': return `<td>${v.numero_motor || '-'}</td>`;
-                case 'codigo_fipe': return `<td>${v.codigo_fipe || '-'}</td>`;
-                case 'valor_fipe_mes': return `<td>${v.valor_fipe_mes ? 'R$ ' + Number(v.valor_fipe_mes).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</td>`;
-                case 'nome_documento': return `<td>${v.nome_documento || '-'}</td>`;
-                case 'cpf_cnpj': return `<td>${v.cpf_cnpj || '-'}</td>`;
-                case 'canvas_url': return `<td>${v.canvas_url ? `<a href="${v.canvas_url}" target="_blank" style="color:#f59e0b;">Canvas Avarias</a>` : '-'}</td>`;
-                case 'data_aquisicao_nf': return `<td>${formatDate(v.data_aquisicao_nf)}</td>`;
-                case 'data_saida_nf': return `<td>${formatDate(v.data_saida_nf)}</td>`;
-                case 'fornecedor_aquisicao': return `<td>${v.fornecedor_aquisicao || '-'}</td>`;
-                case 'actions': return `<td>${actionsHtml(v)}</td>`;
-                default: return `<td>-</td>`;
+                    return `<td class="col-status"><span class="badge ${bClass} badge-status-cell">${v.status || 'ATIVO'}</span></td>`;
+                case 'cor': return `<td class="col-cor">${v.cor || '-'}</td>`;
+                case 'ano_fabricacao': return `<td class="col-ano_fabricacao">${v.ano_fabricacao || '-'}</td>`;
+                case 'ano_modelo': return `<td class="col-ano_modelo">${v.ano_modelo || '-'}</td>`;
+                case 'renavam': return `<td class="col-renavam">${v.renavam || '-'}</td>`;
+                case 'chassi': return `<td class="col-chassi">${v.chassi || '-'}</td>`;
+                case 'numero_motor': return `<td class="col-numero_motor">${v.numero_motor || '-'}</td>`;
+                case 'codigo_fipe': return `<td class="col-codigo_fipe">${v.codigo_fipe || '-'}</td>`;
+                case 'valor_fipe_mes': return `<td class="col-valor_fipe_mes">${v.valor_fipe_mes ? 'R$ ' + Number(v.valor_fipe_mes).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</td>`;
+                case 'nome_documento': return `<td class="col-nome_documento">${v.nome_documento || '-'}</td>`;
+                case 'cpf_cnpj': return `<td class="col-cpf_cnpj">${v.cpf_cnpj || '-'}</td>`;
+                case 'canvas_url': return `<td class="col-canvas_url">${v.canvas_url ? `<a href="${v.canvas_url}" target="_blank" style="color:#f59e0b;">Canvas Avarias</a>` : '-'}</td>`;
+                case 'data_aquisicao_nf': return `<td class="col-data_aquisicao_nf">${formatDate(v.data_aquisicao_nf)}</td>`;
+                case 'data_saida_nf': return `<td class="col-data_saida_nf">${formatDate(v.data_saida_nf)}</td>`;
+                case 'fornecedor_aquisicao': return `<td class="col-fornecedor_aquisicao">${v.fornecedor_aquisicao || '-'}</td>`;
+                case 'actions': return `<td class="col-actions">${actionsHtml(v)}</td>`;
+                default: return `<td class="col-${col.key}">-</td>`;
             }
         }).join('');
         return `<tr class="${isSelected ? 'row-selected' : ''}">${checkCell}${cells}</tr>`;
@@ -2150,15 +2229,28 @@ function renderFullDrivers() {
     const list = document.getElementById('fullDriverList');
     if (!list) return;
 
+    updateDriverStatusCounts(); // 📊 Atualiza contadores de status Ativos, Inativos e Todos
     renderThead('drivers');
 
     const searchTerm = searchInput.value.toLowerCase();
     const searchWords = searchTerm.split(/\s+/).filter(w => w);
     const filtered = drivers.filter(d => {
+        // Filtro por Status Operacional do Motorista (ATIVO / INATIVO / TODOS)
+        if (typeof currentDriverStatusFilter !== 'undefined') {
+            if (currentDriverStatusFilter === 'ATIVO') {
+                if (d.status === 'INATIVO') return false;
+            } else if (currentDriverStatusFilter === 'INATIVO') {
+                if (d.status !== 'INATIVO') return false;
+            }
+        }
+
         const searchableText = [
             d.nome_completo,
             d.cpf,
-            d.registro_cnh
+            d.registro_cnh,
+            d.pj_razao_social,
+            d.pj_cnpj,
+            d.pj_nome_fantasia
         ].map(val => (val || '').toLowerCase()).join(' ');
 
         return searchWords.every(word => searchableText.includes(word));
@@ -2212,23 +2304,33 @@ function renderFullDrivers() {
         // Calcula vínculos de seguro manualmente para garantir que sempre funcione
         const vinculosCount = vehicles.filter(v => v.condutor_principal_id === d.id).length;
 
+        const isPj = !!(d.is_pj || d.pj_cnpj);
+        const pjBadge = isPj ? '<span class="badge" style="margin-left: 6px; font-size: 0.65rem; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); padding: 1px 6px; border-radius: 4px; font-weight: 700;">PJ</span>' : '';
+        // Razão social movida para title/tooltip (evita expandir a linha)
+        const pjTooltip = isPj && d.pj_razao_social ? ` title="${d.pj_razao_social}"` : '';
+
         const cells = activeCols.map(col => {
             switch (col.key) {
-                case 'nome_completo': return `<td class="driver">${d.nome_completo}</td>`;
-                case 'cpf': return `<td>${maskCpfDriver(d.cpf) || '-'}</td>`;
-                case 'cnh_cat': return `<td>${maskCnhDriver(d.registro_cnh) || '-'} (${d.categoria_cnh || '-'})</td>`;
-                case 'vencimento_cnh': return `<td>${formatDate(d.vencimento_cnh)}</td>`;
-                case 'idade': return `<td>${calcAge(d.data_nascimento)}</td>`;
-                case 'vinculos_seguro': return `<td style="font-weight:700;">${vinculosCount} veícs.</td>`;
-                case 'contato_whatsapp': return `<td>${maskTelefoneDriver(d.contato_whatsapp) || '-'}</td>`;
-                case 'data_nascimento': return `<td>${formatDate(d.data_nascimento)}</td>`;
+                case 'nome_completo': return `<td class="col-nome_completo driver"${pjTooltip}><div class="driver-name-wrap">${d.nome_completo} ${pjBadge}</div></td>`;
+                case 'cpf': return `<td class="col-cpf">${maskCpfDriver(d.cpf) || '-'}</td>`;
+                case 'tipo_contrato': return `<td class="col-tipo_contrato">${isPj ? '<span class="badge" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">PJ</span>' : '<span class="badge" style="background: rgba(148, 163, 184, 0.1); color: var(--text-muted);">PF</span>'}</td>`;
+                case 'pj_razao_social': return `<td class="col-pj_razao_social">${d.pj_razao_social || '-'}</td>`;
+                case 'pj_cnpj': return `<td class="col-pj_cnpj">${maskCnpjDriver(d.pj_cnpj) || '-'}</td>`;
+                case 'pj_nome_fantasia': return `<td class="col-pj_nome_fantasia">${d.pj_nome_fantasia || '-'}</td>`;
+                case 'pj_pix': return `<td class="col-pj_pix">${d.pj_pix || '-'}</td>`;
+                case 'cnh_cat': return `<td class="col-cnh_cat">${maskCnhDriver(d.registro_cnh) || '-'} (${d.categoria_cnh || '-'})</td>`;
+                case 'vencimento_cnh': return `<td class="col-vencimento_cnh">${formatDate(d.vencimento_cnh)}</td>`;
+                case 'idade': return `<td class="col-idade">${calcAge(d.data_nascimento)}</td>`;
+                case 'vinculos_seguro': return `<td class="col-vinculos_seguro" style="font-weight:700;">${vinculosCount} veícs.</td>`;
+                case 'contato_whatsapp': return `<td class="col-contato_whatsapp">${maskTelefoneDriver(d.contato_whatsapp) || '-'}</td>`;
+                case 'data_nascimento': return `<td class="col-data_nascimento">${formatDate(d.data_nascimento)}</td>`;
                 case 'status': 
                     let bdClass = 'danger';
                     if (d.status === 'ATIVO') bdClass = 'success';
                     else if (d.status === 'ATIVO - NÃO ALOCAR') bdClass = 'warning';
-                    return `<td><span class="badge ${bdClass}">${d.status}</span></td>`;
-                case 'actions': return `<td>${actionsHtml(d.id)}</td>`;
-                default: return `<td>-</td>`;
+                    return `<td class="col-status"><span class="badge ${bdClass} badge-status-cell">${d.status}</span></td>`;
+                case 'actions': return `<td class="col-actions">${actionsHtml(d.id)}</td>`;
+                default: return `<td class="col-${col.key}">-</td>`;
             }
         }).join('');
         return `<tr>${cells}</tr>`;
@@ -2259,15 +2361,19 @@ function renderFullDrivers() {
                 ? `🚗 ${allocatedVeh.placa} • ${allocatedVeh.modelo}`
                 : 'Sem veículo alocado';
 
+            const isPj = !!(d.is_pj || d.pj_cnpj);
+            const pjBadge = isPj ? '<span class="badge" style="margin-left: 6px; font-size: 0.65rem; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); padding: 1px 5px; border-radius: 4px; font-weight: 700;">PJ</span>' : '';
+            const pjLabel = isPj && d.pj_razao_social ? ` • PJ: ${d.pj_razao_social}` : '';
+
             return `
                 <div class="mob-card" onclick="openDriverDetail('${d.id}')">
                     <div class="mob-card-head">
                         <div class="mob-card-plate-col">
                             <div class="mob-plate-row" style="align-items:center;">
-                                <span class="mob-driver-name" style="font-size:0.88rem; font-weight:700; color:var(--text-main);">${d.nome_completo}</span>
+                                <span class="mob-driver-name" style="font-size:0.88rem; font-weight:700; color:var(--text-main);">${d.nome_completo}${pjBadge}</span>
                                 ${waBtn}
                             </div>
-                            <span class="mob-model-text">CNH ${d.categoria_cnh || '-'} • Val: ${formatDate(d.vencimento_cnh)}</span>
+                            <span class="mob-model-text">CNH ${d.categoria_cnh || '-'} • Val: ${formatDate(d.vencimento_cnh)}${pjLabel}</span>
                         </div>
                         <div class="mob-card-status-col">
                             <span class="mob-status-pill ${statusClass}">${statusBadge}</span>
@@ -2313,26 +2419,38 @@ async function fetchDrivers() {
     if (!client) return;
     try {
         console.log('Buscando motoristas...');
-        // Campos necessários para dashboard, notificações e dropdowns
-        const DRIVER_FIELDS = 'id, nome_completo, cpf, contato_whatsapp, registro_cnh, categoria_cnh, vencimento_cnh, data_nascimento, status, quantidade_vinculo_seguro';
-
-        // Tenta buscar da View que tem o contador de seguros caso exista
-        let { data, error } = await client
-            .from('view_motoristas_vinculos')
-            .select(DRIVER_FIELDS)
+        // Busca direto da tabela motoristas com todos os campos (incluindo inativação e PJ)
+        // A view view_motoristas_vinculos é usada para o campo quantidade_vinculo_seguro,
+        // mas pode não ter as colunas novas em cache; buscamos tudo da tabela + count manual.
+        const { data: motData, error: motError } = await client
+            .from('motoristas')
+            .select([
+                'id', 'nome_completo', 'cpf', 'contato_whatsapp',
+                'registro_cnh', 'categoria_cnh', 'vencimento_cnh', 'data_nascimento',
+                'status', 'empresa_id', 'created_at',
+                'inativo_motivo', 'inativo_data', 'inativo_obs',
+                'is_pj', 'pj_razao_social', 'pj_cnpj', 'pj_nome_fantasia',
+                'pj_inscricao_estadual', 'pj_email', 'pj_pix'
+            ].join(', '))
             .order('nome_completo');
-        
-        if (error) {
-            console.warn('View de vínculos não encontrada, tentando tabela simples...', error.message);
-            const fallback = await client
-                .from('motoristas')
-                .select('id, nome_completo, cpf, contato_whatsapp, registro_cnh, categoria_cnh, vencimento_cnh, data_nascimento, status')
-                .order('nome_completo');
-            if (fallback.error) throw fallback.error;
-            data = fallback.data;
+
+        if (motError) throw motError;
+
+        // Tenta enriquecer com count de vínculos da view se ela existir
+        let { data: viewData, error: viewError } = await client
+            .from('view_motoristas_vinculos')
+            .select('id, quantidade_vinculo_seguro');
+
+        const countMap = {};
+        if (!viewError && viewData) {
+            viewData.forEach(v => { countMap[v.id] = v.quantidade_vinculo_seguro || 0; });
         }
-        
-        drivers = data || [];
+
+        drivers = (motData || []).map(m => ({
+            ...m,
+            quantidade_vinculo_seguro: countMap[m.id] ?? 0
+        }));
+
         updateDriverDropdown();
         renderAll();
     } catch (err) {
@@ -2979,8 +3097,26 @@ function exportFleetToPDF() {
 function exportDriversToExcel() {
     if (drivers.length === 0) return alert('Não há motoristas para exportar.');
 
-    const exportData = drivers.map(d => ({
+    let dataToExport = drivers.filter(d => {
+        if (typeof currentDriverStatusFilter !== 'undefined') {
+            if (currentDriverStatusFilter === 'ATIVO') {
+                if (d.status === 'INATIVO') return false;
+            } else if (currentDriverStatusFilter === 'INATIVO') {
+                if (d.status !== 'INATIVO') return false;
+            }
+        }
+        return true;
+    });
+
+    const exportData = dataToExport.map(d => ({
         'Nome Completo': d.nome_completo,
+        'Tipo': (d.is_pj || d.pj_cnpj) ? 'PJ' : 'PF',
+        'Razão Social (PJ)': d.pj_razao_social || '',
+        'CNPJ (PJ)': maskCnpjDriver(d.pj_cnpj) || '',
+        'Nome Fantasia (PJ)': d.pj_nome_fantasia || '',
+        'IE (PJ)': d.pj_inscricao_estadual || '',
+        'E-mail PJ': d.pj_email || '',
+        'PIX (PJ)': d.pj_pix || '',
         'CPF': d.cpf || '',
         'Idade': calcAge(d.data_nascimento),
         'Data Nascimento': formatDate(d.data_nascimento),
@@ -2989,6 +3125,9 @@ function exportDriversToExcel() {
         'Categoria CNH': d.categoria_cnh || '',
         'Vencimento CNH': formatDate(d.vencimento_cnh),
         'Status': d.status || 'ATIVO',
+        'Motivo Inativação': d.inativo_motivo || '',
+        'Data Inativação': formatDate(d.inativo_data) || '',
+        'Obs Inativação': d.inativo_obs || ''
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -3006,10 +3145,20 @@ function exportDriversToPDF() {
     const searchTerm = searchInput.value.toLowerCase();
     const searchWords = searchTerm.split(/\s+/).filter(w => w);
     let filtered = drivers.filter(d => {
+        if (typeof currentDriverStatusFilter !== 'undefined') {
+            if (currentDriverStatusFilter === 'ATIVO') {
+                if (d.status === 'INATIVO') return false;
+            } else if (currentDriverStatusFilter === 'INATIVO') {
+                if (d.status !== 'INATIVO') return false;
+            }
+        }
         const searchableText = [
             d.nome_completo,
             d.cpf,
-            d.registro_cnh
+            d.registro_cnh,
+            d.pj_razao_social,
+            d.pj_cnpj,
+            d.pj_nome_fantasia
         ].map(val => (val || '').toLowerCase()).join(' ');
 
         return searchWords.every(word => searchableText.includes(word));
@@ -3059,6 +3208,11 @@ function exportDriversToPDF() {
             switch (col.key) {
                 case 'nome_completo': return d.nome_completo;
                 case 'cpf': return d.cpf || '-';
+                case 'tipo_contrato': return (d.is_pj || d.pj_cnpj) ? 'PJ' : 'PF';
+                case 'pj_razao_social': return d.pj_razao_social || '-';
+                case 'pj_cnpj': return maskCnpjDriver(d.pj_cnpj) || '-';
+                case 'pj_nome_fantasia': return d.pj_nome_fantasia || '-';
+                case 'pj_pix': return d.pj_pix || '-';
                 case 'cnh_cat': return `${d.registro_cnh || '-'} (${d.categoria_cnh || '-'})`;
                 case 'vencimento_cnh': return formatDate(d.vencimento_cnh);
                 case 'idade': return calcAge(d.data_nascimento);
@@ -3211,6 +3365,13 @@ async function handleAddVehicle(e) {
         ignorar_media: document.getElementById('addIgnorarMedia').checked
     };
 
+    if (vehicleData.status === 'INATIVO' && !vehicleData.inativo_motivo) {
+        alert('Por favor, informe o Motivo da Inativação do veículo.');
+        const motEl = document.getElementById('addInativoMotivo');
+        if (motEl) motEl.focus();
+        return;
+    }
+
     console.log('Tentando salvar veículo:', vehicleData);
 
     try {
@@ -3269,6 +3430,37 @@ async function handleAddDriver(e) {
         return;
     }
 
+    const driverStatusVal = getVal('driverStatus') || 'ATIVO';
+    const inativoMotivoVal = driverStatusVal === 'INATIVO' ? getVal('driverInativoMotivo') : null;
+    const inativoDataVal = driverStatusVal === 'INATIVO' ? getVal('driverInativoData') : null;
+    const inativoObsVal = driverStatusVal === 'INATIVO' ? getVal('driverInativoObs') : null;
+
+    if (driverStatusVal === 'INATIVO' && !inativoMotivoVal) {
+        alert('Por favor, selecione o Motivo da Inativação do motorista.');
+        const motEl = document.getElementById('driverInativoMotivo');
+        if (motEl) motEl.focus();
+        return;
+    }
+
+    const isPj = document.getElementById('driverIsPj')?.value === 'true';
+    const pjRazao = getVal('driverPjRazaoSocial');
+    const pjCnpj = getVal('driverPjCnpj');
+
+    if (isPj) {
+        if (!pjRazao) {
+            alert('A Razão Social é obrigatória quando a opção Pessoa Jurídica está habilitada.');
+            const rEl = document.getElementById('driverPjRazaoSocial');
+            if (rEl) rEl.focus();
+            return;
+        }
+        if (!pjCnpj) {
+            alert('O CNPJ é obrigatório quando a opção Pessoa Jurídica está habilitada.');
+            const cEl = document.getElementById('driverPjCnpj');
+            if (cEl) cEl.focus();
+            return;
+        }
+    }
+
     const driverData = {
         nome_completo: nome,
         contato_whatsapp: getVal('driverWhats'),
@@ -3277,7 +3469,17 @@ async function handleAddDriver(e) {
         vencimento_cnh: getVal('driverCnhVenc'),
         categoria_cnh: getVal('driverCategoria'),
         data_nascimento: getVal('driverNascimento'),
-        status: getVal('driverStatus') || 'ATIVO'
+        status: driverStatusVal,
+        inativo_motivo: inativoMotivoVal,
+        inativo_data: inativoDataVal,
+        inativo_obs: inativoObsVal,
+        is_pj: isPj,
+        pj_razao_social: isPj ? pjRazao : null,
+        pj_cnpj: isPj ? pjCnpj : null,
+        pj_nome_fantasia: isPj ? getVal('driverPjNomeFantasia') : null,
+        pj_inscricao_estadual: isPj ? getVal('driverPjIE') : null,
+        pj_email: isPj ? getVal('driverPjEmail') : null,
+        pj_pix: isPj ? getVal('driverPjPix') : null
     };
 
     console.log('Tentando salvar motorista:', driverData);
@@ -3432,10 +3634,21 @@ function maskCnhDriver(val) {
     return val.toString().replace(/\D/g, '').slice(0, 11);
 }
 
+function maskCnpjDriver(val) {
+    if (!val) return '';
+    const digits = val.toString().replace(/\D/g, '').slice(0, 14);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+    if (digits.length <= 8) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
+    if (digits.length <= 12) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`;
+    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+}
+
 function initDriverMasks() {
     const whatsInput = document.getElementById('driverWhats');
     const cpfInput = document.getElementById('driverCpf');
     const cnhInput = document.getElementById('driverCnh');
+    const cnpjInput = document.getElementById('driverPjCnpj');
 
     if (whatsInput) {
         whatsInput.addEventListener('input', (e) => {
@@ -3450,6 +3663,11 @@ function initDriverMasks() {
     if (cnhInput) {
         cnhInput.addEventListener('input', (e) => {
             e.target.value = maskCnhDriver(e.target.value);
+        });
+    }
+    if (cnpjInput) {
+        cnpjInput.addEventListener('input', (e) => {
+            e.target.value = maskCnpjDriver(e.target.value);
         });
     }
 }
@@ -3468,12 +3686,65 @@ function editDriver(id) {
     document.getElementById('driverCategoria').value = d.categoria_cnh || 'B';
     document.getElementById('driverNascimento').value = d.data_nascimento || '';
     document.getElementById('driverStatus').value = d.status || 'ATIVO';
+    document.getElementById('driverInativoMotivo').value = d.inativo_motivo || '';
+    document.getElementById('driverInativoData').value = d.inativo_data || '';
+    document.getElementById('driverInativoObs').value = d.inativo_obs || '';
+    toggleDriverInativoFields();
+
+    const isPj = !!(d.is_pj || d.pj_cnpj || d.pj_razao_social);
+    document.getElementById('driverIsPj').value = isPj ? 'true' : 'false';
+    document.getElementById('driverPjRazaoSocial').value = d.pj_razao_social || '';
+    document.getElementById('driverPjCnpj').value = maskCnpjDriver(d.pj_cnpj || '');
+    document.getElementById('driverPjNomeFantasia').value = d.pj_nome_fantasia || '';
+    document.getElementById('driverPjIE').value = d.pj_inscricao_estadual || '';
+    document.getElementById('driverPjEmail').value = d.pj_email || '';
+    document.getElementById('driverPjPix').value = d.pj_pix || '';
+    toggleDriverPjFields(isPj);
 
     calculateAge();
     driverModal.style.display = 'flex';
 }
 
 // --- Modal Helpers ---
+
+function toggleDriverPjSwitch() {
+    const sw = document.getElementById('driverPjToggle');
+    const newState = sw ? !sw.classList.contains('active') : false;
+    toggleDriverPjFields(newState);
+}
+window.toggleDriverPjSwitch = toggleDriverPjSwitch;
+
+function toggleDriverPjFields(forcedState) {
+    const sw = document.getElementById('driverPjToggle');
+    const input = document.getElementById('driverIsPj');
+    const container = document.getElementById('driverPjFields');
+    const isPj = typeof forcedState === 'boolean' ? forcedState : (input ? input.value === 'true' : false);
+
+    if (sw) sw.classList.toggle('active', isPj);
+    if (input) input.value = isPj ? 'true' : 'false';
+    if (container) {
+        container.style.display = isPj ? 'block' : 'none';
+    }
+    if (window.lucide) lucide.createIcons();
+}
+window.toggleDriverPjFields = toggleDriverPjFields;
+
+function toggleDriverInativoFields() {
+    const statusSelect = document.getElementById('driverStatus');
+    const inativoFields = document.getElementById('driverInativoFields');
+    if (statusSelect && inativoFields) {
+        if (statusSelect.value === 'INATIVO') {
+            inativoFields.style.display = 'block';
+        } else {
+            inativoFields.style.display = 'none';
+            document.getElementById('driverInativoMotivo').value = '';
+            document.getElementById('driverInativoData').value = '';
+            document.getElementById('driverInativoObs').value = '';
+        }
+        if (window.lucide) lucide.createIcons();
+    }
+}
+window.toggleDriverInativoFields = toggleDriverInativoFields;
 
 function toggleInativoFields() {
     const statusSelect = document.getElementById('addStatus');
@@ -3551,6 +3822,16 @@ function openDriverModal() {
     document.getElementById('driverId').value = '';
     driverForm.reset();
     document.getElementById('driverIdade').value = '';
+    document.getElementById('driverStatus').value = 'ATIVO';
+    document.getElementById('driverIsPj').value = 'false';
+    document.getElementById('driverPjRazaoSocial').value = '';
+    document.getElementById('driverPjCnpj').value = '';
+    document.getElementById('driverPjNomeFantasia').value = '';
+    document.getElementById('driverPjIE').value = '';
+    document.getElementById('driverPjEmail').value = '';
+    document.getElementById('driverPjPix').value = '';
+    toggleDriverInativoFields();
+    toggleDriverPjFields(false);
     driverModal.style.display = 'flex';
     driverModal.classList.add('active');
 }
@@ -3559,6 +3840,8 @@ function closeDriverModal() {
     driverModal.style.display = 'none';
     driverModal.classList.remove('active');
     driverForm.reset();
+    toggleDriverInativoFields();
+    toggleDriverPjFields(false);
 }
 
 function closeModal() {
@@ -3640,6 +3923,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (editForm) editForm.addEventListener('submit', handleEditAllocation);
     const statusSelect = document.getElementById('addStatus');
     if (statusSelect) statusSelect.addEventListener('change', toggleInativoFields);
+    const driverStatusSelect = document.getElementById('driverStatus');
+    if (driverStatusSelect) driverStatusSelect.addEventListener('change', toggleDriverInativoFields);
+
+    // Fechar painel de notificações ao clicar fora
+    document.addEventListener('click', (e) => {
+        const panel = document.getElementById('notiPanel');
+        const notiBtn = document.getElementById('notiBtn');
+        const mobileNotiBtn = document.getElementById('mobileNotiBtn');
+        if (panel && panel.classList.contains('active')) {
+            if (!panel.contains(e.target) && !notiBtn?.contains(e.target) && !mobileNotiBtn?.contains(e.target)) {
+                panel.classList.remove('active');
+            }
+        }
+    });
     if (document.getElementById('maintenanceForm')) {
         document.getElementById('maintenanceForm').addEventListener('submit', handleMaintenanceSubmit);
     }

@@ -3907,6 +3907,7 @@ async function handleSaveCompra(e) {
 
             if (targetMaintRecords.length > 0) {
                 console.log(`🛠️ Criando registros de manutenção (${targetMaintRecords.length} registro(s))...`);
+                const newlyCreatedMaintIds = [];
                 for (const m of targetMaintRecords) {
                     try {
                         const isUuid = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -3943,6 +3944,7 @@ async function handleSaveCompra(e) {
 
                         // 2. Insert maintenance item
                         if (newMaint) {
+                            newlyCreatedMaintIds.push(newMaint.id);
                             const currentKm = parseFloat(m.km_atual) || 0;
                             const intervalKm = parseFloat(m.intervalo_km) || 0;
                             const intervalMonths = parseInt(m.intervalo_meses) || 0;
@@ -4054,18 +4056,18 @@ async function handleSaveCompra(e) {
                         if (maintsToClose && maintsToClose.length > 0) {
                             const idsToComplete = [];
                             maintsToClose.forEach(m => {
-                                const isOlderOrEqualDate = !compraData.data || !m.data || m.data <= compraData.data;
-                                const isOlderOrEqualKm = !grp.km || !m.km_atual || parseFloat(m.km_atual) <= parseFloat(grp.km);
-                                if (!isOlderOrEqualDate && !isOlderOrEqualKm) return;
+                                if (newlyCreatedMaintIds.includes(m.id)) return;
+
+                                // Conclui apenas registros anteriores: data estritamente anterior, ou mesma data com KM estritamente superior
+                                const isStrictlyOlderDate = compraData.data && m.data && m.data < compraData.data;
+                                const isSameDatePosteriorKm = compraData.data && m.data && m.data === compraData.data && grp.km && m.km_atual && parseFloat(grp.km) > parseFloat(m.km_atual);
+                                const isPosterior = isStrictlyOlderDate || isSameDatePosteriorKm;
+                                if (!isPosterior) return;
 
                                 const items = m.manutencao_itens || [];
                                 const match = items.some(it => {
-                                    if (it.servico_id && servicoIds.includes(it.servico_id)) return true;
-                                    if (it.descricao) {
-                                        const cleanDesc = it.descricao.replace(/\[ID:[^\]]+\]\s*/i, '').trim().toUpperCase();
-                                        if (cleanNames.includes(cleanDesc)) return true;
-                                    }
-                                    return false;
+                                    // Conclusão estrita apenas se houver servico_id vinculado compatível
+                                    return it.servico_id && servicoIds.includes(it.servico_id);
                                 });
 
                                 if (match && !idsToComplete.includes(m.id)) {

@@ -12,7 +12,7 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap"
         rel="stylesheet">
     <!-- CSS -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20261106_smart_tables">
     <link rel="stylesheet" href="orb_menu.css">
     <!-- Lucide Icons -->
     <script defer src="https://unpkg.com/lucide@latest"></script>
@@ -44,6 +44,9 @@
             .mobile-bottom-nav {
                 display: none !important;
             }
+            .mobile-alerts-wrapper {
+                display: none !important;
+            }
         }
 
         @media (max-width: 768px) {
@@ -58,7 +61,8 @@
 
             /* Ocultar elementos desnecessários e de escrita/edição no celular */
             .nav-tabs,
-            .admin-actions,
+            .admin-actions > button,
+            .admin-actions .notification-wrapper > button,
             .btn-col-config,
             .col-panel,
             #setupView,
@@ -73,7 +77,6 @@
             #btnImport,
             #importExcel,
             #selectionBadge-vehicles,
-            #driversView .view-header-actions,
             .col-config-bar > div:not(.status-filters),
             .view-header-actions > div:not(.status-filters),
             .btn-add,
@@ -81,6 +84,75 @@
                 display: none !important;
                 visibility: hidden !important;
                 pointer-events: none !important;
+            }
+
+            .admin-actions {
+                display: contents !important;
+            }
+
+            .mobile-alerts-wrapper {
+                position: fixed !important;
+                top: 0.52rem !important;
+                right: 3.1rem !important;
+                z-index: 9998 !important;
+                display: flex !important;
+                align-items: center !important;
+            }
+
+            .mobile-noti-btn {
+                width: 32px !important;
+                height: 32px !important;
+                border-radius: 50% !important;
+                background: var(--bg-card, #ffffff) !important;
+                border: 1px solid var(--border-card, #e2e8f0) !important;
+                color: var(--text-main, #0f172a) !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                position: relative !important;
+                cursor: pointer !important;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+                padding: 0 !important;
+                pointer-events: auto !important;
+            }
+
+            .mobile-noti-btn i,
+            .mobile-noti-btn svg {
+                width: 17px !important;
+                height: 17px !important;
+                color: #f59e0b !important;
+            }
+
+            .mobile-noti-btn .noti-badge {
+                position: absolute !important;
+                top: -4px !important;
+                right: -4px !important;
+                background: #ef4444 !important;
+                color: #ffffff !important;
+                font-size: 0.65rem !important;
+                font-weight: 800 !important;
+                min-width: 17px !important;
+                height: 17px !important;
+                border-radius: 9px !important;
+                padding: 0 4px !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                border: 2px solid var(--bg-main, #f8fafc) !important;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25) !important;
+            }
+
+            #notiPanel {
+                position: fixed !important;
+                top: 3.2rem !important;
+                left: 0.65rem !important;
+                right: 0.65rem !important;
+                width: auto !important;
+                max-width: calc(100vw - 1.3rem) !important;
+                max-height: 80vh !important;
+                z-index: 10005 !important;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+                background: var(--bg-card, #1e293b) !important;
             }
 
             /* Header Estilo App Mobile */
@@ -1106,11 +1178,19 @@
 
     <div class="container">
         <header>
-            <a href="home.html"
-                style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;"
-                onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
-                <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
-            </a>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <a href="home.html"
+                    style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.8rem; transition: color 0.3s;"
+                    onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                    <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
+                </a>
+                <div class="mobile-alerts-wrapper" id="mobileAlertsWrapper">
+                    <button type="button" id="mobileNotiBtn" class="mobile-noti-btn" onclick="toggleNotiPanel()" title="Notificações e Alertas">
+                        <i data-lucide="bell"></i>
+                        <span id="mobileNotiBadge" class="noti-badge" style="display: none;">0</span>
+                    </button>
+                </div>
+            </div>
             <h1>FrotaLink</h1>
             <p class="subtitle">Gestão Integrada de Veículos e Motoristas</p>
         </header>
@@ -1377,18 +1457,41 @@
 
         <div id="driversView" class="view-section">
             <div class="view-header-actions"
-                style="margin-bottom: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap; align-items: center;">
-                <button class="btn-col-config" onclick="toggleColPanel('drivers')">
-                    <i data-lucide="settings-2" style="width:14px;"></i> Colunas
-                </button>
-                <button class="btn" onclick="exportDriversToExcel()"
-                    style="padding: 0.5rem 1rem; background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2); font-size: 0.8rem;">
-                    <i data-lucide="file-spreadsheet" style="width: 14px;"></i> Excel
-                </button>
-                <button class="btn" onclick="exportDriversToPDF()"
-                    style="padding: 0.5rem 1rem; background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2); font-size: 0.8rem;">
-                    <i data-lucide="file-text" style="width: 14px;"></i> PDF
-                </button>
+                style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                <div class="status-filters" style="display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap;">
+                    <!-- Filtro Segmentado de Operação/Status do Motorista -->
+                    <div class="vehicle-status-segmented" id="driverStatusFilterGroup">
+                        <button type="button" class="vehicle-status-btn active btn-status-ativo" id="filter-drv-status-ATIVO"
+                            onclick="setDriverStatusFilter('ATIVO')" title="Exibir apenas motoristas ativos">
+                            <i data-lucide="check-circle-2" style="width: 14px; height: 14px;"></i> ATIVOS <span class="status-pill-count"
+                                id="count-drv-status-ATIVO">0</span>
+                        </button>
+                        <button type="button" class="vehicle-status-btn btn-status-inativo" id="filter-drv-status-INATIVO"
+                            onclick="setDriverStatusFilter('INATIVO')" title="Exibir apenas motoristas inativos">
+                            <i data-lucide="slash" style="width: 14px; height: 14px;"></i> INATIVOS <span class="status-pill-count"
+                                id="count-drv-status-INATIVO">0</span>
+                        </button>
+                        <button type="button" class="vehicle-status-btn btn-status-todos" id="filter-drv-status-TODOS"
+                            onclick="setDriverStatusFilter('TODOS')" title="Exibir todos os motoristas (ativos e inativos)">
+                            <i data-lucide="layers" style="width: 14px; height: 14px;"></i> TODOS <span class="status-pill-count"
+                                id="count-drv-status-TODOS">0</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                    <button class="btn-col-config" onclick="toggleColPanel('drivers')">
+                        <i data-lucide="settings-2" style="width:14px;"></i> Colunas
+                    </button>
+                    <button class="btn" onclick="exportDriversToExcel()"
+                        style="padding: 0.5rem 1rem; background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2); font-size: 0.8rem;">
+                        <i data-lucide="file-spreadsheet" style="width: 14px;"></i> Excel
+                    </button>
+                    <button class="btn" onclick="exportDriversToPDF()"
+                        style="padding: 0.5rem 1rem; background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2); font-size: 0.8rem;">
+                        <i data-lucide="file-text" style="width: 14px;"></i> PDF
+                    </button>
+                </div>
             </div>
             <div id="colPanel-drivers" class="col-panel" style="display:none;">
                 <p class="col-panel-hint"><i data-lucide="grip-vertical" style="width:12px;"></i> Arraste para reordenar
@@ -1666,10 +1769,10 @@
                         <input type="text" id="addFornecedorAquisicao">
                     </div>
                     <div class="form-group">
-                        <label>Status do VeÃ­culo</label>
-                        <select id="addStatus">
+                        <label>Status do Veículo</label>
+                        <select id="addStatus" onchange="toggleInativoFields()">
                             <option value="ATIVO">ATIVO</option>
-                            <option value="ATIVO - NÃƒO ALOCAR">ATIVO - NÃƒO ALOCAR</option>
+                            <option value="ATIVO - NÃO ALOCAR">ATIVO - NÃO ALOCAR</option>
                             <option value="INATIVO">INATIVO</option>
                         </select>
                     </div>
@@ -1772,11 +1875,101 @@
                     </div>
                     <div class="form-group">
                         <label>Status</label>
-                        <select id="driverStatus">
+                        <select id="driverStatus" onchange="toggleDriverInativoFields()">
                             <option value="ATIVO">ATIVO</option>
-                            <option value="ATIVO - NÃƒO ALOCAR">ATIVO - NÃO ALOCAR</option>
+                            <option value="ATIVO - NÃO ALOCAR">ATIVO - NÃO ALOCAR</option>
                             <option value="INATIVO">INATIVO</option>
                         </select>
+                    </div>
+
+                    <!-- Toggle Pessoa Jurídica (PJ) -->
+                    <div class="form-group"
+                        style="grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; background: rgba(99, 102, 241, 0.05); padding: 0.85rem 1rem; border-radius: 10px; border: 1px solid rgba(99, 102, 241, 0.18); margin-top: 0.5rem;">
+                        <div style="display: flex; align-items: center; gap: 0.65rem;">
+                            <div style="width: 34px; height: 34px; border-radius: 8px; background: rgba(99, 102, 241, 0.15); color: #818cf8; display: flex; align-items: center; justify-content: center;">
+                                <i data-lucide="building-2" style="width: 18px; height: 18px;"></i>
+                            </div>
+                            <div>
+                                <label style="margin: 0; cursor: pointer; font-weight: 700; color: var(--text-main); font-size: 0.9rem;" onclick="toggleDriverPjSwitch()">
+                                    Contrato Pessoa Jurídica (PJ)
+                                </label>
+                                <span style="display: block; font-size: 0.75rem; color: var(--text-muted);">
+                                    Ative se este motorista for contratado através de CNPJ
+                                </span>
+                            </div>
+                        </div>
+                        <input type="hidden" id="driverIsPj" value="false">
+                        <div class="switch" id="driverPjToggle" onclick="toggleDriverPjSwitch()" title="Ativar/Desativar Pessoa Jurídica"></div>
+                    </div>
+
+                    <!-- Seção de Dados da Pessoa Jurídica (PJ) -->
+                    <div id="driverPjFields"
+                        style="display: none; grid-column: 1 / -1; background: rgba(99, 102, 241, 0.04); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(99, 102, 241, 0.18); margin-top: 0.25rem; width: 100%; box-sizing: border-box;">
+                        <h4
+                            style="margin-top: 0; margin-bottom: 1rem; color: #818cf8; display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem;">
+                            <i data-lucide="briefcase" style="width: 18px;"></i> Informações da Empresa Contratada (PJ)
+                        </h4>
+                        <div
+                            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; width: 100%;">
+                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                <label>Razão Social *</label>
+                                <input type="text" id="driverPjRazaoSocial" placeholder="Nome empresarial oficial">
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label>CNPJ *</label>
+                                <input type="text" id="driverPjCnpj" placeholder="00.000.000/0000-00" maxlength="18">
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label>Nome Fantasia</label>
+                                <input type="text" id="driverPjNomeFantasia" placeholder="Nome comercial / Fantasia">
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label>Inscrição Estadual (IE)</label>
+                                <input type="text" id="driverPjIE" placeholder="Número ou Isento">
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label>E-mail Comercial / Financeiro</label>
+                                <input type="email" id="driverPjEmail" placeholder="contato@empresa.com.br">
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label>Chave PIX (PJ)</label>
+                                <input type="text" id="driverPjPix" placeholder="CNPJ, E-mail, Celular ou Aleatória">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Campos adicionais para motorista INATIVO -->
+                    <div id="driverInativoFields"
+                        style="display: none; grid-column: 1 / -1; background: rgba(255, 71, 87, 0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(255, 71, 87, 0.1); margin-top: 1rem; width: 100%; box-sizing: border-box;">
+                        <h4
+                            style="margin-top: 0; margin-bottom: 1rem; color: #ff4757; display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem;">
+                            <i data-lucide="alert-triangle" style="width: 18px;"></i> Detalhes da Inativação do Motorista
+                        </h4>
+                        <div
+                            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; width: 100%;">
+                            <div class="form-group" style="margin:0;">
+                                <label>Motivo do Desligamento / Inativação *</label>
+                                <select id="driverInativoMotivo" style="width: 100%; height: 42px;">
+                                    <option value="">Selecione um motivo...</option>
+                                    <option value="DEMISSÃO SEM JUSTA CAUSA">Demissão sem Justa Causa</option>
+                                    <option value="PEDIDO DE DEMISSÃO">Pedido de Demissão</option>
+                                    <option value="TÉRMINO DE CONTRATO">Término de Contrato</option>
+                                    <option value="DEMISSÃO COM JUSTA CAUSA">Demissão com Justa Causa</option>
+                                    <option value="AFASTAMENTO / INSS">Afastamento / INSS</option>
+                                    <option value="APOSENTADORIA">Aposentadoria</option>
+                                    <option value="OUTROS">Outros</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label>Data da Inativação / Desligamento</label>
+                                <input type="date" id="driverInativoData" style="width: 100%; height: 42px;">
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1; margin:0;">
+                                <label>Observação / Detalhes</label>
+                                <input type="text" id="driverInativoObs"
+                                    placeholder="Ex: Informações adicionais, detalhes do acordo, etc." style="width: 100%; height: 42px;">
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -2076,7 +2269,7 @@
         </button>
     </nav>
 
-    <script src="app.js?v=20261015_status_filter"></script>
+    <script src="app.js?v=20261106_smart_tables"></script>
     <script src="orb_menu.js"></script>
 </body>
 

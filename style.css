@@ -821,6 +821,12 @@ tr:hover td {
         font-size: 0.7rem;
         padding: 0.5rem 0.25rem;
     }
+
+    /* Driver/Equipe View adjustments */
+    #thead-drivers th, #fullDriverList td {
+        font-size: 0.7rem;
+        padding: 0.5rem 0.25rem;
+    }
     
     /* Hide some fleet columns on mobile */
     #thead-vehicles th:nth-child(3), #fullVehicleList td:nth-child(3), /* Proprietário */
@@ -2371,6 +2377,316 @@ body,
     color: #fff !important;
     border-color: #dc2626 !important;
 }
+
+/* ============================================================
+   TABELAS MODERNAS E INTELIGENTES (Alocações, Frota e Equipe)
+   Ajuste dinâmico de cabeçalhos, quebra de texto e larguras semânticas
+   ============================================================ */
+
+.desktop-table-view {
+    overflow-x: auto;
+    border-radius: var(--radius);
+}
+
+.desktop-table-view table {
+    width: 100%;
+    table-layout: auto;
+    border-collapse: collapse;
+}
+
+/* Cabeçalhos (th): Quebram em 2 linhas com altura flexível para colunas ficarem compactas */
+.desktop-table-view th {
+    padding: 0.55rem 0.45rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.15;
+    white-space: normal !important;
+    vertical-align: middle;
+    text-transform: uppercase;
+    letter-spacing: 0.03rem;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom: 2px solid var(--border-card);
+    transition: background 0.15s ease;
+}
+
+.desktop-table-view th .th-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    width: 100%;
+}
+
+.desktop-table-view th .th-label {
+    display: inline-block;
+    word-break: normal;
+    hyphens: auto;
+}
+
+.desktop-table-view th.col-actions .th-content {
+    justify-content: center;
+}
+
+/* Células de dados (td) */
+.desktop-table-view td {
+    padding: 0.52rem 0.45rem;
+    font-size: 0.76rem;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border-card);
+}
+
+/* 1. Colunas de Texto Expansíveis (ocupam o restante da largura e podem quebrar linha) */
+.desktop-table-view th.col-nome_completo,
+.desktop-table-view td.col-nome_completo,
+.desktop-table-view th.col-modelo,
+.desktop-table-view td.col-modelo,
+.desktop-table-view th.col-marca_modelo,
+.desktop-table-view td.col-marca_modelo,
+.desktop-table-view th.col-proprietario,
+.desktop-table-view td.col-proprietario,
+.desktop-table-view th.col-condutor,
+.desktop-table-view td.col-condutor,
+.desktop-table-view th.col-motorista_alocado,
+.desktop-table-view td.col-motorista_alocado,
+.desktop-table-view th.col-condutor_principal,
+.desktop-table-view td.col-condutor_principal,
+.desktop-table-view th.col-fornecedor_aquisicao,
+.desktop-table-view td.col-fornecedor_aquisicao,
+.desktop-table-view th.col-pj_razao_social,
+.desktop-table-view td.col-pj_razao_social,
+.desktop-table-view th.col-pj_nome_fantasia,
+.desktop-table-view td.col-pj_nome_fantasia {
+    white-space: normal;
+    word-break: normal;
+    line-height: 1.25;
+    min-width: 125px;
+}
+
+.desktop-table-view td.col-nome_completo .driver-name-wrap {
+    display: block;
+    white-space: normal;
+    word-break: normal;
+    line-height: 1.25;
+}
+
+/* 2. Colunas Fixas e Compactas (largura justa, sem sobra, 1 linha) */
+
+/* Checkbox */
+.desktop-table-view th.col-checkbox,
+.desktop-table-view td.col-checkbox {
+    width: 38px;
+    min-width: 38px;
+    max-width: 42px;
+    text-align: center;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+}
+
+/* Placa */
+.desktop-table-view th.col-placa,
+.desktop-table-view td.col-placa {
+    width: 82px;
+    min-width: 80px;
+    text-align: center;
+    white-space: nowrap;
+}
+.desktop-table-view .plate {
+    font-size: 0.74rem;
+    padding: 0.18rem 0.4rem;
+    letter-spacing: 0.5px;
+}
+
+/* CPF */
+.desktop-table-view th.col-cpf,
+.desktop-table-view td.col-cpf {
+    width: 114px;
+    min-width: 108px;
+    text-align: center;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* CNPJ (PJ) */
+.desktop-table-view th.col-pj_cnpj,
+.desktop-table-view td.col-pj_cnpj,
+.desktop-table-view th.col-cpf_cnpj,
+.desktop-table-view td.col-cpf_cnpj {
+    width: 135px;
+    min-width: 128px;
+    text-align: center;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* CNH / Categoria */
+.desktop-table-view th.col-cnh_cat,
+.desktop-table-view td.col-cnh_cat {
+    width: 126px;
+    min-width: 120px;
+    text-align: center;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Datas (Venc. CNH, Venc. Seguro, Nascimento, etc) */
+.desktop-table-view th.col-vencimento_cnh,
+.desktop-table-view td.col-vencimento_cnh,
+.desktop-table-view th.col-venc_seguro,
+.desktop-table-view td.col-venc_seguro,
+.desktop-table-view th.col-data_nascimento,
+.desktop-table-view td.col-data_nascimento,
+.desktop-table-view th.col-data_aquisicao_nf,
+.desktop-table-view td.col-data_aquisicao_nf,
+.desktop-table-view th.col-data_saida_nf,
+.desktop-table-view td.col-data_saida_nf {
+    width: 86px;
+    min-width: 80px;
+    text-align: center;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Idade */
+.desktop-table-view th.col-idade,
+.desktop-table-view td.col-idade {
+    width: 58px;
+    min-width: 52px;
+    text-align: center;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Qtd. Seguros Principal: Coluna bem estreita com cabeçalho em 2 linhas */
+.desktop-table-view th.col-vinculos_seguro,
+.desktop-table-view td.col-vinculos_seguro {
+    width: 70px;
+    min-width: 65px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* KM Atual */
+.desktop-table-view th.col-km_atual,
+.desktop-table-view td.col-km_atual {
+    width: 88px;
+    min-width: 80px;
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* WhatsApp */
+.desktop-table-view th.col-whats,
+.desktop-table-view td.col-whats,
+.desktop-table-view th.col-contato_whatsapp,
+.desktop-table-view td.col-contato_whatsapp {
+    width: 110px;
+    min-width: 100px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Tipo Contrato PF / PJ */
+.desktop-table-view th.col-tipo_contrato,
+.desktop-table-view td.col-tipo_contrato {
+    width: 55px;
+    min-width: 50px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Combustível */
+.desktop-table-view th.col-tipo_combustivel,
+.desktop-table-view td.col-tipo_combustivel {
+    width: 84px;
+    min-width: 78px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Anos / Parcelas */
+.desktop-table-view th.col-ano_fabricacao,
+.desktop-table-view td.col-ano_fabricacao,
+.desktop-table-view th.col-ano_modelo,
+.desktop-table-view td.col-ano_modelo,
+.desktop-table-view th.col-parcelas_pagamento,
+.desktop-table-view td.col-parcelas_pagamento {
+    width: 65px;
+    min-width: 60px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Valores Financeiros R$ */
+.desktop-table-view th.col-valor_premio,
+.desktop-table-view td.col-valor_premio,
+.desktop-table-view th.col-valor_franquia,
+.desktop-table-view td.col-valor_franquia,
+.desktop-table-view th.col-valor_fipe_mes,
+.desktop-table-view td.col-valor_fipe_mes {
+    width: 95px;
+    min-width: 88px;
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Códigos (Renavam, Chassi, Motor, FIPE) */
+.desktop-table-view th.col-renavam,
+.desktop-table-view td.col-renavam,
+.desktop-table-view th.col-chassi,
+.desktop-table-view td.col-chassi,
+.desktop-table-view th.col-numero_motor,
+.desktop-table-view td.col-numero_motor,
+.desktop-table-view th.col-codigo_fipe,
+.desktop-table-view td.col-codigo_fipe {
+    width: 110px;
+    min-width: 100px;
+    text-align: center;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Status: Coluna compacta com badge quebrando em até 2 linhas */
+.desktop-table-view th.col-status,
+.desktop-table-view td.col-status {
+    width: 88px;
+    min-width: 84px;
+    text-align: center;
+}
+
+.desktop-table-view .badge-status-cell {
+    display: inline-block;
+    white-space: normal;
+    line-height: 1.15;
+    font-size: 0.65rem;
+    padding: 3px 6px;
+    max-width: 84px;
+    text-align: center;
+    border-radius: 6px;
+    word-break: normal;
+}
+
+/* Ações */
+.desktop-table-view th.col-actions,
+.desktop-table-view td.col-actions {
+    width: 64px;
+    min-width: 60px;
+    text-align: center;
+    white-space: nowrap;
+}
+.desktop-table-view .table-actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.3rem;
+}
+.desktop-table-view .table-actions .btn-edit {
+    padding: 0.28rem 0.35rem;
+}
+
+/* ============================================================ */
 
 /* ============================================================
    ESTILOS GLOBAIS PARA FILTROS RÁPIDOS (PADRONIZAÇÃO)

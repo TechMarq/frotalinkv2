@@ -637,6 +637,111 @@ function getMaintStatusCategory(m) {
     }
 }
 
+function getStatusOriginInfo(m) {
+    if (!m) return null;
+    const motivo = (m.autorizacao_motivo || '').trim();
+    const status = (m.status || '').toUpperCase();
+    const hasNf = !!m.numero_nf;
+    const isComprasOrigem = m.origem === 'COMPRAS';
+
+    // 1. Concluído ou vinculado via Compras (Nota Fiscal)
+    if (motivo.includes('pela Nota #') || motivo.startsWith('[COMPRAS') || (status === 'CONCLUIDO' && (hasNf || isComprasOrigem) && !motivo.includes('novo registro'))) {
+        const nfMatch = motivo.match(/Nota #([^\s,\.\)]+)/i);
+        const nfNum = nfMatch ? nfMatch[1] : (m.numero_nf || '');
+        const lbl = nfNum ? `COMPRAS • NF #${nfNum}` : 'COMPRAS • NF';
+        const title = motivo || (nfNum ? `Concluído automaticamente pela Nota #${nfNum}` : 'Concluído via Compras');
+        return {
+            type: 'COMPRAS',
+            label: lbl,
+            tooltip: title,
+            icon: 'receipt',
+            bg: 'rgba(37, 99, 235, 0.10)',
+            border: 'rgba(37, 99, 235, 0.28)',
+            color: '#2563eb'
+        };
+    }
+
+    // 2. Concluído automaticamente por nova OS posterior
+    if (motivo.includes('novo registro') || motivo.startsWith('[NOVA_MANUTENCAO]') || motivo.includes('OS de ')) {
+        const dateMatch = motivo.match(/OS de ([^\s\)]+)/i);
+        const dateStr = dateMatch ? dateMatch[1] : '';
+        const lbl = dateStr ? `NOVA OS • ${dateStr}` : 'NOVA OS';
+        const title = motivo || 'Concluído automaticamente por nova OS posterior';
+        return {
+            type: 'NOVA_MANUTENCAO',
+            label: lbl,
+            tooltip: title,
+            icon: 'wrench',
+            bg: 'rgba(16, 185, 129, 0.10)',
+            border: 'rgba(16, 185, 129, 0.28)',
+            color: '#059669'
+        };
+    }
+
+    // 3. Concluído com autorização antecipada manual (Remaining > 2000km)
+    if (motivo && !motivo.startsWith('Concluído automaticamente') && motivo !== '[MANUAL]') {
+        return {
+            type: 'MANUAL_ANTECIPADO',
+            label: 'MANUAL (ANTECIPADO)',
+            tooltip: `Autorização antecipada: ${motivo}`,
+            icon: 'shield-alert',
+            bg: 'rgba(239, 68, 68, 0.10)',
+            border: 'rgba(239, 68, 68, 0.28)',
+            color: '#ef4444'
+        };
+    }
+
+    // 4. Alteração manual de status
+    if (motivo === '[MANUAL]' || (status === 'CONCLUIDO' && m.autorizado_em)) {
+        return {
+            type: 'MANUAL',
+            label: 'MANUAL',
+            tooltip: 'Status alterado manualmente pelo usuário',
+            icon: 'user-check',
+            bg: 'rgba(100, 116, 139, 0.10)',
+            border: 'rgba(100, 116, 139, 0.25)',
+            color: '#64748b'
+        };
+    }
+
+    // 5. Se status for PENDENTE / AGENDADO: indicar se veio de Compras ou Manual
+    if (hasNf || isComprasOrigem) {
+        const nfNum = m.numero_nf || '';
+        return {
+            type: 'CRIADO_COMPRAS',
+            label: nfNum ? `COMPRAS • NF #${nfNum}` : 'COMPRAS',
+            tooltip: 'Lançado a partir do módulo de Compras',
+            icon: 'receipt',
+            bg: 'rgba(2, 132, 199, 0.08)',
+            border: 'rgba(2, 132, 199, 0.22)',
+            color: '#0284c7'
+        };
+    }
+
+    return {
+        type: 'CRIADO_MANUAL',
+        label: 'MANUAL',
+        tooltip: 'OS criada manualmente no módulo de Manutenção',
+        icon: 'file-edit',
+        bg: 'rgba(100, 116, 139, 0.08)',
+        border: 'rgba(100, 116, 139, 0.20)',
+        color: '#64748b'
+    };
+}
+
+function getStatusOriginBadge(m) {
+    const info = getStatusOriginInfo(m);
+    if (!info) return '';
+    return `
+        <div class="status-origin-tag" 
+             style="font-size: 0.62rem; font-weight: 700; color: ${info.color}; background: ${info.bg}; border: 1px solid ${info.border}; border-radius: 6px; padding: 2px 6px; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; cursor: help;" 
+             title="${info.tooltip}">
+            <i data-lucide="${info.icon}" style="width: 10px; height: 10px; flex-shrink: 0;"></i>
+            <span>${info.label}</span>
+        </div>
+    `;
+}
+
 function renderMaintTable() {
     const tbody = document.getElementById('maintList');
     if (!tbody) return;
@@ -1011,12 +1116,7 @@ function renderMaintTable() {
                      title="Clique para alterar o status">
                     ${statusLabel} <i data-lucide="chevron-down" style="width: 10px; height: 10px; opacity: 0.7;"></i>
                 </div>
-                ${m.autorizacao_motivo ? `
-                    <div style="font-size: 0.65rem; color: #ef4444; margin-top: 6px; display: flex; align-items: center; gap: 4px; cursor: help; font-weight: 700;" 
-                         title="MOTIVO: ${m.autorizacao_motivo}">
-                        <i data-lucide="shield-check" style="width: 12px; height: 12px;"></i> ANTECIPADO
-                    </div>
-                ` : ''}
+                ${getStatusOriginBadge(m)}
             </div>
         `;
 
@@ -1213,11 +1313,11 @@ function renderMaintTable() {
                                     <span class="mob-oficina-name" title="${oficinaNome}"><i data-lucide="building-2" style="width: 11px; height: 11px;"></i> ${oficinaNome}</span>
                                 </div>
                             </div>
-                            <div class="mob-card-status-col">
-                                <div class="mob-status-pill ${statusClass}" title="Status: ${statusLabel}">
+                            <div class="mob-card-status-col" style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                                <div class="mob-status-pill ${statusClass}" title="Status: ${statusLabel}" onclick="openStatusMenu(event, '${m.id}', '${m.status}')" style="cursor: pointer;">
                                     ${statusLabel}
                                 </div>
-                                ${m.autorizacao_motivo ? `<span class="mob-antecipado-badge" title="${m.autorizacao_motivo}"><i data-lucide="shield-check" style="width: 10px; height: 10px;"></i> Antecipado</span>` : ''}
+                                ${getStatusOriginBadge(m)}
                             </div>
                         </div>
 
@@ -1305,7 +1405,16 @@ window.openMaintDetail = function(id) {
         <div class="detail-item"><strong>Nota Fiscal</strong>${m.numero_nota ? `<span style="color:#10b981; font-weight:800;">#${m.numero_nota}</span>` : '---'}</div>
         <div class="detail-item"><strong>Oficina / Fornecedor</strong>${m.fornecedores?.nome || '---'}</div>
         <div class="detail-item"><strong>KM no Momento</strong>${m.km_atual ? `${parseFloat(m.km_atual).toLocaleString('pt-BR')} km` : '---'}</div>
-        ${m.autorizacao_motivo ? `<div class="detail-item full-width" style="border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.06);"><strong style="color:#ef4444;">Motivo de Antecipação</strong><span style="color:#ef4444;">${m.autorizacao_motivo}</span></div>` : ''}
+        ${(() => {
+            const info = getStatusOriginInfo(m);
+            if (!info) return '';
+            return `<div class="detail-item full-width" style="border-color: ${info.border}; background: ${info.bg};">
+                <strong style="color: ${info.color}; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="${info.icon}" style="width: 14px; height: 14px;"></i> Origem do Status (${info.label})
+                </strong>
+                <span style="color: ${info.color}; font-weight: 600;">${info.tooltip || '---'}</span>
+            </div>`;
+        })()}
         <div class="detail-item full-width">
             <strong>Itens & Serviços Realizados (${items.length})</strong>
             ${itemsHtml || '<span style="color:var(--text-muted); font-size:0.8rem;">Nenhum item registrado.</span>'}
@@ -1616,8 +1725,12 @@ async function applyStatusChange(id, newStatus, motivo = null) {
             updateData.autorizacao_motivo = null;
             updateData.autorizado_em = null;
         } else if (motivo) {
-            // Campos dedicados salvando a autorização
+            // Campos dedicados salvando a autorização antecipada / justificativa manual
             updateData.autorizacao_motivo = motivo;
+            updateData.autorizado_em = new Date().toISOString();
+        } else {
+            // Conclusão manual direta pelo usuário
+            updateData.autorizacao_motivo = '[MANUAL]';
             updateData.autorizado_em = new Date().toISOString();
         }
 
@@ -2329,6 +2442,7 @@ function setupFormListeners() {
             };
 
             try {
+                const newlyCreatedHeaderIds = [];
                 if (state.editingId) {
                     const firstItem = state.currentMaintItems[0];
                     const headerUpdatePayload = {
@@ -2354,7 +2468,10 @@ function setupFormListeners() {
                                 empresa_id: window.currentEmpresaId || null
                             }]).select().single();
                             if (newHErr) throw newHErr;
-                            if (newH) targetHeaderId = newH.id;
+                            if (newH) {
+                                targetHeaderId = newH.id;
+                                newlyCreatedHeaderIds.push(newH.id);
+                            }
                         }
 
                         let proxima_troca_km = null;
@@ -2454,6 +2571,7 @@ function setupFormListeners() {
                         };
                         const { data: newH, error: hErr } = await supabaseClient.from('manutencoes').insert([hPayload]).select().single();
                         if (hErr) throw hErr;
+                        newlyCreatedHeaderIds.push(newH.id);
 
                         let proxima_troca_km = null;
                         let proxima_troca_data = null;
@@ -2549,7 +2667,7 @@ function setupFormListeners() {
                         servicos: servicesList,
                         currentDate: currentDate,
                         currentKm: currentKm,
-                        excludeMaintIds: state.editingId ? [state.editingId] : [],
+                        excludeMaintIds: [...(typeof newlyCreatedHeaderIds !== 'undefined' ? newlyCreatedHeaderIds : []), ...(state.editingId ? [state.editingId] : [])],
                         refDoc: `OS de ${currentDate} (${placaDoc})`
                     });
                 } catch (autoErr) {
@@ -3089,25 +3207,21 @@ window.autoCompletePreviousMaintenance = async function({ veiculoId, servicos, c
         maints.forEach(m => {
             if (excludeMaintIds && excludeMaintIds.includes(m.id)) return;
 
-            // Se for anterior ou igual em data ou km (ou seja, servico anterior que ainda constava aberto)
-            const isOlderOrEqualDate = !currentDate || !m.data || m.data <= currentDate;
-            const isOlderOrEqualKm = !currentKm || !m.km_atual || parseFloat(m.km_atual) <= parseFloat(currentKm);
+            // Só conclui registros anteriores: data estritamente anterior à atual,
+            // ou mesma data com KM estritamente superior ao registrado na OS anterior
+            const isStrictlyOlderDate = currentDate && m.data && m.data < currentDate;
+            const isSameDatePosteriorKm = currentDate && m.data && m.data === currentDate && currentKm && m.km_atual && parseFloat(currentKm) > parseFloat(m.km_atual);
+            const isPosterior = isStrictlyOlderDate || isSameDatePosteriorKm;
 
-            if (!isOlderOrEqualDate && !isOlderOrEqualKm) {
-                // Registro posterior ao atual, nao encerra
+            if (!isPosterior) {
+                // Registro na mesma data/km ou posterior, não encerra
                 return;
             }
 
             const items = m.manutencao_itens || [];
             const hasMatchingService = items.some(it => {
-                // Match por servico_id estrito
-                if (it.servico_id && servicoIds.includes(it.servico_id)) return true;
-                // Match complementar por nome limpo exato se nao tiver servico_id gravado
-                if (it.descricao) {
-                    const itClean = it.descricao.replace(/\[ID:[^\]]+\]\s*/i, '').trim().toUpperCase();
-                    if (cleanNames.includes(itClean)) return true;
-                }
-                return false;
+                // Conclusão estrita apenas se houver servico_id vinculado compatível
+                return it.servico_id && servicoIds.includes(it.servico_id);
             });
 
             if (hasMatchingService && !idsToComplete.includes(m.id)) {
