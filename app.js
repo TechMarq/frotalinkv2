@@ -526,10 +526,17 @@ function renderAll() {
 //  NOTIFICAÇÕES
 // ============================================================
 
-function toggleNotiPanel() {
+function toggleNotiPanel(e) {
+    if (e) {
+        if (typeof e.stopPropagation === 'function') e.stopPropagation();
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+    }
     const panel = document.getElementById('notiPanel');
-    if (panel) panel.classList.toggle('active');
+    if (panel) {
+        panel.classList.toggle('active');
+    }
 }
+window.toggleNotiPanel = toggleNotiPanel;
 
 function checkNotifications() {
     if (!drivers.length && !vehicles.length) return;
@@ -832,15 +839,21 @@ function closeDriverDetail() {
 // Fechar painel ao clicar fora
 document.addEventListener('click', (e) => {
     const panel = document.getElementById('notiPanel');
-    const btn = document.getElementById('notiBtn');
-    if (panel && panel.classList.contains('active') && !panel.contains(e.target) && !btn.contains(e.target)) {
-        panel.classList.remove('active');
+    if (panel && panel.classList.contains('active')) {
+        const clickedInside = panel.contains(e.target);
+        const clickedBtn = e.target.closest && (e.target.closest('#notiBtn') || e.target.closest('#mobileNotiBtn'));
+        if (!clickedInside && !clickedBtn) {
+            panel.classList.remove('active');
+        }
     }
 
     const uPanel = document.getElementById('unlinkedPanel');
-    const uBtn = document.getElementById('unlinkedDriversBtn');
-    if (uPanel && uPanel.classList.contains('active') && !uPanel.contains(e.target) && !uBtn.contains(e.target)) {
-        uPanel.classList.remove('active');
+    if (uPanel && uPanel.classList.contains('active')) {
+        const clickedInsideU = uPanel.contains(e.target);
+        const clickedUBtn = e.target.closest && e.target.closest('#unlinkedDriversBtn');
+        if (!clickedInsideU && !clickedUBtn) {
+            uPanel.classList.remove('active');
+        }
     }
 
     // Também fechar modais de detalhe ao clicar no overlay
@@ -3926,17 +3939,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const driverStatusSelect = document.getElementById('driverStatus');
     if (driverStatusSelect) driverStatusSelect.addEventListener('change', toggleDriverInativoFields);
 
-    // Fechar painel de notificações ao clicar fora
-    document.addEventListener('click', (e) => {
-        const panel = document.getElementById('notiPanel');
-        const notiBtn = document.getElementById('notiBtn');
-        const mobileNotiBtn = document.getElementById('mobileNotiBtn');
-        if (panel && panel.classList.contains('active')) {
-            if (!panel.contains(e.target) && !notiBtn?.contains(e.target) && !mobileNotiBtn?.contains(e.target)) {
-                panel.classList.remove('active');
-            }
-        }
-    });
     if (document.getElementById('maintenanceForm')) {
         document.getElementById('maintenanceForm').addEventListener('submit', handleMaintenanceSubmit);
     }
@@ -3951,6 +3953,21 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('addValorDiaSeguro').value = daily;
         });
     }
+
+    // Reposicionamento inteligente para tooltips de histórico/manutenção (evita corte no rodapé)
+    document.addEventListener('mouseover', (e) => {
+        const trigger = e.target.closest('.maint-tooltip-trigger');
+        if (!trigger) return;
+        const tooltip = trigger.querySelector('.maint-tooltip');
+        if (!tooltip) return;
+        const rect = trigger.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        if (spaceBelow < 220) {
+            tooltip.classList.add('open-upward');
+        } else {
+            tooltip.classList.remove('open-upward');
+        }
+    });
 
     if (window.lucide) lucide.createIcons();
     if (typeof window.showLoader === 'function') window.showLoader();

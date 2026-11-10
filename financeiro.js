@@ -1816,6 +1816,11 @@ async function openEntryModal(tipo, id = null) {
     document.getElementById('installmentsWrapper').style.display = 'none';
     const chkFixar = document.getElementById('chkFixarMesmoDia');
     if (chkFixar) chkFixar.checked = false;
+    const qtdInputEl = document.getElementById('qtdParcelas');
+    if (qtdInputEl) {
+        qtdInputEl.min = '1';
+        delete qtdInputEl.dataset.minPaid;
+    }
     // Reset dos chips de favorecido
     state.favorecidoFiltroTipo = 'ALL';
     const chipsContainer = document.getElementById('entryFavChips');
@@ -3191,6 +3196,24 @@ async function handleEntrySubmit(e) {
     if (finalTotal <= 0) {
         showToast('O valor total do lançamento deve ser maior que zero.', 'error');
         return alert('O valor total deve ser maior que zero.');
+    }
+
+    // Validação de segurança: O valor total da nota não pode ser inferior ao valor das parcelas já pagas
+    const paidRowsCheck = document.querySelectorAll('#installmentsContainer .installment-row[data-paid="true"]');
+    if (paidRowsCheck.length > 0) {
+        let totalPagoCentavos = 0;
+        paidRowsCheck.forEach(r => {
+            const v = parseFinNumber(r.querySelector('.parc-val')?.value);
+            totalPagoCentavos += Math.round(v * 100);
+        });
+        const finalTotalCentavos = Math.round(finalTotal * 100);
+        if (finalTotalCentavos < totalPagoCentavos) {
+            const totalPagoStr = (totalPagoCentavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            const totalNotaStr = finalTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            showToast(`O valor total da nota (${totalNotaStr}) não pode ser inferior às parcelas já pagas (${totalPagoStr})!`, 'error');
+            alert(`Atenção: O valor total da nota (${totalNotaStr}) não pode ser menor do que o montante já pago das parcelas quitadas (${totalPagoStr}).\n\nPor favor, revise os itens e deduções da nota.`);
+            return;
+        }
     }
 
     // Validação estrita da soma das parcelas vs Total do lançamento
@@ -5853,40 +5876,50 @@ window.onInstallmentValueChange = function(changedIndex) {
     const totalParcs = parcRows.length;
     if (totalParcs <= 1) return updateInstallmentsSummary();
 
-    // 1. Somar os valores até a parcela modificada (incluindo ela)
-    let somaAteModificada = 0;
+    // 1. Somar os valores das parcelas até a modificada (incluindo ela)
+    let somaFixada = 0;
     for (let i = 0; i <= changedIndex; i++) {
         const valInput = parcRows[i].querySelector('.parc-val');
-        const v = parseFinNumber(valInput?.value);
-        somaAteModificada += v;
+        somaFixada += parseFinNumber(valInput?.value);
     }
 
-    const saldoRestante = Math.max(0, Math.round((totalNota - somaAteModificada) * 100) / 100);
-    const posterioresCount = totalParcs - (changedIndex + 1);
+    // 2. Identificar parcelas posteriores em aberto vs quitadas
+    const openPosteriores = [];
+    for (let i = changedIndex + 1; i < totalParcs; i++) {
+        const isPaid = parcRows[i].getAttribute('data-paid') === 'true';
+        if (isPaid) {
+            const valInput = parcRows[i].querySelector('.parc-val');
+            somaFixada += parseFinNumber(valInput?.value);
+        } else {
+            openPosteriores.push(parcRows[i]);
+        }
+    }
 
-    // 2. Se houver parcelas posteriores, divide o saldo restante entre elas
-    if (posterioresCount > 0) {
+    const saldoRestante = Math.max(0, Math.round((totalNota - somaFixada) * 100) / 100);
+
+    // 3. Se houver parcelas posteriores em aberto, divide o saldo restante entre elas
+    if (openPosteriores.length > 0) {
         let centavosRestantes = Math.round(saldoRestante * 100);
-        const baseCentavos = Math.floor(centavosRestantes / posterioresCount);
-        let restoCentavos = centavosRestantes % posterioresCount;
+        const baseCentavos = Math.floor(centavosRestantes / openPosteriores.length);
+        let restoCentavos = centavosRestantes % openPosteriores.length;
 
-        for (let i = changedIndex + 1; i < totalParcs; i++) {
+        openPosteriores.forEach(row => {
             let parcelaCentavos = baseCentavos;
             if (restoCentavos > 0) {
                 parcelaCentavos += 1;
                 restoCentavos--;
             }
-            const valInput = parcRows[i].querySelector('.parc-val');
+            const valInput = row.querySelector('.parc-val');
             if (valInput) {
                 valInput.value = (parcelaCentavos / 100).toFixed(2);
             }
-        }
+        });
     }
 
     updateInstallmentsSummary();
 };
 
-window.rebalanceInstallments = function() {
+window.rebalanceInstallments = function(quiet = false) {
     const totalNota = typeof window.getFinTotalAmount === 'function' ? window.getFinTotalAmount() : 0;
     const parcRows = Array.from(document.querySelectorAll('#installmentsContainer .installment-row'));
     const totalParcs = parcRows.length;
@@ -5907,7 +5940,7 @@ window.rebalanceInstallments = function() {
     });
 
     if (openRows.length === 0) {
-        if (typeof showToast === 'function') {
+        if (!quiet && typeof showToast === 'function') {
             showToast('Todas as parcelas deste lançamento já estão quitadas.', 'info');
         }
         updateInstallmentsSummary();
@@ -5918,9 +5951,12 @@ window.rebalanceInstallments = function() {
     const remainingCentavos = totalCentavos - paidTotalCentavos;
 
     if (remainingCentavos < 0) {
+        const paidTotalStr = (paidTotalCentavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const totalNotaStr = totalNota.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         if (typeof showToast === 'function') {
-            showToast('O valor já pago nas parcelas é maior que o valor total da nota.', 'error');
+            showToast(`O valor já pago (${paidTotalStr}) é maior que o valor total da nota (${totalNotaStr}).`, 'error');
         }
+        updateInstallmentsSummary();
         return;
     }
 
@@ -5940,7 +5976,7 @@ window.rebalanceInstallments = function() {
     });
 
     updateInstallmentsSummary();
-    if (typeof showToast === 'function') {
+    if (!quiet && typeof showToast === 'function') {
         showToast('Parcelas em aberto reequilibradas com sucesso!', 'success');
     }
 };
@@ -6065,7 +6101,7 @@ window.onFixarMesmoDiaToggle = function(checked) {
 
 window.generateInstallmentFields = function(forcedTotal = null) {
     const qtdInput = document.getElementById('qtdParcelas');
-    const qtd = parseInt(qtdInput ? qtdInput.value : 1) || 1;
+    let qtd = parseInt(qtdInput ? qtdInput.value : 1) || 1;
     const wrapper = document.getElementById('installmentsWrapper');
     const container = document.getElementById('installmentsContainer');
     const firstDate = document.getElementById('entryVencimento')?.value;
@@ -6092,7 +6128,21 @@ window.generateInstallmentFields = function(forcedTotal = null) {
         numChequeInput.required = isCheque && qtd <= 1;
     }
 
-    if (qtd <= 1) {
+    // 1. Verificação de parcelas pagas existentes no container
+    const existingRows = container ? Array.from(container.querySelectorAll('.installment-row')) : [];
+    const paidRows = existingRows.filter(r => r.getAttribute('data-paid') === 'true');
+    const minPaid = paidRows.length;
+
+    // Se o usuário tentar reduzir abaixo da quantidade de parcelas já quitadas, bloqueia e restaura
+    if (minPaid > 0 && qtd < minPaid) {
+        if (qtdInput) qtdInput.value = minPaid;
+        qtd = minPaid;
+        if (typeof showToast === 'function') {
+            showToast(`Não é possível reduzir para menos de ${minPaid} parcela(s), pois já existem parcelas quitadas.`, 'warning');
+        }
+    }
+
+    if (qtd <= 1 && minPaid === 0) {
         if (wrapper) wrapper.style.display = 'none';
         if (prazoGroup) prazoGroup.style.display = 'none';
         if (container) container.innerHTML = '';
@@ -6101,18 +6151,6 @@ window.generateInstallmentFields = function(forcedTotal = null) {
 
     if (prazoGroup) prazoGroup.style.display = 'block';
     if (wrapper) wrapper.style.display = 'block';
-
-    // Se já existirem parcelas carregadas e algumas já estiverem pagas, NÃO reseta o container em branco!
-    // Apenas reequilibra as parcelas abertas para que as pagas permaneçam bloqueadas e preservadas.
-    const existingPaidRows = container ? container.querySelectorAll('.installment-row[data-paid="true"]') : [];
-    if (existingPaidRows.length > 0 && container.children.length === qtd) {
-        if (typeof window.rebalanceInstallments === 'function') {
-            window.rebalanceInstallments();
-        }
-        return;
-    }
-
-    if (container) container.innerHTML = '';
 
     // Atualiza o cabeçalho das colunas das parcelas
     const headerLabels = document.getElementById('installmentsHeaderLabels');
@@ -6138,15 +6176,116 @@ window.generateInstallmentFields = function(forcedTotal = null) {
         }
     }
 
-    // Distribuição precisa em centavos para nunca faltar ou sobrar
-    let centavosRestantes = Math.round(total * 100);
-    const baseCentavos = Math.floor(centavosRestantes / qtd);
-    let restoCentavos = centavosRestantes % qtd;
+    const currentCount = existingRows.length;
 
-    const baseDateStr = firstDate || new Date().toISOString().split('T')[0];
+    // 2. Se já existirem parcelas carregadas no container (edição ou já iniciadas):
+    if (currentCount > 0) {
+        if (currentCount === qtd) {
+            // Mesma quantidade: apenas reequilibra as parcelas abertas
+            if (typeof window.rebalanceInstallments === 'function') {
+                window.rebalanceInstallments(true);
+            }
+            return;
+        }
 
-    const baseChequeNumRaw = (document.getElementById('entryNumCheque')?.value || '').trim();
-    const baseChequeInt = parseInt(baseChequeNumRaw);
+        if (qtd > currentCount) {
+            // AUMENTOU parcelas: Preserva 100% das existentes (bloqueadas e abertas) e adiciona apenas as novas
+            let defaultContaId = contaSelect?.value || '';
+            if (!defaultContaId && state.contas && state.contas.length > 0) {
+                defaultContaId = state.contas[0].id;
+            }
+            const contasOptionsHtml = (state.contas || []).map(c => 
+                `<option value="${c.id}" ${c.id === defaultContaId ? 'selected' : ''}>${c.nome}</option>`
+            ).join('');
+
+            const baseChequeNumRaw = (document.getElementById('entryNumCheque')?.value || '').trim();
+            const baseChequeInt = parseInt(baseChequeNumRaw);
+
+            // Data base para cálculo sequencial: usa a primeira parcela existente ou vencimento do cabeçalho
+            const firstRowDateInput = existingRows[0]?.querySelector('.parc-date');
+            const baseDateStr = firstRowDateInput?.value || firstDate || new Date().toISOString().split('T')[0];
+
+            for (let i = currentCount; i < qtd; i++) {
+                const dateStr = calculateInstallmentDate(baseDateStr, i, intervalDays, fixarMesmoDia);
+
+                let sugeridoCheque = '';
+                if (isCheque) {
+                    if (!isNaN(baseChequeInt) && String(baseChequeInt) === baseChequeNumRaw) {
+                        sugeridoCheque = String(baseChequeInt + i);
+                    } else if (baseChequeNumRaw) {
+                        sugeridoCheque = `${baseChequeNumRaw}-${i + 1}`;
+                    }
+                }
+
+                const row = document.createElement('div');
+                row.className = 'installment-row';
+                row.dataset.index = i;
+                row.setAttribute('data-paid', 'false');
+                row.style = isCheque 
+                    ? "display: grid; grid-template-columns: 45px 1.1fr 1fr 1.3fr 1fr; gap: 0.8rem; margin-bottom: 0.6rem; align-items: center; background: rgba(255,255,255,0.03); padding: 0.65rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); transition: border-color 0.2s;"
+                    : "display: grid; grid-template-columns: 70px 1.1fr 1fr; gap: 1rem; margin-bottom: 0.6rem; align-items: center; background: rgba(255,255,255,0.03); padding: 0.65rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); transition: border-color 0.2s;";
+
+                row.innerHTML = `
+                    <div style="font-weight: 800; color: #818cf8; font-size: 0.85rem; padding-left: 4px;">#${i + 1}</div>
+                    <div class="input-group" style="margin:0;">
+                        <input type="date" class="financeiro-input parc-date" value="${dateStr}"
+                            oninput="window.onInstallmentDateChange(${i})" onchange="window.onInstallmentDateChange(${i})">
+                    </div>
+                    <div class="input-group" style="margin:0;">
+                        <input type="text" inputmode="decimal" class="financeiro-input parc-val" value="0.00"
+                            placeholder="0,00"
+                            oninput="window.onInstallmentValueChange(${i})" onchange="window.onInstallmentValueChange(${i})">
+                    </div>
+                    ${isCheque ? `
+                    <div class="input-group" style="margin:0;">
+                        <select class="financeiro-input parc-conta" title="Conta bancária de emissão do cheque da parcela #${i + 1}" required>
+                            <option value="">Selecione a conta...</option>
+                            ${contasOptionsHtml}
+                        </select>
+                    </div>
+                    <div class="input-group" style="margin:0;">
+                        <input type="text" class="financeiro-input parc-cheque" value="${sugeridoCheque}" placeholder="Nº Cheque #${i + 1}" title="Número da folha de cheque da parcela #${i + 1}" required>
+                    </div>` : ''}
+                `;
+                container.appendChild(row);
+            }
+
+            if (window.lucide && typeof window.lucide.createIcons === 'function') lucide.createIcons();
+            if (typeof window.rebalanceInstallments === 'function') {
+                window.rebalanceInstallments(true);
+            }
+            return;
+        }
+
+        if (qtd < currentCount) {
+            // DIMINUIU parcelas: remove apenas linhas em aberto do final para o início
+            const allRows = Array.from(container.querySelectorAll('.installment-row'));
+            for (let i = allRows.length - 1; i >= qtd; i--) {
+                const r = allRows[i];
+                if (r.getAttribute('data-paid') === 'true') {
+                    // Nunca remove parcela quitada
+                    continue;
+                }
+                r.remove();
+            }
+
+            // Atualiza numeração visual (#1, #2...) e índices das que sobraram
+            const remainingRows = Array.from(container.querySelectorAll('.installment-row'));
+            remainingRows.forEach((r, idx) => {
+                r.dataset.index = idx;
+                const numEl = r.querySelector('div:first-child > div');
+                if (numEl) numEl.innerText = `#${idx + 1}`;
+            });
+
+            if (typeof window.rebalanceInstallments === 'function') {
+                window.rebalanceInstallments(true);
+            }
+            return;
+        }
+    }
+
+    // 3. Caso não haja parcelas anteriores no container (geração do zero):
+    if (container) container.innerHTML = '';
 
     // Determina a conta padrão a sugerir para as parcelas
     let defaultContaId = contaSelect?.value || '';
@@ -6157,6 +6296,15 @@ window.generateInstallmentFields = function(forcedTotal = null) {
     const contasOptionsHtml = (state.contas || []).map(c => 
         `<option value="${c.id}" ${c.id === defaultContaId ? 'selected' : ''}>${c.nome}</option>`
     ).join('');
+
+    let centavosRestantes = Math.round(total * 100);
+    const baseCentavos = Math.floor(centavosRestantes / qtd);
+    let restoCentavos = centavosRestantes % qtd;
+
+    const baseDateStr = firstDate || new Date().toISOString().split('T')[0];
+
+    const baseChequeNumRaw = (document.getElementById('entryNumCheque')?.value || '').trim();
+    const baseChequeInt = parseInt(baseChequeNumRaw);
 
     for (let i = 0; i < qtd; i++) {
         const dateStr = calculateInstallmentDate(baseDateStr, i, intervalDays, fixarMesmoDia);
@@ -6180,6 +6328,7 @@ window.generateInstallmentFields = function(forcedTotal = null) {
         const row = document.createElement('div');
         row.className = 'installment-row';
         row.dataset.index = i;
+        row.setAttribute('data-paid', 'false');
         row.style = isCheque 
             ? "display: grid; grid-template-columns: 45px 1.1fr 1fr 1.3fr 1fr; gap: 0.8rem; margin-bottom: 0.6rem; align-items: center; background: rgba(255,255,255,0.03); padding: 0.65rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); transition: border-color 0.2s;"
             : "display: grid; grid-template-columns: 70px 1.1fr 1fr; gap: 1rem; margin-bottom: 0.6rem; align-items: center; background: rgba(255,255,255,0.03); padding: 0.65rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); transition: border-color 0.2s;";
@@ -6351,7 +6500,13 @@ window.calculateFinTotal = function(autoRegenerateInstallments = true) {
                 if (autoRegenerateInstallments && !isEditingMode) {
                     generateInstallmentFields(finalTotal);
                 } else {
-                    updateInstallmentsSummary();
+                    // Na edição, se já existirem parcelas no container, reequilibra as parcelas em aberto
+                    // mantendo todas as parcelas já pagas integralmente bloqueadas e intactas
+                    if (typeof window.rebalanceInstallments === 'function') {
+                        window.rebalanceInstallments(true);
+                    } else {
+                        updateInstallmentsSummary();
+                    }
                 }
             }
         } finally {

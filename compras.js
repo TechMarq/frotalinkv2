@@ -1352,7 +1352,7 @@ window.openCompraModal = async (id = null) => {
                         const [itensRes, addsRes, parcsRes] = await Promise.all([
                             client.from('compra_itens').select('*').eq('compra_id', id),
                             client.from('compra_adicionais').select('*').eq('compra_id', id),
-                            client.from('compra_parcelas').select('*').eq('compra_id', id)
+                            client.from('compra_parcelas').select('*').eq('compra_id', id).order('numero_parcela', { ascending: true }).order('numero_parcela', { ascending: true })
                         ]);
                         comp = {
                             ...dbComp,
@@ -1395,7 +1395,8 @@ window.openCompraModal = async (id = null) => {
                                 maintKm: it.maint_km
                             })),
                             adicionais: addsRes.data || [],
-                            parcelasData: (parcsRes.data || []).map(p => ({
+                            parcelasData: (parcsRes.data || []).sort((a, b) => (a.numero_parcela || 0) - (b.numero_parcela || 0)).map(p => ({
+                                numero_parcela: p.numero_parcela,
                                 data: p.data_vencimento || p.data,
                                 valor: parseFloat(p.valor || 0)
                             }))
@@ -1513,7 +1514,7 @@ window.openViewModal = async (id) => {
                 const [itensRes, addsRes, parcsRes] = await Promise.all([
                     client.from('compra_itens').select('*').eq('compra_id', id),
                     client.from('compra_adicionais').select('*').eq('compra_id', id),
-                    client.from('compra_parcelas').select('*').eq('compra_id', id)
+                    client.from('compra_parcelas').select('*').eq('compra_id', id).order('numero_parcela', { ascending: true })
                 ]);
                 c = {
                     ...dbComp,
@@ -1547,7 +1548,8 @@ window.openViewModal = async (id) => {
                         produtoId: it.produto_id
                     })),
                     adicionais: addsRes.data || [],
-                    parcelasData: (parcsRes.data || []).map(p => ({
+                    parcelasData: (parcsRes.data || []).sort((a, b) => (a.numero_parcela || 0) - (b.numero_parcela || 0)).map(p => ({
+                        numero_parcela: p.numero_parcela,
                         data: p.data_vencimento || p.data,
                         valor: parseFloat(p.valor || 0)
                     }))
@@ -3496,6 +3498,24 @@ async function handleSaveCompra(e) {
             if (Math.abs(finalTotal - sumParc) >= 1) { 
                 alert(`A soma das parcelas (R$ ${sumParc.toFixed(2)}) não coincide com o total (R$ ${finalTotal.toFixed(2)}).`);
                 return;
+            }
+
+            // Validação de datas retrógradas / virada de ano
+            const dataEmissaoVal = document.getElementById('data')?.value;
+            const dateWarnings = [];
+            parcelasData.forEach((p, idx) => {
+                if (dataEmissaoVal && p.data < dataEmissaoVal) {
+                    dateWarnings.push(`Parcela #${idx + 1} (${formatDateBR(p.data)}) tem vencimento anterior à data de emissão (${formatDateBR(dataEmissaoVal)}).`);
+                } else if (idx > 0 && p.data < parcelasData[idx - 1].data) {
+                    dateWarnings.push(`Parcela #${idx + 1} (${formatDateBR(p.data)}) tem vencimento anterior à Parcela #${idx} (${formatDateBR(parcelasData[idx - 1].data)}).`);
+                }
+            });
+
+            if (dateWarnings.length > 0) {
+                const confirmMsg = `Atenção para as datas das parcelas:\n\n• ` + dateWarnings.join('\n• ') + `\n\nIsso costuma ocorrer por engano na digitação do ano durante viradas de ano.\nDeseja salvar mesmo assim?`;
+                if (!confirm(confirmMsg)) {
+                    return;
+                }
             }
         }
 
@@ -5795,12 +5815,10 @@ function getVencimentoCompra(comp) {
     const isParcelado = comp.financeiro_parcelado || (comp.qtd_parcelas && comp.qtd_parcelas > 1);
     if (isParcelado) {
         if (comp.parcelasData && comp.parcelasData.length > 0) {
-            const sortedParcs = [...comp.parcelasData].sort((a, b) => {
-                const dA = parseDateRobust(a.data || a.data_vencimento);
-                const dB = parseDateRobust(b.data || b.data_vencimento);
-                return (dA ? dA.getTime() : 0) - (dB ? dB.getTime() : 0);
-            });
-            const firstDate = sortedParcs[0].data || sortedParcs[0].data_vencimento;
+            // Busca estritamente a Parcela Nº 1 por numero_parcela, ou a primeira do array ordenado por parcela
+            const parcs = [...comp.parcelasData].sort((a, b) => (a.numero_parcela || 0) - (b.numero_parcela || 0));
+            const p1 = parcs.find(p => p.numero_parcela === 1) || parcs[0];
+            const firstDate = p1 ? (p1.data || p1.data_vencimento) : null;
             if (firstDate) return firstDate;
         }
         if (comp.data_vencimento || comp.vencimento) {
@@ -6026,7 +6044,7 @@ async function renderIntegracao() {
                 .from('compra_parcelas')
                 .select('*')
                 .in('compra_id', compraIds)
-                .order('data_vencimento', { ascending: true });
+                .order('numero_parcela', { ascending: true });
             cloudParcs = parcsData || [];
         }
 
@@ -6047,10 +6065,14 @@ async function renderIntegracao() {
 
             return true;
         }).map(comp => {
-            const parcs = cloudParcs.filter(p => p.compra_id === comp.id).map(p => ({
-                data: p.data_vencimento,
-                valor: parseFloat(p.valor)
-            }));
+            const parcs = cloudParcs
+                .filter(p => p.compra_id === comp.id)
+                .sort((a, b) => (a.numero_parcela || 0) - (b.numero_parcela || 0))
+                .map(p => ({
+                    numero_parcela: p.numero_parcela,
+                    data: p.data_vencimento,
+                    valor: parseFloat(p.valor)
+                }));
             return {
                 ...comp,
                 parcelasData: parcs
@@ -6123,7 +6145,7 @@ window.integrarAoFinanceiro = async () => {
                     .from('compra_parcelas')
                     .select('*')
                     .eq('compra_id', id)
-                    .order('data_vencimento', { ascending: true });
+                    .order('numero_parcela', { ascending: true });
                     
                 if (parcError) throw parcError;
                 

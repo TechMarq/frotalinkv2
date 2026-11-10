@@ -12,7 +12,7 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap"
         rel="stylesheet">
     <!-- CSS -->
-    <link rel="stylesheet" href="style.css?v=20261106_smart_tables">
+    <link rel="stylesheet" href="style.css?v=20261109_mobile_noti_fix">
     <link rel="stylesheet" href="orb_menu.css">
     <!-- Lucide Icons -->
     <script defer src="https://unpkg.com/lucide@latest"></script>
@@ -152,7 +152,22 @@
                 max-height: 80vh !important;
                 z-index: 10005 !important;
                 box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
-                background: var(--bg-card, #1e293b) !important;
+                background: #1e293b !important;
+                border: 1px solid rgba(255, 255, 255, 0.15) !important;
+                border-radius: var(--radius, 12px) !important;
+                overflow-y: auto !important;
+                display: none;
+            }
+
+            #notiPanel.active {
+                display: block !important;
+            }
+
+            [data-theme="green_pastel"] #notiPanel {
+                background: #ffffff !important;
+                border: 1px solid rgba(45, 158, 107, 0.25) !important;
+                box-shadow: 0 10px 30px rgba(45, 158, 107, 0.2) !important;
+                color: #1a2e25 !important;
             }
 
             /* Header Estilo App Mobile */
@@ -1185,7 +1200,7 @@
                     <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
                 </a>
                 <div class="mobile-alerts-wrapper" id="mobileAlertsWrapper">
-                    <button type="button" id="mobileNotiBtn" class="mobile-noti-btn" onclick="toggleNotiPanel()" title="Notificações e Alertas">
+                    <button type="button" id="mobileNotiBtn" class="mobile-noti-btn" onclick="toggleNotiPanel(event)" title="Notificações e Alertas">
                         <i data-lucide="bell"></i>
                         <span id="mobileNotiBadge" class="noti-badge" style="display: none;">0</span>
                     </button>
@@ -1247,7 +1262,7 @@
 
                 <!-- Notifications Trigger -->
                 <div class="notification-wrapper">
-                    <button id="notiBtn" class="noti-btn" onclick="toggleNotiPanel()">
+                    <button id="notiBtn" class="noti-btn" onclick="toggleNotiPanel(event)">
                         <i data-lucide="bell"></i>
                         <span id="notiBadge" class="noti-badge" style="display: none;">0</span>
                     </button>
@@ -1255,7 +1270,7 @@
                     <div id="notiPanel" class="noti-panel">
                         <div class="noti-header">
                             <h3>Notificações</h3>
-                            <button class="noti-close" onclick="toggleNotiPanel()">&times;</button>
+                            <button class="noti-close" onclick="toggleNotiPanel(event)">&times;</button>
                         </div>
                         <div id="notiList" class="noti-list">
                             <div class="noti-empty">Nenhuma pendência encontrada.</div>
@@ -2269,7 +2284,7 @@
         </button>
     </nav>
 
-    <script src="app.js?v=20261106_smart_tables"></script>
+    <script src="app.js?v=20261109_mobile_noti_fix"></script>
     <script src="orb_menu.js"></script>
 </body>
 

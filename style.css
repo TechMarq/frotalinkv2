@@ -332,22 +332,42 @@ tr:hover td {
     transform: translateX(-50%);
     background: #1e293b;
     border: 1px solid var(--border-card);
-    padding: 0.8rem;
-    border-radius: 8px;
-    width: 280px;
-    z-index: 9999;
+    padding: 0.85rem 1rem;
+    border-radius: 10px;
+    width: 320px;
+    max-width: 90vw;
+    z-index: 99999;
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7);
     color: var(--text-main);
-    font-size: 0.75rem;
+    font-size: 0.76rem;
     text-align: left;
     pointer-events: none;
-    line-height: 1.4;
-    margin-top: 10px;
+    line-height: 1.45;
+    margin-top: 8px;
+    white-space: normal;
+}
+
+/* Quando o veículo estiver nas últimas linhas da tabela, abre para CIMA para não ser cortado */
+#vehicleList tr:nth-last-child(-n+4) .maint-tooltip,
+#fullVehicleList tr:nth-last-child(-n+4) .maint-tooltip,
+tr:last-child .maint-tooltip,
+.maint-tooltip.open-upward {
+    top: auto !important;
+    bottom: 100% !important;
+    margin-top: 0 !important;
+    margin-bottom: 8px !important;
+    box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+[data-theme="green_pastel"] tr:nth-last-child(-n+4) .maint-tooltip,
+[data-theme="green_pastel"] tr:last-child .maint-tooltip,
+[data-theme="green_pastel"] .maint-tooltip.open-upward {
+    box-shadow: 0 -8px 20px rgba(45, 158, 107, 0.16) !important;
 }
 
 @media (max-width: 480px) {
     .maint-tooltip {
-        width: 220px;
+        width: 240px;
         font-size: 0.7rem;
     }
 }
@@ -2380,12 +2400,30 @@ body,
 
 /* ============================================================
    TABELAS MODERNAS E INTELIGENTES (Alocações, Frota e Equipe)
-   Ajuste dinâmico de cabeçalhos, quebra de texto e larguras semânticas
+   Ajuste dinâmico de cabeçalhos, quebra de palavras e larguras balanceadas
    ============================================================ */
 
 .desktop-table-view {
     overflow-x: auto;
     border-radius: var(--radius);
+}
+
+/* Alocações tem apenas 5 colunas e possui tooltips suspensos: não deve cortar verticalmente */
+#dashboardView .desktop-table-view,
+#dashboardView .table-container {
+    overflow: visible !important;
+}
+
+.desktop-table-view td.col-condutor {
+    overflow: visible !important;
+    position: relative;
+}
+
+.desktop-table-view .direct-select {
+    font-size: 0.78rem;
+    padding: 0.4rem 1.6rem 0.4rem 0.65rem;
+    min-width: 140px;
+    max-width: 100%;
 }
 
 .desktop-table-view table {
@@ -2394,7 +2432,23 @@ body,
     border-collapse: collapse;
 }
 
-/* Cabeçalhos (th): Quebram em 2 linhas com altura flexível para colunas ficarem compactas */
+/* Regra absoluta contra quebra de letras/sílabas: quebra estritamente por palavras inteiras */
+.desktop-table-view,
+.desktop-table-view table,
+.desktop-table-view th,
+.desktop-table-view td,
+.desktop-table-view th .th-label,
+.desktop-table-view th .th-content,
+.desktop-table-view .driver-name-wrap,
+.desktop-table-view .badge-status-cell {
+    hyphens: none !important;
+    -webkit-hyphens: none !important;
+    -ms-hyphens: none !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+}
+
+/* Cabeçalhos (th): Quebram em palavras inteiras caso a coluna seja menor que o título */
 .desktop-table-view th {
     padding: 0.55rem 0.45rem;
     font-size: 0.72rem;
@@ -2420,8 +2474,9 @@ body,
 
 .desktop-table-view th .th-label {
     display: inline-block;
-    word-break: normal;
-    hyphens: auto;
+    word-break: normal !important;
+    hyphens: none !important;
+    line-height: 1.15;
 }
 
 .desktop-table-view th.col-actions .th-content {
@@ -2436,31 +2491,15 @@ body,
     border-bottom: 1px solid var(--border-card);
 }
 
-/* 1. Colunas de Texto Expansíveis (ocupam o restante da largura e podem quebrar linha) */
+/* 1. Colunas de Texto Expansíveis e Alinhadas Justamente */
 .desktop-table-view th.col-nome_completo,
-.desktop-table-view td.col-nome_completo,
-.desktop-table-view th.col-modelo,
-.desktop-table-view td.col-modelo,
-.desktop-table-view th.col-marca_modelo,
-.desktop-table-view td.col-marca_modelo,
-.desktop-table-view th.col-proprietario,
-.desktop-table-view td.col-proprietario,
-.desktop-table-view th.col-condutor,
-.desktop-table-view td.col-condutor,
-.desktop-table-view th.col-motorista_alocado,
-.desktop-table-view td.col-motorista_alocado,
-.desktop-table-view th.col-condutor_principal,
-.desktop-table-view td.col-condutor_principal,
-.desktop-table-view th.col-fornecedor_aquisicao,
-.desktop-table-view td.col-fornecedor_aquisicao,
-.desktop-table-view th.col-pj_razao_social,
-.desktop-table-view td.col-pj_razao_social,
-.desktop-table-view th.col-pj_nome_fantasia,
-.desktop-table-view td.col-pj_nome_fantasia {
+.desktop-table-view td.col-nome_completo {
+    width: 23%;
+    min-width: 180px;
+    max-width: 280px;
     white-space: normal;
     word-break: normal;
     line-height: 1.25;
-    min-width: 125px;
 }
 
 .desktop-table-view td.col-nome_completo .driver-name-wrap {
@@ -2470,7 +2509,65 @@ body,
     line-height: 1.25;
 }
 
-/* 2. Colunas Fixas e Compactas (largura justa, sem sobra, 1 linha) */
+.desktop-table-view th.col-modelo,
+.desktop-table-view td.col-modelo,
+.desktop-table-view th.col-marca_modelo,
+.desktop-table-view td.col-marca_modelo {
+    width: 20%;
+    min-width: 135px;
+    white-space: normal;
+    word-break: normal;
+    line-height: 1.25;
+}
+
+.desktop-table-view th.col-proprietario,
+.desktop-table-view td.col-proprietario {
+    width: 16%;
+    min-width: 125px;
+    white-space: normal;
+    word-break: normal;
+    line-height: 1.25;
+}
+
+.desktop-table-view th.col-condutor,
+.desktop-table-view td.col-condutor {
+    width: 36%;
+    min-width: 180px;
+    white-space: normal;
+    word-break: normal;
+    line-height: 1.25;
+}
+
+.desktop-table-view th.col-motorista_alocado,
+.desktop-table-view td.col-motorista_alocado {
+    width: 18%;
+    min-width: 130px;
+    white-space: normal;
+    word-break: normal;
+    line-height: 1.25;
+}
+
+.desktop-table-view th.col-condutor_principal,
+.desktop-table-view td.col-condutor_principal,
+.desktop-table-view th.col-fornecedor_aquisicao,
+.desktop-table-view td.col-fornecedor_aquisicao,
+.desktop-table-view th.col-seguradora,
+.desktop-table-view td.col-seguradora,
+.desktop-table-view th.col-corretor_seguro,
+.desktop-table-view td.col-corretor_seguro,
+.desktop-table-view th.col-proponente_seguro,
+.desktop-table-view td.col-proponente_seguro,
+.desktop-table-view th.col-pj_razao_social,
+.desktop-table-view td.col-pj_razao_social,
+.desktop-table-view th.col-pj_nome_fantasia,
+.desktop-table-view td.col-pj_nome_fantasia {
+    white-space: normal;
+    word-break: normal;
+    line-height: 1.25;
+    min-width: 120px;
+}
+
+/* 2. Colunas Fixas e Compactas (Largura validada pelas informações das células) */
 
 /* Checkbox */
 .desktop-table-view th.col-checkbox,
@@ -2486,8 +2583,8 @@ body,
 /* Placa */
 .desktop-table-view th.col-placa,
 .desktop-table-view td.col-placa {
-    width: 82px;
-    min-width: 80px;
+    width: 85px;
+    min-width: 82px;
     text-align: center;
     white-space: nowrap;
 }
@@ -2500,8 +2597,8 @@ body,
 /* CPF */
 .desktop-table-view th.col-cpf,
 .desktop-table-view td.col-cpf {
-    width: 114px;
-    min-width: 108px;
+    width: 10%;
+    min-width: 112px;
     text-align: center;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
@@ -2512,8 +2609,8 @@ body,
 .desktop-table-view td.col-pj_cnpj,
 .desktop-table-view th.col-cpf_cnpj,
 .desktop-table-view td.col-cpf_cnpj {
-    width: 135px;
-    min-width: 128px;
+    width: 12%;
+    min-width: 132px;
     text-align: center;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
@@ -2522,8 +2619,8 @@ body,
 /* CNH / Categoria */
 .desktop-table-view th.col-cnh_cat,
 .desktop-table-view td.col-cnh_cat {
-    width: 126px;
-    min-width: 120px;
+    width: 12%;
+    min-width: 125px;
     text-align: center;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
@@ -2540,8 +2637,8 @@ body,
 .desktop-table-view td.col-data_aquisicao_nf,
 .desktop-table-view th.col-data_saida_nf,
 .desktop-table-view td.col-data_saida_nf {
-    width: 86px;
-    min-width: 80px;
+    width: 9%;
+    min-width: 100px;
     text-align: center;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
@@ -2550,18 +2647,18 @@ body,
 /* Idade */
 .desktop-table-view th.col-idade,
 .desktop-table-view td.col-idade {
-    width: 58px;
-    min-width: 52px;
+    width: 6%;
+    min-width: 58px;
     text-align: center;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
 }
 
-/* Qtd. Seguros Principal: Coluna bem estreita com cabeçalho em 2 linhas */
+/* Qtd. Seguros Principal: Quebra entre palavras inteiras (QTD. SEGUROS / PRINCIPAL) */
 .desktop-table-view th.col-vinculos_seguro,
 .desktop-table-view td.col-vinculos_seguro {
-    width: 70px;
-    min-width: 65px;
+    width: 9%;
+    min-width: 95px;
     text-align: center;
     white-space: nowrap;
 }
@@ -2569,8 +2666,8 @@ body,
 /* KM Atual */
 .desktop-table-view th.col-km_atual,
 .desktop-table-view td.col-km_atual {
-    width: 88px;
-    min-width: 80px;
+    width: 10%;
+    min-width: 88px;
     text-align: right;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
@@ -2581,8 +2678,8 @@ body,
 .desktop-table-view td.col-whats,
 .desktop-table-view th.col-contato_whatsapp,
 .desktop-table-view td.col-contato_whatsapp {
-    width: 110px;
-    min-width: 100px;
+    width: 12%;
+    min-width: 110px;
     text-align: center;
     white-space: nowrap;
 }
@@ -2599,8 +2696,8 @@ body,
 /* Combustível */
 .desktop-table-view th.col-tipo_combustivel,
 .desktop-table-view td.col-tipo_combustivel {
-    width: 84px;
-    min-width: 78px;
+    width: 8%;
+    min-width: 80px;
     text-align: center;
     white-space: nowrap;
 }
@@ -2648,11 +2745,11 @@ body,
     font-variant-numeric: tabular-nums;
 }
 
-/* Status: Coluna compacta com badge quebrando em até 2 linhas */
+/* Status: Coluna compacta com badge quebrando em até 2 linhas de palavras inteiras */
 .desktop-table-view th.col-status,
 .desktop-table-view td.col-status {
-    width: 88px;
-    min-width: 84px;
+    width: 11%;
+    min-width: 98px;
     text-align: center;
 }
 
@@ -2662,17 +2759,18 @@ body,
     line-height: 1.15;
     font-size: 0.65rem;
     padding: 3px 6px;
-    max-width: 84px;
+    max-width: 92px;
     text-align: center;
     border-radius: 6px;
-    word-break: normal;
+    word-break: normal !important;
+    hyphens: none !important;
 }
 
 /* Ações */
 .desktop-table-view th.col-actions,
 .desktop-table-view td.col-actions {
-    width: 64px;
-    min-width: 60px;
+    width: 6%;
+    min-width: 64px;
     text-align: center;
     white-space: nowrap;
 }
