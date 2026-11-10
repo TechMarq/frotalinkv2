@@ -3690,8 +3690,26 @@ async function openBarcodeScanner(targetCardId = null) {
     currentScannerTargetCardId = targetCardId;
     const modal = document.getElementById('barcodeScannerModal');
     if (modal) {
-        modal.style.display = 'flex';
-        modal.style.zIndex = '20000';
+        // Garantir que o modal é filho direto do <body> para que position:fixed
+        // funcione corretamente no mobile (iOS Safari quebra fixed quando há
+        // ancestral com overflow:hidden ou transform)
+        if (modal.parentNode !== document.body) {
+            document.body.appendChild(modal);
+        }
+        modal.style.cssText = [
+            'display: flex',
+            'position: fixed',
+            'inset: 0',
+            'z-index: 20000',
+            'align-items: center',
+            'justify-content: center',
+            'padding: 1rem',
+            'background: rgba(15, 23, 42, 0.94)',
+            'backdrop-filter: blur(10px)',
+            '-webkit-backdrop-filter: blur(10px)',
+            'font-family: Inter, sans-serif',
+            'touch-action: none',
+        ].join(';');
         modal.classList.add('active');
         if (window.lucide) lucide.createIcons();
     }
