@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FrotaLink | Painel Gerencial Executivo</title>
-    <meta name="description" content="Cockpit Executivo FrotaLink: Saúde da empresa, indicadores financeiros, compras, frota, pessoas e comercial em tempo real.">
+    <meta name="description" content="Cockpit Executivo FrotaLink: Saúde da empresa, indicadores financeiros, compras, frota, centros de custo, pessoas e comercial em tempo real.">
     
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -62,6 +62,9 @@
             background-attachment: fixed;
         }
 
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spin { animation: spin 0.8s linear infinite; }
+
         /* ─── LOADING ─── */
         #loading-overlay {
             position: fixed; inset: 0; background: rgba(6,12,25,0.92);
@@ -79,59 +82,65 @@
         .loader-text { color: var(--text-soft); font-size: 0.95rem; font-weight: 500; letter-spacing: 0.02em; }
 
         /* ─── LAYOUT ─── */
-        .page-wrap { max-width: 1600px; margin: 0 auto; padding: 1.8rem 2rem 4rem; }
+        .page-wrap { max-width: 1640px; margin: 0 auto; padding: 1.6rem 2rem 4rem; }
 
         /* ─── HEADER ─── */
         .ger-header {
             display: flex; align-items: flex-start; justify-content: space-between;
-            flex-wrap: wrap; gap: 1.5rem; margin-bottom: 2rem;
+            flex-wrap: wrap; gap: 1.25rem; margin-bottom: 1.5rem;
         }
         .ger-header-left .back-link {
             display: inline-flex; align-items: center; gap: 0.5rem;
             color: var(--text-muted); text-decoration: none;
-            font-size: 0.84rem; font-weight: 600; margin-bottom: 0.75rem;
+            font-size: 0.84rem; font-weight: 600; margin-bottom: 0.6rem;
             transition: color 0.2s, transform 0.2s;
         }
         .ger-header-left .back-link:hover { color: var(--primary); transform: translateX(-3px); }
         .page-title {
-            font-size: 2.2rem; font-weight: 900; letter-spacing: -0.03em;
+            font-size: 2.1rem; font-weight: 900; letter-spacing: -0.03em;
             background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 50%, #818cf8 100%);
             -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-            display: flex; align-items: center; gap: 0.85rem;
+            display: flex; align-items: center; gap: 0.75rem;
         }
-        .page-subtitle { color: var(--text-muted); font-size: 0.92rem; margin-top: 0.35rem; }
+        .page-subtitle { color: var(--text-muted); font-size: 0.9rem; margin-top: 0.3rem; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+        .periodo-active-pill {
+            display: inline-flex; align-items: center; gap: 0.35rem;
+            background: rgba(99, 102, 241, 0.14); border: 1px solid rgba(99, 102, 241, 0.3);
+            color: #a5b4fc; padding: 0.18rem 0.65rem; border-radius: 99px;
+            font-size: 0.75rem; font-weight: 700;
+        }
         
         .header-controls {
-            display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;
+            display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
         }
         .periodo-wrap {
-            display: flex; align-items: center; gap: 0.6rem;
+            display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap;
             background: var(--bg-card2); border: 1px solid var(--border);
             border-radius: var(--radius-sm); padding: 0.45rem 0.85rem;
             backdrop-filter: blur(12px);
         }
-        .periodo-wrap label { font-size: 0.75rem; color: var(--text-muted); font-weight: 700; letter-spacing: 0.05em; }
+        .periodo-wrap label { font-size: 0.74rem; color: var(--text-muted); font-weight: 700; letter-spacing: 0.05em; white-space: nowrap; }
         .periodo-wrap select, .periodo-wrap input {
-            background: transparent; border: none; color: var(--text);
-            font-size: 0.85rem; font-family: 'Inter', sans-serif;
-            cursor: pointer; outline: none; padding: 2px 4px;
+            background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;
+            color: var(--text); font-size: 0.83rem; font-family: 'Inter', sans-serif;
+            cursor: pointer; outline: none; padding: 4px 8px;
         }
         .periodo-wrap select option { background: #0f172a; color: #f1f5f9; }
-        .divider-v { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.15); margin: 0 4px; }
+        .divider-v { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.15); margin: 0 2px; }
         
         .btn-action {
             display: inline-flex; align-items: center; gap: 0.5rem;
             border-radius: var(--radius-sm);
-            padding: 0.5rem 1rem; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+            padding: 0.5rem 1rem; cursor: pointer; font-size: 0.84rem; font-weight: 600;
             transition: all 0.2s ease; height: 38px; border: 1px solid;
-            text-decoration: none;
+            text-decoration: none; white-space: nowrap;
         }
         .btn-refresh {
             background: var(--primary-light); border-color: rgba(99,102,241,0.3);
             color: #a5b4fc;
         }
         .btn-refresh:hover { background: rgba(99,102,241,0.25); transform: translateY(-1px); }
-        .btn-refresh.spin i { animation: spin 0.8s linear infinite; }
+        .btn-refresh.spin i, .btn-refresh.spin svg { animation: spin 0.8s linear infinite; }
         
         .btn-print {
             background: rgba(255,255,255,0.05); border-color: var(--border);
@@ -139,33 +148,36 @@
         }
         .btn-print:hover { background: rgba(255,255,255,0.1); color: #fff; }
 
-        /* ─── TABS HEADER (Standard UI Pattern) ─── */
+        /* ─── TABS HEADER ─── */
         .tabs-header {
-            display: inline-flex;
-            background: rgba(15, 23, 42, 0.75);
-            padding: 0.45rem;
+            display: flex;
+            background: rgba(15, 23, 42, 0.78);
+            padding: 0.4rem;
             border-radius: 16px;
             border: 1px solid rgba(255, 255, 255, 0.08);
-            margin-bottom: 2rem;
+            margin-bottom: 1.75rem;
             gap: 0.4rem;
             overflow-x: auto;
             max-width: 100%;
             backdrop-filter: blur(15px);
+            scrollbar-width: thin;
         }
         .tab-item {
             background: transparent;
             border: none;
-            padding: 0.75rem 1.4rem;
+            padding: 0.75rem 1.35rem;
             border-radius: 12px;
             color: var(--text-muted);
             font-weight: 600;
-            font-size: 0.88rem;
+            font-size: 0.87rem;
             cursor: pointer;
             display: flex;
             align-items: center;
             gap: 0.55rem;
             transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             white-space: nowrap;
+            flex: 1;
+            justify-content: center;
         }
         .tab-item:hover {
             color: var(--text);
@@ -177,175 +189,166 @@
             box-shadow: 0 4px 18px rgba(99, 102, 241, 0.35);
         }
 
-        /* ─── VIEW SECTIONS ─── */
-        .view-section { display: none; animation: fadeIn 0.35s ease; }
+        /* ─── VIEW SECTIONS & MODULE DIVIDERS ─── */
+        .view-section { display: none; animation: fadeIn 0.3s ease; }
         .view-section.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+        .section-banner {
+            display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap; gap: 0.75rem;
+            padding: 0.9rem 1.25rem;
+            margin: 1.8rem 0 1.15rem;
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.14), rgba(15, 23, 42, 0.6));
+            border-left: 4px solid var(--primary);
+            border-radius: 0 12px 12px 0;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            border-right: 1px solid rgba(255,255,255,0.06);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .section-banner:first-child { margin-top: 0; }
+        .section-banner-title {
+            display: flex; align-items: center; gap: 0.65rem;
+            font-size: 1.05rem; font-weight: 800; color: #fff;
+        }
+        .section-banner-sub { font-size: 0.8rem; color: var(--text-soft); }
 
         /* ─── HEALTH SCORE RADAR ─── */
         .health-radar-card {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.95));
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.82), rgba(15, 23, 42, 0.95));
             border: 1px solid rgba(99, 102, 241, 0.25);
             border-radius: var(--radius);
-            padding: 1.75rem 2rem;
-            margin-bottom: 2rem;
+            padding: 1.6rem 1.8rem;
+            margin-bottom: 1.5rem;
             display: grid;
-            grid-template-columns: 200px 1fr auto;
+            grid-template-columns: 180px 1fr auto;
             align-items: center;
-            gap: 2rem;
+            gap: 1.75rem;
             position: relative;
             overflow: hidden;
             box-shadow: var(--shadow);
         }
-        .health-radar-card::before {
-            content: ''; position: absolute; inset: 0;
-            background: radial-gradient(circle at 10% 50%, rgba(99,102,241,0.12), transparent 40%);
-            pointer-events: none;
-        }
         .health-circle-wrap {
-            position: relative; width: 140px; height: 140px; margin: 0 auto;
+            position: relative; width: 136px; height: 136px; margin: 0 auto;
             display: flex; align-items: center; justify-content: center;
         }
-        .health-circle-svg {
-            transform: rotate(-90deg); width: 140px; height: 140px;
-        }
-        .health-circle-bg {
-            fill: none; stroke: rgba(255, 255, 255, 0.08); stroke-width: 10;
-        }
+        .health-circle-svg { transform: rotate(-90deg); width: 136px; height: 136px; }
+        .health-circle-bg { fill: none; stroke: rgba(255, 255, 255, 0.08); stroke-width: 10; }
         .health-circle-fill {
             fill: none; stroke: var(--success); stroke-width: 10;
-            stroke-linecap: round;
-            stroke-dasharray: 377;
-            stroke-dashoffset: 60;
+            stroke-linecap: round; stroke-dasharray: 377; stroke-dashoffset: 60;
             transition: stroke-dashoffset 1.2s ease, stroke 0.4s ease;
         }
-        .health-circle-inner {
-            position: absolute; text-align: center;
-        }
-        .health-score-val {
-            font-size: 2.5rem; font-weight: 900; line-height: 1; letter-spacing: -0.04em;
-        }
-        .health-score-label {
-            font-size: 0.65rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted);
-            letter-spacing: 0.08em; margin-top: 3px;
-        }
-        .health-desc-title {
-            font-size: 1.25rem; font-weight: 800; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.6rem;
-        }
-        .health-desc-badge {
-            font-size: 0.72rem; padding: 0.25rem 0.7rem; border-radius: 99px; font-weight: 700;
-            text-transform: uppercase; letter-spacing: 0.04em;
-        }
-        .health-desc-text {
-            color: var(--text-soft); font-size: 0.92rem; line-height: 1.5; margin-bottom: 1rem; max-width: 800px;
-        }
-        .health-pillars-grid {
-            display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;
-        }
-        .pillar-mini {
-            background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border);
-            padding: 0.65rem 0.85rem; border-radius: 10px;
-        }
+        .health-circle-inner { position: absolute; text-align: center; }
+        .health-score-val { font-size: 2.4rem; font-weight: 900; line-height: 1; letter-spacing: -0.04em; }
+        .health-score-label { font-size: 0.64rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); letter-spacing: 0.08em; margin-top: 3px; }
+        .health-desc-title { font-size: 1.2rem; font-weight: 800; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+        .health-desc-badge { font-size: 0.72rem; padding: 0.25rem 0.7rem; border-radius: 99px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+        .health-desc-text { color: var(--text-soft); font-size: 0.89rem; line-height: 1.5; margin-bottom: 1rem; }
+        .health-pillars-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.85rem; }
+        .pillar-mini { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); padding: 0.6rem 0.8rem; border-radius: 10px; }
         .pillar-mini-lbl { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; margin-bottom: 0.3rem; display: flex; justify-content: space-between; }
         .pillar-mini-bar { height: 5px; border-radius: 99px; background: rgba(255,255,255,0.06); overflow: hidden; }
         .pillar-mini-fill { height: 100%; border-radius: 99px; background: var(--primary); width: 80%; transition: width 0.8s ease; }
-        
-        .health-actions-wrap {
-            display: flex; flex-direction: column; gap: 0.6rem; min-width: 190px;
-        }
+        .health-actions-wrap { display: flex; flex-direction: column; gap: 0.55rem; min-width: 175px; }
 
         /* ─── ALERTAS CRÍTICOS BANNER ─── */
         .alertas-box {
-            background: rgba(15, 23, 42, 0.7);
+            background: rgba(15, 23, 42, 0.75);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 1.25rem 1.5rem;
-            margin-bottom: 2rem;
+            padding: 1.15rem 1.4rem;
+            margin-bottom: 1.5rem;
             backdrop-filter: blur(15px);
         }
         .alertas-box-title {
-            font-size: 0.9rem; font-weight: 700; color: var(--text-soft);
+            font-size: 0.88rem; font-weight: 700; color: var(--text-soft);
             display: flex; align-items: center; justify-content: space-between;
-            margin-bottom: 1rem;
+            margin-bottom: 0.85rem; flex-wrap: wrap; gap: 0.5rem;
         }
         .alertas-list-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 0.75rem;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0.65rem;
         }
         .alerta-card {
-            display: flex; align-items: center; gap: 0.85rem;
-            padding: 0.85rem 1.1rem; border-radius: 12px;
+            display: flex; align-items: center; gap: 0.75rem;
+            padding: 0.75rem 1rem; border-radius: 11px;
             border: 1px solid; color: inherit;
-            font-size: 0.86rem; font-weight: 500;
-            cursor: default;
+            font-size: 0.83rem; font-weight: 500; line-height: 1.35;
         }
-        .alerta-card i { width: 20px; height: 20px; flex-shrink: 0; }
+        .alerta-card i, .alerta-card svg { width: 18px; height: 18px; flex-shrink: 0; }
         .alerta-danger { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.25); color: #fca5a5; }
         .alerta-warn { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.25); color: #fcd34d; }
         .alerta-info { background: rgba(6,182,212,0.08); border-color: rgba(6,182,212,0.25); color: #67e8f9; }
         .alerta-ok { background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.25); color: #6ee7b7; grid-column: 1 / -1; }
 
-        /* ─── KPI CARDS (TOP ROW) ─── */
+        /* ─── KPI CARDS & MINI STATS ─── */
         .kpi-row-6 {
             display: grid;
             grid-template-columns: repeat(6, 1fr);
-            gap: 1rem; margin-bottom: 2rem;
+            gap: 0.9rem; margin-bottom: 1.25rem;
+        }
+        .kpi-grid-auto {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 0.9rem; margin-bottom: 1.25rem;
         }
         .kpi-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 1.35rem 1.4rem;
+            padding: 1.2rem 1.25rem;
             position: relative; overflow: hidden;
             backdrop-filter: blur(20px);
-            cursor: default;
         }
         .kpi-card .kpi-bg-icon {
-            position: absolute; right: 0.8rem; top: 0.8rem;
+            position: absolute; right: 0.75rem; top: 0.75rem;
             opacity: 0.08; pointer-events: none;
         }
-        .kpi-card .kpi-bg-icon i { width: 50px; height: 50px; }
+        .kpi-card .kpi-bg-icon i, .kpi-card .kpi-bg-icon svg { width: 44px; height: 44px; }
         .kpi-lbl {
-            font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
-            letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 0.5rem;
-            display: flex; align-items: center; gap: 0.4rem;
+            font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 0.45rem;
+            display: flex; align-items: center; gap: 0.35rem;
         }
         .kpi-val {
-            font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em;
-            line-height: 1.15; margin-bottom: 0.35rem;
+            font-size: 1.48rem; font-weight: 800; letter-spacing: -0.02em;
+            line-height: 1.15; margin-bottom: 0.3rem;
         }
-        .kpi-sub { font-size: 0.76rem; color: var(--text-soft); font-weight: 500; }
+        .kpi-sub { font-size: 0.74rem; color: var(--text-soft); font-weight: 500; }
 
         /* ─── PATRIMÔNIO RESUMO (BANNER HORIZONTAL) ─── */
         .patrimonio-strip {
-            background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.7));
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.75));
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 1.25rem 1.75rem;
-            margin-bottom: 2rem;
+            padding: 1.15rem 1.5rem;
+            margin-bottom: 1.5rem;
             display: grid;
-            grid-template-columns: auto 1fr 1fr 1fr 1fr 1.2fr;
+            grid-template-columns: auto repeat(6, 1fr);
             align-items: center;
-            gap: 1.5rem;
+            gap: 1.15rem;
         }
         .patrimonio-lead {
-            display: flex; align-items: center; gap: 0.85rem; padding-right: 1.5rem;
+            display: flex; align-items: center; gap: 0.8rem; padding-right: 1.15rem;
             border-right: 1px solid var(--border);
         }
         .patrimonio-lead-icon {
-            width: 44px; height: 44px; border-radius: 12px;
+            width: 42px; height: 42px; border-radius: 12px;
             background: var(--primary-light); color: #818cf8;
-            display: flex; align-items: center; justify-content: center;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
         }
-        .patrimonio-lead h4 { font-size: 0.95rem; font-weight: 800; }
-        .patrimonio-lead p { font-size: 0.75rem; color: var(--text-muted); }
-        .patri-item { display: flex; flex-direction: column; gap: 0.2rem; }
-        .patri-lbl { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
-        .patri-val { font-size: 1.15rem; font-weight: 800; color: var(--text); }
+        .patrimonio-lead h4 { font-size: 0.9rem; font-weight: 800; }
+        .patrimonio-lead p { font-size: 0.72rem; color: var(--text-muted); }
+        .patri-item { display: flex; flex-direction: column; gap: 0.18rem; }
+        .patri-lbl { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+        .patri-val { font-size: 1.08rem; font-weight: 800; color: var(--text); }
 
         /* ─── GRIDS & CARDS ─── */
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.5rem; }
-        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; margin-bottom: 1.5rem; }
-        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem; margin-bottom: 1.5rem; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin-bottom: 1.25rem; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; margin-bottom: 1.25rem; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.25rem; }
+        .grid-2-1 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 1.2rem; margin-bottom: 1.25rem; }
+        .grid-1-2 { display: grid; grid-template-columns: 1fr 1.6fr; gap: 1.2rem; margin-bottom: 1.25rem; }
         .col-span-2 { grid-column: span 2; }
         .col-span-3 { grid-column: span 3; }
 
@@ -353,63 +356,68 @@
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 1.5rem;
+            padding: 1.35rem 1.45rem;
             backdrop-filter: blur(20px);
             position: relative;
         }
         .card-title {
-            font-size: 0.95rem; font-weight: 700; margin-bottom: 1.2rem;
+            font-size: 0.92rem; font-weight: 700; margin-bottom: 1rem;
             display: flex; align-items: center; justify-content: space-between;
-            color: var(--text-soft);
+            color: var(--text-soft); gap: 0.5rem; flex-wrap: wrap;
         }
-        .card-title-left { display: flex; align-items: center; gap: 0.6rem; }
-        .card-title i { width: 18px; height: 18px; }
+        .card-title-left { display: flex; align-items: center; gap: 0.55rem; color: var(--text); }
+        .card-title i, .card-title svg { width: 17px; height: 17px; flex-shrink: 0; }
 
         /* ─── CHARTS ─── */
         .chart-wrap { height: 260px; position: relative; width: 100%; }
-        .chart-wrap-tall { height: 320px; }
+        .chart-wrap-tall { height: 310px; }
+        .chart-wrap-sm { height: 210px; }
 
         /* ─── MINI STATS & METRIC ROWS ─── */
         .stat-mini {
-            display: flex; flex-direction: column; gap: 0.2rem;
-            padding: 0.9rem 1rem; border-radius: var(--radius-sm);
+            display: flex; flex-direction: column; gap: 0.22rem;
+            padding: 0.9rem 1.05rem; border-radius: var(--radius-sm);
             background: rgba(255,255,255,0.025);
             border: 1px solid var(--border);
         }
-        .stat-mini-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); }
-        .stat-mini-val { font-size: 1.3rem; font-weight: 800; }
+        .stat-mini-label { font-size: 0.69rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+        .stat-mini-val { font-size: 1.28rem; font-weight: 800; line-height: 1.2; }
+        .stat-mini-sub { font-size: 0.73rem; color: var(--text-muted); }
         
         .metric-row {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 0.65rem 0; border-bottom: 1px solid var(--border);
+            padding: 0.6rem 0; border-bottom: 1px solid var(--border); gap: 0.5rem;
         }
         .metric-row:last-child { border-bottom: none; }
-        .metric-label { font-size: 0.83rem; color: var(--text-soft); font-weight: 500; display: flex; align-items: center; gap: 0.5rem; }
-        .metric-value { font-size: 0.95rem; font-weight: 700; }
+        .metric-label { font-size: 0.82rem; color: var(--text-soft); font-weight: 500; display: flex; align-items: center; gap: 0.45rem; }
+        .metric-value { font-size: 0.92rem; font-weight: 700; text-align: right; }
 
         /* ─── DRE TABLE SINTÉTICA ─── */
-        .dre-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        .dre-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
         .dre-table tr { border-bottom: 1px solid var(--border); }
         .dre-table tr:last-child { border-bottom: none; }
-        .dre-table td { padding: 0.75rem 0.5rem; }
+        .dre-table td { padding: 0.62rem 0.45rem; }
         .dre-table .dre-row-receita { color: var(--success); font-weight: 700; }
         .dre-table .dre-row-despesa { color: #f87171; }
+        .dre-table .dre-row-subtotal { color: #e2e8f0; font-weight: 700; background: rgba(255,255,255,0.02); }
         .dre-table .dre-row-resultado {
-            font-weight: 800; font-size: 1.05rem; border-top: 2px solid var(--border);
-            padding-top: 1rem;
+            font-weight: 800; font-size: 1rem; border-top: 2px solid var(--border);
+            padding-top: 0.85rem;
         }
 
-        /* ─── TABELAS DE RANKING (VILÕES DE CUSTO, TOP CLIENTES/FORNECEDORES) ─── */
-        .ranking-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; text-align: left; }
+        /* ─── TABELAS DE RANKING E DETALHAMENTO ─── */
+        .table-scroll { width: 100%; overflow-x: auto; }
+        .ranking-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; text-align: left; }
         .ranking-table th {
-            padding: 0.65rem 0.75rem; color: var(--text-muted); font-size: 0.72rem;
-            text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border);
+            padding: 0.6rem 0.7rem; color: var(--text-muted); font-size: 0.7rem;
+            text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border);
+            white-space: nowrap;
         }
-        .ranking-table td { padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.03); }
-        .ranking-table tr:hover { background: rgba(255, 255, 255, 0.02); }
+        .ranking-table td { padding: 0.68rem 0.7rem; border-bottom: 1px solid rgba(255,255,255,0.035); }
+        .ranking-table tr:hover { background: rgba(255, 255, 255, 0.025); }
         .badge-rank {
             display: inline-flex; align-items: center; justify-content: center;
-            width: 24px; height: 24px; border-radius: 6px; font-weight: 800; font-size: 0.75rem;
+            width: 23px; height: 23px; border-radius: 6px; font-weight: 800; font-size: 0.73rem;
             background: rgba(255, 255, 255, 0.05); color: var(--text-soft);
         }
         .badge-rank.top1 { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
@@ -418,14 +426,15 @@
 
         /* ─── STATUS BADGES ─── */
         .badge {
-            display: inline-flex; align-items: center; gap: 0.35rem;
-            padding: 0.25rem 0.65rem; border-radius: 99px;
-            font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em;
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.22rem 0.6rem; border-radius: 99px;
+            font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em; white-space: nowrap;
         }
         .badge-success { background: rgba(16,185,129,0.15); color: #6ee7b7; }
         .badge-danger { background: rgba(239,68,68,0.15); color: #fca5a5; }
         .badge-warning { background: rgba(245,158,11,0.15); color: #fcd34d; }
         .badge-info { background: rgba(6,182,212,0.15); color: #67e8f9; }
+        .badge-purple { background: rgba(168,85,247,0.15); color: #d8b4fe; }
 
         /* ─── ACCENT COLORS ─── */
         .accent-green { color: var(--success); }
@@ -435,138 +444,80 @@
         .accent-cyan { color: var(--info); }
         .accent-purple { color: var(--purple); }
 
-        /* ─── LISTAS INTERNAS (ANIVERSARIANTES, ESTOQUE CRÍTICO, BANCOS) ─── */
+        /* ─── LISTAS INTERNAS ─── */
         .item-list-row {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 0.6rem 0.75rem; border-radius: var(--radius-sm);
-            font-size: 0.83rem; margin-bottom: 0.4rem;
-            background: rgba(255,255,255,0.025);
+            padding: 0.58rem 0.75rem; border-radius: var(--radius-sm);
+            font-size: 0.82rem; margin-bottom: 0.4rem;
+            background: rgba(255,255,255,0.025); gap: 0.5rem;
         }
         .item-list-row.highlight {
             background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.25);
         }
-        .empty-msg { color: var(--text-muted); font-size: 0.82rem; padding: 0.75rem 0; text-align: center; }
+        .empty-msg { color: var(--text-muted); font-size: 0.82rem; padding: 0.9rem 0; text-align: center; }
 
         /* ─── CARDS DE CONTAS BANCÁRIAS ─── */
         .bank-card-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0.85rem 1rem;
-            border-radius: var(--radius-sm);
-            font-size: 0.86rem;
-            margin-bottom: 0.6rem;
-            background: rgba(255, 255, 255, 0.025);
-            border: 1px solid var(--border);
-            transition: all 0.2s ease;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.8rem 0.95rem; border-radius: var(--radius-sm);
+            font-size: 0.85rem; margin-bottom: 0.55rem;
+            background: rgba(255, 255, 255, 0.025); border: 1px solid var(--border);
+            transition: all 0.2s ease; gap: 0.75rem;
         }
-        .bank-card-item:hover {
-            background: rgba(255, 255, 255, 0.045);
-            border-color: rgba(255, 255, 255, 0.15);
-        }
-        .bank-card-left {
-            display: flex;
-            align-items: center;
-            gap: 0.85rem;
-        }
+        .bank-card-item:hover { background: rgba(255, 255, 255, 0.045); border-color: rgba(255, 255, 255, 0.15); }
+        .bank-card-left { display: flex; align-items: center; gap: 0.8rem; }
         .bank-icon-badge {
-            width: 42px;
-            height: 42px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            font-size: 0.72rem;
-            letter-spacing: 0.02em;
-            flex-shrink: 0;
+            width: 40px; height: 40px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 0.7rem; letter-spacing: 0.02em; flex-shrink: 0;
         }
-        .bank-name {
-            font-weight: 700;
-            color: var(--text);
-            font-size: 0.92rem;
-            margin-bottom: 3px;
-        }
-        .bank-sub {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            flex-wrap: wrap;
-        }
+        .bank-name { font-weight: 700; color: var(--text); font-size: 0.9rem; margin-bottom: 2px; }
+        .bank-sub { font-size: 0.73rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
         .bank-pix-tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            padding: 1px 6px;
-            border-radius: 4px;
-            font-size: 0.68rem;
-            font-weight: 600;
-            background: rgba(6, 182, 212, 0.12);
-            color: var(--info);
-            border: 1px solid rgba(6, 182, 212, 0.25);
+            display: inline-flex; align-items: center; gap: 0.25rem;
+            padding: 1px 6px; border-radius: 4px; font-size: 0.66rem; font-weight: 600;
+            background: rgba(6, 182, 212, 0.12); color: var(--info); border: 1px solid rgba(6, 182, 212, 0.25);
         }
-        .bank-card-right {
-            text-align: right;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 3px;
-        }
-        .bank-saldo {
-            font-size: 1.08rem;
-            font-weight: 800;
-            letter-spacing: -0.01em;
-        }
+        .bank-card-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+        .bank-saldo { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; }
         .bank-status-pill {
-            font-size: 0.68rem;
-            font-weight: 700;
-            padding: 2px 7px;
-            border-radius: 99px;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
+            font-size: 0.66rem; font-weight: 700; padding: 2px 7px; border-radius: 99px;
+            text-transform: uppercase; letter-spacing: 0.03em;
         }
-        .bank-status-pill.status-devedor {
-            background: rgba(239, 68, 68, 0.15);
-            color: #fca5a5;
-        }
-        .bank-status-pill.status-positivo {
-            background: rgba(16, 185, 129, 0.15);
-            color: #86efac;
-        }
+        .bank-status-pill.status-devedor { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
+        .bank-status-pill.status-positivo { background: rgba(16, 185, 129, 0.15); color: #86efac; }
         .bank-summary-footer {
-            margin-top: 1rem;
-            padding-top: 0.85rem;
-            border-top: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 0.5rem;
+            margin-top: 0.85rem; padding-top: 0.8rem; border-top: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
         }
 
-        /* ─── RESPONSIVIDADE ─── */
-        @media (max-width: 1300px) {
+        /* ─── RESPONSIVIDADE (DESKTOP, TABLET, MOBILE) ─── */
+        @media (max-width: 1350px) {
             .kpi-row-6 { grid-template-columns: repeat(3, 1fr); }
-            .health-radar-card { grid-template-columns: 180px 1fr; }
+            .health-radar-card { grid-template-columns: 160px 1fr; }
             .health-actions-wrap { grid-column: span 2; flex-direction: row; }
-            .patrimonio-strip { grid-template-columns: 1fr 1fr 1fr; }
-            .patrimonio-lead { grid-column: span 3; border-right: none; border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 0.5rem; }
+            .patrimonio-strip { grid-template-columns: repeat(3, 1fr); }
+            .patrimonio-lead { grid-column: span 3; border-right: none; border-bottom: 1px solid var(--border); padding-bottom: 0.85rem; }
+            .grid-2-1, .grid-1-2 { grid-template-columns: 1fr 1fr; }
         }
-        @media (max-width: 850px) {
+        @media (max-width: 960px) {
             .page-wrap { padding: 1rem 1rem 3rem; }
             .kpi-row-6 { grid-template-columns: repeat(2, 1fr); }
-            .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+            .grid-2, .grid-3, .grid-4, .grid-2-1, .grid-1-2 { grid-template-columns: 1fr; }
             .col-span-2, .col-span-3 { grid-column: span 1; }
             .health-radar-card { grid-template-columns: 1fr; text-align: center; }
             .health-desc-title { justify-content: center; }
             .health-pillars-grid { grid-template-columns: 1fr 1fr; }
-            .patrimonio-strip { grid-template-columns: 1fr; }
+            .patrimonio-strip { grid-template-columns: 1fr 1fr; }
+            .patrimonio-lead { grid-column: span 2; }
+            .tab-item { flex: unset; padding: 0.65rem 1rem; font-size: 0.82rem; }
         }
-        @media (max-width: 500px) {
-            .kpi-row-6 { grid-template-columns: 1fr; }
-            .page-title { font-size: 1.6rem; }
+        @media (max-width: 560px) {
+            .kpi-row-6, .patrimonio-strip, .health-pillars-grid { grid-template-columns: 1fr; }
+            .patrimonio-lead, .health-actions-wrap { grid-column: span 1; flex-direction: column; }
+            .page-title { font-size: 1.5rem; }
+            .periodo-wrap { width: 100%; justify-content: space-between; }
+            .header-controls { width: 100%; }
         }
 
         /* ─── PRINT ESTILIZADO PARA RELATÓRIO EXECUTIVO ─── */
@@ -574,13 +525,13 @@
             body { background: #ffffff !important; color: #0f172a !important; background-image: none !important; }
             .page-wrap { padding: 0 !important; max-width: 100% !important; }
             .ger-header-left .back-link, .header-controls, .tabs-header, .btn-action, #loading-overlay { display: none !important; }
-            .view-section { display: block !important; }
-            .card, .health-radar-card, .patrimonio-strip, .alertas-box, .kpi-card {
+            .view-section { display: block !important; margin-bottom: 2rem; }
+            .card, .health-radar-card, .patrimonio-strip, .alertas-box, .kpi-card, .stat-mini {
                 background: #ffffff !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important;
                 box-shadow: none !important; page-break-inside: avoid;
             }
             .page-title { -webkit-text-fill-color: #0f172a !important; color: #0f172a !important; }
-            .chart-wrap { height: 220px !important; }
+            .chart-wrap { height: 210px !important; }
         }
     </style>
 </head>
@@ -589,7 +540,7 @@
 <!-- Loading Overlay -->
 <div id="loading-overlay">
     <div class="loader-ring"></div>
-    <span class="loader-text">Consolidando inteligência gerencial...</span>
+    <span class="loader-text">Consolidando inteligência gerencial em tempo real...</span>
 </div>
 
 <div class="page-wrap">
@@ -605,45 +556,61 @@
                 <i data-lucide="shield-check" style="width:34px;height:34px;color:#818cf8;"></i>
                 Painel Gerencial Executivo
             </div>
-            <div class="page-subtitle">Cockpit da sua empresa na palma da sua mão — saúde operacional, financeira e jurídica em tempo real</div>
+            <div class="page-subtitle">
+                <span>Visão 360º do Dono: Finanças, Compras, Frota, Centros de Custo, Pessoas, Comercial e Estoque</span>
+                <span id="periodo-badge-ativo" class="periodo-active-pill">Mês Atual</span>
+            </div>
         </div>
         
         <div class="header-controls">
-            <!-- Seletor de Período Rápido -->
+            <!-- Seletor de Período Avançado -->
             <div class="periodo-wrap">
-                <label for="periodo-select"><i data-lucide="calendar" style="width:13px;height:13px;vertical-align:middle;margin-right:2px;"></i> PERÍODO</label>
+                <label for="periodo-select"><i data-lucide="calendar" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i> PERÍODO</label>
                 <div class="divider-v"></div>
                 <select id="periodo-select">
                     <option value="mes_atual" selected>Mês Atual</option>
                     <option value="mes_anterior">Mês Anterior</option>
                     <option value="ultimos_30">Últimos 30 Dias</option>
+                    <option value="ultimos_3_meses">Últimos 3 Meses</option>
                     <option value="trimestre">Trimestre Atual</option>
+                    <option value="ultimos_6_meses">Últimos 6 Meses</option>
                     <option value="semestre">Semestre Atual</option>
+                    <option value="ultimos_12_meses">Últimos 12 Meses</option>
                     <option value="ano">Ano Atual</option>
                     <option value="mes_especifico">Mês Específico...</option>
+                    <option value="personalizado">Período Personalizado (De / Até)...</option>
                 </select>
-                <div id="mes-picker-wrap" style="display:none;align-items:center;">
+                <!-- Mês Específico -->
+                <div id="mes-picker-wrap" style="display:none;align-items:center;gap:0.4rem;">
                     <div class="divider-v"></div>
                     <input type="month" id="mes-picker" style="color-scheme: dark;">
+                </div>
+                <!-- Período Personalizado (Início / Fim) -->
+                <div id="custom-range-wrap" style="display:none;align-items:center;gap:0.4rem;flex-wrap:wrap;">
+                    <div class="divider-v"></div>
+                    <span style="font-size:0.72rem;color:var(--text-muted);font-weight:700;">DE</span>
+                    <input type="date" id="data-inicio-picker" style="color-scheme: dark;">
+                    <span style="font-size:0.72rem;color:var(--text-muted);font-weight:700;">ATÉ</span>
+                    <input type="date" id="data-fim-picker" style="color-scheme: dark;">
                 </div>
             </div>
 
             <!-- Botões de Ação -->
-            <button id="btn-refresh" class="btn-action btn-refresh" title="Atualizar dados do painel">
+            <button id="btn-refresh" class="btn-action btn-refresh" title="Atualizar dados reais do painel">
                 <i data-lucide="refresh-cw" style="width:15px;height:15px;"></i>
                 <span>Atualizar</span>
             </button>
             
             <button id="btn-print" class="btn-action btn-print" title="Gerar Relatório Executivo para Impressão ou PDF">
                 <i data-lucide="printer" style="width:15px;height:15px;"></i>
-                <span>Relatório Executivo</span>
+                <span>Relatório PDF</span>
             </button>
 
-            <span id="timestamp" style="font-size:0.75rem;color:var(--text-muted);white-space:nowrap;margin-left:0.3rem;">—</span>
+            <span id="timestamp" style="font-size:0.74rem;color:var(--text-muted);white-space:nowrap;">—</span>
         </div>
     </div>
 
-    <!-- ─── TABS DE NAVEGAÇÃO EXECUTIVA (Standard UI Pattern) ─── -->
+    <!-- ─── TABS DE NAVEGAÇÃO EXECUTIVA (5 ABAS AGRUPADAS) ─── -->
     <nav class="tabs-header">
         <button class="tab-item active" onclick="switchTab('cockpit')">
             <i data-lucide="layout-dashboard"></i> Cockpit Executivo
@@ -682,11 +649,11 @@
 
             <div>
                 <div class="health-desc-title">
-                    <span>Diagnóstico da Empresa:</span>
-                    <span id="health-status-badge" class="health-desc-badge badge-success">Carregando...</span>
+                    <span>Diagnóstico Executivo:</span>
+                    <span id="health-status-badge" class="health-desc-badge badge-success">Analisando...</span>
                 </div>
                 <div class="health-desc-text" id="health-status-desc">
-                    Calculando índice de conformidade financeira, operacional, jurídica e de suprimentos com base em dados consolidados...
+                    Consolidando indicadores reais de fluxo de caixa, TCO da frota, compliance trabalhista e suprimentos...
                 </div>
                 
                 <!-- 4 Pilares da Empresa -->
@@ -724,10 +691,10 @@
 
             <div class="health-actions-wrap">
                 <button class="btn-action btn-refresh" style="width:100%;justify-content:center;" onclick="switchTab('financeiro')">
-                    <i data-lucide="trending-up" style="width:15px;height:15px;"></i> Ver Finanças
+                    <i data-lucide="trending-up" style="width:15px;height:15px;"></i> Finanças & Compras
                 </button>
                 <button class="btn-action btn-print" style="width:100%;justify-content:center;" onclick="switchTab('frota')">
-                    <i data-lucide="truck" style="width:15px;height:15px;"></i> Ver Frota
+                    <i data-lucide="truck" style="width:15px;height:15px;"></i> Frota & Centros Custo
                 </button>
             </div>
         </div>
@@ -746,59 +713,87 @@
             </div>
         </div>
 
-        <!-- 1.3 BIG NUMBERS PRINCIPAIS -->
+        <!-- 1.3 BIG NUMBERS PRINCIPAIS (LINHA 1: RESULTADO & OPERAÇÃO) -->
         <div class="kpi-row-6">
-            <!-- Receita -->
             <div class="kpi-card">
                 <div class="kpi-bg-icon"><i data-lucide="arrow-down-circle" style="color:var(--success);"></i></div>
-                <div class="kpi-lbl"><i data-lucide="trending-up" style="width:13px;height:13px;color:var(--success);"></i> Receita Recebida</div>
+                <div class="kpi-lbl"><i data-lucide="trending-up" style="width:13px;height:13px;color:var(--success);"></i> Receita Realizada</div>
                 <div class="kpi-val accent-green" id="kpi-receita">R$ 0,00</div>
-                <div class="kpi-sub">Entradas quitadas no período</div>
+                <div class="kpi-sub" id="kpi-receita-prev-sub">Previsto aberto: R$ 0,00</div>
             </div>
-            <!-- Despesas -->
             <div class="kpi-card">
                 <div class="kpi-bg-icon"><i data-lucide="arrow-up-circle" style="color:var(--danger);"></i></div>
-                <div class="kpi-lbl"><i data-lucide="trending-down" style="width:13px;height:13px;color:var(--danger);"></i> Despesas Pagas</div>
+                <div class="kpi-lbl"><i data-lucide="trending-down" style="width:13px;height:13px;color:var(--danger);"></i> Despesa Realizada</div>
                 <div class="kpi-val accent-red" id="kpi-despesa">R$ 0,00</div>
-                <div class="kpi-sub">Saídas quitadas no período</div>
+                <div class="kpi-sub" id="kpi-despesa-prev-sub">Em aberto período: R$ 0,00</div>
             </div>
-            <!-- Resultado Líquido -->
             <div class="kpi-card">
                 <div class="kpi-bg-icon"><i data-lucide="activity" style="color:var(--primary);"></i></div>
-                <div class="kpi-lbl"><i data-lucide="zap" style="width:13px;height:13px;color:var(--primary);"></i> Lucro Líquido</div>
+                <div class="kpi-lbl"><i data-lucide="zap" style="width:13px;height:13px;color:var(--primary);"></i> Resultado Líquido</div>
                 <div class="kpi-val" id="kpi-resultado">R$ 0,00</div>
                 <div class="kpi-sub" id="kpi-margem">Margem líquida: 0%</div>
             </div>
-            <!-- Saldo em Caixa -->
             <div class="kpi-card">
                 <div class="kpi-bg-icon"><i data-lucide="landmark" style="color:var(--info);"></i></div>
                 <div class="kpi-lbl"><i data-lucide="credit-card" style="width:13px;height:13px;color:var(--info);"></i> Caixa Disponível</div>
                 <div class="kpi-val accent-cyan" id="kpi-saldo-caixa">R$ 0,00</div>
-                <div class="kpi-sub">Total nas contas bancárias</div>
+                <div class="kpi-sub" id="kpi-caixa-contas-sub">Saldos bancários reais</div>
             </div>
-            <!-- Frota em Operação -->
             <div class="kpi-card">
                 <div class="kpi-bg-icon"><i data-lucide="truck" style="color:#818cf8;"></i></div>
-                <div class="kpi-lbl"><i data-lucide="navigation" style="width:13px;height:13px;color:#818cf8;"></i> Frota Ativa</div>
+                <div class="kpi-lbl"><i data-lucide="navigation" style="width:13px;height:13px;color:#818cf8;"></i> Frota em Operação</div>
                 <div class="kpi-val accent-indigo" id="kpi-frota-resumo">0 / 0</div>
                 <div class="kpi-sub" id="kpi-frota-ocupacao">0% em operação</div>
             </div>
-            <!-- Equipe Ativa -->
             <div class="kpi-card">
                 <div class="kpi-bg-icon"><i data-lucide="users" style="color:var(--purple);"></i></div>
-                <div class="kpi-lbl"><i data-lucide="user-check" style="width:13px;height:13px;color:var(--purple);"></i> Equipe Ativa</div>
+                <div class="kpi-lbl"><i data-lucide="user-check" style="width:13px;height:13px;color:var(--purple);"></i> Equipe & Folha</div>
                 <div class="kpi-val accent-purple" id="kpi-dp-funcionarios">0</div>
-                <div class="kpi-sub" id="kpi-dp-folha-sub">Folha: R$ 0,00/mês</div>
+                <div class="kpi-sub" id="kpi-dp-folha-sub">Custo: R$ 0,00/mês</div>
             </div>
         </div>
 
-        <!-- 1.4 RESUMO PATRIMONIAL OPERACIONAL (ATRALINHADO AO DONO) -->
+        <!-- 1.3B NOVOS INDICADORES ESTRATÉGICOS DO DONO (LINHA 2) -->
+        <div class="kpi-row-6">
+            <div class="stat-mini">
+                <span class="stat-mini-label">🔥 Burn Rate Mensal (Custo/Mês)</span>
+                <span class="stat-mini-val accent-amber" id="kpi-owner-burnrate">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-owner-burnrate-sub">Média mensal de saídas</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🛡️ Fôlego de Caixa (Runway)</span>
+                <span class="stat-mini-val accent-cyan" id="kpi-owner-runway">-- meses</span>
+                <span class="stat-mini-sub" id="kpi-owner-runway-sub">Cobertura c/ caixa atual</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">⚖️ Ponto de Equilíbrio (Cobertura)</span>
+                <span class="stat-mini-val accent-green" id="kpi-owner-breakeven">0%</span>
+                <span class="stat-mini-sub" id="kpi-owner-breakeven-sub">Receita / Custo Total</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🚛 TCO Frota (Custo Total / Veíc.)</span>
+                <span class="stat-mini-val accent-indigo" id="kpi-owner-tco-veic">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-owner-tco-km">R$ 0,00 / KM rodado</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">📉 Inadimplência de Clientes</span>
+                <span class="stat-mini-val accent-red" id="kpi-owner-inadimplencia">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-owner-inadimplencia-perc">0% da carteira a receber</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🏆 Receita / Colaborador Ativo</span>
+                <span class="stat-mini-val accent-purple" id="kpi-owner-produtividade">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-owner-produtividade-sub">Produtividade no período</span>
+            </div>
+        </div>
+
+        <!-- 1.4 RESUMO PATRIMONIAL OPERACIONAL -->
         <div class="patrimonio-strip">
             <div class="patrimonio-lead">
                 <div class="patrimonio-lead-icon"><i data-lucide="layers"></i></div>
                 <div>
-                    <h4>Patrimônio Operacional</h4>
-                    <p>Ativos sob gestão da empresa</p>
+                    <h4>Balanço Patrimonial Operacional</h4>
+                    <p>Ativos & Passivos em tempo real</p>
                 </div>
             </div>
             <div class="patri-item">
@@ -810,29 +805,33 @@
                 <span class="patri-val accent-indigo" id="patri-fipe">R$ 0,00</span>
             </div>
             <div class="patri-item">
-                <span class="patri-lbl">📦 Estoque (Almoxarifado)</span>
+                <span class="patri-lbl">📦 Estoque (Custo)</span>
                 <span class="patri-val accent-amber" id="patri-estoque">R$ 0,00</span>
             </div>
             <div class="patri-item">
                 <span class="patri-lbl">📄 Carteira a Receber</span>
                 <span class="patri-val accent-green" id="patri-receber">R$ 0,00</span>
             </div>
-            <div class="patri-item" style="background:rgba(99,102,241,0.1);padding:0.6rem 0.8rem;border-radius:10px;border:1px solid rgba(99,102,241,0.25);">
-                <span class="patri-lbl" style="color:#a5b4fc;">💎 Ativo Operacional Total</span>
-                <span class="patri-val" style="font-size:1.3rem;color:#ffffff;" id="patri-total">R$ 0,00</span>
+            <div class="patri-item">
+                <span class="patri-lbl">🔻 Passivo A Pagar (Aberto)</span>
+                <span class="patri-val accent-red" id="patri-passivo">R$ 0,00</span>
+            </div>
+            <div class="patri-item" style="background:rgba(99,102,241,0.12);padding:0.55rem 0.75rem;border-radius:10px;border:1px solid rgba(99,102,241,0.3);">
+                <span class="patri-lbl" style="color:#a5b4fc;">💎 Patrimônio Líquido Op.</span>
+                <span class="patri-val" style="font-size:1.2rem;color:#ffffff;" id="patri-total">R$ 0,00</span>
             </div>
         </div>
 
-        <!-- 1.5 DRE SINTÉTICO DO DONO + EVOLUÇÃO 6 MESES -->
+        <!-- 1.5 EVOLUÇÃO MENSAL + DRE GERENCIAL DETALHADO -->
         <div class="grid-2">
-            <!-- Gráfico de Evolução 6 Meses -->
+            <!-- Gráfico de Evolução Mensal -->
             <div class="card">
                 <div class="card-title">
                     <div class="card-title-left">
                         <i data-lucide="bar-chart-3" style="color:var(--primary);"></i>
-                        <span>Evolução Financeira — Últimos 6 Meses</span>
+                        <span id="title-chart-cockpit-meses">Evolução Mensal — Receitas, Despesas & Resultado</span>
                     </div>
-                    <span class="badge badge-info">Histórico</span>
+                    <span id="badge-chart-cockpit-meses" class="badge badge-info">Mensal</span>
                 </div>
                 <div class="chart-wrap chart-wrap-tall">
                     <canvas id="chart-receita-despesa"></canvas>
@@ -844,42 +843,82 @@
                 <div class="card-title">
                     <div class="card-title-left">
                         <i data-lucide="file-spreadsheet" style="color:var(--success);"></i>
-                        <span>DRE Gerencial Sintético (Período Selecionado)</span>
+                        <span>DRE Gerencial Executivo (Período Selecionado)</span>
                     </div>
-                    <span class="badge badge-success">Saúde Financeira</span>
+                    <span class="badge badge-success">Competência / Caixa</span>
                 </div>
                 <table class="dre-table">
                     <tbody>
                         <tr class="dre-row-receita">
-                            <td><i data-lucide="plus-circle" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> <strong>Receitas Brutas Efetivadas</strong></td>
+                            <td><strong>(+) Receitas Brutas Realizadas</strong></td>
                             <td style="text-align:right;" id="dre-receita">R$ 0,00</td>
                         </tr>
                         <tr class="dre-row-despesa">
-                            <td><i data-lucide="fuel" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> (-) Custos com Combustível</td>
-                            <td style="text-align:right;" id="dre-combustivel">R$ 0,00</td>
+                            <td>(-) Retenções / Tributos s/ Faturamento (INSS, ISS, IR)</td>
+                            <td style="text-align:right;" id="dre-tributos">- R$ 0,00</td>
+                        </tr>
+                        <tr class="dre-row-subtotal">
+                            <td><strong>(=) Receita Operacional Líquida</strong></td>
+                            <td style="text-align:right;" id="dre-receita-liquida">R$ 0,00</td>
                         </tr>
                         <tr class="dre-row-despesa">
-                            <td><i data-lucide="wrench" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> (-) Manutenção da Frota & Oficinas</td>
-                            <td style="text-align:right;" id="dre-manutencao">R$ 0,00</td>
+                            <td>(-) Combustível & Abastecimentos da Frota</td>
+                            <td style="text-align:right;" id="dre-combustivel">- R$ 0,00</td>
                         </tr>
                         <tr class="dre-row-despesa">
-                            <td><i data-lucide="shopping-cart" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> (-) Compras & Peças de Estoque</td>
-                            <td style="text-align:right;" id="dre-compras">R$ 0,00</td>
+                            <td>(-) Manutenção & Oficinas</td>
+                            <td style="text-align:right;" id="dre-manutencao">- R$ 0,00</td>
                         </tr>
                         <tr class="dre-row-despesa">
-                            <td><i data-lucide="users" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> (-) Folha & Custos de Pessoal</td>
-                            <td style="text-align:right;" id="dre-pessoal">R$ 0,00</td>
+                            <td>(-) Seguros, IPVA, Licenciamento, Multas & Rastreio</td>
+                            <td style="text-align:right;" id="dre-desp-veiculares">- R$ 0,00</td>
                         </tr>
                         <tr class="dre-row-despesa">
-                            <td><i data-lucide="building" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> (-) Despesas Administrativas / Outras</td>
-                            <td style="text-align:right;" id="dre-outras">R$ 0,00</td>
+                            <td>(-) Compras & Suprimentos Operacionais</td>
+                            <td style="text-align:right;" id="dre-compras">- R$ 0,00</td>
+                        </tr>
+                        <tr class="dre-row-despesa">
+                            <td>(-) Folha Salarial, Benefícios & Encargos (DP)</td>
+                            <td style="text-align:right;" id="dre-pessoal">- R$ 0,00</td>
+                        </tr>
+                        <tr class="dre-row-despesa">
+                            <td>(-) Despesas Administrativas, Financeiras & Outras</td>
+                            <td style="text-align:right;" id="dre-outras">- R$ 0,00</td>
                         </tr>
                         <tr class="dre-row-resultado">
-                            <td><strong>(=) RESULTADO OPERACIONAL LÍQUIDO</strong></td>
-                            <td style="text-align:right;font-size:1.15rem;" id="dre-resultado">R$ 0,00</td>
+                            <td><strong>(=) RESULTADO LÍQUIDO DO PERÍODO</strong></td>
+                            <td style="text-align:right;font-size:1.12rem;" id="dre-resultado">R$ 0,00</td>
                         </tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- 1.6 COMPOSIÇÃO GLOBAL DE CUSTOS OPERACIONAIS -->
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="pie-chart" style="color:var(--warning);"></i>
+                        <span>Composição Global das Saídas por Macro-Centro de Custo</span>
+                    </div>
+                    <span class="badge badge-warning">Visão Dono</span>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="chart-cockpit-macro-custos"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="layers" style="color:var(--info);"></i>
+                        <span>Resumo Executivo dos Módulos no Período</span>
+                    </div>
+                </div>
+                <div id="cockpit-modulos-resumo">
+                    <p class="empty-msg">Consolidando módulos...</p>
+                </div>
             </div>
         </div>
 
@@ -890,60 +929,87 @@
     ══════════════════════════════════════════════════════════════ -->
     <section id="view-financeiro" class="view-section">
         
-        <!-- Indicadores de Caixa, Contas & Liquidez -->
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
-            <!-- Saldo Consolidado em Caixa -->
+        <div class="section-banner">
+            <div class="section-banner-title">
+                <i data-lucide="dollar-sign" style="color:var(--success);"></i>
+                <span>Módulo Financeiro, Tesouraria & Plano de Contas</span>
+            </div>
+            <span class="section-banner-sub">Fluxo realizado vs previsto, contas bancárias, liquidez, inadimplência e centros de custo</span>
+        </div>
+
+        <!-- Indicadores de Caixa, Contas & Liquidez (8 Cards) -->
+        <div class="kpi-grid-auto">
             <div class="stat-mini">
                 <span class="stat-mini-label">🏦 Saldo Consolidado (Bancos)</span>
                 <span class="stat-mini-val" id="kpi-fin-saldo-caixa">R$ 0,00</span>
-                <span style="font-size:0.75rem;color:var(--text-muted);" id="kpi-fin-saldo-sub">Total nas 4 contas</span>
+                <span class="stat-mini-sub" id="kpi-fin-saldo-sub">Contas bancárias</span>
             </div>
-            <!-- Projeção de Caixa a 30 Dias -->
             <div class="stat-mini">
                 <span class="stat-mini-label">🔮 Projeção de Caixa (30d)</span>
                 <span class="stat-mini-val" id="kpi-fin-projecao">R$ 0,00</span>
-                <span style="font-size:0.75rem;color:var(--text-muted);">Caixa + Receber - Pagar</span>
+                <span class="stat-mini-sub">Caixa + Receber 30d - Pagar 30d</span>
             </div>
-            <!-- Liquidez Imediata -->
             <div class="stat-mini">
                 <span class="stat-mini-label">💧 Liquidez Imediata</span>
-                <span class="stat-mini-val accent-cyan" id="kpi-liquidez">0.00</span>
-                <span style="font-size:0.75rem;color:var(--text-muted);" id="kpi-liquidez-desc">Caixa / Contas Pagar 30d</span>
+                <span class="stat-mini-val accent-cyan" id="kpi-liquidez">0.00x</span>
+                <span class="stat-mini-sub" id="kpi-liquidez-desc">Caixa / Contas Pagar 30d</span>
             </div>
-            <!-- Contas Atrasadas -->
             <div class="stat-mini" style="border-color:rgba(239,68,68,0.25);">
-                <span class="stat-mini-label">🚨 Contas A Pagar Atrasadas</span>
+                <span class="stat-mini-label">🚨 A Pagar Atrasadas</span>
                 <span class="stat-mini-val accent-red" id="kpi-contas-atrasadas">0</span>
-                <span style="font-size:0.75rem;color:#fca5a5;" id="kpi-contas-atrasadas-val">R$ 0,00</span>
+                <span class="stat-mini-sub" style="color:#fca5a5;" id="kpi-contas-atrasadas-val">R$ 0,00</span>
             </div>
-            <!-- A Pagar Próximos 7 Dias -->
             <div class="stat-mini" style="border-color:rgba(245,158,11,0.25);">
                 <span class="stat-mini-label">⚠️ A Pagar Próx. 7 Dias</span>
                 <span class="stat-mini-val accent-amber" id="kpi-a-vencer">0</span>
-                <span style="font-size:0.75rem;color:var(--text-muted);" id="kpi-a-vencer-val">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-a-vencer-val">R$ 0,00</span>
             </div>
-            <!-- A Receber Próximos 30 Dias -->
             <div class="stat-mini" style="border-color:rgba(16,185,129,0.25);">
                 <span class="stat-mini-label">📈 A Receber Próx. 30 Dias</span>
                 <span class="stat-mini-val accent-green" id="kpi-a-receber">R$ 0,00</span>
-                <span style="font-size:0.75rem;color:var(--text-muted);" id="kpi-inadimplencia-receber">Inadimplência: R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-inadimplencia-receber">Inadimplência: R$ 0,00</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🏷️ Descontos Obtidos (Baixa)</span>
+                <span class="stat-mini-val accent-green" id="kpi-fin-descontos">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-fin-juros-sub">Juros pagos: R$ 0,00</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🧾 Tributos Retidos (Receitas)</span>
+                <span class="stat-mini-val accent-purple" id="kpi-fin-tributos">R$ 0,00</span>
+                <span class="stat-mini-sub">INSS + ISS + IR no período</span>
             </div>
         </div>
 
-        <div class="grid-2">
-            <!-- Gráfico Despesas por Categoria -->
+        <!-- Gráfico Mensal Financeiro (Realizado vs Previsto) + Despesas por Categoria -->
+        <div class="grid-2-1">
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="trending-up" style="color:var(--primary);"></i>
+                        <span>Evolução Mensal Financeira — Realizado vs Previsto (Aberto)</span>
+                    </div>
+                    <span id="badge-chart-fin-meses" class="badge badge-info">Mês a Mês</span>
+                </div>
+                <div class="chart-wrap chart-wrap-tall">
+                    <canvas id="chart-fin-evolucao-mensal"></canvas>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-title">
                     <div class="card-title-left">
                         <i data-lucide="pie-chart" style="color:var(--danger);"></i>
-                        <span>Distribuição de Despesas por Categoria</span>
+                        <span>Despesas por Plano de Contas</span>
                     </div>
                 </div>
-                <div class="chart-wrap">
+                <div class="chart-wrap chart-wrap-tall">
                     <canvas id="chart-despesas-categ"></canvas>
                 </div>
             </div>
+        </div>
 
+        <div class="grid-2">
             <!-- Saldos Bancários Detalhados -->
             <div class="card">
                 <div class="card-title">
@@ -957,47 +1023,143 @@
                     <p class="empty-msg">Carregando contas bancárias...</p>
                 </div>
             </div>
+
+            <!-- Ranking de Despesas por Plano de Contas / Centro de Custo -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="list-Filter" style="color:var(--warning);"></i>
+                        <span>Detalhamento de Saídas por Plano de Contas (Período)</span>
+                    </div>
+                    <span class="badge badge-warning">Realizado + Aberto</span>
+                </div>
+                <div class="table-scroll">
+                    <table class="ranking-table">
+                        <thead>
+                            <tr>
+                                <th>Plano de Contas / Categoria</th>
+                                <th style="text-align:right;">Pago (Caixa)</th>
+                                <th style="text-align:right;">Em Aberto</th>
+                                <th style="text-align:right;">Total Geral</th>
+                                <th style="text-align:right;">%</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fin-plano-contas-body">
+                            <tr><td colspan="5" class="empty-msg">Carregando plano de contas...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
-        <!-- SEÇÃO DO MÓDULO DE COMPRAS -->
-        <div style="margin-top:1.5rem;">
-            <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem;">
+        <!-- ─── SEÇÃO DO MÓDULO DE COMPRAS ─── -->
+        <div class="section-banner">
+            <div class="section-banner-title">
                 <i data-lucide="shopping-cart" style="color:var(--primary);"></i>
-                <h3 style="font-size:1.1rem;font-weight:700;">Visão Executiva do Módulo de Compras (Suprimentos)</h3>
+                <span>Visão Executiva do Módulo de Compras (Suprimentos & Centros de Custo)</span>
             </div>
-            
-            <div class="grid-4">
-                <div class="stat-mini">
-                    <span class="stat-mini-label">🛍️ Total Comprado</span>
-                    <span class="stat-mini-val accent-indigo" id="kpi-compras-total">R$ 0,00</span>
-                    <span style="font-size:0.75rem;color:var(--text-muted);">No período selecionado</span>
+            <span class="section-banner-sub">Evolução mensal de compras, fornecedores, mix de itens e alocação por centro de custo</span>
+        </div>
+        
+        <div class="kpi-row-6">
+            <div class="stat-mini">
+                <span class="stat-mini-label">🛍️ Total Comprado</span>
+                <span class="stat-mini-val accent-indigo" id="kpi-compras-total">R$ 0,00</span>
+                <span class="stat-mini-sub">No período selecionado</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">📋 Notas / Pedidos</span>
+                <span class="stat-mini-val" id="kpi-compras-qtd">0</span>
+                <span class="stat-mini-sub">Notas emitidas</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🏷️ Ticket Médio</span>
+                <span class="stat-mini-val accent-cyan" id="kpi-compras-ticket">R$ 0,00</span>
+                <span class="stat-mini-sub">Por nota de compra</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🤝 Fornecedores Atendidos</span>
+                <span class="stat-mini-val accent-amber" id="kpi-compras-fornecedores">0</span>
+                <span class="stat-mini-sub">Parceiros acionados</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🚛 Vinculado a Veículos</span>
+                <span class="stat-mini-val accent-green" id="kpi-compras-veiculos-val">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-compras-veiculos-sub">Aplicação direta na frota</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">📦 Entrada para Estoque</span>
+                <span class="stat-mini-val accent-purple" id="kpi-compras-estoque-val">R$ 0,00</span>
+                <span class="stat-mini-sub">Peças p/ almoxarifado</span>
+            </div>
+        </div>
+
+        <div class="grid-2-1">
+            <!-- Evolução Mensal de Compras -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="bar-chart-2" style="color:var(--primary);"></i>
+                        <span>Evolução Mensal de Compras (Valor R$ & Qtd Notas)</span>
+                    </div>
+                    <span id="badge-chart-compras-meses" class="badge badge-info">Mês a Mês</span>
                 </div>
-                <div class="stat-mini">
-                    <span class="stat-mini-label">📋 Pedidos / Notas</span>
-                    <span class="stat-mini-val" id="kpi-compras-qtd">0</span>
-                    <span style="font-size:0.75rem;color:var(--text-muted);">Notas emitidas</span>
-                </div>
-                <div class="stat-mini">
-                    <span class="stat-mini-label">🏷️ Ticket Médio</span>
-                    <span class="stat-mini-val accent-cyan" id="kpi-compras-ticket">R$ 0,00</span>
-                    <span style="font-size:0.75rem;color:var(--text-muted);">Por nota de compra</span>
-                </div>
-                <div class="stat-mini">
-                    <span class="stat-mini-label">🤝 Fornecedores Atendidos</span>
-                    <span class="stat-mini-val accent-amber" id="kpi-compras-fornecedores">0</span>
-                    <span style="font-size:0.75rem;color:var(--text-muted);">Parceiros acionados</span>
+                <div class="chart-wrap">
+                    <canvas id="chart-compras-evolucao-mensal"></canvas>
                 </div>
             </div>
 
-            <div class="grid-2" style="margin-top:1rem;">
-                <!-- Top Fornecedores de Compras -->
-                <div class="card">
-                    <div class="card-title">
-                        <div class="card-title-left">
-                            <i data-lucide="award" style="color:#fbbf24;"></i>
-                            <span>Top Fornecedores por Volume de Compras</span>
-                        </div>
+            <!-- Gráfico Mix de Compras -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="pie-chart" style="color:var(--purple);"></i>
+                        <span>Mix de Compras (Peças vs Serviços vs Outros)</span>
                     </div>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="chart-mix-compras"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <!-- Compras por Centro de Custo -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="layers" style="color:var(--info);"></i>
+                        <span>Compras por Centro de Custo</span>
+                    </div>
+                    <span class="badge badge-info">Centros de Custo</span>
+                </div>
+                <div class="table-scroll">
+                    <table class="ranking-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Centro de Custo</th>
+                                <th>Qtd Reg.</th>
+                                <th style="text-align:right;">Valor Total</th>
+                                <th style="text-align:right;">%</th>
+                            </tr>
+                        </thead>
+                        <tbody id="compras-centro-custo-body">
+                            <tr><td colspan="5" class="empty-msg">Carregando centros de custo de compras...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Top Fornecedores de Compras -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="award" style="color:#fbbf24;"></i>
+                        <span>Top Fornecedores por Volume de Compras</span>
+                    </div>
+                </div>
+                <div class="table-scroll">
                     <table class="ranking-table">
                         <thead>
                             <tr>
@@ -1005,25 +1167,13 @@
                                 <th>Fornecedor</th>
                                 <th>Qtd Notas</th>
                                 <th style="text-align:right;">Valor Total</th>
+                                <th style="text-align:right;">%</th>
                             </tr>
                         </thead>
                         <tbody id="top-fornecedores-body">
-                            <tr><td colspan="4" class="empty-msg">Carregando ranking de fornecedores...</td></tr>
+                            <tr><td colspan="5" class="empty-msg">Carregando ranking de fornecedores...</td></tr>
                         </tbody>
                     </table>
-                </div>
-
-                <!-- Gráfico Mix de Compras (Peça x Serviço x Outro) -->
-                <div class="card">
-                    <div class="card-title">
-                        <div class="card-title-left">
-                            <i data-lucide="pie-chart" style="color:var(--purple);"></i>
-                            <span>Mix de Compras (Peças de Estoque vs Serviços vs Outros)</span>
-                        </div>
-                    </div>
-                    <div class="chart-wrap">
-                        <canvas id="chart-mix-compras"></canvas>
-                    </div>
                 </div>
             </div>
         </div>
@@ -1031,138 +1181,365 @@
     </section>
 
     <!-- ══════════════════════════════════════════════════════════════
-         ABA 3 — FROTA, COMBUSTÍVEL & MANUTENÇÃO (OPERACIONAL)
+         ABA 3 — FROTA, CENTROS DE CUSTO (SEGUROS ETC.), COMBUSTÍVEL & MANUTENÇÃO
     ══════════════════════════════════════════════════════════════ -->
     <section id="view-frota" class="view-section">
         
-        <!-- Indicadores de Frota & Combustível & Manutenção -->
-        <div class="grid-3">
-            <!-- Frota -->
+        <div class="section-banner">
+            <div class="section-banner-title">
+                <i data-lucide="truck" style="color:var(--primary);"></i>
+                <span>Visão Geral da Frota, TCO & Centros de Custo Veiculares</span>
+            </div>
+            <span class="section-banner-sub">Ocupação, Patrimônio FIPE, Custo Total de Propriedade (TCO), Seguros, IPVA, Multas, Rastreamento, Combustível e Manutenção</span>
+        </div>
+
+        <!-- Big Numbers de Frota & TCO -->
+        <div class="kpi-row-6">
+            <div class="stat-mini">
+                <span class="stat-mini-label">🚛 Frota Ativa Total</span>
+                <span class="stat-mini-val accent-indigo" id="kpi-frota-total">0</span>
+                <span class="stat-mini-sub" id="kpi-frota-casa-agreg-sub">Casa vs Agregados</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">✅ Em Operação (Alocados)</span>
+                <span class="stat-mini-val accent-green" id="kpi-frota-alocados">0</span>
+                <span class="stat-mini-sub" id="kpi-frota-disp-manut-sub">Pátio: 0 | Oficina: 0</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">💎 Patrimônio Frota (FIPE)</span>
+                <span class="stat-mini-val accent-cyan" id="kpi-frota-fipe-total">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-frota-fipe-media">Média/veículo: R$ 0,00</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">💸 Custo Total Frota (TCO)</span>
+                <span class="stat-mini-val accent-red" id="kpi-frota-tco-total">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-frota-tco-fipe-perc">0% sobre valor FIPE</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🛣️ KM Rodado no Período</span>
+                <span class="stat-mini-val" id="kpi-frota-km-total">0 KM</span>
+                <span class="stat-mini-sub" id="kpi-frota-custo-km-global">TCO/KM: R$ 0,00/KM</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🛡️ Seguros Vigentes</span>
+                <span class="stat-mini-val accent-purple" id="kpi-frota-seguros-ok">0 / 0</span>
+                <span class="stat-mini-sub" id="kpi-frota-seguros-alerta-sub">0 vencidos | 0 a vencer</span>
+            </div>
+        </div>
+
+        <!-- Evolução Mensal de Custos da Frota + Status de Ocupação -->
+        <div class="grid-2-1">
             <div class="card">
                 <div class="card-title">
                     <div class="card-title-left">
-                        <i data-lucide="truck" style="color:var(--primary);"></i>
-                        <span>Visão Geral da Frota</span>
+                        <i data-lucide="bar-chart-3" style="color:var(--primary);"></i>
+                        <span>Evolução Mensal dos Custos da Frota (Combustível + Manutenção + Peças + Seguros/Doc)</span>
                     </div>
+                    <span id="badge-chart-frota-meses" class="badge badge-info">Mês a Mês</span>
                 </div>
-                <div class="chart-wrap" style="height:170px;">
-                    <canvas id="chart-frota-status"></canvas>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label"><i data-lucide="layers" style="width:14px;height:14px;color:var(--primary);"></i> Total de Veículos</span>
-                    <span class="metric-value" id="kpi-frota-total">0</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label"><i data-lucide="check-circle" style="width:14px;height:14px;color:var(--success);"></i> Em Operação (Alocados)</span>
-                    <span class="metric-value accent-indigo" id="kpi-frota-alocados">0</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label"><i data-lucide="clock" style="width:14px;height:14px;color:var(--text-muted);"></i> Disponíveis no Pátio</span>
-                    <span class="metric-value" id="kpi-frota-disponiveis">0</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label"><i data-lucide="wrench" style="width:14px;height:14px;color:var(--danger);"></i> Em Manutenção</span>
-                    <span class="metric-value accent-red" id="kpi-frota-em-manut">0</span>
+                <div class="chart-wrap chart-wrap-tall">
+                    <canvas id="chart-frota-evolucao-mensal"></canvas>
                 </div>
             </div>
 
-            <!-- Combustível -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="pie-chart" style="color:var(--success);"></i>
+                        <span>Status de Ocupação da Frota</span>
+                    </div>
+                </div>
+                <div class="chart-wrap" style="height:190px;">
+                    <canvas id="chart-frota-status"></canvas>
+                </div>
+                <div style="margin-top:0.75rem;">
+                    <div class="metric-row">
+                        <span class="metric-label">🏠 Frota Própria (Casa)</span>
+                        <span class="metric-value accent-indigo" id="kpi-frota-qtd-casa">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">🤝 Veículos Agregados / Prestadores</span>
+                        <span class="metric-value accent-cyan" id="kpi-frota-qtd-agregados">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">⏸️ Disponíveis no Pátio</span>
+                        <span class="metric-value" id="kpi-frota-disponiveis">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">🔧 Parados em Manutenção</span>
+                        <span class="metric-value accent-red" id="kpi-frota-em-manut">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── SEÇÃO: CENTROS DE CUSTO DA FROTA (SEGUROS, IPVA, MULTAS, RASTREIO, FINANCIAMENTOS) ─── -->
+        <div class="section-banner">
+            <div class="section-banner-title">
+                <i data-lucide="layers" style="color:var(--warning);"></i>
+                <span>Centros de Custo da Frota & Despesas Veiculares (Seguros, IPVA, Multas, Rastreamento, etc.)</span>
+            </div>
+            <span class="section-banner-sub">Cruzamento real do Plano de Contas Veicular (Financeiro), Centros de Custo (Compras) e Apólices de Seguro</span>
+        </div>
+
+        <!-- 6 Cards de Centros de Custo Específicos da Frota -->
+        <div class="kpi-row-6">
+            <div class="stat-mini" style="border-left:3px solid #6366f1;">
+                <span class="stat-mini-label">🛡️ Seguros de Veículos</span>
+                <span class="stat-mini-val accent-indigo" id="kpi-cc-seguros">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-cc-seguros-sub">Plano 0495 + Seguros</span>
+            </div>
+            <div class="stat-mini" style="border-left:3px solid #06b6d4;">
+                <span class="stat-mini-label">📄 IPVA, Licenc., DUDA, GRT/DETRO</span>
+                <span class="stat-mini-val accent-cyan" id="kpi-cc-documentacao">R$ 0,00</span>
+                <span class="stat-mini-sub">Taxas & impostos veiculares</span>
+            </div>
+            <div class="stat-mini" style="border-left:3px solid #ef4444;">
+                <span class="stat-mini-label">🚨 Multas & Infrações</span>
+                <span class="stat-mini-val accent-red" id="kpi-cc-multas">R$ 0,00</span>
+                <span class="stat-mini-sub">Plano 0082 / 0532</span>
+            </div>
+            <div class="stat-mini" style="border-left:3px solid #10b981;">
+                <span class="stat-mini-label">📡 Monitoramento & Rastreio</span>
+                <span class="stat-mini-val accent-green" id="kpi-cc-rastreio">R$ 0,00</span>
+                <span class="stat-mini-sub">Telemetria e rastreadores</span>
+            </div>
+            <div class="stat-mini" style="border-left:3px solid #f59e0b;">
+                <span class="stat-mini-label">🏦 Financiamentos & Consórcios</span>
+                <span class="stat-mini-val accent-amber" id="kpi-cc-financiamentos">R$ 0,00</span>
+                <span class="stat-mini-sub">Parcelas de frota</span>
+            </div>
+            <div class="stat-mini" style="border-left:3px solid #a855f7;">
+                <span class="stat-mini-label">🧼 Lavagem, Pedágio & Estac.</span>
+                <span class="stat-mini-val accent-purple" id="kpi-cc-lavagem-pedagio">R$ 0,00</span>
+                <span class="stat-mini-sub">Operação de rota</span>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <!-- Gráfico de Centros de Custo da Frota -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="pie-chart" style="color:var(--warning);"></i>
+                        <span>Distribuição por Centro de Custo / Categoria Veicular</span>
+                    </div>
+                    <span class="badge badge-warning">Centros de Custo</span>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="chart-frota-centros-custo"></canvas>
+                </div>
+            </div>
+
+            <!-- Tabela Analítica de Centros de Custo da Frota -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="table" style="color:var(--info);"></i>
+                        <span>Tabela Analítica — Centros de Custo & Despesas da Frota</span>
+                    </div>
+                </div>
+                <div class="table-scroll">
+                    <table class="ranking-table">
+                        <thead>
+                            <tr>
+                                <th>Centro de Custo / Natureza Veicular</th>
+                                <th style="text-align:right;">Realizado / Pago</th>
+                                <th style="text-align:right;">Previsto / Aberto</th>
+                                <th style="text-align:right;">Total Período</th>
+                                <th style="text-align:right;">% TCO</th>
+                            </tr>
+                        </thead>
+                        <tbody id="frota-centros-custo-body">
+                            <tr><td colspan="5" class="empty-msg">Calculando centros de custo da frota...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Painel de Gestão de Seguros e Apólices da Frota -->
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="shield" style="color:var(--primary);"></i>
+                        <span>Resumo de Seguradoras & Corretores da Frota</span>
+                    </div>
+                    <span id="seguros-cobertura-badge" class="badge badge-info">Cobertura FIPE</span>
+                </div>
+                <div class="table-scroll">
+                    <table class="ranking-table">
+                        <thead>
+                            <tr>
+                                <th>Seguradora / Corretor</th>
+                                <th>Qtd Veículos</th>
+                                <th>Vencidos / Alerta</th>
+                                <th style="text-align:right;">Patrimônio FIPE Segurado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="frota-seguradoras-body">
+                            <tr><td colspan="4" class="empty-msg">Carregando apólices da frota...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="shield-alert" style="color:var(--danger);"></i>
+                        <span>Controle de Vencimento de Apólices de Seguro por Veículo</span>
+                    </div>
+                    <span class="badge badge-danger">Prioridade Renovação</span>
+                </div>
+                <div class="table-scroll">
+                    <table class="ranking-table">
+                        <thead>
+                            <tr>
+                                <th>Placa / Modelo</th>
+                                <th>Seguradora / Corretor</th>
+                                <th>Vencimento</th>
+                                <th style="text-align:right;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="frota-apolices-vencimento-body">
+                            <tr><td colspan="4" class="empty-msg">Verificando vigência de apólices...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── SEÇÃO: COMBUSTÍVEL & MANUTENÇÃO (EVOLUÇÃO MENSAL & DETALHES) ─── -->
+        <div class="section-banner">
+            <div class="section-banner-title">
+                <i data-lucide="fuel" style="color:var(--success);"></i>
+                <span>Combustível (Abastecimento) & Manutenção (Oficinas)</span>
+            </div>
+            <span class="section-banner-sub">Evolução mensal de consumo, preço por litro, postos, manutenções preventivas vs corretivas e oficinas</span>
+        </div>
+
+        <div class="grid-2">
+            <!-- Card Detalhado de Combustível + Gráfico Mensal -->
             <div class="card">
                 <div class="card-title">
                     <div class="card-title-left">
                         <i data-lucide="fuel" style="color:var(--success);"></i>
-                        <span>Combustível no Período</span>
+                        <span>Indicadores & Evolução Mensal de Combustível</span>
                     </div>
+                    <span id="badge-chart-comb-meses" class="badge badge-success">Abastecimento</span>
                 </div>
-                <div style="display:flex;flex-direction:column;gap:0.75rem;">
+                <div class="grid-3" style="margin-bottom:1rem;">
                     <div class="stat-mini">
-                        <span class="stat-mini-label">💸 Custo com Combustível</span>
+                        <span class="stat-mini-label">💸 Gasto Total</span>
                         <span class="stat-mini-val accent-red" id="kpi-comb-gasto">R$ 0,00</span>
                     </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-                        <div class="stat-mini">
-                            <span class="stat-mini-label">🛢️ Volume Total</span>
-                            <span class="stat-mini-val accent-green" id="kpi-comb-litros">0 L</span>
-                        </div>
-                        <div class="stat-mini">
-                            <span class="stat-mini-label">📊 Preço Médio/L</span>
-                            <span class="stat-mini-val accent-amber" id="kpi-comb-preco-medio">R$ 0,000</span>
-                        </div>
+                    <div class="stat-mini">
+                        <span class="stat-mini-label">🛢️ Volume Total</span>
+                        <span class="stat-mini-val accent-green" id="kpi-comb-litros">0 L</span>
                     </div>
+                    <div class="stat-mini">
+                        <span class="stat-mini-label">📊 Preço Médio/L</span>
+                        <span class="stat-mini-val accent-amber" id="kpi-comb-preco-medio">R$ 0,00</span>
+                    </div>
+                </div>
+                <div class="chart-wrap chart-wrap-sm">
+                    <canvas id="chart-comb-evolucao-mensal"></canvas>
+                </div>
+                <div style="margin-top:0.85rem;">
                     <div class="metric-row">
                         <span class="metric-label"><i data-lucide="gauge" style="width:14px;height:14px;"></i> Consumo Médio da Frota</span>
                         <span class="metric-value accent-cyan" id="kpi-comb-km-l">-- KM/L</span>
                     </div>
                     <div class="metric-row">
-                        <span class="metric-label"><i data-lucide="coins" style="width:14px;height:14px;"></i> Custo de Combustível / KM</span>
+                        <span class="metric-label"><i data-lucide="coins" style="width:14px;height:14px;"></i> Custo de Combustível por KM</span>
                         <span class="metric-value" id="kpi-comb-custo-km">R$ --/KM</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label"><i data-lucide="map-pin" style="width:14px;height:14px;"></i> Principal Posto Acionado</span>
+                        <span class="metric-value accent-indigo" id="kpi-comb-top-posto">—</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Manutenção -->
+            <!-- Card Detalhado de Manutenção + Gráfico Mensal -->
             <div class="card">
                 <div class="card-title">
                     <div class="card-title-left">
                         <i data-lucide="wrench" style="color:var(--danger);"></i>
-                        <span>Manutenção da Frota</span>
+                        <span>Indicadores & Evolução Mensal de Manutenções</span>
+                    </div>
+                    <span id="badge-chart-manut-meses" class="badge badge-danger">Oficinas</span>
+                </div>
+                <div class="grid-3" style="margin-bottom:1rem;">
+                    <div class="stat-mini">
+                        <span class="stat-mini-label">💸 Custo Manutenção</span>
+                        <span class="stat-mini-val accent-red" id="kpi-manut-gasto">R$ 0,00</span>
+                    </div>
+                    <div class="stat-mini">
+                        <span class="stat-mini-label">🔩 Peças vs Serviços</span>
+                        <span class="stat-mini-val accent-amber" style="font-size:0.98rem;" id="kpi-manut-pecas-servicos">R$ 0 / R$ 0</span>
+                    </div>
+                    <div class="stat-mini">
+                        <span class="stat-mini-label">🛡️ Eficiência Prev.</span>
+                        <span class="stat-mini-val accent-cyan" id="kpi-manut-taxa-prev">0%</span>
                     </div>
                 </div>
-                <div class="stat-mini" style="margin-bottom:0.75rem;">
-                    <span class="stat-mini-label">💸 Custo Total Manutenções</span>
-                    <span class="stat-mini-val accent-red" id="kpi-manut-gasto">R$ 0,00</span>
+                <div class="chart-wrap chart-wrap-sm">
+                    <canvas id="chart-manut-evolucao-mensal"></canvas>
                 </div>
-                <div class="metric-row">
-                    <span class="metric-label">📋 Total de OSs Realizadas</span>
-                    <span class="metric-value" id="kpi-manut-total">0</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">⏳ OSs Pendentes / Em Aberto</span>
-                    <span class="metric-value accent-amber" id="kpi-manut-pendentes">0</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label"><span class="badge badge-success">PREV</span> Preventivas</span>
-                    <span class="metric-value accent-green" id="kpi-manut-preventivas">0</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label"><span class="badge badge-danger">CORR</span> Corretivas</span>
-                    <span class="metric-value accent-red" id="kpi-manut-corretivas">0</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">🛡️ Eficiência Preventiva</span>
-                    <span class="metric-value accent-cyan" id="kpi-manut-taxa-prev">0%</span>
+                <div style="margin-top:0.85rem;">
+                    <div class="metric-row">
+                        <span class="metric-label">📋 Total de OSs no Período | Ticket Médio</span>
+                        <span class="metric-value" id="kpi-manut-total">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">⏳ OSs Pendentes / Em Andamento</span>
+                        <span class="metric-value accent-amber" id="kpi-manut-pendentes">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label"><span class="badge badge-success">PREV</span> Preventivas vs <span class="badge badge-danger">CORR</span> Corretivas</span>
+                        <span class="metric-value"><span class="accent-green" id="kpi-manut-preventivas">0</span> / <span class="accent-red" id="kpi-manut-corretivas">0</span></span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- TABELA DE VILÕES DE CUSTO (TOP 5 VEÍCULOS MAIS CAROS NO PERÍODO) -->
-        <div class="card" style="margin-top:1.5rem;">
+        <!-- TABELA DE VILÕES DE CUSTO (RANKING COMPLETO DE CUSTO POR VEÍCULO) -->
+        <div class="card" style="margin-top:1.25rem;">
             <div class="card-title">
                 <div class="card-title-left">
                     <i data-lucide="alert-octagon" style="color:var(--danger);"></i>
-                    <span>Top 5 Veículos Mais Caros da Frota (Vilões de Custo no Período)</span>
+                    <span>Ranking de Custos por Veículo no Período (TCO Completo por Placa)</span>
                 </div>
-                <span class="badge badge-danger">Atenção de Custos</span>
+                <span class="badge badge-danger">Top 10 Vilões de Custo</span>
             </div>
-            <p style="font-size:0.83rem;color:var(--text-muted);margin-bottom:1rem;">
-                Consolidação dos custos operacionais reais de cada veículo: Combustível + Manutenção de Oficinas + Compras de Peças vinculadas.
+            <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.9rem;">
+                Consolidação real de todos os centros de custo vinculados a cada placa: Combustível + Manutenção + Compras de Peças + Despesas Financeiras/Seguros/Multas/Adicionais.
             </p>
-            <table class="ranking-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Placa / Modelo</th>
-                        <th>Combustível</th>
-                        <th>Manutenção</th>
-                        <th>Peças / Compras</th>
-                        <th style="text-align:right;">Custo Total</th>
-                        <th style="text-align:right;">% da Frota</th>
-                    </tr>
-                </thead>
-                <tbody id="viloes-frota-body">
-                    <tr><td colspan="7" class="empty-msg">Calculando custos consolidados por veículo...</td></tr>
-                </tbody>
-            </table>
+            <div class="table-scroll">
+                <table class="ranking-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Placa / Modelo</th>
+                            <th>Tipo</th>
+                            <th style="text-align:right;">Combustível</th>
+                            <th style="text-align:right;">Manutenção</th>
+                            <th style="text-align:right;">Peças/Compras</th>
+                            <th style="text-align:right;">Seguros/Doc/Outros</th>
+                            <th style="text-align:right;">KM Rodado</th>
+                            <th style="text-align:right;">R$ / KM</th>
+                            <th style="text-align:right;">Custo Total</th>
+                            <th style="text-align:right;">% da Frota</th>
+                        </tr>
+                    </thead>
+                    <tbody id="viloes-frota-body">
+                        <tr><td colspan="11" class="empty-msg">Calculando custos consolidados por veículo...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
     </section>
@@ -1172,63 +1549,120 @@
     ══════════════════════════════════════════════════════════════ -->
     <section id="view-pessoas" class="view-section">
         
-        <div class="grid-4" style="margin-bottom:1.5rem;">
+        <div class="section-banner">
+            <div class="section-banner-title">
+                <i data-lucide="users" style="color:var(--purple);"></i>
+                <span>Departamento Pessoal, Custos de RH, Turnover & Compliance Legal</span>
+            </div>
+            <span class="section-banner-sub">Folha salarial, benefícios ativos, movimentação de pessoal, absenteísmo, férias, ASOs, CNHs e EPIs</span>
+        </div>
+
+        <!-- 8 KPIs Executivos de Pessoas -->
+        <div class="kpi-grid-auto">
             <div class="stat-mini">
                 <span class="stat-mini-label">👷 Funcionários Ativos</span>
                 <span class="stat-mini-val accent-indigo" id="kpi-dp-colab-count">0</span>
-                <span style="font-size:0.75rem;color:var(--text-muted);">Quadro funcional</span>
+                <span class="stat-mini-sub" id="kpi-dp-clt-pj-sub">Quadro funcional ativo</span>
             </div>
             <div class="stat-mini">
-                <span class="stat-mini-label">💰 Folha Salarial Estimada</span>
+                <span class="stat-mini-label">💰 Folha Salarial Base</span>
                 <span class="stat-mini-val" id="kpi-dp-folha-val">R$ 0,00</span>
-                <span style="font-size:0.75rem;color:var(--text-muted);">Salários base mensais</span>
+                <span class="stat-mini-sub" id="kpi-dp-salario-medio">Média: R$ 0,00</span>
             </div>
             <div class="stat-mini">
-                <span class="stat-mini-label">📊 Salário Médio</span>
-                <span class="stat-mini-val accent-cyan" id="kpi-dp-salario-medio">R$ 0,00</span>
-                <span style="font-size:0.75rem;color:var(--text-muted);">Média por colaborador</span>
+                <span class="stat-mini-label">🎁 Benefícios Líquidos (Mês)</span>
+                <span class="stat-mini-val accent-cyan" id="kpi-dp-beneficios-val">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-dp-beneficios-sub">Bruto - Desconto func.</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🏦 Custo Total Pessoal Estimado</span>
+                <span class="stat-mini-val accent-purple" id="kpi-dp-custo-total">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-dp-custo-per-capita">Salários + Benefícios</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🔄 Admissões vs Demissões</span>
+                <span class="stat-mini-val accent-green" id="kpi-dp-turnover">0 / 0</span>
+                <span class="stat-mini-sub" id="kpi-dp-turnover-sub">Turnover no período: 0%</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🏥 Absenteísmo (Atestados)</span>
+                <span class="stat-mini-val accent-amber" id="kpi-dp-atestados-dias">0 dias</span>
+                <span class="stat-mini-sub" id="kpi-dp-atestados-qtd">0 atestado(s) no período</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🏖️ Férias Vencidas / Em Gozo</span>
+                <span class="stat-mini-val accent-red" id="kpi-dp-ferias-status">0 / 0</span>
+                <span class="stat-mini-sub" id="kpi-dp-ferias-sub">0 programadas</span>
             </div>
             <div class="stat-mini">
                 <span class="stat-mini-label">🎂 Aniversariantes do Mês</span>
                 <span class="stat-mini-val accent-amber" id="kpi-dp-anivers-count">0</span>
-                <span style="font-size:0.75rem;color:var(--text-muted);">Celebrações da equipe</span>
+                <span class="stat-mini-sub">Celebrações da equipe</span>
+            </div>
+        </div>
+
+        <!-- Gráficos de DP: Evolução Mensal (Admissões/Demissões & Custos) + Setores -->
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="bar-chart-3" style="color:var(--primary);"></i>
+                        <span>Evolução Mensal de RH — Movimentação (Admissões vs Desligamentos) & Despesas DP</span>
+                    </div>
+                    <span id="badge-chart-dp-meses" class="badge badge-info">Mês a Mês</span>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="chart-dp-evolucao-mensal"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="pie-chart" style="color:var(--purple);"></i>
+                        <span>Distribuição da Folha Salarial por Setor / Departamento</span>
+                    </div>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="chart-dp-setores"></canvas>
+                </div>
             </div>
         </div>
 
         <div class="grid-2">
-            <!-- Radar de Riscos Trabalhistas & Legais (CNHs + ASOs + Seguros) -->
+            <!-- Radar de Riscos Trabalhistas & Legais (CNHs + ASOs + Férias + EPIs + Experiência + Seguros) -->
             <div class="card">
                 <div class="card-title">
                     <div class="card-title-left">
                         <i data-lucide="shield-alert" style="color:var(--danger);"></i>
-                        <span>Radar de Conformidade & Riscos Jurídicos</span>
+                        <span>Radar de Conformidade Trabalhista & Riscos Jurídicos</span>
+                    </div>
+                    <span class="badge badge-danger">Compliance</span>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:0.75rem;margin-bottom:1rem;">
+                    <div class="stat-mini" style="border-color:rgba(239,68,68,0.25);">
+                        <span class="stat-mini-label">🚨 ASOs Vencidos | Vencendo (30d)</span>
+                        <span class="stat-mini-val"><span class="accent-red" id="kpi-dp-aso-vencido">0</span> <span style="color:var(--text-muted);font-size:0.9rem;">/</span> <span class="accent-amber" id="kpi-dp-aso-vencendo">0</span></span>
+                        <span class="stat-mini-sub">Saúde ocupacional (NR-7)</span>
+                    </div>
+                    <div class="stat-mini" style="border-color:rgba(239,68,68,0.25);">
+                        <span class="stat-mini-label">🚨 CNHs Vencidas | Vencendo (30d)</span>
+                        <span class="stat-mini-val"><span class="accent-red" id="kpi-cnh-vencida">0</span> <span style="color:var(--text-muted);font-size:0.9rem;">/</span> <span class="accent-amber" id="kpi-cnh-vencendo">0</span></span>
+                        <span class="stat-mini-sub">Habilitação de condutores</span>
+                    </div>
+                    <div class="stat-mini" style="border-color:rgba(245,158,11,0.25);">
+                        <span class="stat-mini-label">🏖️ Férias Vencidas | Críticas (60d)</span>
+                        <span class="stat-mini-val"><span class="accent-red" id="kpi-dp-ferias-vencidas-card">0</span> <span style="color:var(--text-muted);font-size:0.9rem;">/</span> <span class="accent-amber" id="kpi-dp-ferias-criticas-card">0</span></span>
+                        <span class="stat-mini-sub">Risco de dobra CLT</span>
+                    </div>
+                    <div class="stat-mini" style="border-color:rgba(6,182,212,0.25);">
+                        <span class="stat-mini-label">🦺 EPIs Vencidos | Contratos Exp.</span>
+                        <span class="stat-mini-val"><span class="accent-red" id="kpi-dp-epi-vencido">0</span> <span style="color:var(--text-muted);font-size:0.9rem;">|</span> <span class="accent-cyan" id="kpi-dp-exp-ativos">0</span></span>
+                        <span class="stat-mini-sub">EPIs (NR-6) e Experiência 45/90d</span>
                     </div>
                 </div>
 
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;margin-bottom:1.2rem;">
-                    <div class="stat-mini" style="border-color:rgba(239,68,68,0.25);">
-                        <span class="stat-mini-label">🚨 ASOs Vencidos</span>
-                        <span class="stat-mini-val accent-red" id="kpi-dp-aso-vencido">0</span>
-                        <span style="font-size:0.72rem;color:var(--text-muted);">Risco de autuação</span>
-                    </div>
-                    <div class="stat-mini" style="border-color:rgba(245,158,11,0.25);">
-                        <span class="stat-mini-label">⏰ ASOs Vencendo (30d)</span>
-                        <span class="stat-mini-val accent-amber" id="kpi-dp-aso-vencendo">0</span>
-                        <span style="font-size:0.72rem;color:var(--text-muted);">Agendar exame</span>
-                    </div>
-                    <div class="stat-mini" style="border-color:rgba(239,68,68,0.25);">
-                        <span class="stat-mini-label">🚨 CNHs Vencidas</span>
-                        <span class="stat-mini-val accent-red" id="kpi-cnh-vencida">0</span>
-                        <span style="font-size:0.72rem;color:var(--text-muted);">Motoristas impedidos</span>
-                    </div>
-                    <div class="stat-mini" style="border-color:rgba(245,158,11,0.25);">
-                        <span class="stat-mini-label">⏰ CNHs Vencendo (30d)</span>
-                        <span class="stat-mini-val accent-amber" id="kpi-cnh-vencendo">0</span>
-                        <span style="font-size:0.72rem;color:var(--text-muted);">Avisar condutor</span>
-                    </div>
-                </div>
-
-                <!-- Seguros de Veículos -->
                 <div class="metric-row">
                     <span class="metric-label"><i data-lucide="shield" style="width:14px;height:14px;color:var(--info);"></i> Seguros de Veículos Vencendo em 30d</span>
                     <span class="metric-value accent-amber" id="kpi-seguro-vencendo">0</span>
@@ -1239,16 +1673,24 @@
                 </div>
             </div>
 
-            <!-- Aniversariantes do Mês -->
+            <!-- Lista Nominal de Pendências de Compliance + Aniversariantes -->
             <div class="card">
                 <div class="card-title">
                     <div class="card-title-left">
-                        <i data-lucide="cake" style="color:var(--warning);"></i>
-                        <span>Aniversariantes deste Mês</span>
+                        <i data-lucide="clipboard-list" style="color:var(--warning);"></i>
+                        <span>Pendências Nominais de Compliance & Aniversariantes</span>
                     </div>
                 </div>
-                <div id="aniversariantes-list">
-                    <p class="empty-msg">Carregando aniversariantes...</p>
+                <div id="dp-pendencias-nominais-list" style="margin-bottom:1rem;">
+                    <p class="empty-msg">Verificando pendências nominais...</p>
+                </div>
+                <div style="border-top:1px solid var(--border);padding-top:0.85rem;">
+                    <h5 style="font-size:0.78rem;color:var(--warning);text-transform:uppercase;margin-bottom:0.6rem;display:flex;align-items:center;gap:0.4rem;">
+                        <i data-lucide="cake" style="width:14px;height:14px;"></i> Aniversariantes deste Mês
+                    </h5>
+                    <div id="aniversariantes-list">
+                        <p class="empty-msg">Carregando aniversariantes...</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1260,76 +1702,201 @@
     ══════════════════════════════════════════════════════════════ -->
     <section id="view-comercial" class="view-section">
         
+        <div class="section-banner">
+            <div class="section-banner-title">
+                <i data-lucide="briefcase" style="color:#a78bfa;"></i>
+                <span>Módulo Comercial, Contratos, Propostas & Prestadores Agregados</span>
+            </div>
+            <span class="section-banner-sub">Carteira recorrente, funil de propostas, faturamento por cliente e conformidade de prestadores</span>
+        </div>
+
+        <!-- 6 KPIs Comerciais & Prestadores -->
+        <div class="kpi-row-6">
+            <div class="stat-mini">
+                <span class="stat-mini-label">✅ Contratos Ativos</span>
+                <span class="stat-mini-val accent-green" id="kpi-comercial-ativos">0</span>
+                <span class="stat-mini-sub" id="kpi-comercial-ticket-sub">Ticket médio: R$ 0,00</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">💲 Receita Contratual Ativa</span>
+                <span class="stat-mini-val accent-indigo" id="kpi-comercial-valor">R$ 0,00</span>
+                <span class="stat-mini-sub">Base contratual recorrente</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">📊 Propostas em Funil</span>
+                <span class="stat-mini-val accent-cyan" id="kpi-comercial-propostas">0</span>
+                <span class="stat-mini-sub" id="kpi-comercial-propostas-val">Potencial: R$ 0,00</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">⏰ Contratos Vencendo / Vencidos</span>
+                <span class="stat-mini-val"><span class="accent-amber" id="kpi-comercial-vencendo">0</span> / <span class="accent-red" id="kpi-comercial-vencidos">0</span></span>
+                <span class="stat-mini-sub">Atenção de renovação</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🤝 Prestadores / Agregados Ativos</span>
+                <span class="stat-mini-val accent-purple" id="kpi-prestadores-ativos">0</span>
+                <span class="stat-mini-sub" id="kpi-prestadores-pend-sub">0 com pendência</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🔍 Vistorias de Agregados</span>
+                <span class="stat-mini-val accent-amber" id="kpi-prestadores-vistorias">0</span>
+                <span class="stat-mini-sub">Vencidas ou vencendo (30d)</span>
+            </div>
+        </div>
+
         <div class="grid-2">
-            <!-- Comercial & Contratos -->
+            <!-- Evolução Mensal de Faturamento Comercial -->
             <div class="card">
                 <div class="card-title">
                     <div class="card-title-left">
-                        <i data-lucide="briefcase" style="color:#a78bfa;"></i>
-                        <span>Comercial & Faturamento Contratual</span>
+                        <i data-lucide="trending-up" style="color:var(--primary);"></i>
+                        <span>Evolução Mensal de Receitas de Clientes (Faturado vs Recebido)</span>
                     </div>
+                    <span id="badge-chart-comercial-meses" class="badge badge-info">Mês a Mês</span>
                 </div>
-                
-                <div class="grid-2" style="margin-bottom:1rem;">
-                    <div class="stat-mini">
-                        <span class="stat-mini-label">✅ Contratos Ativos</span>
-                        <span class="stat-mini-val accent-green" id="kpi-comercial-ativos">0</span>
-                    </div>
-                    <div class="stat-mini">
-                        <span class="stat-mini-label">💲 Faturamento Recorrente</span>
-                        <span class="stat-mini-val accent-indigo" id="kpi-comercial-valor">R$ 0,00</span>
-                    </div>
-                </div>
-
-                <div class="metric-row">
-                    <span class="metric-label">⏰ Contratos Vencendo em 30 Dias</span>
-                    <span class="metric-value accent-amber" id="kpi-comercial-vencendo">0</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">🚨 Contratos Vencidos</span>
-                    <span class="metric-value accent-red" id="kpi-comercial-vencidos">0</span>
-                </div>
-
-                <div style="margin-top:1.2rem;">
-                    <h5 style="font-size:0.8rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:0.6rem;">Top Clientes Contratuais</h5>
-                    <div id="top-clientes-list" style="display:flex;flex-direction:column;gap:0.4rem;">
-                        <p class="empty-msg">Carregando carteira de contratos...</p>
-                    </div>
+                <div class="chart-wrap">
+                    <canvas id="chart-comercial-evolucao-mensal"></canvas>
                 </div>
             </div>
 
-            <!-- Estoque de Peças & Almoxarifado -->
+            <!-- Top Clientes & Carteira de Contratos -->
             <div class="card">
                 <div class="card-title">
                     <div class="card-title-left">
-                        <i data-lucide="package" style="color:var(--warning);"></i>
-                        <span>Estoque de Peças (Almoxarifado)</span>
+                        <i data-lucide="award" style="color:var(--success);"></i>
+                        <span>Carteira de Clientes & Contratos (Valor Contratual vs Recebido)</span>
                     </div>
                 </div>
+                <div class="table-scroll">
+                    <table class="ranking-table">
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th>Demanda / Status</th>
+                                <th>Vencimento</th>
+                                <th style="text-align:right;">Valor Contrato</th>
+                                <th style="text-align:right;">Recebido Período</th>
+                            </tr>
+                        </thead>
+                        <tbody id="top-clientes-list">
+                            <tr><td colspan="5" class="empty-msg">Carregando carteira de contratos...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
-                <div class="grid-2" style="margin-bottom:1rem;">
-                    <div class="stat-mini">
-                        <span class="stat-mini-label">📦 Total de Itens</span>
-                        <span class="stat-mini-val" id="kpi-estoque-total">0</span>
+        <!-- ─── SEÇÃO: ESTOQUE & ALMOXARIFADO ─── -->
+        <div class="section-banner">
+            <div class="section-banner-title">
+                <i data-lucide="package" style="color:var(--warning);"></i>
+                <span>Estoque de Peças, Movimentações Mensais & Consumo por Veículo</span>
+            </div>
+            <span class="section-banner-sub">Capital imobilizado, entradas vs saídas mês a mês, categorias de peças e itens críticos</span>
+        </div>
+
+        <div class="kpi-row-6">
+            <div class="stat-mini">
+                <span class="stat-mini-label">📦 SKUs Ativos em Estoque</span>
+                <span class="stat-mini-val" id="kpi-estoque-total">0</span>
+                <span class="stat-mini-sub" id="kpi-estoque-unidades-sub">0 unidades totais</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">💵 Capital Imobilizado (Custo)</span>
+                <span class="stat-mini-val accent-green" id="kpi-estoque-valor">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-estoque-venda-sub">Valor venda: R$ 0,00</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">⚠️ Abaixo do Mínimo / Zerados</span>
+                <span class="stat-mini-val accent-red" id="kpi-estoque-alertas">0</span>
+                <span class="stat-mini-sub" id="kpi-estoque-zerados-sub">0 itens zerados</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">📥 Entradas no Período</span>
+                <span class="stat-mini-val accent-cyan" id="kpi-estoque-entradas-val">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-estoque-entradas-qtd">0 movimentações</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">📤 Saídas / Consumo no Período</span>
+                <span class="stat-mini-val accent-amber" id="kpi-estoque-saidas-val">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-estoque-saidas-qtd">Aplicado em OS/Frota</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🔄 Giro do Estoque no Período</span>
+                <span class="stat-mini-val accent-purple" id="kpi-estoque-giro">0%</span>
+                <span class="stat-mini-sub">Saídas / Estoque Atual</span>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <!-- Evolução Mensal de Movimentações de Estoque -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="bar-chart-2" style="color:var(--warning);"></i>
+                        <span>Evolução Mensal do Estoque (Entradas R$ vs Saídas/Consumo R$)</span>
                     </div>
-                    <div class="stat-mini">
-                        <span class="stat-mini-label">💵 Valor do Estoque</span>
-                        <span class="stat-mini-val accent-green" id="kpi-estoque-valor">R$ 0,00</span>
+                    <span id="badge-chart-estoque-meses" class="badge badge-warning">Mês a Mês</span>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="chart-estoque-evolucao-mensal"></canvas>
+                </div>
+            </div>
+
+            <!-- Valor de Estoque por Categoria -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="pie-chart" style="color:var(--info);"></i>
+                        <span>Valor Imobilizado por Categoria de Peça</span>
                     </div>
                 </div>
-
-                <div class="metric-row">
-                    <span class="metric-label">⚠️ Itens Abaixo do Estoque Mínimo</span>
-                    <span class="metric-value accent-amber" id="kpi-estoque-alertas">0</span>
+                <div class="chart-wrap">
+                    <canvas id="chart-estoque-categorias"></canvas>
                 </div>
+            </div>
+        </div>
 
-                <div style="margin-top:1.2rem;">
-                    <h5 style="font-size:0.8rem;color:var(--danger);text-transform:uppercase;margin-bottom:0.6rem;display:flex;align-items:center;gap:0.4rem;">
-                        <i data-lucide="alert-triangle" style="width:14px;height:14px;"></i> Itens em Estoque Crítico (Risco de Parada)
-                    </h5>
-                    <div id="estoque-critico-list" style="display:flex;flex-direction:column;gap:0.4rem;">
-                        <p class="empty-msg">Carregando estoque crítico...</p>
+        <div class="grid-2">
+            <!-- Itens em Estoque Crítico -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="alert-triangle" style="color:var(--danger);"></i>
+                        <span>Itens em Estoque Crítico (Abaixo do Mínimo — Risco de Parada)</span>
                     </div>
+                    <span class="badge badge-danger">Reposição Urgente</span>
+                </div>
+                <div id="estoque-critico-list" style="display:flex;flex-direction:column;gap:0.4rem;">
+                    <p class="empty-msg">Carregando estoque crítico...</p>
+                </div>
+            </div>
+
+            <!-- Curva ABC (Top Itens de Maior Valor Imobilizado em Estoque) -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="layers" style="color:var(--primary);"></i>
+                        <span>Curva ABC — Top Peças por Capital Imobilizado no Almoxarifado</span>
+                    </div>
+                    <span class="badge badge-info">Patrimônio Peças</span>
+                </div>
+                <div class="table-scroll">
+                    <table class="ranking-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Peça / Produto</th>
+                                <th>Categoria</th>
+                                <th style="text-align:right;">Saldo Atual</th>
+                                <th style="text-align:right;">Custo Unit.</th>
+                                <th style="text-align:right;">Valor Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="estoque-curva-abc-body">
+                            <tr><td colspan="6" class="empty-msg">Calculando curva ABC...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
