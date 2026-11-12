@@ -3402,6 +3402,9 @@ async function handleEntrySubmit(e) {
         if (!firstErrorEl) firstErrorEl = el;
     };
 
+    // Tipo do lançamento (PAGAR ou RECEBER)
+    const tipo = document.getElementById('entryTipo')?.value || 'PAGAR';
+
     // Campos Principais do Cabeçalho
     const elEmissao = document.getElementById('entryEmissao');
     const elNumNF = document.getElementById('entryNumNF');
@@ -3565,7 +3568,6 @@ async function handleEntrySubmit(e) {
 
     const formData = new FormData(e.target);
     const id = document.getElementById('entryId').value;
-    const tipo = document.getElementById('entryTipo').value || 'PAGAR';
     const numNFVal = (formData.get('num_nf') || '').trim();
 
     // Validação de Duplicidade de Nota Fiscal / Documento para o mesmo Favorecido/Fornecedor
@@ -7509,12 +7511,21 @@ function setupEventListeners() {
 function importData(tipo, input) { alert('Importação via CSV em desenvolvimento.'); }
 function exportToExcel(tipo) { alert('Exportação em preparação.'); }
 
-function switchSubTab(tabId) {
-    document.querySelectorAll('.subtab-item').forEach(btn => btn.classList.remove('active'));
-    document.querySelectorAll('.subtab-content').forEach(content => content.classList.remove('active'));
+function switchSubTab(tabId, el) {
+    const parentContainer = document.getElementById('tab-cadastro');
+    if (parentContainer) {
+        parentContainer.querySelectorAll('.subtab-item').forEach(btn => btn.classList.remove('active'));
+        parentContainer.querySelectorAll('.subtab-content').forEach(content => content.classList.remove('active'));
+    }
 
-    event.target.classList.add('active');
-    document.getElementById('subtab-' + tabId).classList.add('active');
+    const clickedBtn = el || (window.event ? window.event.target.closest('.subtab-item') : null);
+    if (clickedBtn) {
+        clickedBtn.classList.add('active');
+    }
+    const targetContent = document.getElementById('subtab-' + tabId);
+    if (targetContent) {
+        targetContent.classList.add('active');
+    }
     renderConfig();
 }
 
@@ -7536,7 +7547,18 @@ function renderConfig() {
             const matchFantasia = fantasia.includes(query);
             const matchDoc = doc.includes(query) || (cleanQueryDoc && docClean.includes(cleanQueryDoc));
 
-            return matchNome || matchFantasia || matchDoc;
+            // Permite filtrar pelo Plano de Contas padrão vinculado
+            let matchPlano = false;
+            if (f.plano_contas_id && state.categorias) {
+                const cat = state.categorias.find(c => c.id === f.plano_contas_id);
+                if (cat) {
+                    const catNome = (cat.nome || '').toLowerCase();
+                    const catCod = (cat.codigo || '').toLowerCase();
+                    matchPlano = catNome.includes(query) || catCod.includes(query);
+                }
+            }
+
+            return matchNome || matchFantasia || matchDoc || matchPlano;
         });
 
         if (filteredFornecedores.length === 0) {
@@ -7897,6 +7919,36 @@ async function handleFornecedorSubmit(e) {
     const data = Object.fromEntries(formData.entries());
 
     delete data.id;
+
+    const searchInput = document.getElementById('fornecedorPlanoSearch');
+    const searchText = (searchInput?.value || '').trim();
+
+    // Auto-resolução do Plano de Contas caso o usuário tenha digitado sem clicar explicitamente na lista
+    if (!data.plano_contas_id && searchText && state.categorias) {
+        const queryNorm = searchText.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        const matched = (state.categorias || []).find(c => {
+            const labelNorm = `${c.codigo || ''} - ${c.nome || ''}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+            const nomeNorm = (c.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+            const cod = (c.codigo || '').toLowerCase().trim();
+            return labelNorm === queryNorm || nomeNorm === queryNorm || (cod && (cod === queryNorm || queryNorm.startsWith(cod))) || labelNorm.includes(queryNorm) || nomeNorm.includes(queryNorm);
+        });
+        if (matched) {
+            data.plano_contas_id = matched.id;
+            const hiddenId = document.getElementById('fornecedorPlanoId');
+            if (hiddenId) hiddenId.value = matched.id;
+        }
+    }
+
+    if (!searchText) {
+        data.plano_contas_id = null;
+    } else if (!data.plano_contas_id && id) {
+        // Se estiver editando e o texto não foi apagado, preserva o plano_contas_id anterior para evitar desvinculação acidental
+        const currentForn = (state.fornecedores || []).find(f => f.id === id);
+        if (currentForn && currentForn.plano_contas_id) {
+            data.plano_contas_id = currentForn.plano_contas_id;
+        }
+    }
+
     if (!data.plano_contas_id) {
         data.plano_contas_id = null;
     }
@@ -9524,6 +9576,22 @@ window.handleFhistInputKeydown = (e, type, inputEl) => {
             list.pop();
             renderFhistTags(type);
         }
+    } else if (e.key === 'Enter') {
+        const wrapper = inputEl.closest('.autocomplete-wrapper');
+        const resultsDiv = wrapper ? wrapper.querySelector('.autocomplete-results') : null;
+        const items = resultsDiv ? resultsDiv.querySelectorAll('.autocomplete-item') : [];
+        if (currentFinAutocompleteIndex >= 0 && items[currentFinAutocompleteIndex]) {
+            e.preventDefault();
+            items[currentFinAutocompleteIndex].click();
+            currentFinAutocompleteIndex = -1;
+        } else if (inputEl.value.trim()) {
+            e.preventDefault();
+            if (type === 'entidade') {
+                addFhistTag('entidade', inputEl.value.trim());
+                inputEl.value = '';
+                if (resultsDiv) resultsDiv.style.display = 'none';
+            }
+        }
     } else {
         handleFinAutocompleteKeydown(e, inputEl);
     }
@@ -9536,15 +9604,17 @@ window.handleFhistEntidadeSearch = (el) => {
     if (!wrapper) return;
     const resultsDiv = wrapper.querySelector('.autocomplete-results');
 
+    // Reúne todos os parceiros cadastrados E também favorecidos presentes nos lançamentos financeiros
     const allPartners = [
         ...(state.fornecedores || []).map(f => ({ nome: f.nome, fantasia: f.nome_fantasia || '', doc: f.cnpj_cpf || f.cpf || f.cnpj || '', type: 'FORNECEDOR' })),
         ...(state.clientes || []).map(c => ({ nome: c.nome, fantasia: c.nome_fantasia || '', doc: c.cnpj_cpf || c.cpf || c.cnpj || '', type: 'CLIENTE' })),
-        ...(state.funcionariosDP || []).map(d => ({ nome: d.nome_completo, fantasia: '', doc: d.cpf || '', type: 'DP' }))
+        ...(state.funcionariosDP || []).map(d => ({ nome: d.nome_completo, fantasia: '', doc: d.cpf || '', type: 'DP' })),
+        ...(state.lancamentos || []).map(l => ({ nome: l.entidade_nome, fantasia: '', doc: '', type: 'LANÇAMENTO' }))
     ];
 
     const partnerMap = new Map();
     allPartners.forEach(p => {
-        if (!p.nome) return;
+        if (!p.nome || !p.nome.trim()) return;
         const key = p.nome.toLowerCase().trim();
         if (!partnerMap.has(key) || (p.doc && !partnerMap.get(key).doc)) {
             partnerMap.set(key, p);
@@ -10031,11 +10101,11 @@ function fhistSetPeriod(modo, btnEl) {
     dataFim.style.borderColor = '';
 }
 
-/** Popula os selects de categoria, CC e conta ao entrar na aba */
+/** Popula os selects legados de categoria, CC e conta se existirem */
 function fhistPopulateSelects() {
-    // Categorias
+    // Categorias (apenas se for elemento SELECT legado)
     const selCat = document.getElementById('fhist-categoria');
-    if (selCat && selCat.options.length === 1) {
+    if (selCat && selCat.tagName === 'SELECT' && selCat.options && selCat.options.length === 1) {
         (state.categorias || []).sort((a,b)=> (a.codigo||'').localeCompare(b.codigo||'')).forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.id;
@@ -10043,9 +10113,9 @@ function fhistPopulateSelects() {
             selCat.appendChild(opt);
         });
     }
-    // Centros de Custo
+    // Centros de Custo (apenas se for elemento SELECT legado)
     const selCC = document.getElementById('fhist-cc');
-    if (selCC && selCC.options.length === 1) {
+    if (selCC && selCC.tagName === 'SELECT' && selCC.options && selCC.options.length === 1) {
         (state.centrosCusto || []).sort((a,b)=> (a.nome||'').localeCompare(b.nome||'')).forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.id;
@@ -10053,9 +10123,9 @@ function fhistPopulateSelects() {
             selCC.appendChild(opt);
         });
     }
-    // Contas Bancárias
+    // Contas Bancárias (apenas se for elemento SELECT legado)
     const selConta = document.getElementById('fhist-conta');
-    if (selConta && selConta.options.length === 1) {
+    if (selConta && selConta.tagName === 'SELECT' && selConta.options && selConta.options.length === 1) {
         (state.contas || []).forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.id;
@@ -10064,7 +10134,7 @@ function fhistPopulateSelects() {
         });
     }
 
-    // Populate Select de Favorecido no Relatório
+    // Favorecidos (apenas se for elemento SELECT legado)
     populateFhistEntidadesSelect();
 
     if (window.lucide) lucide.createIcons();
@@ -10072,7 +10142,7 @@ function fhistPopulateSelects() {
 
 function populateFhistEntidadesSelect() {
     const selEntidade = document.getElementById('fhist-entidade');
-    if (!selEntidade) return;
+    if (!selEntidade || selEntidade.tagName !== 'SELECT') return;
     const currentVal = selEntidade.value;
     
     const allPartners = [
@@ -10166,10 +10236,65 @@ async function fhistGerar() {
     const status    = document.getElementById('fhist-status')?.value       || '';
 
     // Recupera seleções múltiplas (Pills)
-    const entidades = window.fhistSelectedFilters?.entidade || [];
-    const catIds    = (window.fhistSelectedFilters?.categoria || []).map(i => i.id);
-    const ccIds     = (window.fhistSelectedFilters?.cc || []).map(i => i.id);
-    const contaIds  = (window.fhistSelectedFilters?.conta || []).map(i => i.id);
+    const entidades = [...(window.fhistSelectedFilters?.entidade || [])];
+    const catIds    = [...((window.fhistSelectedFilters?.categoria || []).map(i => i.id))];
+    const ccIds     = [...((window.fhistSelectedFilters?.cc || []).map(i => i.id))];
+    const contaIds  = [...((window.fhistSelectedFilters?.conta || []).map(i => i.id))];
+
+    // Se o usuário digitou no campo de Favorecido e não clicou no autocomplete, inclui o texto digitado automaticamente
+    const rawEntidadeInput = document.getElementById('fhist-entidade-search');
+    const rawEntidadeText = (rawEntidadeInput?.value || '').trim();
+    if (rawEntidadeText && !entidades.includes(rawEntidadeText)) {
+        entidades.push(rawEntidadeText);
+        addFhistTag('entidade', rawEntidadeText);
+        if (rawEntidadeInput) rawEntidadeInput.value = '';
+    }
+
+    // Auto-resolução para Categoria caso tenha digitado sem clicar
+    const rawCatInput = document.getElementById('fhist-categoria-search');
+    const rawCatText = (rawCatInput?.value || '').trim().toLowerCase();
+    if (rawCatText && catIds.length === 0 && state.categorias) {
+        const matched = state.categorias.find(c => {
+            const label = `${c.codigo || ''} - ${c.nome || ''}`.toLowerCase().trim();
+            const nome = (c.nome || '').toLowerCase().trim();
+            const cod = (c.codigo || '').toLowerCase().trim();
+            return label === rawCatText || nome === rawCatText || (cod && rawCatText.startsWith(cod)) || label.includes(rawCatText) || nome.includes(rawCatText);
+        });
+        if (matched) {
+            catIds.push(matched.id);
+            addFhistTag('categoria', { id: matched.id, label: `${matched.codigo ? matched.codigo + ' — ' : ''}${matched.nome}` });
+            if (rawCatInput) rawCatInput.value = '';
+        }
+    }
+
+    // Auto-resolução para Centro de Custo caso tenha digitado sem clicar
+    const rawCCInput = document.getElementById('fhist-cc-search');
+    const rawCCText = (rawCCInput?.value || '').trim().toLowerCase();
+    if (rawCCText && ccIds.length === 0 && state.centrosCusto) {
+        const matched = state.centrosCusto.find(c => {
+            const label = `${c.codigo || ''} - ${c.nome || ''}`.toLowerCase().trim();
+            const nome = (c.nome || '').toLowerCase().trim();
+            const cod = (c.codigo || '').toLowerCase().trim();
+            return label === rawCCText || nome === rawCCText || (cod && rawCCText.startsWith(cod)) || label.includes(rawCCText) || nome.includes(rawCCText);
+        });
+        if (matched) {
+            ccIds.push(matched.id);
+            addFhistTag('cc', { id: matched.id, label: `${matched.codigo ? matched.codigo + ' — ' : ''}${matched.nome}` });
+            if (rawCCInput) rawCCInput.value = '';
+        }
+    }
+
+    // Auto-resolução para Conta Bancária caso tenha digitado sem clicar
+    const rawContaInput = document.getElementById('fhist-conta-search');
+    const rawContaText = (rawContaInput?.value || '').trim().toLowerCase();
+    if (rawContaText && contaIds.length === 0 && state.contas) {
+        const matched = state.contas.find(c => (c.nome || '').toLowerCase().includes(rawContaText));
+        if (matched) {
+            contaIds.push(matched.id);
+            addFhistTag('conta', { id: matched.id, label: matched.nome });
+            if (rawContaInput) rawContaInput.value = '';
+        }
+    }
 
     // Validação de Período Obrigatório
     if (!dataIni || !dataFim) {
@@ -10207,42 +10332,68 @@ async function fhistGerar() {
     if (area) area.innerHTML = '<div class="glass-table-container"><div class="fhist-empty"><span class="fhist-spinner"></span><div class="fhist-empty-title" style="margin-top:0">Buscando dados...</div></div></div>';
 
     try {
-        let query = supabaseClient.from('fin_lancamentos').select('*');
+        let allData = [];
+        let from = 0;
+        const step = 1000;
+        const maxRecords = 5000;
+        let finished = false;
 
-        if (tipo)    query = query.eq('tipo', tipo);
-        if (status)  query = query.eq('status', status);
-        if (dataIni) query = query.gte(dateField, dataIni);
-        if (dataFim) query = query.lte(dateField, dataFim);
+        while (!finished && allData.length < maxRecords) {
+            let query = supabaseClient.from('fin_lancamentos').select('*');
 
-        // Filtros Múltiplos
-        if (entidades.length === 1) {
-            query = query.ilike('entidade_nome', `%${entidades[0]}%`);
-        } else if (entidades.length > 1) {
-            query = query.in('entidade_nome', entidades);
+            if (tipo)    query = query.eq('tipo', tipo);
+            if (status)  query = query.eq('status', status);
+            if (dataIni) query = query.gte(dateField, dataIni);
+            if (dataFim) query = query.lte(dateField, dataFim);
+
+            // Filtros Múltiplos
+            if (entidades.length === 1) {
+                query = query.ilike('entidade_nome', `%${entidades[0].trim()}%`);
+            } else if (entidades.length > 1) {
+                const orConditions = entidades.map(e => `entidade_nome.ilike.%${encodeURIComponent(e.trim())}%`).join(',');
+                query = query.or(orConditions);
+            }
+
+            if (catIds.length === 1) {
+                query = query.eq('categoria_id', catIds[0]);
+            } else if (catIds.length > 1) {
+                query = query.in('categoria_id', catIds);
+            }
+
+            if (ccIds.length === 1) {
+                query = query.eq('centro_custo_id', ccIds[0]);
+            } else if (ccIds.length > 1) {
+                query = query.in('centro_custo_id', ccIds);
+            }
+
+            if (contaIds.length === 1) {
+                query = query.eq('conta_bancaria_id', contaIds[0]);
+            } else if (contaIds.length > 1) {
+                query = query.in('conta_bancaria_id', contaIds);
+            }
+
+            const currentStep = Math.min(step, maxRecords - allData.length);
+            const { data, error } = await query
+                .order(dateField, { ascending: false })
+                .range(from, from + currentStep - 1);
+
+            if (error) throw error;
+
+            if (!data || data.length === 0) {
+                finished = true;
+                break;
+            }
+
+            allData = allData.concat(data);
+
+            if (data.length < currentStep) {
+                finished = true;
+            } else {
+                from += currentStep;
+            }
         }
 
-        if (catIds.length === 1) {
-            query = query.eq('categoria_id', catIds[0]);
-        } else if (catIds.length > 1) {
-            query = query.in('categoria_id', catIds);
-        }
-
-        if (ccIds.length === 1) {
-            query = query.eq('centro_custo_id', ccIds[0]);
-        } else if (ccIds.length > 1) {
-            query = query.in('centro_custo_id', ccIds);
-        }
-
-        if (contaIds.length === 1) {
-            query = query.eq('conta_bancaria_id', contaIds[0]);
-        } else if (contaIds.length > 1) {
-            query = query.in('conta_bancaria_id', contaIds);
-        }
-
-        const { data, error } = await query.order(dateField, { ascending: false }).limit(2000);
-        if (error) throw error;
-
-        fhistData = data || [];
+        fhistData = allData || [];
         fhistRenderTabela();
 
     } catch (err) {

@@ -857,7 +857,34 @@ async function handleSaveFornecedor(e) {
         alert(`Você não tem permissão para ${isEditing ? 'editar' : 'cadastrar'} fornecedores.`);
         return;
     }
-    const fPlanoVal = document.getElementById('fPlanoId')?.value || null;
+    let fPlanoVal = document.getElementById('fPlanoId')?.value || null;
+    const fPlanoSearch = (document.getElementById('fPlanoSearch')?.value || '').trim();
+
+    // Auto-resolução do Plano de Contas caso o usuário tenha digitado sem clicar explicitamente no item
+    if (!fPlanoVal && fPlanoSearch && config.categorias) {
+        const queryNorm = fPlanoSearch.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        const matched = (config.categorias || []).find(c => {
+            const labelNorm = `${c.codigo || ''} - ${c.nome || ''}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+            const nomeNorm = (c.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+            const cod = (c.codigo || '').toLowerCase().trim();
+            return labelNorm === queryNorm || nomeNorm === queryNorm || (cod && (cod === queryNorm || queryNorm.startsWith(cod))) || labelNorm.includes(queryNorm) || nomeNorm.includes(queryNorm);
+        });
+        if (matched) {
+            fPlanoVal = matched.id;
+            const hiddenId = document.getElementById('fPlanoId');
+            if (hiddenId) hiddenId.value = matched.id;
+        }
+    }
+
+    if (!fPlanoSearch) {
+        fPlanoVal = null;
+    } else if (!fPlanoVal && id) {
+        // Se estiver editando e o texto não foi apagado, preserva o plano_contas_id anterior para evitar desvinculação acidental
+        const currentF = (config.fornecedores || []).find(x => x.id == id);
+        if (currentF && currentF.plano_contas_id) {
+            fPlanoVal = currentF.plano_contas_id;
+        }
+    }
 
     const data = {
         nome: document.getElementById('fNome').value,
