@@ -31,6 +31,8 @@ let chartFrotaEvolucaoMensal = null;
 let chartFrotaStatus = null;
 let chartFrotaCentrosCusto = null;
 let chartCombEvolucaoMensal = null;
+let chartCombTipos = null;
+let chartCombClassificacao = null;
 let chartManutEvolucaoMensal = null;
 let chartDpEvolucaoMensal = null;
 let chartDpSetores = null;
@@ -339,7 +341,7 @@ window.switchTab = function(tabId) {
             chartFinEvolucaoMensal, chartDespesasCateg,
             chartComprasEvolucaoMensal, chartMixCompras,
             chartFrotaEvolucaoMensal, chartFrotaStatus, chartFrotaCentrosCusto,
-            chartCombEvolucaoMensal, chartManutEvolucaoMensal,
+            chartCombEvolucaoMensal, chartCombTipos, chartCombClassificacao, chartManutEvolucaoMensal,
             chartDpEvolucaoMensal, chartDpSetores,
             chartComercialEvolucaoMensal, chartEstoqueEvolucaoMensal, chartEstoqueCategorias
         ].forEach(ch => { if (ch) ch.resize(); });
@@ -460,21 +462,59 @@ async function carregarFinanceiro(ctx) {
 // 2. Compras, Itens de Compra e Centros de Custo
 async function carregarCompras(ctx) {
     try {
-        const [compRes, ccRes] = await Promise.allSettled([
+        const [compRes, ccRes, fornRes] = await Promise.allSettled([
             sb.from('compras')
-                .select('id, data_emissao, numero_nota, fornecedor_id, centro_custo_id, valor_total, financeiro_parcelado, qtd_parcelas, fornecedores:fornecedor_id(nome, plano_contas_id)')
+                .select('id, data_emissao, numero_nota, fornecedor_id, valor_total, financeiro_parcelado, qtd_parcelas, categoria_id, consolidado_vales, observacoes, fornecedores:fornecedor_id(nome, plano_contas_id)')
                 .gte('data_emissao', ctx.inicioFetch)
                 .lte('data_emissao', ctx.fim)
                 .order('data_emissao', { ascending: false }),
             sb.from('centros_custo')
                 .select('id, codigo, nome, parent_id')
-                .order('codigo', { ascending: true })
+                .order('codigo', { ascending: true }),
+            sb.from('fornecedores')
+                .select('id, nome, razao_social')
+                .limit(2000)
         ]);
 
-        const todasCompras = (compRes.status === 'fulfilled' && compRes.value.data) ? compRes.value.data : [];
+        const rawCompras = (compRes.status === 'fulfilled' && compRes.value.data && !compRes.value.error) ? compRes.value.data : [];
+        // Excluir notas de fechamento consolidado de vales para evitar duplicidade de valores e itens sem centro de custo
+        const todasCompras = rawCompras.filter(c => {
+            const isFechamento = Boolean(
+                c.consolidado_vales || 
+                c.consolidadoVales || 
+                (c.id && String(c.id).startsWith('NC-FAT-')) ||
+                (c.observacoes && String(c.observacoes).includes('[CONSOLIDADO FECHAMENTO VALES]'))
+            );
+            return !isFechamento;
+        });
         dadosBrutos.comprasHistorico = todasCompras;
         dadosBrutos.compras = todasCompras.filter(c => c.data_emissao >= ctx.inicio && c.data_emissao <= ctx.fim);
-        dadosBrutos.centrosCusto = (ccRes.status === 'fulfilled' && ccRes.value.data) ? ccRes.value.data : [];
+        dadosBrutos.centrosCusto = (ccRes.status === 'fulfilled' && ccRes.value.data && !ccRes.value.error) ? ccRes.value.data : [];
+
+        // Mapa de fornecedores para resolução precisa de nomes
+        const rawForns = (fornRes && fornRes.status === 'fulfilled' && fornRes.value.data && !fornRes.value.error) ? fornRes.value.data : [];
+        dadosBrutos.fornecedores = rawForns;
+        if (!dadosBrutos.fornecedoresMap) dadosBrutos.fornecedoresMap = {};
+        rawForns.forEach(f => {
+            if (f && f.id) {
+                dadosBrutos.fornecedoresMap[String(f.id)] = f.nome || f.razao_social || 'Fornecedor';
+            }
+        });
+        todasCompras.forEach(c => {
+            if (c.fornecedor_id) {
+                let fNome = '';
+                if (c.fornecedores) {
+                    if (Array.isArray(c.fornecedores) && c.fornecedores.length > 0) {
+                        fNome = c.fornecedores[0].nome || c.fornecedores[0].razao_social;
+                    } else if (typeof c.fornecedores === 'object') {
+                        fNome = c.fornecedores.nome || c.fornecedores.razao_social;
+                    }
+                }
+                if (fNome && !dadosBrutos.fornecedoresMap[String(c.fornecedor_id)]) {
+                    dadosBrutos.fornecedoresMap[String(c.fornecedor_id)] = fNome;
+                }
+            }
+        });
 
         const compraIds = todasCompras.map(c => c.id).filter(Boolean);
         let todosItens = [];
@@ -541,8 +581,8 @@ async function carregarAbastecimento(ctx) {
         for (let offset = 0; offset < MAX_REGISTROS; offset += BATCH_SIZE) {
             const tableOrView = useView ? 'view_abastecimentos_completo' : 'abastecimentos';
             const selectCols = useView
-                ? 'id, veiculo_id, veiculo_placa, veiculo_modelo, veiculo_classificacao, valor_total, litros, km_atual, valor_unitario, tipo_combustivel, posto_nome, data'
-                : 'id, veiculo_id, valor_total, litros, km_atual, valor_unitario, tipo_combustivel, data';
+                ? 'id, veiculo_id, veiculo_placa, veiculo_modelo, veiculo_classificacao, valor_total, litros, km_atual, valor_unitario, tipo_combustivel, posto_nome, motorista_nome, motorista_id, data'
+                : 'id, veiculo_id, motorista_id, valor_total, litros, km_atual, valor_unitario, tipo_combustivel, data';
 
             const { data, error } = await sb.from(tableOrView)
                 .select(selectCols)
@@ -581,7 +621,7 @@ async function carregarManutencao(ctx) {
     try {
         const [manutRes, pendRes] = await Promise.allSettled([
             sb.from('manutencoes')
-                .select('id, veiculo_id, oficina_id, valor_total, tipo_id, status, data, manutencao_tipos:tipo_id(descricao), manutencao_itens(valor_pecas, valor_servicos)')
+                .select('id, veiculo_id, oficina_id, valor_total, tipo_id, status, data, numero_os, manutencao_tipos:tipo_id(descricao), fornecedores:oficina_id(nome), manutencao_itens(descricao, quantidade, valor_pecas, valor_servicos, valor_total)')
                 .gte('data', ctx.inicioFetch)
                 .lte('data', ctx.fim + 'T23:59:59')
                 .order('data', { ascending: false }),
@@ -607,6 +647,18 @@ async function carregarManutencao(ctx) {
             return dt >= ctx.inicio && dt <= ctx.fim;
         });
         dadosBrutos.manutPendentes = (pendRes.status === 'fulfilled' && pendRes.value.data) ? pendRes.value.data : [];
+
+        if (!dadosBrutos.fornecedoresMap) dadosBrutos.fornecedoresMap = {};
+        manutAll.forEach(m => {
+            if (m.oficina_id && m.fornecedores) {
+                let oname = '';
+                if (Array.isArray(m.fornecedores) && m.fornecedores.length > 0) oname = m.fornecedores[0].nome || m.fornecedores[0].razao_social;
+                else if (typeof m.fornecedores === 'object') oname = m.fornecedores.nome || m.fornecedores.razao_social;
+                if (oname && !dadosBrutos.fornecedoresMap[String(m.oficina_id)]) {
+                    dadosBrutos.fornecedoresMap[String(m.oficina_id)] = oname;
+                }
+            }
+        });
     } catch (e) {
         console.warn('[Gerencial] Erro no módulo Manutenção:', e);
         dadosBrutos.manutencoesHistorico = [];
@@ -662,7 +714,7 @@ async function carregarEstoque(ctx) {
                 .lte('data', ctx.fim + 'T23:59:59')
                 .order('data', { ascending: false }),
             sb.from('vendas')
-                .select('id, codigo, data, tipo, veiculo_id, placa, valor_total, status_pagamento')
+                .select('id, codigo, data, tipo, veiculo_id, placa, valor_total, status_pagamento, status')
                 .gte('data', ctx.inicioFetch)
                 .lte('data', ctx.fim + 'T23:59:59')
         ]);
@@ -671,13 +723,24 @@ async function carregarEstoque(ctx) {
         const movs = (movRes.status === 'fulfilled' && movRes.value.data) ? movRes.value.data : [];
         const vendas = (vendasRes.status === 'fulfilled' && vendasRes.value.data) ? vendasRes.value.data : [];
 
+        // Identificar códigos de vendas canceladas para blindagem total contra saídas canceladas
+        const canceladasCodigos = new Set();
+        vendas.forEach(v => {
+            const st = (v.status || '').toUpperCase();
+            const stPgto = (v.status_pagamento || '').toUpperCase();
+            if (st === 'CANCELADA' || st === 'CANCELADO' || stPgto === 'CANCELADA' || stPgto === 'CANCELADO') {
+                if (v.codigo) canceladasCodigos.add(v.codigo.toUpperCase().trim());
+            }
+        });
+        dadosBrutos.vendasCanceladasCodigos = canceladasCodigos;
+
         dadosBrutos.estoqueMovsHistorico = movs;
         dadosBrutos.estoqueMovs = movs.filter(m => {
             const dt = String(m.data || '').slice(0, 10);
             return dt >= ctx.inicio && dt <= ctx.fim;
         });
-        dadosBrutos.vendasHistorico = vendas;
-        dadosBrutos.vendas = vendas.filter(v => {
+        dadosBrutos.vendasHistorico = vendas.filter(v => (v.status || '').toUpperCase() !== 'CANCELADA');
+        dadosBrutos.vendas = dadosBrutos.vendasHistorico.filter(v => {
             const dt = String(v.data || '').slice(0, 10);
             return dt >= ctx.inicio && dt <= ctx.fim;
         });
@@ -688,7 +751,31 @@ async function carregarEstoque(ctx) {
         dadosBrutos.estoqueMovs = [];
         dadosBrutos.vendasHistorico = [];
         dadosBrutos.vendas = [];
+        dadosBrutos.vendasCanceladasCodigos = new Set();
     }
+}
+
+// Helper para identificar movimentações de estoque canceladas, estornos ou revertidas
+function isMovimentoEstoqueCancelado(m, canceladasCodigos = null) {
+    if (!m) return false;
+    const tipo = (m.tipo || '').toUpperCase();
+    if (tipo === 'ESTORNO') return true;
+    const motivo = (m.motivo || '').toUpperCase();
+    if (motivo.includes('[CANCELADA]') || motivo.includes('(CANCELAMENTO)') || motivo.includes('CANCELADO') || motivo.includes('EXCLUÍDO') || motivo.includes('EXCLUIDO')) {
+        return true;
+    }
+    const resp = (m.responsavel || '').toUpperCase();
+    if (resp.includes('(CANCELAMENTO)')) return true;
+    const st = (m.status || '').toUpperCase();
+    if (st === 'CANCELADA' || st === 'CANCELADO') return true;
+
+    const cods = canceladasCodigos || dadosBrutos.vendasCanceladasCodigos;
+    if (cods && cods.size > 0) {
+        for (const cod of cods) {
+            if (cod && motivo.includes(cod)) return true;
+        }
+    }
+    return false;
 }
 
 // 8. Comercial, Contratos e Prestadores (Agregados)
@@ -720,17 +807,30 @@ async function carregarComercial(ctx) {
 
 function getFrotaStatusCounts(veiculos = []) {
     const total = veiculos.length;
-    const emManut = veiculos.filter(v =>
-        (v.status || '').toUpperCase() === 'MANUTENCAO' ||
-        (v.status_alocacao || '').toUpperCase() === 'MANUTENCAO'
-    ).length;
-    const alocados = veiculos.filter(v => {
-        const isManut = (v.status || '').toUpperCase() === 'MANUTENCAO' || (v.status_alocacao || '').toUpperCase() === 'MANUTENCAO';
-        const isGaragem = (v.status_alocacao || '').toUpperCase() === 'GARAGEM';
-        return !isManut && !isGaragem && (v.motorista_alocado_id || v.motorista_alocado_2_id);
-    }).length;
-    const patio = Math.max(0, total - alocados - emManut);
-    return { total, alocados, emManut, patio };
+    let emManut = 0;
+    let garagem = 0;
+    let alocados = 0;
+    let patio = 0;
+
+    veiculos.forEach(v => {
+        const sa = (v.status_alocacao || '').toUpperCase();
+        const st = (v.status || '').toUpperCase();
+        const isManut = st === 'MANUTENCAO' || sa === 'MANUTENCAO';
+        const isGaragem = sa === 'GARAGEM';
+        const hasMot = Boolean(v.motorista_alocado_id || v.motorista_alocado_2_id);
+
+        if (isManut) {
+            emManut++;
+        } else if (isGaragem) {
+            garagem++;
+        } else if (hasMot) {
+            alocados++;
+        } else {
+            patio++;
+        }
+    });
+
+    return { total, alocados, emManut, garagem, patio };
 }
 
 function getManutValor(m) {
@@ -775,12 +875,13 @@ function classificarNaturezaVeicular(l) {
 // ============================================================
 
 function renderTodos() {
+    initFiltrosFrota();
+    renderFrota();
     renderHealthScoreAndCockpit();
     renderAlertas();
     renderPatrimonio();
     renderFinanceiro();
     renderCompras();
-    renderFrota();
     renderDP();
     renderComercial();
     renderEstoque();
@@ -950,7 +1051,8 @@ function renderHealthScoreAndCockpit() {
     const despVeicularesFin = lp.filter(l => l.tipo === 'PAGAR' && isPago(l) && classificarNaturezaVeicular(l) !== null)
         .reduce((s, l) => s + valReal(l), 0);
 
-    const custoTotalFrotaPeriodo = absGasto + manGasto + despVeicularesFin + (dadosBrutos.compraItens || []).filter(it => it.vinculo_veiculo_id).reduce((s, it) => s + ((parseFloat(it.quantidade) || 1) * (parseFloat(it.valor_unitario) || 0)), 0);
+    // Custo Total da Frota = Combustível + Manutenção/Peças/Serviços (sem duplicar com módulo financeiro)
+    const custoTotalFrotaPeriodo = absGasto + (dadosBrutos.totalGastoManutencaoGeral || (manGasto + (dadosBrutos.compraItens || []).filter(it => it.vinculo_veiculo_id).reduce((s, it) => s + ((parseFloat(it.quantidade) || 1) * (parseFloat(it.valor_unitario) || 0)), 0)));
 
     // KM rodado no período
     const kmTotalPeriodo = calcularKmTotalFrota(dadosBrutos.abastecimentos || []);
@@ -1446,8 +1548,7 @@ function renderCompras() {
 
     if (itens.length > 0) {
         itens.forEach(it => {
-            const comp = compraMap[it.compra_id];
-            const ccId = it.centro_custo_id || comp?.centro_custo_id;
+            const ccId = it.centro_custo_id;
             const nomeCC = (ccId && ccMap[String(ccId)]) ? ccMap[String(ccId)] : (it.vinculo_veiculo_id ? 'Manutenção / Aplicação Veicular' : 'Geral / Suprimentos');
             const val = (parseFloat(it.quantidade) || 1) * (parseFloat(it.valor_unitario) || 0);
             if (!porCC[nomeCC]) porCC[nomeCC] = { count: 0, total: 0 };
@@ -1457,7 +1558,7 @@ function renderCompras() {
         });
     } else {
         compras.forEach(c => {
-            const nomeCC = (c.centro_custo_id && ccMap[String(c.centro_custo_id)]) ? ccMap[String(c.centro_custo_id)] : 'Geral / Suprimentos';
+            const nomeCC = 'Geral / Suprimentos';
             const val = parseFloat(c.valor_total) || 0;
             if (!porCC[nomeCC]) porCC[nomeCC] = { count: 0, total: 0 };
             porCC[nomeCC].count += 1;
@@ -1520,22 +1621,577 @@ function renderCompras() {
     }
 }
 
+// ─── 6. FILTROS INTELIGENTES CASCATEADOS DA FROTA (CLASSIFICAÇÃO & PLACA) ───
+const stateFiltroFrota = {
+    classificacoes: new Set(),
+    placas: new Set(),
+    eventsBound: false
+};
+
+function normalizeClassificacaoFrota(rawClass) {
+    const raw = String(rawClass || 'PROPRIO').trim().toUpperCase();
+    if (raw === 'PROPRIO' || raw === 'CASA') return 'PROPRIO';
+    if (raw === 'ESPECIAL') return 'ESPECIAL';
+    if (raw === 'DIRETORIA') return 'DIRETORIA';
+    if (raw === 'TERCEIRO' || raw === 'TERCEIROS') return 'TERCEIRO';
+    if (raw === 'ALUGADO' || raw === 'LOCADO') return 'ALUGADO';
+    return raw || 'OUTRO';
+}
+
+function getClassificacaoLabel(key) {
+    const labels = {
+        'PROPRIO': 'Próprio',
+        'ESPECIAL': 'Especiais',
+        'DIRETORIA': 'Diretoria',
+        'TERCEIRO': 'Terceiros',
+        'ALUGADO': 'Alugados',
+        'OUTRO': 'Outros'
+    };
+    return labels[key] || (key.charAt(0).toUpperCase() + key.slice(1).toLowerCase());
+}
+
+function getVeiculosPorClassificacaoFiltro() {
+    const todos = dadosBrutos.veiculos || [];
+    if (!stateFiltroFrota.classificacoes.size) return todos;
+    return todos.filter(v => stateFiltroFrota.classificacoes.has(normalizeClassificacaoFrota(v.classificacao)));
+}
+
+function getVeiculosFiltradosFrota() {
+    const todos = dadosBrutos.veiculos || [];
+    const veicsClass = getVeiculosPorClassificacaoFiltro();
+    if (stateFiltroFrota.placas.size > 0) {
+        return veicsClass.filter(v => {
+            const pNorm = String(v.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const idNorm = String(v.id || '').toLowerCase();
+            return stateFiltroFrota.placas.has(pNorm) || stateFiltroFrota.placas.has(idNorm);
+        });
+    }
+    return veicsClass;
+}
+
+function renderOpcoesPlacas() {
+    const optionsPlacaEl = document.getElementById('options-filtro-placa');
+    if (!optionsPlacaEl) return;
+
+    const veiculosDisponiveis = getVeiculosPorClassificacaoFiltro();
+
+    // Cascata inteligente: se alguma placa selecionada não pertence mais às classificações ativas, desmarcar
+    const placasValidas = new Set();
+    veiculosDisponiveis.forEach(v => {
+        const pNorm = String(v.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const idNorm = String(v.id || '').toLowerCase();
+        if (pNorm) placasValidas.add(pNorm);
+        if (idNorm) placasValidas.add(idNorm);
+    });
+
+    stateFiltroFrota.placas.forEach(p => {
+        if (!placasValidas.has(p)) {
+            stateFiltroFrota.placas.delete(p);
+        }
+    });
+
+    if (veiculosDisponiveis.length === 0) {
+        optionsPlacaEl.innerHTML = '<div style="padding:0.75rem; text-align:center; color:var(--text-muted); font-size:0.78rem;">Nenhum veículo nesta classificação</div>';
+        return;
+    }
+
+    const sortedVeics = [...veiculosDisponiveis].sort((a, b) => String(a.placa || '').localeCompare(String(b.placa || '')));
+
+    optionsPlacaEl.innerHTML = sortedVeics.map(v => {
+        const pNorm = String(v.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const isChecked = stateFiltroFrota.placas.has(pNorm) || (v.id && stateFiltroFrota.placas.has(String(v.id).toLowerCase()));
+        const searchStr = `${v.placa || ''} ${v.modelo || ''} ${v.classificacao || ''}`.toLowerCase();
+        const classKey = normalizeClassificacaoFrota(v.classificacao);
+        const classLabel = getClassificacaoLabel(classKey);
+
+        return `
+        <div class="frota-option-item ${isChecked ? 'selected' : ''}" data-key="${pNorm}" data-search="${searchStr}" onclick="toggleFiltroPlaca('${pNorm}')">
+            <input type="checkbox" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation(); toggleFiltroPlaca('${pNorm}')">
+            <div class="frota-option-info">
+                <div class="frota-option-main">
+                    <span style="font-weight:700; letter-spacing:0.04em;">${v.placa || 'SEM PLACA'}</span>
+                    <span class="frota-count-badge" style="font-size:0.65rem;">${classLabel}</span>
+                </div>
+                ${v.modelo ? `<span class="frota-option-sub">${v.modelo}</span>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+
+    const searchInput = document.getElementById('search-filtro-placa');
+    if (searchInput && searchInput.value.trim()) {
+        const termo = searchInput.value.trim().toLowerCase();
+        optionsPlacaEl.querySelectorAll('.frota-option-item').forEach(item => {
+            const searchData = item.getAttribute('data-search') || '';
+            item.style.display = searchData.includes(termo) ? 'flex' : 'none';
+        });
+    }
+}
+
+function initFiltrosFrota() {
+    const veiculos = dadosBrutos.veiculos || [];
+    if (!veiculos.length) return;
+
+    const classMap = new Map();
+    veiculos.forEach(v => {
+        const key = normalizeClassificacaoFrota(v.classificacao);
+        const label = getClassificacaoLabel(key);
+        if (!classMap.has(key)) {
+            classMap.set(key, { key, label, count: 0 });
+        }
+        classMap.get(key).count++;
+    });
+
+    const optionsClassEl = document.getElementById('options-filtro-classificacao');
+    if (optionsClassEl) {
+        const sortedClass = Array.from(classMap.values()).sort((a, b) => b.count - a.count);
+        optionsClassEl.innerHTML = sortedClass.map(c => {
+            const isChecked = stateFiltroFrota.classificacoes.has(c.key);
+            return `
+            <div class="frota-option-item ${isChecked ? 'selected' : ''}" data-key="${c.key}" onclick="toggleFiltroClassificacao('${c.key}')">
+                <input type="checkbox" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation(); toggleFiltroClassificacao('${c.key}')">
+                <div class="frota-option-info">
+                    <div class="frota-option-main">
+                        <span style="font-weight:600;">${c.label}</span>
+                        <span class="frota-count-badge">${c.count}</span>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    renderOpcoesPlacas();
+    atualizarLabelsFiltrosFrota();
+
+    if (!stateFiltroFrota.eventsBound) {
+        bindFiltrosFrotaEvents();
+        stateFiltroFrota.eventsBound = true;
+    }
+    if (window.lucide) lucide.createIcons();
+}
+
+function toggleFiltroClassificacao(key) {
+    if (stateFiltroFrota.classificacoes.has(key)) {
+        stateFiltroFrota.classificacoes.delete(key);
+    } else {
+        stateFiltroFrota.classificacoes.add(key);
+    }
+
+    const optionsClassEl = document.getElementById('options-filtro-classificacao');
+    if (optionsClassEl) {
+        optionsClassEl.querySelectorAll('.frota-option-item').forEach(item => {
+            const k = item.getAttribute('data-key');
+            const isChecked = stateFiltroFrota.classificacoes.has(k);
+            item.classList.toggle('selected', isChecked);
+            const chk = item.querySelector('input[type="checkbox"]');
+            if (chk) chk.checked = isChecked;
+        });
+    }
+
+    renderOpcoesPlacas();
+    atualizarLabelsFiltrosFrota();
+    aplicarFiltrosFrota();
+}
+
+function toggleFiltroPlaca(pNorm) {
+    if (stateFiltroFrota.placas.has(pNorm)) {
+        stateFiltroFrota.placas.delete(pNorm);
+    } else {
+        stateFiltroFrota.placas.add(pNorm);
+    }
+
+    const optionsPlacaEl = document.getElementById('options-filtro-placa');
+    if (optionsPlacaEl) {
+        optionsPlacaEl.querySelectorAll('.frota-option-item').forEach(item => {
+            const k = item.getAttribute('data-key');
+            const isChecked = stateFiltroFrota.placas.has(k);
+            item.classList.toggle('selected', isChecked);
+            const chk = item.querySelector('input[type="checkbox"]');
+            if (chk) chk.checked = isChecked;
+        });
+    }
+
+    atualizarLabelsFiltrosFrota();
+    aplicarFiltrosFrota();
+}
+
+function atualizarLabelsFiltrosFrota() {
+    const totalVeiculos = (dadosBrutos.veiculos || []).length;
+    const veiculosFiltrados = getVeiculosFiltradosFrota();
+    const isAtivo = (stateFiltroFrota.classificacoes.size > 0 || stateFiltroFrota.placas.size > 0);
+
+    const labelClassEl = document.getElementById('label-filtro-classificacao');
+    if (labelClassEl) {
+        const size = stateFiltroFrota.classificacoes.size;
+        if (size === 0) {
+            labelClassEl.textContent = 'Classificação: Todas';
+        } else if (size === 1) {
+            const first = Array.from(stateFiltroFrota.classificacoes)[0];
+            labelClassEl.textContent = `Classificação: ${getClassificacaoLabel(first)}`;
+        } else {
+            labelClassEl.textContent = `Classificação: ${size} selecionadas`;
+        }
+    }
+
+    const labelPlacaEl = document.getElementById('label-filtro-placa');
+    if (labelPlacaEl) {
+        const size = stateFiltroFrota.placas.size;
+        if (size === 0) {
+            labelPlacaEl.textContent = stateFiltroFrota.classificacoes.size > 0 ? 'Placas: Todas da seleção' : 'Placas: Todas';
+        } else if (size === 1) {
+            const first = Array.from(stateFiltroFrota.placas)[0];
+            labelPlacaEl.textContent = `Placa: ${first}`;
+        } else {
+            labelPlacaEl.textContent = `Placas: ${size} selecionadas`;
+        }
+    }
+
+    const badgeStatus = document.getElementById('badge-filtro-frota-status');
+    const textStatus = document.getElementById('text-filtro-frota-status');
+    const btnLimpar = document.getElementById('btn-limpar-filtros-frota');
+
+    if (badgeStatus && textStatus) {
+        if (isAtivo) {
+            badgeStatus.style.display = 'inline-flex';
+            textStatus.textContent = `Exibindo: ${veiculosFiltrados.length} de ${totalVeiculos} veículos`;
+        } else {
+            badgeStatus.style.display = 'none';
+        }
+    }
+
+    if (btnLimpar) {
+        btnLimpar.style.display = isAtivo ? 'inline-flex' : 'none';
+    }
+}
+
+function aplicarFiltrosFrota() {
+    renderFrota();
+    atualizarGraficos();
+    if (window.lucide) lucide.createIcons();
+}
+
+function limparFiltrosFrota() {
+    stateFiltroFrota.classificacoes.clear();
+    stateFiltroFrota.placas.clear();
+
+    const searchInput = document.getElementById('search-filtro-placa');
+    if (searchInput) searchInput.value = '';
+
+    const optionsClassEl = document.getElementById('options-filtro-classificacao');
+    if (optionsClassEl) {
+        optionsClassEl.querySelectorAll('.frota-option-item').forEach(item => {
+            item.classList.remove('selected');
+            const chk = item.querySelector('input[type="checkbox"]');
+            if (chk) chk.checked = false;
+        });
+    }
+
+    renderOpcoesPlacas();
+    atualizarLabelsFiltrosFrota();
+    aplicarFiltrosFrota();
+}
+
+function selecionarTodasClassificacoes() {
+    const veiculos = dadosBrutos.veiculos || [];
+    veiculos.forEach(v => {
+        stateFiltroFrota.classificacoes.add(normalizeClassificacaoFrota(v.classificacao));
+    });
+
+    const optionsClassEl = document.getElementById('options-filtro-classificacao');
+    if (optionsClassEl) {
+        optionsClassEl.querySelectorAll('.frota-option-item').forEach(item => {
+            item.classList.add('selected');
+            const chk = item.querySelector('input[type="checkbox"]');
+            if (chk) chk.checked = true;
+        });
+    }
+
+    renderOpcoesPlacas();
+    atualizarLabelsFiltrosFrota();
+    aplicarFiltrosFrota();
+}
+
+function limparClassificacoes() {
+    stateFiltroFrota.classificacoes.clear();
+    const optionsClassEl = document.getElementById('options-filtro-classificacao');
+    if (optionsClassEl) {
+        optionsClassEl.querySelectorAll('.frota-option-item').forEach(item => {
+            item.classList.remove('selected');
+            const chk = item.querySelector('input[type="checkbox"]');
+            if (chk) chk.checked = false;
+        });
+    }
+
+    renderOpcoesPlacas();
+    atualizarLabelsFiltrosFrota();
+    aplicarFiltrosFrota();
+}
+
+function selecionarTodasPlacas() {
+    const veics = getVeiculosPorClassificacaoFiltro();
+    veics.forEach(v => {
+        const pNorm = String(v.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (pNorm) stateFiltroFrota.placas.add(pNorm);
+    });
+
+    const optionsPlacaEl = document.getElementById('options-filtro-placa');
+    if (optionsPlacaEl) {
+        optionsPlacaEl.querySelectorAll('.frota-option-item').forEach(item => {
+            if (item.style.display !== 'none') {
+                item.classList.add('selected');
+                const chk = item.querySelector('input[type="checkbox"]');
+                if (chk) chk.checked = true;
+                const key = item.getAttribute('data-key');
+                if (key) stateFiltroFrota.placas.add(key);
+            }
+        });
+    }
+
+    atualizarLabelsFiltrosFrota();
+    aplicarFiltrosFrota();
+}
+
+function limparPlacas() {
+    stateFiltroFrota.placas.clear();
+    const optionsPlacaEl = document.getElementById('options-filtro-placa');
+    if (optionsPlacaEl) {
+        optionsPlacaEl.querySelectorAll('.frota-option-item').forEach(item => {
+            item.classList.remove('selected');
+            const chk = item.querySelector('input[type="checkbox"]');
+            if (chk) chk.checked = false;
+        });
+    }
+
+    atualizarLabelsFiltrosFrota();
+    aplicarFiltrosFrota();
+}
+
+function bindFiltrosFrotaEvents() {
+    const triggerClass = document.getElementById('trigger-filtro-classificacao');
+    const dropClass = document.getElementById('dropdown-filtro-classificacao');
+    const triggerPlaca = document.getElementById('trigger-filtro-placa');
+    const dropPlaca = document.getElementById('dropdown-filtro-placa');
+
+    if (triggerClass && dropClass) {
+        triggerClass.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = dropClass.classList.contains('show');
+            if (dropPlaca) {
+                dropPlaca.classList.remove('show');
+                triggerPlaca?.classList.remove('active');
+            }
+            dropClass.classList.toggle('show', !isOpen);
+            triggerClass.classList.toggle('active', !isOpen);
+        });
+    }
+
+    if (triggerPlaca && dropPlaca) {
+        triggerPlaca.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = dropPlaca.classList.contains('show');
+            if (dropClass) {
+                dropClass.classList.remove('show');
+                triggerClass?.classList.remove('active');
+            }
+            dropPlaca.classList.toggle('show', !isOpen);
+            triggerPlaca.classList.toggle('active', !isOpen);
+            if (!isOpen) {
+                setTimeout(() => {
+                    document.getElementById('search-filtro-placa')?.focus();
+                }, 50);
+            }
+        });
+    }
+
+    document.getElementById('btn-classif-todos')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selecionarTodasClassificacoes();
+    });
+
+    document.getElementById('btn-classif-limpar')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        limparClassificacoes();
+    });
+
+    document.getElementById('btn-placa-todos')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selecionarTodasPlacas();
+    });
+
+    document.getElementById('btn-placa-limpar')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        limparPlacas();
+    });
+
+    document.getElementById('btn-limpar-filtros-frota')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        limparFiltrosFrota();
+    });
+
+    const searchInput = document.getElementById('search-filtro-placa');
+    if (searchInput) {
+        searchInput.addEventListener('click', (e) => e.stopPropagation());
+        searchInput.addEventListener('input', (e) => {
+            const termo = e.target.value.trim().toLowerCase();
+            const items = document.querySelectorAll('#options-filtro-placa .frota-option-item');
+            items.forEach(item => {
+                const searchData = item.getAttribute('data-search') || item.textContent.toLowerCase();
+                if (!termo || searchData.includes(termo)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        const contClass = document.getElementById('container-filtro-classificacao');
+        const contPlaca = document.getElementById('container-filtro-placa');
+
+        if (contClass && !contClass.contains(e.target)) {
+            dropClass?.classList.remove('show');
+            triggerClass?.classList.remove('active');
+        }
+        if (contPlaca && !contPlaca.contains(e.target)) {
+            dropPlaca?.classList.remove('show');
+            triggerPlaca?.classList.remove('active');
+        }
+    });
+}
+
 // ─── 6. FROTA, CENTROS DE CUSTO (SEGUROS ETC.), COMBUSTÍVEL, MANUTENÇÃO & VILÕES ───
 function renderFrota() {
     const hoje = new Date().toISOString().slice(0, 10);
     const em30 = dataAddDias(hoje, 30);
-    const veiculos = dadosBrutos.veiculos || [];
+    const todosVeiculos = dadosBrutos.veiculos || [];
+
+    // Aplicação dos Filtros Inteligentes da Frota
+    const isFiltroAtivo = (stateFiltroFrota.classificacoes.size > 0 || stateFiltroFrota.placas.size > 0);
+    const veiculos = isFiltroAtivo ? getVeiculosFiltradosFrota() : todosVeiculos;
+
+    const veiculoIdsSet = new Set(veiculos.map(v => String(v.id || '').toLowerCase()));
+    const veiculoPlacasSet = new Set(veiculos.map(v => String(v.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '')));
+
     const { total, alocados, emManut, patio: disponiveis } = getFrotaStatusCounts(veiculos);
-    const mans = dadosBrutos.manutencoes || [];
-    const pendentes = dadosBrutos.manutPendentes || [];
-    const abs = dadosBrutos.abastecimentos || [];
+    
+    // Abastecimentos filtrados pela seleção ativa
+    const absTodos = dadosBrutos.abastecimentos || [];
+    const abs = isFiltroAtivo
+        ? absTodos.filter(a => {
+            const vid = a.veiculo_id ? String(a.veiculo_id).toLowerCase() : null;
+            const vpl = a.veiculo_placa ? String(a.veiculo_placa).toUpperCase().replace(/[^A-Z0-9]/g, '') : null;
+            return (vid && veiculoIdsSet.has(vid)) || (vpl && veiculoPlacasSet.has(vpl));
+        })
+        : absTodos;
+    dadosBrutos.abastecimentosFiltradosFrota = abs;
+
+    // Manutenções filtradas pela seleção ativa
+    const mansTodos = dadosBrutos.manutencoes || [];
+    const mans = isFiltroAtivo
+        ? mansTodos.filter(m => m.veiculo_id && veiculoIdsSet.has(String(m.veiculo_id).toLowerCase()))
+        : mansTodos;
+
+    const pendentes = (dadosBrutos.manutPendentes || []).filter(m => !isFiltroAtivo || (m.veiculo_id && veiculoIdsSet.has(String(m.veiculo_id).toLowerCase())));
     const lp = dadosBrutos.lancamentosPeriodo || [];
     const prestadores = dadosBrutos.prestadores || [];
 
-    // Classificação Casa vs Agregados
-    const qtdCasa = veiculos.filter(v => (v.classificacao || 'CASA').toUpperCase().includes('CASA')).length;
-    const qtdAgregFrota = veiculos.length - qtdCasa;
+    // Classificação Real de Frota (eliminada a restrição errônea de 'CASA')
+    // Agrupamento por classificações reais cadastradas no sistema:
+    // PROPRIO, ESPECIAL, DIRETORIA, TERCEIRO, OUTRO e Prestadores Comerciais (Agregados)
+    const porClassificacao = {};
+    veiculos.forEach(v => {
+        const rawClass = String(v.classificacao || 'PROPRIO').trim().toUpperCase();
+        let classKey = rawClass;
+        let classLabel = 'Próprio';
+        let iconName = 'car';
+        let badgeColor = '#10b981';
+
+        if (rawClass === 'PROPRIO' || rawClass === 'CASA') {
+            classKey = 'PROPRIO';
+            classLabel = 'Próprio';
+            iconName = 'car';
+            badgeColor = '#10b981';
+        } else if (rawClass === 'ESPECIAL') {
+            classKey = 'ESPECIAL';
+            classLabel = 'Especiais';
+            iconName = 'star';
+            badgeColor = '#8b5cf6';
+        } else if (rawClass === 'DIRETORIA') {
+            classKey = 'DIRETORIA';
+            classLabel = 'Diretoria';
+            iconName = 'award';
+            badgeColor = '#06b6d4';
+        } else if (rawClass === 'TERCEIRO' || rawClass === 'TERCEIROS') {
+            classKey = 'TERCEIRO';
+            classLabel = 'Terceiros';
+            iconName = 'truck';
+            badgeColor = '#f59e0b';
+        } else if (rawClass === 'ALUGADO' || rawClass === 'LOCADO') {
+            classKey = 'ALUGADO';
+            classLabel = 'Alugados';
+            iconName = 'key';
+            badgeColor = '#ec4899';
+        } else {
+            classKey = 'OUTRO';
+            classLabel = rawClass.charAt(0) + rawClass.slice(1).toLowerCase();
+            iconName = 'shield';
+            badgeColor = '#64748b';
+        }
+
+        if (!porClassificacao[classKey]) {
+            porClassificacao[classKey] = {
+                key: classKey,
+                label: classLabel,
+                icon: iconName,
+                badgeColor: badgeColor,
+                origem: 'FROTA',
+                total: 0,
+                rodando: 0,
+                garagem: 0,
+                manut: 0,
+                patio: 0
+            };
+        }
+
+        porClassificacao[classKey].total++;
+
+        const sa = (v.status_alocacao || '').toUpperCase();
+        const st = (v.status || '').toUpperCase();
+        const isManut = st === 'MANUTENCAO' || sa === 'MANUTENCAO';
+        const isGaragem = sa === 'GARAGEM';
+        const hasMot = Boolean(v.motorista_alocado_id || v.motorista_alocado_2_id);
+
+        if (isManut) {
+            porClassificacao[classKey].manut++;
+        } else if (isGaragem) {
+            porClassificacao[classKey].garagem++;
+        } else if (hasMot) {
+            porClassificacao[classKey].rodando++;
+        } else {
+            porClassificacao[classKey].patio++;
+        }
+    });
+
     const qtdPrestAtivos = prestadores.filter(p => (p.status || '').toUpperCase() === 'ATIVO').length;
+    porClassificacao['AGREGADOS'] = {
+        key: 'AGREGADOS',
+        label: 'Prestadores / Agregados',
+        icon: 'briefcase',
+        badgeColor: '#38bdf8',
+        origem: 'COMERCIAL',
+        total: qtdPrestAtivos,
+        rodando: qtdPrestAtivos,
+        garagem: 0,
+        manut: 0,
+        patio: 0
+    };
+
+    dadosBrutos.classificacoesFrotaMap = porClassificacao;
+
+    const qtdPropriaTotal = (porClassificacao['PROPRIO']?.total || 0) +
+                           (porClassificacao['ESPECIAL']?.total || 0) +
+                           (porClassificacao['DIRETORIA']?.total || 0);
+    const qtdOutrosTerc = total - qtdPropriaTotal;
 
     const fipeTotal = veiculos.reduce((s, v) => s + (parseFloat(v.valor_fipe_mes) || 0), 0);
     const fipeMedia = total > 0 ? (fipeTotal / total) : 0;
@@ -1601,9 +2257,6 @@ function renderFrota() {
     const totalOutrasVeic = naturezas.OUTRAS_VEICULOS.pago + naturezas.OUTRAS_VEICULOS.aberto;
 
     const totalDespVeicularesFin = totalSeguros + totalDoc + totalMultas + totalRastreio + totalFinanc + totalLavPed + totalOutrasVeic;
-    const tcoTotalFrota = totalCombGasto + totalManutGasto + totalComprasVeic + totalDespVeicularesFin;
-    const percTcoFipe = fipeTotal > 0 ? ((tcoTotalFrota / fipeTotal) * 100) : 0;
-    const tcoPorKmGlobal = totalKmRodado > 0 ? (tcoTotalFrota / totalKmRodado) : 0;
 
     // Seguros cadastrais nos veículos
     const veicComSeguro = veiculos.filter(v => v.seguradora || v.vencimento_seguro || v.numero_apolice);
@@ -1611,57 +2264,356 @@ function renderFrota() {
     const segVencendo30 = veiculos.filter(v => v.vencimento_seguro && v.vencimento_seguro >= hoje && v.vencimento_seguro <= em30);
     const segVigentesOk = veiculos.filter(v => v.vencimento_seguro && v.vencimento_seguro >= hoje);
 
-    // Preencher KPIs de Frota & TCO
+    // Preencher KPIs de Frota Operacionais com Classificações Reais (view-operacoes)
+    const qtdPropria = porClassificacao['PROPRIO']?.total || 0;
+    const qtdEspecial = porClassificacao['ESPECIAL']?.total || 0;
+    const qtdDiretoria = porClassificacao['DIRETORIA']?.total || 0;
+    const totalFrotaPropria = qtdPropria + qtdEspecial + qtdDiretoria;
+    const totalAgregados = qtdPrestAtivos;
+
     setKPI('kpi-frota-total', total);
-    setKPI('kpi-frota-casa-agreg-sub', `${qtdCasa} Casa | ${qtdAgregFrota + qtdPrestAtivos} Agreg./Prest.`);
+    setKPI('kpi-frota-casa-agreg-sub', `${totalFrotaPropria} Próprios (${qtdPropria} Base · ${qtdEspecial} Esp. · ${qtdDiretoria} Dir.) · ${totalAgregados} Agreg.`);
     setKPI('kpi-frota-alocados', alocados);
     setKPI('kpi-frota-disp-manut-sub', `Pátio: ${disponiveis} | Oficina: ${emManut}`);
     setKPI('kpi-frota-fipe-total', fmtBRL(fipeTotal));
     setKPI('kpi-frota-fipe-media', `Média/veíc: ${fmtBRL(fipeMedia)}`);
-    setKPI('kpi-frota-tco-total', fmtBRL(tcoTotalFrota));
-    setKPI('kpi-frota-tco-fipe-perc', `${fmt(percTcoFipe, 1)}% sobre patrimônio FIPE`);
-    setKPI('kpi-frota-km-total', `${fmt(totalKmRodado, 0)} KM`);
-    setKPI('kpi-frota-custo-km-global', totalKmRodado > 0 ? `TCO/KM: ${fmtBRL(tcoPorKmGlobal)}/KM` : 'Aguardando leituras de KM');
     setKPI('kpi-frota-seguros-ok', `${segVigentesOk.length} / ${total}`);
     setKPI('kpi-frota-seguros-alerta-sub', `${segVencidos.length} vencido(s) | ${segVencendo30.length} vencendo (30d)`);
 
-    setKPI('kpi-frota-qtd-casa', qtdCasa);
-    setKPI('kpi-frota-qtd-agregados', qtdAgregFrota + qtdPrestAtivos);
+    setKPI('kpi-frota-qtd-casa', totalFrotaPropria);
+    setKPI('kpi-frota-qtd-agregados', totalAgregados);
     setKPI('kpi-frota-disponiveis', disponiveis);
     setKPI('kpi-frota-em-manut', emManut);
 
-    // Cards de Centros de Custo da Frota
-    setKPI('kpi-cc-seguros', fmtBRL(totalSeguros));
-    setKPI('kpi-cc-seguros-sub', `${veicComSeguro.length} apólice(s) cadastrada(s)`);
-    setKPI('kpi-cc-documentacao', fmtBRL(totalDoc));
-    setKPI('kpi-cc-multas', fmtBRL(totalMultas));
-    setKPI('kpi-cc-rastreio', fmtBRL(totalRastreio));
-    setKPI('kpi-cc-financiamentos', fmtBRL(totalFinanc));
-    setKPI('kpi-cc-lavagem-pedagio', fmtBRL(totalLavPed));
+    // ─── CENTROS DE CUSTO REAIS DE COMPRAS & SAÍDA DE ESTOQUE ───
+    const centrosCustoTodos = [...(dadosBrutos.centrosCusto || []), ...(dadosBrutos.finCentrosCusto || [])];
+    const ccMapCompleto = {};
+    centrosCustoTodos.forEach(c => {
+        if (c && c.id) ccMapCompleto[String(c.id)] = c;
+    });
 
-    // Tabela Analítica de Centros de Custo da Frota
-    const linhasCentrosFrota = [
-        { nome: '⛽ Combustível & Abastecimentos', pago: totalCombGasto, aberto: 0, total: totalCombGasto },
-        { nome: '🔧 Manutenção & Oficinas', pago: totalManutGasto, aberto: 0, total: totalManutGasto },
-        { nome: '🔩 Compras de Peças / Insumos p/ Veículos', pago: totalComprasVeic, aberto: 0, total: totalComprasVeic },
-        ...Object.values(naturezas).map(n => ({ nome: n.label, pago: n.pago, aberto: n.aberto, total: n.pago + n.aberto }))
-    ].sort((a, b) => b.total - a.total);
+    // Mapear Grupos Pai (G1)
+    const gruposPaiMap = {};
+    centrosCustoTodos.filter(c => !c.parent_id).forEach(p => {
+        const cod = String(p.codigo || '').trim();
+        const nome = String(p.nome || '').trim();
+        gruposPaiMap[String(p.id)] = {
+            id: String(p.id),
+            codigo: cod,
+            nome: nome,
+            total: 0,
+            qtdItens: 0,
+            filhos: {}
+        };
+    });
 
-    dadosBrutos.linhasCentrosFrota = linhasCentrosFrota;
+    // Mapear cada item lançado em Compras dentro do período (desconsiderando consolidados de fechamento de vales)
+    const todosCompraItens = dadosBrutos.compraItens || [];
+    const compraItensPeriodo = isFiltroAtivo
+        ? todosCompraItens.filter(it => it.vinculo_veiculo_id && veiculoIdsSet.has(String(it.vinculo_veiculo_id).toLowerCase()))
+        : todosCompraItens;
 
+    compraItensPeriodo.forEach(it => {
+        const ccId = it.centro_custo_id;
+        const val = (parseFloat(it.quantidade) || 1) * (parseFloat(it.valor_unitario) || 0);
+        if (val <= 0) return;
+
+        const cc = ccId ? ccMapCompleto[String(ccId)] : null;
+        if (!cc) {
+            const semPaiId = '__SEM_CC__';
+            if (!gruposPaiMap[semPaiId]) {
+                gruposPaiMap[semPaiId] = {
+                    id: semPaiId,
+                    codigo: '--',
+                    nome: 'SEM CENTRO DE CUSTO DEFINIDO',
+                    total: 0,
+                    qtdItens: 0,
+                    filhos: {}
+                };
+            }
+            gruposPaiMap[semPaiId].total += val;
+            gruposPaiMap[semPaiId].qtdItens += 1;
+            return;
+        }
+
+        let paiId = cc.parent_id ? String(cc.parent_id) : String(cc.id);
+        let filhoId = String(cc.id);
+
+        if (!gruposPaiMap[paiId]) {
+            const paiObj = ccMapCompleto[paiId];
+            gruposPaiMap[paiId] = {
+                id: paiId,
+                codigo: paiObj ? paiObj.codigo : '--',
+                nome: paiObj ? paiObj.nome : 'OUTROS CENTROS DE CUSTO',
+                total: 0,
+                qtdItens: 0,
+                filhos: {}
+            };
+        }
+
+        gruposPaiMap[paiId].total += val;
+        gruposPaiMap[paiId].qtdItens += 1;
+
+        if (!gruposPaiMap[paiId].filhos[filhoId]) {
+            gruposPaiMap[paiId].filhos[filhoId] = {
+                id: filhoId,
+                codigo: cc.codigo || '--',
+                nome: cc.nome || 'Subgrupo',
+                total: 0,
+                qtdItens: 0
+            };
+        }
+
+        gruposPaiMap[paiId].filhos[filhoId].total += val;
+        gruposPaiMap[paiId].filhos[filhoId].qtdItens += 1;
+    });
+
+    // Filtro para EXCLUIR "03 - ESTOQUE" das compras de manutenção (pois compra de estoque é entrada/patrimonial e não custo de aplicação direta)
+    const isCentroEstoque = (p) => {
+        const c = String(p.codigo || '').trim();
+        const n = String(p.nome || '').toUpperCase();
+        return c === '03' || n === 'ESTOQUE' || n.includes('ENTRADA DE ESTOQUE');
+    };
+
+    const paisAtivosManut = Object.values(gruposPaiMap)
+        .filter(p => p.total > 0 && !isCentroEstoque(p))
+        .sort((a, b) => b.total - a.total);
+
+    // Módulo Estoque: SAÍDA DE ESTOQUE (consumo real aplicado em manutenção)
+    const estoqueMap = {};
+    (dadosBrutos.estoque || []).forEach(e => { estoqueMap[e.id] = e; });
+    const todasSaidasEstoque = (dadosBrutos.estoqueMovs || []).filter(m => (m.tipo || '').toUpperCase() === 'SAIDA' && !isMovimentoEstoqueCancelado(m));
+    const saidasEstoquePeriodo = isFiltroAtivo
+        ? todasSaidasEstoque.filter(m => {
+            const vid = m.veiculo_id ? String(m.veiculo_id).toLowerCase() : null;
+            const vpl = m.placa ? String(m.placa).toUpperCase().replace(/[^A-Z0-9]/g, '') : null;
+            return (vid && veiculoIdsSet.has(vid)) || (vpl && veiculoPlacasSet.has(vpl));
+        })
+        : todasSaidasEstoque;
+    const totalSaidaEstoque = saidasEstoquePeriodo.reduce((s, m) => {
+        const custoRef = parseFloat(m.valor_unitario) || parseFloat(estoqueMap[m.item_id]?.valor_custo) || 0;
+        return s + ((parseFloat(m.quantidade) || 0) * custoRef);
+    }, 0);
+    const qtdMovsSaida = saidasEstoquePeriodo.length;
+    const qtdUnidadesSaida = saidasEstoquePeriodo.reduce((s, m) => s + (parseFloat(m.quantidade) || 0), 0);
+
+    // Total Manutenção = Soma dos Centros de Manutenção em Compras + Saídas de Estoque aplicadas
+    const totalComprasManut = paisAtivosManut.reduce((s, p) => s + p.total, 0);
+    const totalGastoManutencaoGeral = totalComprasManut + totalSaidaEstoque;
+    dadosBrutos.totalGastoManutencaoGeral = totalGastoManutencaoGeral;
+
+    // Montar hierarquia consolidada para Gráfico e Tabela Analítica (incluindo Saída de Estoque)
+    const hierarquiaFinal = [...paisAtivosManut];
+    if (totalSaidaEstoque > 0) {
+        const filhosEstoque = {};
+        saidasEstoquePeriodo.forEach(m => {
+            const itemNome = estoqueMap[m.item_id]?.nome || m.observacao || 'Item de Estoque';
+            const fid = String(m.item_id || itemNome);
+            const cRef = parseFloat(m.valor_unitario) || parseFloat(estoqueMap[m.item_id]?.valor_custo) || 0;
+            const subVal = (parseFloat(m.quantidade) || 0) * cRef;
+            if (!filhosEstoque[fid]) {
+                filhosEstoque[fid] = {
+                    id: fid,
+                    codigo: 'EST',
+                    nome: itemNome,
+                    total: 0,
+                    qtdItens: 0
+                };
+            }
+            filhosEstoque[fid].total += subVal;
+            filhosEstoque[fid].qtdItens += (parseFloat(m.quantidade) || 1);
+        });
+
+        hierarquiaFinal.push({
+            id: '__SAIDA_ESTOQUE__',
+            codigo: 'EST',
+            nome: 'SAÍDA DE ESTOQUE (APLICAÇÃO)',
+            total: totalSaidaEstoque,
+            qtdItens: qtdMovsSaida,
+            filhos: filhosEstoque,
+            isEstoque: true
+        });
+    }
+
+    dadosBrutos.centrosCustoHierarquia = hierarquiaFinal.sort((a, b) => b.total - a.total);
+
+    // ─── BIG NUMBERS FINANCEIROS DA FROTA (VIEW-FROTA) ───
+    // Custo Total Frota (TCO) = Gasto Combustível + Custo Manutenção (Centros de Custo de Compras + Saídas de Estoque)
+    // NÃO inclui lançamentos do módulo financeiro (fin_lancamentos) para evitar duplicidade com Compras
+    const tcoTotalFrota = totalCombGasto + totalGastoManutencaoGeral;
+    const percTcoFipe = fipeTotal > 0 ? ((tcoTotalFrota / fipeTotal) * 100) : 0;
+    const tcoPorKmGlobal = totalKmRodado > 0 ? (tcoTotalFrota / totalKmRodado) : 0;
+
+    setKPI('kpi-frota-tco-total', fmtBRL(tcoTotalFrota));
+    setKPI('kpi-frota-tco-fipe-perc', `${fmt(percTcoFipe, 1)}% sobre patrimônio FIPE`);
+    setKPI('kpi-frota-comb-total', fmtBRL(totalCombGasto));
+    setKPI('kpi-frota-comb-sub', `${fmt(totalLitros, 0)} L abastecidos`);
+    setKPI('kpi-frota-manut-total', fmtBRL(totalGastoManutencaoGeral));
+    setKPI('kpi-frota-manut-sub', `Centros de Custo + Saída de Estoque`);
+    setKPI('kpi-frota-km-total', `${fmt(totalKmRodado, 0)} KM`);
+    setKPI('kpi-frota-custo-km-global', totalKmRodado > 0 ? `${fmtBRL(tcoPorKmGlobal)}/KM` : 'R$ 0,00/KM');
+
+    // ─── CARDS DINÂMICOS & INTELIGENTES DA SEÇÃO CUSTO MANUTENÇÃO ───
+    setKPI('kpi-manut-total-geral', fmtBRL(totalGastoManutencaoGeral));
+
+    // Sequência mestre de prioridade solicitada:
+    // 1. PEÇAS, 2. MÃO DE OBRA, 3. PNEU, 4. TAXAS, 5. SEGUROS, 6. BATERIAS, 7. FRANQUIAS, 8. SERVIÇOS, 9. UTILIDADES INTERNAS, 10. SAÍDA DE ESTOQUE
+    const sequenciaMestre = [
+        { key: 'pecas', cod: '04', match: 'PECA', label: '🔩 Peças', border: '#6366f1', colorClass: 'accent-indigo' },
+        { key: 'mao_de_obra', cod: '05', match: 'OBRA', label: '🔧 Mão de Obra', border: '#10b981', colorClass: 'accent-green' },
+        { key: 'pneu', cod: '06', match: 'PNEU', label: '🛞 Pneu', border: '#f59e0b', colorClass: 'accent-amber' },
+        { key: 'taxas', cod: '07', match: 'TAXA', label: '📄 Taxas', border: '#06b6d4', colorClass: 'accent-cyan' },
+        { key: 'seguros', cod: '08', match: 'SEGURO', label: '🛡️ Seguros', border: '#3b82f6', colorClass: 'accent-blue' },
+        { key: 'baterias', cod: '09', match: 'BATERIA', label: '🔋 Baterias', border: '#ec4899', colorClass: 'accent-pink' },
+        { key: 'franquias', cod: '10', match: 'FRANQUIA', label: '🏢 Franquias', border: '#8b5cf6', colorClass: 'accent-purple' },
+        { key: 'servicos', cod: '11', match: 'SERVICO', label: '📋 Serviços', border: '#14b8a6', colorClass: 'accent-teal' },
+        { key: 'utilidades', cod: '14', match: 'UTILIDADES', label: '🏢 Utilidades Internas', border: '#f97316', colorClass: 'accent-orange' },
+        { key: 'saida_estoque', isEstoque: true, label: '📦 Saída de Estoque', border: '#a855f7', colorClass: 'accent-purple' }
+    ];
+
+    const cardsParaRenderizar = [];
+
+    // Card 1 de Destaque: TOTAL MANUTENÇÃO (soma consolidada de todos os centros de custo + saída de estoque)
+    if (totalGastoManutencaoGeral > 0 || hierarquiaFinal.length > 0) {
+        cardsParaRenderizar.push({
+            label: '🔧 Total Manutenção',
+            valor: fmtBRL(totalGastoManutencaoGeral),
+            sub: `Soma consolidada (${hierarquiaFinal.length} centros ativos)`,
+            border: '#ef4444',
+            colorClass: 'accent-red'
+        });
+    }
+
+    const mappedPaiIds = new Set();
+    sequenciaMestre.forEach(itemSeq => {
+        if (itemSeq.isEstoque) {
+            if (totalSaidaEstoque > 0) {
+                cardsParaRenderizar.push({
+                    label: itemSeq.label,
+                    valor: fmtBRL(totalSaidaEstoque),
+                    sub: `${qtdMovsSaida} saída(s) · ${Math.round(qtdUnidadesSaida)} un. aplicadas`,
+                    border: itemSeq.border,
+                    colorClass: itemSeq.colorClass
+                });
+            }
+            return;
+        }
+
+        // Buscar grupo pai correspondente em compras de manutenção
+        const itemPai = paisAtivosManut.find(p => {
+            const c = (p.codigo || '').trim();
+            const n = (p.nome || '').toUpperCase();
+            return c === itemSeq.cod || n.includes(itemSeq.match);
+        });
+
+        if (itemPai && itemPai.total > 0) {
+            mappedPaiIds.add(itemPai.id);
+            const subCount = Object.keys(itemPai.filhos).length;
+            cardsParaRenderizar.push({
+                label: itemSeq.label,
+                valor: fmtBRL(itemPai.total),
+                sub: `${subCount} subgrupo(s) · ${itemPai.qtdItens} ite${itemPai.qtdItens > 1 ? 'ns' : 'm'}`,
+                border: itemSeq.border,
+                colorClass: itemSeq.colorClass
+            });
+        }
+    });
+
+    // Se houver algum outro centro de custo com gasto no período fora da lista mestre padrão:
+    const outrosPaisNaoMapeados = paisAtivosManut.filter(p => !mappedPaiIds.has(p.id) && p.total > 0);
+    outrosPaisNaoMapeados.forEach(p => {
+        const subCount = Object.keys(p.filhos).length;
+        cardsParaRenderizar.push({
+            label: `📁 ${p.codigo ? p.codigo + ' - ' : ''}${p.nome}`,
+            valor: fmtBRL(p.total),
+            sub: `${subCount} subgrupo(s) · ${p.qtdItens} ite${p.qtdItens > 1 ? 'ns' : 'm'}`,
+            border: '#64748b',
+            colorClass: 'accent-indigo'
+        });
+    });
+
+    // Renderizar dinamicamente apenas os cards que têm valores no container flexível
+    const kpiContainer = document.getElementById('cc-frota-kpi-container');
+    if (kpiContainer) {
+        if (cardsParaRenderizar.length === 0) {
+            kpiContainer.innerHTML = `
+                <div class="empty-msg" style="grid-column: 1 / -1; padding: 1.2rem; text-align: center; color: var(--text-muted); background: var(--bg-card); border-radius: var(--radius); border: 1px dashed var(--border);">
+                    Nenhum gasto registrado para os centros de custo no período selecionado
+                </div>`;
+        } else {
+            kpiContainer.innerHTML = cardsParaRenderizar.map(c => `
+                <div class="stat-mini" style="border-left: 3px solid ${c.border};">
+                    <span class="stat-mini-label">${c.label}</span>
+                    <span class="stat-mini-val ${c.colorClass}">${c.valor}</span>
+                    <span class="stat-mini-sub">${c.sub}</span>
+                </div>
+            `).join('');
+        }
+    }
+
+    // Renderizar Tabela Hierárquica Analítica (Pai G1 > Filhos)
     const ccFrotaBody = document.getElementById('frota-centros-custo-body');
     if (ccFrotaBody) {
-        ccFrotaBody.innerHTML = linhasCentrosFrota.map(r => {
-            const perc = tcoTotalFrota > 0 ? ((r.total / tcoTotalFrota) * 100) : 0;
-            return `
-                <tr>
-                    <td style="font-weight:600;">${r.nome}</td>
-                    <td style="text-align:right;" class="accent-green">${fmtBRL(r.pago)}</td>
-                    <td style="text-align:right;" class="accent-amber">${fmtBRL(r.aberto)}</td>
-                    <td style="text-align:right;font-weight:800;">${fmtBRL(r.total)}</td>
-                    <td style="text-align:right;color:var(--text-soft);font-weight:700;">${fmt(perc, 1)}%</td>
+        if (hierarquiaFinal.length === 0) {
+            ccFrotaBody.innerHTML = '<tr><td colspan="5" class="empty-msg">Nenhum custo de manutenção registrado no período</td></tr>';
+        } else {
+            let htmlTable = '';
+            hierarquiaFinal.forEach((p, idx) => {
+                const percPai = totalGastoManutencaoGeral > 0 ? ((p.total / totalGastoManutencaoGeral) * 100) : 0;
+                const filhosList = Object.values(p.filhos).sort((a, b) => b.total - a.total);
+                const qtdFilhos = filhosList.length;
+                const safePaiId = p.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+                htmlTable += `
+                <tr class="tr-cc-pai" onclick="toggleSubCentrosCusto('${safePaiId}')" title="Clique para expandir/recolher os subgrupos de ${p.nome}">
+                    <td style="font-weight:700; color:#ffffff;">
+                        <button type="button" class="btn-toggle-filhos" id="btn-toggle-${safePaiId}" onclick="event.stopPropagation(); toggleSubCentrosCusto('${safePaiId}');" title="Expandir subgrupos">
+                            <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
+                        </button>
+                        <span>${p.codigo} - ${p.nome}</span>
+                        <span class="chip-subgrupo-count">${qtdFilhos} ${p.isEstoque ? 'item(ns)' : 'subgrupo(s)'}</span>
+                    </td>
+                    <td style="text-align:center; font-weight:600; color:#94a3b8;">${p.qtdItens}</td>
+                    <td style="text-align:right; font-weight:800; color:#10b981;">${fmtBRL(p.total)}</td>
+                    <td style="text-align:right; font-weight:700; color:var(--text-soft);">${fmt(percPai, 1)}%</td>
+                    <td style="text-align:center;">
+                        <span class="badge ${qtdFilhos > 0 ? 'badge-info' : 'badge-neutral'}" style="cursor:pointer;">
+                            ${qtdFilhos > 0 ? 'Ver Detalhes' : 'Sem itens'}
+                        </span>
+                    </td>
+                </tr>
+                <tr class="tr-cc-filhos-wrap" id="wrap-filhos-${safePaiId}">
+                    <td colspan="5" style="padding:0.5rem 1rem 0.9rem 2.8rem; background:rgba(15, 23, 42, 0.45);">
+                        <table class="filhos-table">
+                            <thead>
+                                <tr>
+                                    <th>${p.isEstoque ? 'Produto / Peça Aplicada' : 'Subgrupo / Centro de Custo Filho (G)'}</th>
+                                    <th style="text-align:center;">Qtd ${p.isEstoque ? 'Unidades' : 'Itens'}</th>
+                                    <th style="text-align:right;">Valor Consolidado</th>
+                                    <th style="text-align:right;">% do Grupo Pai</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filhosList.map(f => {
+                                    const percFilho = p.total > 0 ? ((f.total / p.total) * 100) : 0;
+                                    return `
+                                    <tr>
+                                        <td style="font-weight:600; color:#cbd5e1;">
+                                            <span style="color:#10b981; margin-right:6px;">↳</span>
+                                            ${f.codigo ? f.codigo + ' - ' : ''}${f.nome}
+                                        </td>
+                                        <td style="text-align:center; color:#94a3b8;">${f.qtdItens}</td>
+                                        <td style="text-align:right; font-weight:700; color:#34d399;">${fmtBRL(f.total)}</td>
+                                        <td style="text-align:right; color:#94a3b8; font-weight:600;">${fmt(percFilho, 1)}%</td>
+                                    </tr>`;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </td>
                 </tr>`;
-        }).join('');
+            });
+            ccFrotaBody.innerHTML = htmlTable;
+        }
     }
 
     // Resumo de Seguradoras & Corretores
@@ -1737,10 +2689,12 @@ function renderFrota() {
     const topPosto = Object.entries(porPosto).sort((a, b) => b[1] - a[1])[0];
 
     setKPI('kpi-comb-gasto', fmtBRL(totalCombGasto));
+    setKPI('kpi-comb-gasto-sub', `Período selecionado`);
     setKPI('kpi-comb-litros', `${fmt(totalLitros, 0)} L`);
-    setKPI('kpi-comb-preco-medio', fmtBRL(mediaPrecoLitro) + '/L');
-    setKPI('kpi-comb-km-l', mediaKmL > 0 ? `${fmt(mediaKmL, 2)} KM/L` : 'Sob apuração');
-    setKPI('kpi-comb-custo-km', custoCombKm > 0 ? fmtBRL(custoCombKm) + '/KM' : 'Sob apuração');
+    setKPI('kpi-comb-litros-sub', `Litros / M³`);
+    setKPI('kpi-comb-preco-medio', mediaPrecoLitro > 0 ? `${fmtBRL(mediaPrecoLitro)}/L` : 'R$ 0,00/L');
+    setKPI('kpi-comb-km-l', mediaKmL > 0 ? `${fmt(mediaKmL, 1)} KM/L` : '-- KM/L');
+    setKPI('kpi-comb-custo-km', custoCombKm > 0 ? `${fmtBRL(custoCombKm)}/KM` : 'R$ --/KM');
     setKPI('kpi-comb-top-posto', topPosto ? `${topPosto[0]} (${fmtBRL(topPosto[1])})` : '—');
 
     // Manutenção KPIs
@@ -1785,9 +2739,9 @@ function renderFrota() {
                 placaFallback: placaFb,
                 modeloFallback: modFb,
                 combustivel: 0,
-                manutencao: 0,
-                pecas: 0,
-                outros: 0,
+                manutencaoOS: 0,
+                comprasPecas: 0,
+                saidasEstoque: 0,
                 kms: []
             };
         }
@@ -1795,8 +2749,9 @@ function renderFrota() {
     };
 
     abs.forEach(a => {
-        if (!a.veiculo_id) return;
-        const b = ensureBucket(a.veiculo_id, a.veiculo_placa, a.veiculo_modelo);
+        if (!a.veiculo_id && !a.veiculo_placa) return;
+        const targetId = a.veiculo_id || a.veiculo_placa;
+        const b = ensureBucket(targetId, a.veiculo_placa, a.veiculo_modelo);
         b.combustivel += (parseFloat(a.valor_total) || 0);
         if (a.km_atual) b.kms.push(parseFloat(a.km_atual));
     });
@@ -1804,27 +2759,30 @@ function renderFrota() {
     mans.forEach(m => {
         if (!m.veiculo_id) return;
         const b = ensureBucket(m.veiculo_id);
-        b.manutencao += getManutValor(m);
+        b.manutencaoOS += getManutValor(m);
     });
 
-    (dadosBrutos.compraItens || []).forEach(it => {
+    compraItensPeriodo.forEach(it => {
         if (!it.vinculo_veiculo_id) return;
         const b = ensureBucket(it.vinculo_veiculo_id);
-        b.pecas += (parseFloat(it.quantidade) || 1) * (parseFloat(it.valor_unitario) || 0);
+        b.comprasPecas += (parseFloat(it.quantidade) || 1) * (parseFloat(it.valor_unitario) || 0);
     });
 
-    // Itens financeiros vinculados diretamente ao veículo (Seguros, Multas, IPVA, etc.)
-    const idsLancPeriodo = new Set(lp.map(l => l.id));
-    (dadosBrutos.finLancamentoItens || []).forEach(fi => {
-        if (!fi.veiculo_id || !idsLancPeriodo.has(fi.lancamento_id)) return;
-        const b = ensureBucket(fi.veiculo_id);
-        b.outros += (parseFloat(fi.quantidade) || 1) * (parseFloat(fi.valor_unitario) || 0);
+    saidasEstoquePeriodo.forEach(m => {
+        const vid = m.veiculo_id ? String(m.veiculo_id).toLowerCase() : null;
+        const vpl = m.placa ? String(m.placa).toUpperCase().replace(/[^A-Z0-9]/g, '') : null;
+        const targetId = vid || (vpl && veiculoMap[vpl]?.id) || vpl;
+        if (!targetId) return;
+        const b = ensureBucket(targetId, m.placa);
+        const custoRef = parseFloat(m.valor_unitario) || parseFloat(estoqueMap[m.item_id]?.valor_custo) || 0;
+        b.saidasEstoque += ((parseFloat(m.quantidade) || 0) * custoRef);
     });
 
     let custoFrotaSomadoVeic = 0;
     const rankingVeiculos = Object.entries(custosVeiculo).map(([id, d]) => {
         const vInfo = getVeicInfo(id, d.placaFallback, d.modeloFallback);
-        const totalV = d.combustivel + d.manutencao + d.pecas + d.outros;
+        const manutTotal = d.manutencaoOS + d.comprasPecas + d.saidasEstoque;
+        const totalV = d.combustivel + manutTotal;
         custoFrotaSomadoVeic += totalV;
         let kmRod = 0;
         if (d.kms.length > 1) {
@@ -1836,42 +2794,720 @@ function renderFrota() {
             id,
             placa: vInfo.placa || 'Veículo',
             modelo: vInfo.modelo || '',
-            classificacao: vInfo.classificacao || 'CASA',
+            classificacao: vInfo.classificacao || 'PROPRIO',
             combustivel: d.combustivel,
-            manutencao: d.manutencao,
-            pecas: d.pecas,
-            outros: d.outros,
+            manutencao: manutTotal,
             kmRod,
             custoKm: kmRod > 0 ? (totalV / kmRod) : 0,
             total: totalV
         };
-    }).filter(v => v.total > 0).sort((a, b) => b.total - a.total).slice(0, 10);
+    }).filter(v => v.total > 0).sort((a, b) => b.total - a.total);
 
+    dadosBrutos.rankingVeiculosCompleto = rankingVeiculos;
+    dadosBrutos.custoFrotaSomadoRanking = custoFrotaSomadoVeic;
+
+    renderRankingVeiculosTabela();
+}
+
+// ─── TABELA DE RANKING DE CUSTOS & TOGGLE TOP 10 / TODOS ───
+let rankingExibirTodos = false;
+
+function toggleExibirTodosVeiculosRanking() {
+    rankingExibirTodos = !rankingExibirTodos;
+    renderRankingVeiculosTabela();
+}
+
+function renderRankingVeiculosTabela() {
     const viloesBody = document.getElementById('viloes-frota-body');
-    if (viloesBody) {
-        viloesBody.innerHTML = rankingVeiculos.length === 0
-            ? '<tr><td colspan="11" class="empty-msg">Nenhum custo operacional por veículo registrado no período selecionado.</td></tr>'
-            : rankingVeiculos.map((v, i) => {
-                const perc = custoFrotaSomadoVeic > 0 ? ((v.total / custoFrotaSomadoVeic) * 100) : 0;
-                return `
-                    <tr>
-                        <td><span class="badge-rank ${i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''}">${i + 1}</span></td>
-                        <td>
-                            <strong>${v.placa}</strong>
-                            <div style="font-size:0.73rem;color:var(--text-muted);">${v.modelo}</div>
-                        </td>
-                        <td><span class="badge ${v.classificacao === 'CASA' ? 'badge-info' : 'badge-purple'}">${v.classificacao}</span></td>
-                        <td style="text-align:right;" class="accent-red">${fmtBRL(v.combustivel)}</td>
-                        <td style="text-align:right;" class="accent-amber">${fmtBRL(v.manutencao)}</td>
-                        <td style="text-align:right;" class="accent-cyan">${fmtBRL(v.pecas)}</td>
-                        <td style="text-align:right;" class="accent-purple">${fmtBRL(v.outros)}</td>
-                        <td style="text-align:right;">${v.kmRod > 0 ? fmt(v.kmRod, 0) + ' KM' : '—'}</td>
-                        <td style="text-align:right;font-weight:600;">${v.custoKm > 0 ? fmtBRL(v.custoKm) : '—'}</td>
-                        <td style="text-align:right;font-weight:800;font-size:0.92rem;">${fmtBRL(v.total)}</td>
-                        <td style="text-align:right;font-weight:700;color:var(--text-soft);">${fmt(perc, 1)}%</td>
-                    </tr>`;
-            }).join('');
+    const badgeCount = document.getElementById('badge-viloes-count');
+    const btnLabel = document.getElementById('label-toggle-viloes');
+    const ranking = dadosBrutos.rankingVeiculosCompleto || [];
+    const totalFrota = dadosBrutos.custoFrotaSomadoRanking || 1;
+
+    if (!viloesBody) return;
+
+    if (ranking.length === 0) {
+        viloesBody.innerHTML = '<tr><td colspan="9" class="empty-msg">Nenhum custo operacional por veículo registrado no período selecionado.</td></tr>';
+        if (badgeCount) badgeCount.textContent = 'Top 10 Vilões de Custo';
+        if (btnLabel) btnLabel.textContent = 'Ver Todos os Veículos';
+        return;
     }
+
+    const veicsParaExibir = rankingExibirTodos ? ranking : ranking.slice(0, 10);
+
+    if (badgeCount) {
+        badgeCount.textContent = rankingExibirTodos
+            ? `Todos os ${ranking.length} Veículos Ativos`
+            : `Top 10 Vilões de Custo`;
+    }
+
+    if (btnLabel) {
+        btnLabel.textContent = rankingExibirTodos ? 'Ver Top 10 Vilões' : `Ver Todos (${ranking.length} veículos)`;
+    }
+
+    viloesBody.innerHTML = veicsParaExibir.map((v, i) => {
+        const perc = totalFrota > 0 ? ((v.total / totalFrota) * 100) : 0;
+        const classKey = normalizeClassificacaoFrota(v.classificacao);
+        const classLabel = getClassificacaoLabel(classKey);
+        const badgeClass = classKey === 'PROPRIO' ? 'badge-success' : classKey === 'ALUGADO' ? 'badge-purple' : 'badge-info';
+
+        return `
+        <tr>
+            <td><span class="badge-rank ${i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''}">${i + 1}</span></td>
+            <td>
+                <strong>${v.placa}</strong>
+                <div style="font-size:0.73rem;color:var(--text-muted);">${v.modelo}</div>
+            </td>
+            <td><span class="badge ${badgeClass}">${classLabel}</span></td>
+            <td style="text-align:right;" class="accent-green td-drilldown" onclick="abrirDetalheVeiculoFrota('${v.id}', 'combustivel')" title="Clique para auditar os abastecimentos detalhados de ${v.placa}">
+                ${fmtBRL(v.combustivel)} <i data-lucide="external-link" style="width:11px;height:11px;opacity:0.6;vertical-align:middle;margin-left:2px;"></i>
+            </td>
+            <td style="text-align:right;" class="accent-amber td-drilldown" onclick="abrirDetalheVeiculoFrota('${v.id}', 'manutencao')" title="Clique para ver a auditoria de manutenção em cascata de ${v.placa}">
+                ${fmtBRL(v.manutencao)} <i data-lucide="external-link" style="width:11px;height:11px;opacity:0.6;vertical-align:middle;margin-left:2px;"></i>
+            </td>
+            <td style="text-align:right;">${v.kmRod > 0 ? fmt(v.kmRod, 0) + ' KM' : '—'}</td>
+            <td style="text-align:right;font-weight:600;">${v.custoKm > 0 ? fmtBRL(v.custoKm) : '—'}</td>
+            <td style="text-align:right;font-weight:800;font-size:0.92rem;">${fmtBRL(v.total)}</td>
+            <td style="text-align:right;font-weight:700;color:var(--text-soft);">${fmt(perc, 1)}%</td>
+        </tr>`;
+    }).join('');
+
+    if (window.lucide) lucide.createIcons();
+}
+
+// ─── MODAL DRILL-DOWN DE CUSTOS DO VEÍCULO (COMBUSTÍVEL & MANUTENÇÃO) ───
+let veiculoAtualModal = null;
+
+function fmtDataHoraBR(dateStr) {
+    if (!dateStr) return '-';
+    const s = String(dateStr);
+    const dt = s.slice(0, 10);
+    const hr = s.length >= 16 ? s.slice(11, 16) : '';
+    const p = dt.split('-');
+    const dtFmt = p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : dt;
+    return hr ? `${dtFmt} ${hr}` : dtFmt;
+}
+
+// Estilos visuais e semânticos por tipo de combustível (Badges e Gráficos)
+function getCombustivelStyle(tipoRaw) {
+    const t = String(tipoRaw || '').trim().toUpperCase();
+    if (t.includes('GAS NATURAL') || t.includes('GÁS NATURAL') || t === 'GNV') {
+        return {
+            bg: 'rgba(16, 185, 129, 0.18)',
+            color: '#34d399',
+            border: 'rgba(16, 185, 129, 0.35)',
+            badgeClass: 'badge-fuel-gnv',
+            unidade: 'm³',
+            chartColor: '#10b981'
+        };
+    }
+    if (t.includes('GASOLINA')) {
+        return {
+            bg: 'rgba(239, 68, 68, 0.18)',
+            color: '#f87171',
+            border: 'rgba(239, 68, 68, 0.35)',
+            badgeClass: 'badge-fuel-gasolina',
+            unidade: 'L',
+            chartColor: '#ef4444'
+        };
+    }
+    if (t.includes('DIESEL')) {
+        return {
+            bg: 'rgba(59, 130, 246, 0.18)',
+            color: '#60a5fa',
+            border: 'rgba(59, 130, 246, 0.35)',
+            badgeClass: 'badge-fuel-diesel',
+            unidade: 'L',
+            chartColor: '#3b82f6'
+        };
+    }
+    if (t.includes('ETANOL') || t.includes('ALCOOL') || t.includes('ÁLCOOL')) {
+        return {
+            bg: 'rgba(245, 158, 11, 0.18)',
+            color: '#fbbf24',
+            border: 'rgba(245, 158, 11, 0.35)',
+            badgeClass: 'badge-fuel-etanol',
+            unidade: 'L',
+            chartColor: '#f59e0b'
+        };
+    }
+    if (t.includes('ARLA')) {
+        return {
+            bg: 'rgba(6, 182, 212, 0.18)',
+            color: '#22d3ee',
+            border: 'rgba(6, 182, 212, 0.35)',
+            badgeClass: 'badge-fuel-arla',
+            unidade: 'L',
+            chartColor: '#06b6d4'
+        };
+    }
+    if (t.includes('ELETRIC') || t.includes('ELÉTRIC') || t.includes('HIBRID') || t.includes('HÍBRID')) {
+        return {
+            bg: 'rgba(168, 85, 247, 0.18)',
+            color: '#c084fc',
+            border: 'rgba(168, 85, 247, 0.35)',
+            badgeClass: 'badge-fuel-eletrico',
+            unidade: 'kWh',
+            chartColor: '#a855f7'
+        };
+    }
+    return {
+        bg: 'rgba(148, 163, 184, 0.15)',
+        color: '#cbd5e1',
+        border: 'rgba(148, 163, 184, 0.25)',
+        badgeClass: 'badge-fuel-outro',
+        unidade: 'L',
+        chartColor: '#64748b'
+    };
+}
+
+function abrirDetalheVeiculoFrota(veiculoId, abaAtiva = 'combustivel') {
+    const todosVeiculos = dadosBrutos.veiculos || [];
+    const vIdNorm = String(veiculoId || '').toLowerCase();
+    
+    // Localizar veículo
+    let v = todosVeiculos.find(x => String(x.id || '').toLowerCase() === vIdNorm);
+    if (!v) {
+        v = todosVeiculos.find(x => String(x.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === String(veiculoId || '').toUpperCase().replace(/[^A-Z0-9]/g, ''));
+    }
+    if (!v) {
+        const vRank = (dadosBrutos.rankingVeiculosCompleto || []).find(r => r.id === veiculoId);
+        v = {
+            id: veiculoId,
+            placa: vRank ? vRank.placa : (String(veiculoId).length <= 8 ? String(veiculoId).toUpperCase() : 'Veículo'),
+            modelo: vRank ? vRank.modelo : '',
+            classificacao: vRank ? vRank.classificacao : 'PROPRIO'
+        };
+    }
+
+    veiculoAtualModal = v;
+    const placaNorm = String(v.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const classKey = normalizeClassificacaoFrota(v.classificacao);
+    const classLabel = getClassificacaoLabel(classKey);
+
+    // Header do Modal
+    const titleEl = document.getElementById('modalDetalheVeiculoTitle');
+    if (titleEl) titleEl.textContent = v.placa || 'Veículo';
+
+    const modeloEl = document.getElementById('modalDetalheVeiculoModelo');
+    if (modeloEl) {
+        const parts = [v.modelo || 'Modelo não informado'];
+        if (v.ano_fabricacao || v.ano_modelo) parts.push(`Ano: ${v.ano_fabricacao || ''}/${v.ano_modelo || ''}`);
+        if (v.tipo_veiculo) parts.push(v.tipo_veiculo);
+        modeloEl.textContent = parts.filter(Boolean).join(' · ');
+    }
+
+    const badgeTipoEl = document.getElementById('modalDetalheVeiculoTipoBadge');
+    if (badgeTipoEl) {
+        badgeTipoEl.textContent = classLabel;
+        badgeTipoEl.className = 'badge ' + (classKey === 'PROPRIO' ? 'badge-success' : classKey === 'ALUGADO' ? 'badge-purple' : 'badge-info');
+    }
+
+    // Filtrar Abastecimentos
+    const todosAbs = dadosBrutos.abastecimentos || [];
+    const absVeic = todosAbs.filter(a => {
+        const aid = a.veiculo_id ? String(a.veiculo_id).toLowerCase() : null;
+        const apl = a.veiculo_placa ? String(a.veiculo_placa).toUpperCase().replace(/[^A-Z0-9]/g, '') : null;
+        return (aid && aid === vIdNorm) || (apl && apl === placaNorm);
+    }).sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+
+    const totalCombGasto = absVeic.reduce((s, a) => s + (parseFloat(a.valor_total) || 0), 0);
+    const totalLitros = absVeic.reduce((s, a) => s + (parseFloat(a.litros) || 0), 0);
+    const mediaPrecoL = totalLitros > 0 ? (totalCombGasto / totalLitros) : 0;
+    
+    // KM Rodado do veículo no período
+    let kmRod = 0;
+    const kms = absVeic.map(a => parseFloat(a.km_atual) || 0).filter(k => k > 0).sort((a, b) => a - b);
+    if (kms.length > 1) {
+        const delta = kms[kms.length - 1] - kms[0];
+        if (delta > 0 && delta < 150000) kmRod = delta;
+    }
+    const mediaKmL = (totalLitros > 0 && kmRod > 0) ? (kmRod / totalLitros) : 0;
+
+    // Filtrar Manutenções OS
+    const todasMans = dadosBrutos.manutencoes || [];
+    const mansVeic = todasMans.filter(m => m.veiculo_id && String(m.veiculo_id).toLowerCase() === vIdNorm);
+
+    // Filtrar Compras Vinculadas
+    const todosCompraItens = dadosBrutos.compraItens || [];
+    const comprasVeic = todosCompraItens.filter(it => it.vinculo_veiculo_id && String(it.vinculo_veiculo_id).toLowerCase() === vIdNorm);
+
+    // Filtrar Saídas de Estoque
+    const estoqueMap = {};
+    (dadosBrutos.estoque || []).forEach(e => { estoqueMap[e.id] = e; });
+    const todasSaidas = (dadosBrutos.estoqueMovs || []).filter(m => (m.tipo || '').toUpperCase() === 'SAIDA' && !isMovimentoEstoqueCancelado(m));
+    const saidasVeic = todasSaidas.filter(m => {
+        const vid = m.veiculo_id ? String(m.veiculo_id).toLowerCase() : null;
+        const vpl = m.placa ? String(m.placa).toUpperCase().replace(/[^A-Z0-9]/g, '') : null;
+        return (vid && vid === vIdNorm) || (vpl && vpl === placaNorm);
+    });
+
+    // Mapeamentos auxiliares
+    const comprasMap = {};
+    [...(dadosBrutos.compras || []), ...(dadosBrutos.comprasHistorico || [])].forEach(c => {
+        if (c && c.id) comprasMap[String(c.id)] = c;
+    });
+
+    const ccMap = {};
+    [...(dadosBrutos.centrosCusto || []), ...(dadosBrutos.finCentrosCusto || [])].forEach(c => {
+        if (c && c.id) ccMap[String(c.id)] = c;
+    });
+
+    // Estrutura hierárquica em cascata para Manutenção
+    const grupos = {};
+
+    function getOrCreateGrupo(paiId, codigoPai, nomePai) {
+        if (!grupos[paiId]) {
+            grupos[paiId] = {
+                id: paiId,
+                codigo: codigoPai || '--',
+                nome: nomePai || 'OUTROS',
+                total: 0,
+                qtdItens: 0,
+                subgrupos: {}
+            };
+        }
+        return grupos[paiId];
+    }
+
+    function getOrCreateSubgrupo(g, subId, codigoSub, nomeSub) {
+        if (!g.subgrupos[subId]) {
+            g.subgrupos[subId] = {
+                id: subId,
+                codigo: codigoSub || '--',
+                nome: nomeSub || 'Geral',
+                total: 0,
+                qtdItens: 0,
+                itens: []
+            };
+        }
+        return g.subgrupos[subId];
+    }
+
+    // 1. Processar Compras vinculadas
+    comprasVeic.forEach(it => {
+        const val = (parseFloat(it.quantidade) || 1) * (parseFloat(it.valor_unitario) || 0);
+        if (val <= 0) return;
+
+        const cc = it.centro_custo_id ? ccMap[String(it.centro_custo_id)] : null;
+        let paiId = '__COMPRAS_OUTROS__';
+        let paiCod = '04';
+        let paiNome = 'PEÇAS E MATERIAIS (COMPRAS)';
+        let subId = '__SUB_COMPRAS_GERAL__';
+        let subCod = '--';
+        let subNome = 'Itens de Manutenção';
+
+        if (cc) {
+            if (cc.parent_id) {
+                const paiObj = ccMap[String(cc.parent_id)];
+                paiId = String(cc.parent_id);
+                paiCod = paiObj ? (paiObj.codigo || '04') : '04';
+                paiNome = paiObj ? paiObj.nome : 'PEÇAS E MATERIAIS';
+                subId = String(cc.id);
+                subCod = cc.codigo || '--';
+                subNome = cc.nome || 'Subgrupo';
+            } else {
+                paiId = String(cc.id);
+                paiCod = cc.codigo || '04';
+                paiNome = cc.nome || 'PEÇAS E MATERIAIS';
+                subId = String(cc.id) + '_geral';
+                subCod = cc.codigo || '--';
+                subNome = 'Geral';
+            }
+        }
+
+        const g = getOrCreateGrupo(paiId, paiCod, paiNome);
+        const sub = getOrCreateSubgrupo(g, subId, subCod, subNome);
+
+        const comp = it.compra_id ? comprasMap[String(it.compra_id)] : null;
+        const nfNum = comp ? (comp.numero_nota ? `NF #${comp.numero_nota}` : (comp.numero ? `Compra #${comp.numero}` : `Compra #${String(comp.id).slice(0, 8)}`)) : 'Compra';
+
+        let fornNome = '';
+        if (comp) {
+            if (comp.fornecedores) {
+                if (Array.isArray(comp.fornecedores) && comp.fornecedores.length > 0) {
+                    fornNome = comp.fornecedores[0].nome || comp.fornecedores[0].razao_social || '';
+                } else if (typeof comp.fornecedores === 'object') {
+                    fornNome = comp.fornecedores.nome || comp.fornecedores.razao_social || '';
+                }
+            }
+            if (!fornNome && comp.fornecedor_id && dadosBrutos.fornecedoresMap) {
+                fornNome = dadosBrutos.fornecedoresMap[String(comp.fornecedor_id)] || '';
+            }
+            if (!fornNome && comp.fornecedor_nome) {
+                fornNome = comp.fornecedor_nome;
+            }
+        }
+        if (!fornNome) fornNome = 'Fornecedor não inf.';
+        const dataEmissao = comp ? fmtDataBR(comp.data_emissao) : '—';
+
+        g.total += val;
+        g.qtdItens += (parseFloat(it.quantidade) || 1);
+        sub.total += val;
+        sub.qtdItens += (parseFloat(it.quantidade) || 1);
+
+        sub.itens.push({
+            nome: it.produto || it.descricao || 'Item / Peça de Manutenção',
+            origem: nfNum,
+            fornecedor: fornNome,
+            data: dataEmissao,
+            qtd: parseFloat(it.quantidade) || 1,
+            valorUnit: parseFloat(it.valor_unitario) || 0,
+            valorTotal: val
+        });
+    });
+
+    // 2. Processar Ordens de Serviço (Manutenções)
+    mansVeic.forEach(m => {
+        const valM = getManutValor(m);
+        if (valM <= 0) return;
+
+        const paiId = '__OS_OFICINAS__';
+        const paiCod = '05';
+        const paiNome = 'SERVIÇOS DE OFICINA & MÃO DE OBRA (OS)';
+        const g = getOrCreateGrupo(paiId, paiCod, paiNome);
+
+        const tipoDesc = (m.manutencao_tipos && m.manutencao_tipos.descricao) ? m.manutencao_tipos.descricao : 'Manutenção Corretiva/Preventiva';
+        const subId = String(m.tipo_id || '__TIPO_OS__');
+        const sub = getOrCreateSubgrupo(g, subId, 'OS', tipoDesc);
+
+        let oficina = '';
+        if (m.fornecedores) {
+            if (Array.isArray(m.fornecedores) && m.fornecedores.length > 0) {
+                oficina = m.fornecedores[0].nome || m.fornecedores[0].razao_social || '';
+            } else if (typeof m.fornecedores === 'object') {
+                oficina = m.fornecedores.nome || m.fornecedores.razao_social || '';
+            }
+        }
+        if (!oficina && m.oficina_id && dadosBrutos.fornecedoresMap) {
+            oficina = dadosBrutos.fornecedoresMap[String(m.oficina_id)] || '';
+        }
+        if (!oficina && m.oficina_nome) {
+            oficina = m.oficina_nome;
+        }
+        if (!oficina) oficina = 'Oficina Credenciada';
+
+        const osDoc = m.numero_os ? `OS #${m.numero_os}` : `OS #${String(m.id).slice(0, 8)}`;
+        const dtOS = fmtDataBR(m.data);
+
+        g.total += valM;
+        sub.total += valM;
+
+        if (m.manutencao_itens && m.manutencao_itens.length > 0) {
+            m.manutencao_itens.forEach(it => {
+                const subItVal = parseFloat(it.valor_total) || ((parseFloat(it.valor_pecas) || 0) + (parseFloat(it.valor_servicos) || 0)) || valM;
+                const qtdIt = parseFloat(it.quantidade) || 1;
+                g.qtdItens += qtdIt;
+                sub.qtdItens += qtdIt;
+                sub.itens.push({
+                    nome: it.descricao || 'Serviço / Item de Oficina',
+                    origem: osDoc,
+                    fornecedor: oficina,
+                    data: dtOS,
+                    qtd: qtdIt,
+                    valorUnit: qtdIt > 0 ? (subItVal / qtdIt) : subItVal,
+                    valorTotal: subItVal
+                });
+            });
+        } else {
+            g.qtdItens += 1;
+            sub.qtdItens += 1;
+            sub.itens.push({
+                nome: `Ordem de Serviço — ${tipoDesc}`,
+                origem: osDoc,
+                fornecedor: oficina,
+                data: dtOS,
+                qtd: 1,
+                valorUnit: valM,
+                valorTotal: valM
+            });
+        }
+    });
+
+    // 3. Processar Saídas de Estoque aplicadas na placa
+    saidasVeic.forEach(m => {
+        const cRef = parseFloat(m.valor_unitario) || parseFloat(estoqueMap[m.item_id]?.valor_custo) || 0;
+        const valEst = (parseFloat(m.quantidade) || 0) * cRef;
+        if (valEst <= 0) return;
+
+        const paiId = '__ESTOQUE_APLICADO__';
+        const paiCod = '03';
+        const paiNome = 'SAÍDA DE ESTOQUE (PEÇAS APLICADAS)';
+        const g = getOrCreateGrupo(paiId, paiCod, paiNome);
+
+        const subId = '__SUB_ESTOQUE_ALMOX__';
+        const sub = getOrCreateSubgrupo(g, subId, 'EST', 'Almoxarifado Interno');
+
+        const itemEst = estoqueMap[m.item_id];
+        const itemNome = itemEst ? `${itemEst.codigo ? itemEst.codigo + ' - ' : ''}${itemEst.nome}` : (m.observacao || 'Item de Estoque');
+        const qtdEst = parseFloat(m.quantidade) || 1;
+
+        g.total += valEst;
+        g.qtdItens += qtdEst;
+        sub.total += valEst;
+        sub.qtdItens += qtdEst;
+
+        sub.itens.push({
+            nome: itemNome,
+            origem: 'Mov. Saída Estoque',
+            fornecedor: 'Almoxarifado Interno',
+            data: fmtDataBR(m.data),
+            qtd: qtdEst,
+            valorUnit: cRef,
+            valorTotal: valEst
+        });
+    });
+
+    const totalManutencao = Object.values(grupos).reduce((s, g) => s + g.total, 0);
+    const tcoVeiculo = totalCombGasto + totalManutencao;
+    const custoKmVeiculo = kmRod > 0 ? (tcoVeiculo / kmRod) : 0;
+
+    // Atualizar KPIs rápidos
+    const kpiTcoEl = document.getElementById('modalDetalheKpiTco');
+    if (kpiTcoEl) kpiTcoEl.textContent = fmtBRL(tcoVeiculo);
+
+    const kpiCombEl = document.getElementById('modalDetalheKpiComb');
+    if (kpiCombEl) kpiCombEl.textContent = fmtBRL(totalCombGasto);
+
+    const kpiManutEl = document.getElementById('modalDetalheKpiManut');
+    if (kpiManutEl) kpiManutEl.textContent = fmtBRL(totalManutencao);
+
+    const kpiKmEl = document.getElementById('modalDetalheKpiKm');
+    if (kpiKmEl) {
+        kpiKmEl.textContent = `${kmRod > 0 ? fmt(kmRod, 0) + ' KM' : '0 KM'} · ${custoKmVeiculo > 0 ? fmtBRL(custoKmVeiculo) + '/KM' : 'R$ 0,00/KM'}`;
+    }
+
+    // Labels das abas
+    const tabCombLbl = document.getElementById('modal-tab-label-combustivel');
+    if (tabCombLbl) tabCombLbl.textContent = `⛽ Combustível (${absVeic.length} abastecimento${absVeic.length > 1 ? 's' : ''})`;
+
+    const tabManutLbl = document.getElementById('modal-tab-label-manutencao');
+    if (tabManutLbl) tabManutLbl.textContent = `🔧 Manutenção & Centros de Custo (${fmtBRL(totalManutencao)})`;
+
+    // ─── Renderizar Painel 1: Combustível ───
+    const combSummaryEl = document.getElementById('modal-combustivel-summary');
+    if (combSummaryEl) {
+        combSummaryEl.innerHTML = `
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:0.75rem;">
+            <div class="stat-mini" style="border-left:3px solid #10b981; padding:0.6rem 0.85rem;">
+                <span class="stat-mini-label">Gasto Combustível</span>
+                <span class="stat-mini-val accent-green" style="font-size:1.15rem;">${fmtBRL(totalCombGasto)}</span>
+                <span class="stat-mini-sub">${absVeic.length} registros</span>
+            </div>
+            <div class="stat-mini" style="border-left:3px solid #06b6d4; padding:0.6rem 0.85rem;">
+                <span class="stat-mini-label">Volume Total</span>
+                <span class="stat-mini-val accent-cyan" style="font-size:1.15rem;">${fmt(totalLitros, 1)} L</span>
+                <span class="stat-mini-sub">Litros consumidos</span>
+            </div>
+            <div class="stat-mini" style="border-left:3px solid #f59e0b; padding:0.6rem 0.85rem;">
+                <span class="stat-mini-label">Preço Médio / L</span>
+                <span class="stat-mini-val accent-amber" style="font-size:1.15rem;">${fmtBRL(mediaPrecoL)}/L</span>
+                <span class="stat-mini-sub">Média ponderada</span>
+            </div>
+            <div class="stat-mini" style="border-left:3px solid #6366f1; padding:0.6rem 0.85rem;">
+                <span class="stat-mini-label">Eficiência Média</span>
+                <span class="stat-mini-val accent-indigo" style="font-size:1.15rem;">${mediaKmL > 0 ? fmt(mediaKmL, 1) + ' KM/L' : '-- KM/L'}</span>
+                <span class="stat-mini-sub">${kmRod > 0 ? fmt(kmRod, 0) + ' KM rodados' : 'KM inicial/final não calculável'}</span>
+            </div>
+        </div>`;
+    }
+
+    const combBodyEl = document.getElementById('modal-combustivel-body');
+    if (combBodyEl) {
+        if (absVeic.length === 0) {
+            combBodyEl.innerHTML = '<tr><td colspan="8" class="empty-msg">Nenhum abastecimento registrado para este veículo no período</td></tr>';
+        } else {
+            combBodyEl.innerHTML = absVeic.map(a => {
+                const dt = fmtDataHoraBR(a.data);
+                const mot = a.motorista_nome || (a.motorista_id && dadosBrutos.motoristasMap ? dadosBrutos.motoristasMap[a.motorista_id] : '') || 'Não informado';
+                const posto = a.posto_nome || 'Posto Geral';
+                const tipo = a.tipo_combustivel || 'DIESEL';
+                const fStyle = getCombustivelStyle(tipo);
+                const lit = parseFloat(a.litros) || 0;
+                const pUnit = parseFloat(a.valor_unitario) || 0;
+                const vTot = parseFloat(a.valor_total) || 0;
+                const km = a.km_atual ? fmt(parseFloat(a.km_atual), 0) + ' KM' : '—';
+
+                return `
+                <tr>
+                    <td style="font-weight:600; color:#ffffff; white-space:nowrap;">${dt}</td>
+                    <td style="font-weight:600; color:#cbd5e1;">${mot}</td>
+                    <td style="color:var(--text-muted);">${posto}</td>
+                    <td>
+                        <span class="badge ${fStyle.badgeClass}" style="background:${fStyle.bg}; color:${fStyle.color}; border:1px solid ${fStyle.border}; font-size:0.7rem; font-weight:700; text-transform:uppercase;">
+                            ${tipo}
+                        </span>
+                    </td>
+                    <td style="text-align:right; font-weight:700; color:#38bdf8;">${fmt(lit, 2)} ${fStyle.unidade}</td>
+                    <td style="text-align:right; color:#94a3b8;">${pUnit > 0 ? fmtBRL(pUnit) : '—'}</td>
+                    <td style="text-align:right; font-weight:800; color:#10b981;">${fmtBRL(vTot)}</td>
+                    <td style="text-align:right; color:#cbd5e1;">${km}</td>
+                </tr>`;
+            }).join('');
+        }
+    }
+
+    // ─── Renderizar Painel 2: Manutenções em Cascata ───
+    const gruposList = Object.values(grupos).sort((a, b) => b.total - a.total);
+    const manutSummaryEl = document.getElementById('modal-manutencao-summary');
+    if (manutSummaryEl) {
+        const qtdItensTotal = gruposList.reduce((s, g) => s + g.qtdItens, 0);
+        manutSummaryEl.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:0.75rem 1rem;">
+            <div style="display:flex; align-items:center; gap:0.6rem;">
+                <i data-lucide="layers" style="width:16px;height:16px;color:var(--warning);"></i>
+                <span style="font-size:0.83rem; font-weight:600; color:#ffffff;">Auditoria Hierárquica em Cascata: Centros de Custo Pai ➔ Subgrupos ➔ Itens Analíticos</span>
+            </div>
+            <div style="font-size:0.8rem; color:var(--text-muted);">
+                Total: <strong style="color:#f59e0b;">${fmtBRL(totalManutencao)}</strong> · <strong>${gruposList.length}</strong> centro(s) · <strong>${Math.round(qtdItensTotal)}</strong> item(ns)
+            </div>
+        </div>`;
+    }
+
+    const cascataBodyEl = document.getElementById('modal-manutencao-cascata-body');
+    if (cascataBodyEl) {
+        if (gruposList.length === 0) {
+            cascataBodyEl.innerHTML = '<tr><td colspan="7" class="empty-msg">Nenhum custo de manutenção registrado para este veículo no período</td></tr>';
+        } else {
+            let htmlCascata = '';
+            gruposList.forEach(grp => {
+                const percGrupo = totalManutencao > 0 ? ((grp.total / totalManutencao) * 100) : 0;
+                const safeGrpId = String(grp.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+                const subList = Object.values(grp.subgrupos).sort((a, b) => b.total - a.total);
+
+                htmlCascata += `
+                <tr class="cascata-grupo-row" onclick="toggleCascataGrupo('${safeGrpId}')" title="Clique para expandir/recolher os subgrupos de ${grp.nome}">
+                    <td style="font-weight:700; color:#ffffff;">
+                        <button type="button" class="btn-cascata-toggle" id="btn-grp-${safeGrpId}">
+                            <i data-lucide="chevron-down" style="width:13px;height:13px;"></i>
+                        </button>
+                        <span>${grp.codigo ? grp.codigo + ' - ' : ''}${grp.nome}</span>
+                        <span class="badge badge-warning" style="margin-left:8px; font-size:0.68rem;">${subList.length} subgrupo(s)</span>
+                    </td>
+                    <td style="text-align:center;"><span class="badge badge-neutral" style="font-size:0.68rem;">Grupo Pai</span></td>
+                    <td style="color:var(--text-muted); font-size:0.75rem;">Consolidado</td>
+                    <td style="text-align:center; color:var(--text-muted);">—</td>
+                    <td style="text-align:right; font-weight:600; color:#94a3b8;">${Math.round(grp.qtdItens)}</td>
+                    <td style="text-align:right; font-weight:800; color:#f59e0b;">${fmtBRL(grp.total)}</td>
+                    <td style="text-align:right; font-weight:700; color:var(--text-soft);">${fmt(percGrupo, 1)}%</td>
+                </tr>`;
+
+                // Subgrupos pertencentes a este Grupo Pai
+                subList.forEach(sub => {
+                    const percSub = grp.total > 0 ? ((sub.total / grp.total) * 100) : 0;
+                    const safeSubId = safeGrpId + '_' + String(sub.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+                    htmlCascata += `
+                    <tr class="cascata-subgrupo-row wrap-sub-of-${safeGrpId}" id="row-sub-${safeSubId}" style="display:none;" onclick="toggleCascataSubgrupo('${safeSubId}')" title="Clique para ver os itens analíticos de ${sub.nome}">
+                        <td style="padding-left:2.5rem; font-weight:600; color:#e2e8f0;">
+                            <button type="button" class="btn-cascata-toggle" id="btn-sub-${safeSubId}">
+                                <i data-lucide="chevron-down" style="width:12px;height:12px;"></i>
+                            </button>
+                            <span style="color:#a5b4fc; margin-right:4px;">↳</span>
+                            <span>${sub.codigo && sub.codigo !== '--' ? sub.codigo + ' - ' : ''}${sub.nome}</span>
+                            <span class="chip-subgrupo-count" style="margin-left:6px;">${sub.itens.length} ite${sub.itens.length > 1 ? 'ns' : 'm'}</span>
+                        </td>
+                        <td style="text-align:center;"><span class="badge badge-info" style="font-size:0.68rem;">Subgrupo</span></td>
+                        <td style="color:var(--text-muted); font-size:0.75rem;">Subgrupo</td>
+                        <td style="text-align:center; color:var(--text-muted);">—</td>
+                        <td style="text-align:right; color:#94a3b8;">${Math.round(sub.qtdItens)}</td>
+                        <td style="text-align:right; font-weight:700; color:#38bdf8;">${fmtBRL(sub.total)}</td>
+                        <td style="text-align:right; color:#94a3b8; font-weight:600;">${fmt(percSub, 1)}%</td>
+                    </tr>`;
+
+                    // Itens Analíticos do Subgrupo
+                    sub.itens.forEach(it => {
+                        const percItem = sub.total > 0 ? ((it.valorTotal / sub.total) * 100) : 0;
+                        htmlCascata += `
+                        <tr class="cascata-item-row wrap-item-of-${safeSubId} wrap-sub-of-${safeGrpId}" style="display:none;">
+                            <td style="padding-left:4.6rem; color:#f8fafc; font-weight:500;">
+                                <span style="color:#10b981; margin-right:6px;">•</span>
+                                <span>${it.nome}</span>
+                            </td>
+                            <td style="text-align:center;"><span class="badge badge-neutral" style="font-size:0.68rem;">${it.origem}</span></td>
+                            <td style="color:#cbd5e1; font-size:0.78rem;">${it.fornecedor}</td>
+                            <td style="text-align:center; color:var(--text-muted); font-size:0.78rem;">${it.data}</td>
+                            <td style="text-align:right; color:#cbd5e1;">${it.qtd} ${it.valorUnit > 0 ? `<span style="font-size:0.7rem; color:var(--text-muted);">x ${fmtBRL(it.valorUnit)}</span>` : ''}</td>
+                            <td style="text-align:right; font-weight:700; color:#10b981;">${fmtBRL(it.valorTotal)}</td>
+                            <td style="text-align:right; font-size:0.75rem; color:var(--text-muted);">${fmt(percItem, 1)}%</td>
+                        </tr>`;
+                    });
+                });
+            });
+            cascataBodyEl.innerHTML = htmlCascata;
+        }
+    }
+
+    // Ativar a aba solicitada (combustível ou manutenção)
+    switchModalDetalheTab(abaAtiva);
+
+    // Exibir Modal
+    const modalEl = document.getElementById('modalDetalheVeiculoFrota');
+    if (modalEl) modalEl.classList.add('active');
+
+    if (window.lucide) lucide.createIcons();
+}
+
+function switchModalDetalheTab(tab) {
+    const btnComb = document.getElementById('modal-tab-btn-combustivel');
+    const btnManut = document.getElementById('modal-tab-btn-manutencao');
+    const panelComb = document.getElementById('modal-painel-combustivel');
+    const panelManut = document.getElementById('modal-painel-manutencao');
+
+    if (tab === 'combustivel') {
+        btnComb?.classList.add('active');
+        btnManut?.classList.remove('active');
+        if (panelComb) panelComb.style.display = 'block';
+        if (panelManut) panelManut.style.display = 'none';
+    } else {
+        btnManut?.classList.add('active');
+        btnComb?.classList.remove('active');
+        if (panelManut) panelManut.style.display = 'block';
+        if (panelComb) panelComb.style.display = 'none';
+    }
+
+    if (window.lucide) lucide.createIcons();
+}
+
+function fecharModalDetalheVeiculoFrota() {
+    const modalEl = document.getElementById('modalDetalheVeiculoFrota');
+    if (modalEl) modalEl.classList.remove('active');
+}
+
+function toggleCascataGrupo(safeGrpId) {
+    const rows = document.querySelectorAll('.wrap-sub-of-' + safeGrpId);
+    const btn = document.getElementById('btn-grp-' + safeGrpId);
+    if (!rows.length) return;
+
+    const isVisible = rows[0].style.display !== 'none';
+    rows.forEach(r => {
+        if (isVisible) {
+            r.style.display = 'none';
+            const subBtn = r.querySelector('.btn-cascata-toggle');
+            if (subBtn) subBtn.classList.remove('open');
+        } else {
+            if (r.classList.contains('cascata-subgrupo-row')) {
+                r.style.display = 'table-row';
+            }
+        }
+    });
+
+    if (btn) btn.classList.toggle('open', !isVisible);
+    if (window.lucide) lucide.createIcons();
+}
+
+function toggleCascataSubgrupo(safeSubId) {
+    const rows = document.querySelectorAll('.wrap-item-of-' + safeSubId);
+    const btn = document.getElementById('btn-sub-' + safeSubId);
+    if (!rows.length) return;
+
+    const isVisible = rows[0].style.display !== 'none';
+    rows.forEach(r => {
+        r.style.display = isVisible ? 'none' : 'table-row';
+    });
+
+    if (btn) btn.classList.toggle('open', !isVisible);
+    if (window.lucide) lucide.createIcons();
 }
 
 // ─── 7. DEPARTAMENTO PESSOAL & COMPLIANCE ───
@@ -2099,9 +3735,9 @@ function renderEstoque() {
     const valorCustoTotal = estoque.reduce((s, e) => s + ((parseFloat(e.estoque_atual) || 0) * (parseFloat(e.valor_custo) || 0)), 0);
     const valorVendaTotal = estoque.reduce((s, e) => s + ((parseFloat(e.estoque_atual) || 0) * (parseFloat(e.valor_venda) || parseFloat(e.valor_custo) || 0)), 0);
 
-    // Movimentações no período
+    // Movimentações no período (desconsiderando cancelamentos e estornos)
     const entradas = movs.filter(m => (m.tipo || '').toUpperCase() === 'ENTRADA');
-    const saidasMov = movs.filter(m => (m.tipo || '').toUpperCase() === 'SAIDA');
+    const saidasMov = movs.filter(m => (m.tipo || '').toUpperCase() === 'SAIDA' && !isMovimentoEstoqueCancelado(m));
 
     const valEntradas = entradas.reduce((s, m) => {
         const custoRef = parseFloat(m.valor_unitario) || parseFloat(estoqueMap[m.item_id]?.valor_custo) || 0;
@@ -2112,7 +3748,7 @@ function renderEstoque() {
         const custoRef = parseFloat(m.valor_unitario) || parseFloat(estoqueMap[m.item_id]?.valor_custo) || 0;
         return s + ((parseFloat(m.quantidade) || 0) * custoRef);
     }, 0);
-    const valVendasOS = vendas.reduce((s, v) => s + (parseFloat(v.valor_total) || 0), 0);
+    const valVendasOS = vendas.filter(v => (v.status || '').toUpperCase() !== 'CANCELADA').reduce((s, v) => s + (parseFloat(v.valor_total) || 0), 0);
     const valSaidasTotal = Math.max(valSaidasMov, valVendasOS);
 
     const giroEstoque = valorCustoTotal > 0 ? ((valSaidasTotal / valorCustoTotal) * 100) : 0;
@@ -2253,6 +3889,8 @@ function initCharts() {
     chartFrotaStatus = createDoughnutChart('chart-frota-status', 'bottom');
     chartFrotaCentrosCusto = createDoughnutChart('chart-frota-centros-custo', 'right');
     chartCombEvolucaoMensal = createBarLineChart('chart-comb-evolucao-mensal');
+    chartCombTipos = createDoughnutChart('chart-comb-tipos', 'right');
+    chartCombClassificacao = createDoughnutChart('chart-comb-classificacao', 'right');
     chartManutEvolucaoMensal = createBarLineChart('chart-manut-evolucao-mensal');
     chartDpEvolucaoMensal = createBarLineChart('chart-dp-evolucao-mensal');
     chartDpSetores = createDoughnutChart('chart-dp-setores', 'right');
@@ -2270,13 +3908,17 @@ function atualizarBadgesTemporais(ctx) {
         'badge-chart-cockpit-meses',
         'badge-chart-fin-meses',
         'badge-chart-compras-meses',
-        'badge-chart-frota-meses',
         'badge-chart-comb-meses',
         'badge-chart-manut-meses',
         'badge-chart-dp-meses',
         'badge-chart-comercial-meses',
         'badge-chart-estoque-meses'
     ].forEach(id => setKPI(id, labelBadge));
+
+    const labelBadgeFrota = ctx.mesesPeriodo.length === 1
+        ? `Mês: ${ctx.mesesPeriodo[0]?.label || 'Mês'}`
+        : `Período: ${ctx.mesesPeriodo.length} Meses`;
+    setKPI('badge-chart-frota-meses', labelBadgeFrota);
 }
 
 function atualizarGraficos() {
@@ -2404,42 +4046,89 @@ function atualizarGraficos() {
         chartMixCompras.update('active');
     }
 
-    // ─── 5. FROTA & OPERAÇÕES: Evolução Mensal de Custos (Comb + Manut + Peças + Seguros/Doc) ───
+    // ─── 5. FROTA: Evolução Mensal Inteligente (Combustível vs Manutenção) ───
     const absHist = dadosBrutos.abastecimentosHistorico || [];
     const manutHist = dadosBrutos.manutencoesHistorico || [];
     const compItensHist = dadosBrutos.compraItensHistorico || [];
     const compraDataMap = {};
     comprasHist.forEach(c => { compraDataMap[c.id] = String(c.data_emissao || '').slice(0, 7); });
 
-    const serieFrota = meses.map(m => {
-        const comb = absHist.filter(a => String(a.data || '').startsWith(m.anoMes)).reduce((s, a) => s + (parseFloat(a.valor_total) || 0), 0);
-        const litros = absHist.filter(a => String(a.data || '').startsWith(m.anoMes)).reduce((s, a) => s + (parseFloat(a.litros) || 0), 0);
+    // Filtrar históricos se houver filtros ativos na aba Frota
+    const isFiltroFrotaAtivo = (stateFiltroFrota.classificacoes.size > 0 || stateFiltroFrota.placas.size > 0);
+    let absHistFrota = absHist;
+    let compItensHistFrota = compItensHist;
+    let estoqueMovsHistFrota = dadosBrutos.estoqueMovsHistorico || dadosBrutos.estoqueMovs || [];
+    const absCombGrafico = dadosBrutos.abastecimentosFiltradosFrota || dadosBrutos.abastecimentos || [];
 
-        const mansMes = manutHist.filter(ma => String(ma.data || '').startsWith(m.anoMes));
-        const manut = mansMes.reduce((s, ma) => s + getManutValor(ma), 0);
-        const manutPrev = mansMes.filter(ma => (ma.manutencao_tipos?.descricao || '').toUpperCase().includes('PREVENTIVA')).reduce((s, ma) => s + getManutValor(ma), 0);
-        const manutCorr = Math.max(0, manut - manutPrev);
+    if (isFiltroFrotaAtivo) {
+        const veicsFilt = getVeiculosFiltradosFrota();
+        const vIds = new Set(veicsFilt.map(v => String(v.id || '').toLowerCase()));
+        const vPlacas = new Set(veicsFilt.map(v => String(v.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '')));
 
-        const pecasComp = compItensHist
-            .filter(it => it.vinculo_veiculo_id && compraDataMap[it.compra_id] === m.anoMes)
-            .reduce((s, it) => s + ((parseFloat(it.quantidade) || 1) * (parseFloat(it.valor_unitario) || 0)), 0);
+        absHistFrota = absHist.filter(a => {
+            const vid = a.veiculo_id ? String(a.veiculo_id).toLowerCase() : null;
+            const vpl = a.veiculo_placa ? String(a.veiculo_placa).toUpperCase().replace(/[^A-Z0-9]/g, '') : null;
+            return (vid && vIds.has(vid)) || (vpl && vPlacas.has(vpl));
+        });
 
-        const segDoc = lancs
-            .filter(l => l.tipo === 'PAGAR' && classificarNaturezaVeicular(l) !== null && String(l.data_pagamento || l.data_vencimento || '').startsWith(m.anoMes))
-            .reduce((s, l) => s + valPago(l), 0);
+        compItensHistFrota = compItensHist.filter(it => it.vinculo_veiculo_id && vIds.has(String(it.vinculo_veiculo_id).toLowerCase()));
 
-        return { comb, litros, manut, manutPrev, manutCorr, pecasComp, segDoc, total: comb + manut + pecasComp + segDoc };
+        estoqueMovsHistFrota = estoqueMovsHistFrota.filter(m => {
+            const vid = m.veiculo_id ? String(m.veiculo_id).toLowerCase() : null;
+            const vpl = m.placa ? String(m.placa).toUpperCase().replace(/[^A-Z0-9]/g, '') : null;
+            return (vid && vIds.has(vid)) || (vpl && vPlacas.has(vpl));
+        });
+    }
+
+    // Evolução Mensal da Frota segue estritamente o período filtrado (se 1 mês, mostra apenas 1 mês)
+    const mesesFrota = ctx.mesesPeriodo && ctx.mesesPeriodo.length ? ctx.mesesPeriodo : meses;
+    const labelsFrota = mesesFrota.map(m => m.label);
+
+    const serieFrotaPeriodo = mesesFrota.map(m => {
+        let comb = 0;
+        let manutTotal = 0;
+        if (ctx.mesesPeriodo && ctx.mesesPeriodo.length === 1 && m.anoMes === ctx.mesesPeriodo[0].anoMes && dadosBrutos.totalGastoManutencaoGeral !== undefined) {
+            manutTotal = dadosBrutos.totalGastoManutencaoGeral;
+            comb = absCombGrafico.reduce((s, a) => s + (parseFloat(a.valor_total) || 0), 0);
+        } else {
+            comb = absHistFrota.filter(a => String(a.data || '').startsWith(m.anoMes)).reduce((s, a) => s + (parseFloat(a.valor_total) || 0), 0);
+            const ccMap = {};
+            (dadosBrutos.centrosCusto || []).forEach(c => { ccMap[String(c.id)] = c; });
+            const itensMes = compItensHistFrota.filter(it => compraDataMap[it.compra_id] === m.anoMes);
+            const comprasMesManut = itensMes.reduce((s, it) => {
+                const cc = it.centro_custo_id ? ccMap[String(it.centro_custo_id)] : null;
+                const cCod = cc ? String(cc.codigo || '').trim() : '';
+                const cNome = cc ? String(cc.nome || '').toUpperCase() : '';
+                if (cCod === '03' || cNome === 'ESTOQUE' || cNome.includes('ENTRADA DE ESTOQUE')) return s;
+                return s + ((parseFloat(it.quantidade) || 1) * (parseFloat(it.valor_unitario) || 0));
+            }, 0);
+            
+            const saidasMes = estoqueMovsHistFrota
+                .filter(mov => (mov.tipo || '').toUpperCase() === 'SAIDA' && !isMovimentoEstoqueCancelado(mov) && String(mov.data || '').startsWith(m.anoMes))
+                .reduce((s, mov) => {
+                    const cRef = parseFloat(mov.valor_unitario) || 0;
+                    return s + ((parseFloat(mov.quantidade) || 0) * cRef);
+                }, 0);
+                
+            manutTotal = comprasMesManut + saidasMes;
+        }
+        return { comb, manut: manutTotal };
     });
 
     if (chartFrotaEvolucaoMensal) {
-        chartFrotaEvolucaoMensal.data.labels = labelsMeses;
+        chartFrotaEvolucaoMensal.data.labels = labelsFrota;
         chartFrotaEvolucaoMensal.data.datasets = [
-            { label: 'Combustível', data: serieFrota.map(x => x.comb), backgroundColor: '#ef4444', borderRadius: 4 },
-            { label: 'Manutenção', data: serieFrota.map(x => x.manut), backgroundColor: '#f59e0b', borderRadius: 4 },
-            { label: 'Peças (Compras)', data: serieFrota.map(x => x.pecasComp), backgroundColor: '#06b6d4', borderRadius: 4 },
-            { label: 'Seguros / IPVA / Doc / Multas', data: serieFrota.map(x => x.segDoc), backgroundColor: '#6366f1', borderRadius: 4 }
+            { label: 'Combustível (R$)', data: serieFrotaPeriodo.map(x => x.comb), backgroundColor: '#10b981', borderRadius: 4 },
+            { label: 'Manutenção (R$)', data: serieFrotaPeriodo.map(x => x.manut), backgroundColor: '#ef4444', borderRadius: 4 }
         ];
         chartFrotaEvolucaoMensal.update('active');
+    }
+
+    const badgeFrota = document.getElementById('badge-chart-frota-meses');
+    if (badgeFrota) {
+        badgeFrota.textContent = mesesFrota.length === 1
+            ? `Mês Selecionado: ${mesesFrota[0].label}`
+            : `Período: ${mesesFrota.length} Meses (${mesesFrota[0].label} a ${mesesFrota[mesesFrota.length - 1].label})`;
     }
 
     if (chartFrotaStatus) {
@@ -2455,32 +4144,142 @@ function atualizarGraficos() {
     }
 
     if (chartFrotaCentrosCusto) {
-        const linhasCC = (dadosBrutos.linhasCentrosFrota || []).filter(r => r.total > 0);
-        const colors = ['#ef4444', '#f59e0b', '#06b6d4', '#6366f1', '#10b981', '#a855f7', '#ec4899', '#14b8a6'];
-        chartFrotaCentrosCusto.data.labels = linhasCC.length ? linhasCC.map(r => r.nome) : ['Sem custos no período'];
+        const paisCC = (dadosBrutos.centrosCustoHierarquia || []).filter(r => r.total > 0);
+        const colors = ['#6366f1', '#10b981', '#06b6d4', '#f59e0b', '#a855f7', '#ef4444', '#ec4899', '#14b8a6', '#84cc16', '#3b82f6'];
+        chartFrotaCentrosCusto.data.labels = paisCC.length ? paisCC.map(r => `${r.codigo} - ${r.nome}`) : ['Sem compras no período'];
         chartFrotaCentrosCusto.data.datasets = [{
-            data: linhasCC.length ? linhasCC.map(r => r.total) : [1],
-            backgroundColor: linhasCC.length ? colors.slice(0, linhasCC.length) : ['rgba(255,255,255,0.05)'],
+            data: paisCC.length ? paisCC.map(r => r.total) : [1],
+            backgroundColor: paisCC.length ? colors.slice(0, paisCC.length) : ['rgba(255,255,255,0.05)'],
             borderWidth: 0
         }];
         chartFrotaCentrosCusto.update('active');
     }
 
-    if (chartCombEvolucaoMensal) {
-        chartCombEvolucaoMensal.data.labels = labelsMeses;
-        chartCombEvolucaoMensal.data.datasets = [
-            { label: 'Gasto Combustível (R$)', data: serieFrota.map(x => x.comb), backgroundColor: 'rgba(16,185,129,0.78)', borderRadius: 5 }
-        ];
-        chartCombEvolucaoMensal.update('active');
+    // ─── 5.1 SEÇÃO COMBUSTÍVEL: Gráficos Inteligentes de Tipos & Classificação ───
+    const porTipoComb = {};
+    absCombGrafico.forEach(a => {
+        const tipo = (a.tipo_combustivel || 'Outros').trim();
+        const v = parseFloat(a.valor_total) || 0;
+        const l = parseFloat(a.litros) || 0;
+        if (v <= 0) return;
+        if (!porTipoComb[tipo]) porTipoComb[tipo] = { tipo, total: 0, litros: 0 };
+        porTipoComb[tipo].total += v;
+        porTipoComb[tipo].litros += l;
+    });
+    const tiposCombAtivos = Object.values(porTipoComb)
+        .filter(t => t.total > 0)
+        .sort((a, b) => b.total - a.total);
+
+    const fuelColors = tiposCombAtivos.map(t => getCombustivelStyle(t.tipo).chartColor);
+
+    if (chartCombTipos) {
+        chartCombTipos.data.labels = tiposCombAtivos.length ? tiposCombAtivos.map(t => t.tipo) : ['Sem abastecimentos'];
+        chartCombTipos.data.datasets = [{
+            data: tiposCombAtivos.length ? tiposCombAtivos.map(t => t.total) : [1],
+            backgroundColor: tiposCombAtivos.length ? fuelColors : ['rgba(255,255,255,0.05)'],
+            borderWidth: 0
+        }];
+        chartCombTipos.update('active');
     }
 
-    if (chartManutEvolucaoMensal) {
-        chartManutEvolucaoMensal.data.labels = labelsMeses;
-        chartManutEvolucaoMensal.data.datasets = [
-            { label: 'Preventiva (R$)', data: serieFrota.map(x => x.manutPrev), backgroundColor: '#10b981', borderRadius: 5 },
-            { label: 'Corretiva / Outras (R$)', data: serieFrota.map(x => x.manutCorr), backgroundColor: '#ef4444', borderRadius: 5 }
-        ];
-        chartManutEvolucaoMensal.update('active');
+    const legendTipos = document.getElementById('comb-tipos-legend');
+    if (legendTipos) {
+        const totalCombGeral = tiposCombAtivos.reduce((s, t) => s + t.total, 0);
+        legendTipos.innerHTML = tiposCombAtivos.length === 0
+            ? '<span class="empty-msg" style="font-size:0.78rem;">Sem abastecimentos no período</span>'
+            : tiposCombAtivos.map((t, idx) => {
+                const fStyle = getCombustivelStyle(t.tipo);
+                const cor = fStyle.chartColor;
+                const perc = totalCombGeral > 0 ? ((t.total / totalCombGeral) * 100) : 0;
+                return `
+                <div style="display:flex; align-items:center; justify-content:space-between; font-size:0.8rem; padding:0.25rem 0.5rem; background:rgba(255,255,255,0.02); border-radius:4px;">
+                    <div style="display:flex; align-items:center; gap:0.4rem;">
+                        <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${cor};"></span>
+                        <span style="color:var(--text); font-weight:600;">${t.tipo}</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:0.6rem;">
+                        <span style="color:var(--text-muted); font-size:0.75rem;">${fmt(t.litros, 0)} ${fStyle.unidade} (${fmt(perc, 1)}%)</span>
+                        <span style="color:#10b981; font-weight:700;">${fmtBRL(t.total)}</span>
+                    </div>
+                </div>`;
+            }).join('');
+    }
+
+    // Classificação da frota abastecida (Próprios, Agregados, Especiais, Diretoria, etc.)
+    const veicMapClass = {};
+    (dadosBrutos.veiculos || []).forEach(v => {
+        if (v.id) veicMapClass[String(v.id)] = v;
+    });
+
+    const porClassComb = {};
+    absCombGrafico.forEach(a => {
+        const v = a.veiculo_id ? veicMapClass[String(a.veiculo_id)] : null;
+        const rawClass = v ? String(v.classificacao || 'PROPRIO').trim().toUpperCase() : 'OUTRO';
+        let classLabel = 'Próprio';
+        if (rawClass === 'PROPRIO' || rawClass === 'CASA') {
+            classLabel = 'Próprio';
+        } else if (rawClass === 'ESPECIAL') {
+            classLabel = 'Especiais';
+        } else if (rawClass === 'DIRETORIA') {
+            classLabel = 'Diretoria';
+        } else if (rawClass === 'AGREGADO' || rawClass === 'AGREGADOS') {
+            classLabel = 'Agregados';
+        } else if (rawClass === 'TERCEIRO' || rawClass === 'TERCEIROS') {
+            classLabel = 'Terceiros';
+        } else if (rawClass === 'ALUGADO' || rawClass === 'LOCADO') {
+            classLabel = 'Alugados';
+        } else {
+            classLabel = 'Outros';
+        }
+
+        const val = parseFloat(a.valor_total) || 0;
+        const lit = parseFloat(a.litros) || 0;
+        if (val <= 0) return;
+
+        if (!porClassComb[classLabel]) {
+            porClassComb[classLabel] = { label: classLabel, total: 0, litros: 0, qtd: 0 };
+        }
+        porClassComb[classLabel].total += val;
+        porClassComb[classLabel].litros += lit;
+        porClassComb[classLabel].qtd += 1;
+    });
+
+    const classCombAtivas = Object.values(porClassComb)
+        .filter(c => c.total > 0)
+        .sort((a, b) => b.total - a.total);
+
+    const classColors = ['#6366f1', '#38bdf8', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#64748b'];
+
+    if (chartCombClassificacao) {
+        chartCombClassificacao.data.labels = classCombAtivas.length ? classCombAtivas.map(c => c.label) : ['Sem abastecimentos'];
+        chartCombClassificacao.data.datasets = [{
+            data: classCombAtivas.length ? classCombAtivas.map(c => c.total) : [1],
+            backgroundColor: classCombAtivas.length ? classColors.slice(0, classCombAtivas.length) : ['rgba(255,255,255,0.05)'],
+            borderWidth: 0
+        }];
+        chartCombClassificacao.update('active');
+    }
+
+    const legendClass = document.getElementById('comb-classif-legend');
+    if (legendClass) {
+        const totalClassGeral = classCombAtivas.reduce((s, c) => s + c.total, 0);
+        legendClass.innerHTML = classCombAtivas.length === 0
+            ? '<span class="empty-msg" style="font-size:0.78rem;">Sem abastecimentos no período</span>'
+            : classCombAtivas.map((c, idx) => {
+                const cor = classColors[idx % classColors.length];
+                const perc = totalClassGeral > 0 ? ((c.total / totalClassGeral) * 100) : 0;
+                return `
+                <div style="display:flex; align-items:center; justify-content:space-between; font-size:0.8rem; padding:0.25rem 0.5rem; background:rgba(255,255,255,0.02); border-radius:4px;">
+                    <div style="display:flex; align-items:center; gap:0.4rem;">
+                        <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${cor};"></span>
+                        <span style="color:var(--text); font-weight:600;">${c.label}</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:0.6rem;">
+                        <span style="color:var(--text-muted); font-size:0.75rem;">${fmt(c.litros, 0)} L (${fmt(perc, 1)}%)</span>
+                        <span style="color:#38bdf8; font-weight:700;">${fmtBRL(c.total)}</span>
+                    </div>
+                </div>`;
+            }).join('');
     }
 
     // ─── 6. PESSOAS & COMPLIANCE (DP): Evolução Mensal & Setores ───
@@ -2551,11 +4350,11 @@ function atualizarGraficos() {
                 .reduce((s, mv) => s + ((parseFloat(mv.quantidade) || 0) * (parseFloat(mv.valor_unitario) || parseFloat(estMap[mv.item_id]?.valor_custo) || 0)), 0);
 
             const saiMov = movsHist
-                .filter(mv => (mv.tipo || '').toUpperCase() === 'SAIDA' && String(mv.data || '').startsWith(m.anoMes))
+                .filter(mv => (mv.tipo || '').toUpperCase() === 'SAIDA' && !isMovimentoEstoqueCancelado(mv) && String(mv.data || '').startsWith(m.anoMes))
                 .reduce((s, mv) => s + ((parseFloat(mv.quantidade) || 0) * (parseFloat(mv.valor_unitario) || parseFloat(estMap[mv.item_id]?.valor_custo) || 0)), 0);
 
             const saiVend = vendasHist
-                .filter(v => String(v.data || '').startsWith(m.anoMes))
+                .filter(v => (v.status || '').toUpperCase() !== 'CANCELADA' && String(v.data || '').startsWith(m.anoMes))
                 .reduce((s, v) => s + (parseFloat(v.valor_total) || 0), 0);
 
             return { ent, sai: Math.max(saiMov, saiVend) };
@@ -2587,3 +4386,191 @@ function atualizarGraficos() {
         chartEstoqueCategorias.update('active');
     }
 }
+
+// ============================================================
+//  MODAL FULLSCREEN: RAIO-X DE CLASSIFICAÇÕES DA FROTA
+// ============================================================
+
+window.abrirModalClassificacoesFrota = function(foco = 'total') {
+    const modal = document.getElementById('modalClassificacoesFrota');
+    if (!modal) return;
+
+    const veiculos = dadosBrutos.veiculos || [];
+    const prestadores = dadosBrutos.prestadores || [];
+    const statusCounts = getFrotaStatusCounts(veiculos);
+    const prestAtivos = prestadores.filter(p => (p.status || '').toUpperCase() === 'ATIVO').length;
+
+    // Atualizar Header do Modal
+    const setTxt = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+    };
+    setTxt('modal-hdr-rodando', statusCounts.alocados + prestAtivos);
+    setTxt('modal-hdr-garagem', statusCounts.garagem);
+    setTxt('modal-hdr-manut', statusCounts.emManut);
+    setTxt('modal-hdr-patio', statusCounts.patio);
+    setTxt('modal-total-geral-badge', `${statusCounts.total + prestAtivos} veículos (${statusCounts.total} frota + ${prestAtivos} agregados)`);
+
+    // Atualizar Título de acordo com o foco
+    const titleEl = document.getElementById('modalClassFrotaTitle');
+    if (titleEl) {
+        if (foco === 'alocados') {
+            titleEl.textContent = 'Raio-X de Veículos em Operação (Rodando)';
+        } else if (foco === 'status') {
+            titleEl.textContent = 'Raio-X de Ocupação & Classificações da Frota';
+        } else {
+            titleEl.textContent = 'Raio-X de Classificações & Ocupação da Frota';
+        }
+    }
+
+    // Mapa de Classificações
+    const classMap = dadosBrutos.classificacoesFrotaMap || {};
+
+    // Ordenação recomendada para os cards
+    const ordem = ['PROPRIO', 'ESPECIAL', 'DIRETORIA', 'AGREGADOS', 'TERCEIRO', 'ALUGADO', 'OUTRO'];
+    const chavesDisponiveis = Object.keys(classMap);
+    const chavesOrdenadas = [
+        ...ordem.filter(k => chavesDisponiveis.includes(k)),
+        ...chavesDisponiveis.filter(k => !ordem.includes(k))
+    ];
+
+    const container = document.getElementById('modal-class-cards-container');
+    if (container) {
+        if (chavesOrdenadas.length === 0) {
+            container.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:3rem; color:#94a3b8;">Nenhum veículo cadastrado na frota.</div>';
+        } else {
+            container.innerHTML = chavesOrdenadas.map(k => {
+                const item = classMap[k];
+                if (!item || item.total === 0) return '';
+
+                const percRodando = item.total > 0 ? Math.round((item.rodando / item.total) * 100) : 0;
+                const percGaragem = item.total > 0 ? Math.round((item.garagem / item.total) * 100) : 0;
+                const percManut = item.total > 0 ? Math.round((item.manut / item.total) * 100) : 0;
+                const percPatio = item.total > 0 ? Math.max(0, 100 - percRodando - percGaragem - percManut) : 0;
+
+                const isAgregado = item.origem === 'COMERCIAL';
+
+                return `
+                <div class="class-card" style="border-top:3px solid ${item.badgeColor};">
+                    <div class="class-card-header">
+                        <div class="class-card-title-wrap">
+                            <div class="class-card-icon" style="background:${item.badgeColor}22; color:${item.badgeColor}; border:1px solid ${item.badgeColor}44;">
+                                <i data-lucide="${item.icon}" style="width:20px;height:20px;"></i>
+                            </div>
+                            <div>
+                                <h3 class="class-card-name">${item.label}</h3>
+                                <span class="class-card-origin">${isAgregado ? '🤝 Módulo Comercial' : '🚗 Frota Própria (CASA)'}</span>
+                            </div>
+                        </div>
+                        <span style="font-size:0.7rem; font-weight:800; padding:2px 8px; border-radius:6px; background:${item.badgeColor}18; color:${item.badgeColor}; border:1px solid ${item.badgeColor}33;">
+                            ${item.key}
+                        </span>
+                    </div>
+
+                    <div style="display:flex; align-items:baseline; justify-content:space-between; margin-top:0.2rem;">
+                        <span class="class-card-total" style="color:${item.badgeColor};">${item.total}</span>
+                        <span style="font-size:0.75rem; color:#94a3b8; font-weight:600;">
+                            ${isAgregado ? 'Prestadores parceiros' : (item.total === 1 ? '1 veículo cadastrado' : `${item.total} veículos cadastrados`)}
+                        </span>
+                    </div>
+
+                    <!-- Barra de distribuição de status -->
+                    <div class="class-card-bar" title="Rodando: ${item.rodando} | Garagem: ${item.garagem} | Oficina: ${item.manut} | Pátio: ${item.patio}">
+                        <div class="class-card-bar-seg" style="width:${percRodando}%; background:#10b981;" title="Rodando: ${item.rodando} (${percRodando}%)"></div>
+                        <div class="class-card-bar-seg" style="width:${percGaragem}%; background:#f59e0b;" title="Garagem: ${item.garagem} (${percGaragem}%)"></div>
+                        <div class="class-card-bar-seg" style="width:${percManut}%; background:#ef4444;" title="Manutenção: ${item.manut} (${percManut}%)"></div>
+                        <div class="class-card-bar-seg" style="width:${percPatio}%; background:#64748b;" title="Pátio: ${item.patio} (${percPatio}%)"></div>
+                    </div>
+
+                    <!-- Chips de Status Quantitativos -->
+                    <div class="class-status-chips">
+                        <span class="status-chip chip-rodando" title="Veículos em operação rodando com condutor alocado">
+                            <i data-lucide="play" style="width:11px;height:11px;"></i>
+                            <span>${item.rodando} Rodando</span>
+                        </span>
+                        ${!isAgregado && item.garagem > 0 ? `
+                        <span class="status-chip chip-garagem" title="Veículos recolhidos em garagem">
+                            <i data-lucide="home" style="width:11px;height:11px;"></i>
+                            <span>${item.garagem} Garagem</span>
+                        </span>` : ''}
+                        ${!isAgregado && item.manut > 0 ? `
+                        <span class="status-chip chip-manut" title="Veículos parados em manutenção / oficina">
+                            <i data-lucide="wrench" style="width:11px;height:11px;"></i>
+                            <span>${item.manut} Oficina</span>
+                        </span>` : ''}
+                        ${!isAgregado && item.patio > 0 ? `
+                        <span class="status-chip chip-patio" title="Veículos disponíveis no pátio para alocação">
+                            <i data-lucide="parking-circle" style="width:11px;height:11px;"></i>
+                            <span>${item.patio} Pátio</span>
+                        </span>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    }
+
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    if (window.lucide) lucide.createIcons();
+};
+
+window.fecharModalClassificacoesFrota = function() {
+    const modal = document.getElementById('modalClassificacoesFrota');
+    if (modal) {
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+};
+
+window.fecharModalDetalheVeiculoFrota = function() {
+    const modal = document.getElementById('modalDetalheVeiculoFrota');
+    if (modal) {
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+};
+
+window.abrirDetalheVeiculoFrota = abrirDetalheVeiculoFrota;
+window.switchModalDetalheTab = switchModalDetalheTab;
+window.toggleCascataGrupo = toggleCascataGrupo;
+window.toggleCascataSubgrupo = toggleCascataSubgrupo;
+window.toggleExibirTodosVeiculosRanking = toggleExibirTodosVeiculosRanking;
+
+// Fechar modais com ESC ou clique no backdrop
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        fecharModalClassificacoesFrota();
+        fecharModalDetalheVeiculoFrota();
+    }
+});
+
+document.addEventListener('click', (e) => {
+    const modalClass = document.getElementById('modalClassificacoesFrota');
+    if (modalClass && modalClass.classList.contains('active') && e.target === modalClass) {
+        fecharModalClassificacoesFrota();
+    }
+    const modalDet = document.getElementById('modalDetalheVeiculoFrota');
+    if (modalDet && modalDet.classList.contains('active') && e.target === modalDet) {
+        fecharModalDetalheVeiculoFrota();
+    }
+});
+
+// ============================================================
+//  EXPANSÃO DINÂMICA DE SUBGRUPOS DE CENTROS DE CUSTO (COMPRAS)
+// ============================================================
+
+window.toggleSubCentrosCusto = function(safePaiId) {
+    const wrapEl = document.getElementById(`wrap-filhos-${safePaiId}`);
+    const btnEl = document.getElementById(`btn-toggle-${safePaiId}`);
+    if (!wrapEl) return;
+
+    const isOpen = wrapEl.classList.contains('open');
+    if (isOpen) {
+        wrapEl.classList.remove('open');
+        if (btnEl) btnEl.classList.remove('active');
+    } else {
+        wrapEl.classList.add('open');
+        if (btnEl) btnEl.classList.add('active');
+    }
+    if (window.lucide) lucide.createIcons();
+};

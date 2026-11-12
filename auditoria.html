@@ -201,6 +201,154 @@
             font-weight: 600;
         }
 
+        .log-user-email {
+            color: #a5b4fc;
+        }
+
+        .log-desc-text {
+            color: #cbd5e1;
+        }
+
+        .log-desc-alt {
+            color: #fbbf24;
+        }
+
+        .log-desc-motivo {
+            color: #38bdf8;
+        }
+
+        /* ─── TEMA GREEN PASTEL (CLEAN VERDE) ─── */
+        [data-theme="green_pastel"] body {
+            background-color: #f0f7f4 !important;
+            background-image: none !important;
+            color: #0f172a !important;
+        }
+
+        [data-theme="green_pastel"] .audit-card {
+            background: #ffffff !important;
+            border-color: rgba(45, 158, 107, 0.22) !important;
+            box-shadow: 0 4px 18px rgba(45, 158, 107, 0.08) !important;
+        }
+
+        [data-theme="green_pastel"] .header-title h1 {
+            background: linear-gradient(to right, #1a7a50, #2d9e6b) !important;
+            -webkit-background-clip: text !important;
+            background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+        }
+
+        [data-theme="green_pastel"] .header-title p {
+            color: #4b6356 !important;
+            font-weight: 500 !important;
+        }
+
+        [data-theme="green_pastel"] .filter-group label {
+            color: #1f4e38 !important;
+            font-weight: 700 !important;
+        }
+
+        [data-theme="green_pastel"] .filter-group select,
+        [data-theme="green_pastel"] .filter-group input {
+            background: #ffffff !important;
+            border-color: rgba(45, 158, 107, 0.35) !important;
+            color: #0f172a !important;
+            font-weight: 600 !important;
+        }
+
+        [data-theme="green_pastel"] .filter-group select:focus,
+        [data-theme="green_pastel"] .filter-group input:focus {
+            border-color: #2d9e6b !important;
+            box-shadow: 0 0 0 3px rgba(45, 158, 107, 0.18) !important;
+        }
+
+        [data-theme="green_pastel"] th {
+            background: rgba(45, 158, 107, 0.09) !important;
+            color: #14532d !important;
+            border-bottom: 2px solid rgba(45, 158, 107, 0.25) !important;
+            font-weight: 800 !important;
+        }
+
+        [data-theme="green_pastel"] td {
+            color: #0f172a !important;
+            border-bottom: 1px solid rgba(45, 158, 107, 0.12) !important;
+            font-weight: 500 !important;
+        }
+
+        [data-theme="green_pastel"] tr:hover td {
+            background: rgba(45, 158, 107, 0.05) !important;
+        }
+
+        [data-theme="green_pastel"] .badge-modulo {
+            background: rgba(45, 158, 107, 0.14) !important;
+            border: 1px solid rgba(45, 158, 107, 0.35) !important;
+            color: #14532d !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.04em !important;
+        }
+
+        [data-theme="green_pastel"] .badge-inclusao {
+            background: rgba(16, 185, 129, 0.16) !important;
+            color: #047857 !important;
+            border: 1px solid rgba(16, 185, 129, 0.4) !important;
+            font-weight: 800 !important;
+        }
+
+        [data-theme="green_pastel"] .badge-alteracao {
+            background: rgba(245, 158, 11, 0.16) !important;
+            color: #b45309 !important;
+            border: 1px solid rgba(245, 158, 11, 0.45) !important;
+            font-weight: 800 !important;
+        }
+
+        [data-theme="green_pastel"] .badge-exclusao {
+            background: rgba(239, 68, 68, 0.16) !important;
+            color: #b91c1c !important;
+            border: 1px solid rgba(239, 68, 68, 0.45) !important;
+            font-weight: 800 !important;
+        }
+
+        [data-theme="green_pastel"] .log-user-email {
+            color: #0369a1 !important;
+            font-weight: 700 !important;
+        }
+
+        [data-theme="green_pastel"] .log-desc-text {
+            color: #1e293b !important;
+            font-weight: 500 !important;
+        }
+
+        [data-theme="green_pastel"] .log-desc-text strong {
+            color: #0f172a !important;
+            font-weight: 800 !important;
+        }
+
+        [data-theme="green_pastel"] .log-desc-alt {
+            color: #92400e !important;
+            font-weight: 600 !important;
+        }
+
+        [data-theme="green_pastel"] .log-desc-motivo {
+            color: #0369a1 !important;
+            font-weight: 600 !important;
+        }
+
+        [data-theme="green_pastel"] .btn-page {
+            background: #ffffff !important;
+            border: 1px solid rgba(45, 158, 107, 0.3) !important;
+            color: #1a7a50 !important;
+            font-weight: 700 !important;
+        }
+
+        [data-theme="green_pastel"] .btn-page:hover:not(:disabled) {
+            background: #2d9e6b !important;
+            color: #ffffff !important;
+        }
+
+        [data-theme="green_pastel"] .pagination-info {
+            color: #4b6356 !important;
+            font-weight: 600 !important;
+        }
+
         /* Pagination style */
         .pagination-container {
             display: flex;
@@ -261,6 +409,7 @@
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="auth.js"></script>
+    <script src="theme.js"></script>
     <script src="config.js"></script>
     <script src="orb_menu.js" defer></script>
 </head>

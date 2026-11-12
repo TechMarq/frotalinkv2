@@ -4402,6 +4402,7 @@ function renderCompras() {
     const filterPai = document.getElementById('filterCentroPai')?.value || '';
     const filterCusto = document.getElementById('filterCusto')?.value || '';
     const filterPgto = document.getElementById('filterPagamento')?.value || '';
+    const hasItemFilter = Boolean(filterPai || filterCusto || filterPlaca);
 
     filtered = filtered.filter(c => {
         const cDate = toStandardYYYYMMDD(c.data || c.data_emissao);
@@ -4412,14 +4413,19 @@ function renderCompras() {
         if (filterPgto && c.formaPgtoId != filterPgto) return false;
         
         if (filterPlaca) {
-            const hasPlaca = (c.itens || []).some(it => it.veiculoId == filterPlaca);
+            const hasPlaca = (c.itens || []).some(it => String(it.veiculoId) === String(filterPlaca));
             if (!hasPlaca) return false;
+        }
+
+        if (filterCusto) {
+            const hasCusto = (c.itens || []).some(it => String(it.centroCustoId) === String(filterCusto));
+            if (!hasCusto) return false;
         }
 
         if (filterPai) {
             const hasPai = (c.itens || []).some(it => {
-                const cc = (config.centrosCusto || []).find(x => x.id == it.centroCustoId);
-                return cc && cc.parentId == filterPai;
+                const cc = (config.centrosCusto || []).find(x => String(x.id) === String(it.centroCustoId));
+                return cc && (String(cc.parentId || cc.parent_id) === String(filterPai));
             });
             if (!hasPai) return false;
         }
@@ -4567,7 +4573,32 @@ function renderCompras() {
                 </td>`;
             }
 
-            if (col.key === 'valorTotal') return `<td data-label="Valor Total" style="font-weight:800; color:#818cf8; font-size:1rem;">R$ ${parseFloat(c.valorTotal).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>`;
+            if (col.key === 'valorTotal') {
+                const totalNota = parseFloat(c.valorTotal) || 0;
+                let subBadge = '';
+                if (hasItemFilter) {
+                    let totalFiltrado = 0;
+                    (c.itens || c.items || []).forEach(it => {
+                        let match = true;
+                        if (filterCusto && String(it.centroCustoId) !== String(filterCusto)) match = false;
+                        if (filterPai) {
+                            const cc = (config.centrosCusto || []).find(x => String(x.id) === String(it.centroCustoId));
+                            if (!cc || (String(cc.parentId || cc.parent_id) !== String(filterPai))) match = false;
+                        }
+                        if (filterPlaca && String(it.veiculoId) !== String(filterPlaca)) match = false;
+                        if (match) {
+                            totalFiltrado += (parseFloat(it.quantidade) || 1) * (parseFloat(it.valorUnitario) || 0);
+                        }
+                    });
+                    if (Math.abs(totalFiltrado - totalNota) > 0.01) {
+                        subBadge = `<div style="font-size:0.72rem; color:#10b981; font-weight:700; margin-top:3px; white-space:nowrap; display:flex; align-items:center; gap:3px;" title="Valor correspondente apenas aos itens que atendem aos filtros ativos"><span>↳ Filtrado:</span> <span>R$ ${totalFiltrado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>`;
+                    }
+                }
+                return `<td data-label="Valor Total">
+                    <div style="font-weight:800; color:#818cf8; font-size:1rem; white-space:nowrap;">R$ ${totalNota.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+                    ${subBadge}
+                </td>`;
+            }
             
             if (col.key === 'pagamento') {
                 const pgto = config.tiposPgto.find(p => p.id == c.formaPgtoId);
@@ -4661,8 +4692,18 @@ function updateDropdowns() {
     });
 }
 
+function isFechamentoConsolidadoVales(c) {
+    if (!c) return false;
+    return Boolean(
+        c.consolidadoVales || 
+        c.consolidado_vales || 
+        (c.id && String(c.id).startsWith('NC-FAT-')) ||
+        (c.observacoes && String(c.observacoes).includes('[CONSOLIDADO FECHAMENTO VALES]'))
+    );
+}
+
 function updateDashboard(records = null) {
-    const dataToUse = (records || compras).filter(c => !c.consolidadoVales && !c.consolidado_vales);
+    const dataToUse = (records || compras).filter(c => !isFechamentoConsolidadoVales(c));
     const total = dataToUse.reduce((acc, curr) => acc + (parseFloat(curr.valorTotal) || 0), 0);
     const count = dataToUse.length;
     const avg = count > 0 ? total / count : 0;
@@ -4709,9 +4750,46 @@ function updateDashboard(records = null) {
 }
 
 function updateSelectionKPIs(records) {
-    const filteredRecords = records.filter(c => !c.consolidadoVales && !c.consolidado_vales);
-    const total = filteredRecords.reduce((acc, curr) => acc + (parseFloat(curr.valorTotal) || 0), 0);
+    const filteredRecords = records.filter(c => !isFechamentoConsolidadoVales(c));
     const count = filteredRecords.length;
+
+    // Verificar se há filtros específicos de item ativos (Centro de Custo Pai, Subcentro ou Placa)
+    const filterPai = document.getElementById('filterCentroPai')?.value || '';
+    const filterCusto = document.getElementById('filterCusto')?.value || '';
+    const filterPlaca = document.getElementById('filterPlaca')?.value || '';
+    const hasItemFilter = Boolean(filterPai || filterCusto || filterPlaca);
+
+    // Helper para verificar se um item individual bate com os filtros específicos ativos
+    const isItemMatchingFilters = (it) => {
+        if (filterCusto && String(it.centroCustoId) !== String(filterCusto)) {
+            return false;
+        }
+        if (filterPai) {
+            const cc = (config.centrosCusto || []).find(x => String(x.id) === String(it.centroCustoId));
+            if (!cc || String(cc.parentId || cc.parent_id) !== String(filterPai)) {
+                return false;
+            }
+        }
+        if (filterPlaca && String(it.veiculoId) !== String(filterPlaca)) {
+            return false;
+        }
+        return true;
+    };
+
+    // Calcular o total selecionado:
+    // Se houver filtro de centro de custo / placa ativo, somar estritamente os itens que atendem ao filtro!
+    let total = 0;
+    if (hasItemFilter) {
+        filteredRecords.forEach(c => {
+            (c.itens || []).forEach(it => {
+                if (isItemMatchingFilters(it)) {
+                    total += (parseFloat(it.quantidade) || 1) * (parseFloat(it.valorUnitario) || 0);
+                }
+            });
+        });
+    } else {
+        total = filteredRecords.reduce((acc, curr) => acc + (parseFloat(curr.valorTotal) || 0), 0);
+    }
 
     const totalEl = document.getElementById('sel_total_valor');
     const countEl = document.getElementById('sel_total_notas');
@@ -4726,12 +4804,16 @@ function updateSelectionKPIs(records) {
             return;
         }
 
-        // Calculate breakdown by Parent Cost Center
+        // Calculate breakdown by Parent Cost Center (somente dos itens que atendem ao filtro)
         const ccMap = {};
         let grandTotalItems = 0;
 
-        records.forEach(c => {
+        filteredRecords.forEach(c => {
             (c.itens || []).forEach(it => {
+                if (hasItemFilter && !isItemMatchingFilters(it)) {
+                    return; // Ignora itens de outros centros de custo que não batem com o filtro ativo!
+                }
+
                 if (it.centroCustoId) {
                     const cc = (config.centrosCusto || []).find(x => String(x.id) === String(it.centroCustoId));
                     let parentName = 'Outros / Não Identificado';
@@ -5655,14 +5737,30 @@ window.handleCustomDateChange = async () => {
 window.handleDatePresetChange = (el, triggerFetch = true) => {
     const val = el ? el.value : 'month';
     const container = document.getElementById('customDateContainer');
+    const monthContainer = document.getElementById('specificMonthContainer');
+    const monthInput = document.getElementById('filterSpecificMonth');
     const startInput = document.getElementById('filterDateStart');
     const endInput = document.getElementById('filterDateEnd');
     
-    if (!container || !startInput || !endInput) return;
+    if (!startInput || !endInput) return;
 
-    container.style.display = val === 'custom' ? 'flex' : 'none';
+    if (container) container.style.display = val === 'custom' ? 'flex' : 'none';
+    if (monthContainer) monthContainer.style.display = val === 'specificMonth' ? 'flex' : 'none';
     
-    if (val !== 'custom') {
+    if (val === 'specificMonth') {
+        const today = new Date();
+        const defMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+        if (monthInput && !monthInput.value) {
+            monthInput.value = defMonth;
+        }
+        const curM = (monthInput && monthInput.value) ? monthInput.value : defMonth;
+        const [yStr, mStr] = curM.split('-');
+        const y = parseInt(yStr, 10);
+        const m = parseInt(mStr, 10);
+        const lastDay = new Date(y, m, 0).getDate();
+        startInput.value = `${y}-${String(m).padStart(2, '0')}-01`;
+        endInput.value = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    } else if (val !== 'custom') {
         if (val === 'all') {
             startInput.value = '';
             endInput.value = '';
@@ -5719,6 +5817,23 @@ window.handleDatePresetChange = (el, triggerFetch = true) => {
         }
     } else {
         handleIntelligentFilter('filterDatePreset');
+    }
+};
+
+window.handleSpecificMonthChange = (monthVal) => {
+    if (!monthVal) return;
+    const [yStr, mStr] = monthVal.split('-');
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10);
+    const lastDay = new Date(y, m, 0).getDate();
+    const startInput = document.getElementById('filterDateStart');
+    const endInput = document.getElementById('filterDateEnd');
+    if (startInput && endInput) {
+        startInput.value = `${y}-${String(m).padStart(2, '0')}-01`;
+        endInput.value = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        loadCompras(startInput.value, endInput.value).then(() => {
+            handleIntelligentFilter('filterDatePreset');
+        });
     }
 };
 

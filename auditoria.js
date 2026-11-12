@@ -281,7 +281,7 @@ function formatLogDescription(desc) {
             end = idx - 2; // to skip "| "
         }
         const detailPart = desc.substring(start, end).trim();
-        html += `<div style="color: #cbd5e1; margin-bottom: 5px; line-height: 1.4;"><strong>Registro:</strong> ${detailPart}</div>`;
+        html += `<div class="log-desc-text" style="margin-bottom: 5px; line-height: 1.4;"><strong>Registro:</strong> ${detailPart}</div>`;
     } else if (hasMotivo) {
         // If there is no DETALHE: but there is a Motivo:, treat the prefix as the main action/description
         const idx = desc.toUpperCase().indexOf('MOTIVO:');
@@ -290,7 +290,7 @@ function formatLogDescription(desc) {
             prefix = prefix.slice(0, -1).trim();
         }
         if (prefix) {
-            html += `<div style="color: #cbd5e1; margin-bottom: 5px; line-height: 1.4;">${prefix}</div>`;
+            html += `<div class="log-desc-text" style="margin-bottom: 5px; line-height: 1.4;">${prefix}</div>`;
         }
     }
     
@@ -303,7 +303,7 @@ function formatLogDescription(desc) {
             end = idx - 2; // to skip "| "
         }
         const alteracaoPart = desc.substring(start, end).trim();
-        html += `<div style="color: #fbbf24; margin-bottom: 5px; font-weight: 500; line-height: 1.4;"><strong>Modificações:</strong> ${alteracaoPart}</div>`;
+        html += `<div class="log-desc-alt" style="margin-bottom: 5px; font-weight: 500; line-height: 1.4;"><strong>Modificações:</strong> ${alteracaoPart}</div>`;
     }
     
     // Parse MOTIVO
@@ -311,7 +311,7 @@ function formatLogDescription(desc) {
         const idx = desc.toUpperCase().indexOf('MOTIVO:');
         const start = idx + 7;
         const motivoPart = desc.substring(start).trim();
-        html += `<div style="color: #38bdf8; font-weight: 500; line-height: 1.4;"><strong>Motivo:</strong> ${motivoPart}</div>`;
+        html += `<div class="log-desc-motivo" style="font-weight: 500; line-height: 1.4;"><strong>Motivo:</strong> ${motivoPart}</div>`;
     }
     
     return html;
@@ -347,7 +347,7 @@ function renderLogsTable() {
         return `
             <tr>
                 <td><strong>${formattedDate}</strong></td>
-                <td><span style="font-family: monospace; color: #a5b4fc;">${log.usuario_email || 'sistema@frotalink.com'}</span></td>
+                <td><span class="log-user-email" style="font-family: monospace;">${log.usuario_email || 'sistema@frotalink.com'}</span></td>
                 <td><span class="badge ${moduleBadgeClass}">${log.modulo}</span></td>
                 <td><span class="badge ${badgeClass}">${log.acao}</span></td>
                 <td>${formatLogDescription(log.descricao)}</td>

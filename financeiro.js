@@ -944,13 +944,30 @@ function renderLancamentos(tipo) {
                                 : `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar / Receber"><i data-lucide="check-square"></i></button>`
                             }
                             ${(() => {
-                                const isIntegrado = l.origem_modulo && l.origem_modulo !== 'MANUAL' && l.origem_modulo !== 'FINANCEIRO';
-                                if (isIntegrado) {
-                                    return `<button class="btn-action edit is-integrado" onclick="editEntry('${l.id}', '${tipo}')" title="Ajustar Vencimentos e Parcelas (Integrado via ${l.origem_modulo})"><i data-lucide="calendar-clock"></i></button>`;
+                                const isTotalmenteLiquidado = (l.status === 'PAGO' || l.status === 'RECEBIDO' || isLiquidado);
+                                const parcelasFilhas = (state.lancamentos || []).filter(p => p.pai_id === l.id);
+                                const temParcelaAberta = parcelasFilhas.length > 0 
+                                    ? parcelasFilhas.some(p => p.status === 'ABERTO' || p.status === 'PARCIAL' || p.status === 'ATRASADO')
+                                    : false;
+                                
+                                const bloqueiaAcao = isTotalmenteLiquidado && !temParcelaAberta;
+                                if (bloqueiaAcao) {
+                                    return `
+                                        <button class="btn-action edit disabled" style="opacity: 0.35; filter: grayscale(1); cursor: not-allowed;" onclick="event.stopPropagation(); showToast('O título só poderá ser alterado se houver o estorno / voltar para pendente.', 'warning');" title="O título só poderá ser alterado se houver o estorno / voltar para pendente."><i data-lucide="edit-2"></i></button>
+                                        <button class="btn-action delete disabled" style="opacity: 0.35; filter: grayscale(1); cursor: not-allowed;" onclick="event.stopPropagation(); showToast('O título só poderá ser excluído se houver o estorno / voltar para pendente.', 'warning');" title="O título só poderá ser excluído se houver o estorno / voltar para pendente."><i data-lucide="trash-2"></i></button>
+                                    `;
                                 }
-                                return `<button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>`;
+
+                                const isIntegrado = l.origem_modulo && l.origem_modulo !== 'MANUAL' && l.origem_modulo !== 'FINANCEIRO';
+                                const editBtn = isIntegrado
+                                    ? `<button class="btn-action edit is-integrado" onclick="editEntry('${l.id}', '${tipo}')" title="Ajustar Vencimentos e Parcelas (Integrado via ${l.origem_modulo})"><i data-lucide="calendar-clock"></i></button>`
+                                    : `<button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>`;
+
+                                return `
+                                    ${editBtn}
+                                    <button class="btn-action delete" onclick="deleteEntry('${l.id}')" title="Excluir"><i data-lucide="trash-2"></i></button>
+                                `;
                             })()}
-                            <button class="btn-action delete" onclick="deleteEntry('${l.id}')" title="Excluir"><i data-lucide="trash-2"></i></button>
                         </div>
                     </td>
                 </tr>
@@ -1048,15 +1065,35 @@ function renderLancamentos(tipo) {
                             : `<button class="btn-action pay" onclick="openPaymentModal('${l.id}')" title="Baixar / Pagar"><i data-lucide="check-square"></i></button>`
                         }
                         ${(() => {
+                            const isTotalmentePago = (l.status === 'PAGO' || isLiquidado);
+                            const parcelasFilhas = (state.lancamentos || []).filter(p => p.pai_id === l.id);
+                            const temParcelaAberta = parcelasFilhas.length > 0 
+                                ? parcelasFilhas.some(p => p.status === 'ABERTO' || p.status === 'PARCIAL' || p.status === 'ATRASADO')
+                                : false;
+                            
+                            const bloqueiaAcao = isTotalmentePago && !temParcelaAberta;
+
+                            if (bloqueiaAcao) {
+                                return `
+                                    <button class="btn-action edit disabled" style="opacity: 0.35; filter: grayscale(1); cursor: not-allowed;" onclick="event.stopPropagation(); showToast('O título só poderá ser alterado se houver o estorno / voltar para pendente.', 'warning');" title="O título só poderá ser alterado se houver o estorno / voltar para pendente."><i data-lucide="edit-2"></i></button>
+                                    <button class="btn-action delete disabled" style="opacity: 0.35; filter: grayscale(1); cursor: not-allowed;" onclick="event.stopPropagation(); showToast('O título só poderá ser excluído se houver o estorno / voltar para pendente.', 'warning');" title="O título só poderá ser excluído se houver o estorno / voltar para pendente."><i data-lucide="trash-2"></i></button>
+                                `;
+                            }
+
                             const isIntegrado = l.origem_modulo && l.origem_modulo !== 'MANUAL' && l.origem_modulo !== 'FINANCEIRO';
                             const isCompraOuManut = l.compra_id || l.manutencao_id;
-                            if (isIntegrado || isCompraOuManut) {
-                                const mod = l.origem_modulo === 'COMPRAS' || l.compra_id ? 'Compras' : l.origem_modulo === 'MANUTENCAO' || l.manutencao_id ? 'Manutenção' : (l.origem_modulo || 'outro setor');
-                                return `<button class="btn-action edit is-integrado" onclick="editEntry('${l.id}', '${tipo}')" title="Ajustar Vencimentos e Parcelas (Integrado via ${mod})"><i data-lucide="calendar-clock"></i></button>`;
-                            }
-                            return `<button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>`;
+                            const editBtn = (isIntegrado || isCompraOuManut)
+                                ? (() => {
+                                    const mod = l.origem_modulo === 'COMPRAS' || l.compra_id ? 'Compras' : l.origem_modulo === 'MANUTENCAO' || l.manutencao_id ? 'Manutenção' : (l.origem_modulo || 'outro setor');
+                                    return `<button class="btn-action edit is-integrado" onclick="editEntry('${l.id}', '${tipo}')" title="Ajustar Vencimentos e Parcelas (Integrado via ${mod})"><i data-lucide="calendar-clock"></i></button>`;
+                                })()
+                                : `<button class="btn-action edit" onclick="editEntry('${l.id}', '${tipo}')" title="Editar"><i data-lucide="edit-2"></i></button>`;
+
+                            return `
+                                ${editBtn}
+                                <button class="btn-action delete" onclick="deleteEntry('${l.id}')" title="Excluir"><i data-lucide="trash-2"></i></button>
+                            `;
                         })()}
-                        <button class="btn-action delete" onclick="deleteEntry('${l.id}')" title="Excluir"><i data-lucide="trash-2"></i></button>
                     </div>
                 </td>
             </tr>
@@ -1838,6 +1875,30 @@ async function openEntryModal(tipo, id = null) {
             (state.contas || []).map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
     }
 
+    // Reset de mensagens de validação e duplicidade em tempo real
+    const favMsg = document.getElementById('entryFavorecidoValidationMsg');
+    if (favMsg) favMsg.style.display = 'none';
+    const dupAlert = document.getElementById('entryDuplicateNfAlert');
+    if (dupAlert) dupAlert.style.display = 'none';
+    const btnSubmit = document.querySelector('#entryForm button[type="submit"]');
+    if (btnSubmit) {
+        delete btnSubmit.dataset.blockedFavorecido;
+        delete btnSubmit.dataset.blockedDuplicate;
+        btnSubmit.style.opacity = '';
+        btnSubmit.style.cursor = 'pointer';
+        btnSubmit.title = '';
+    }
+    const elSearchInput = document.getElementById('entryEntidadeSearch');
+    if (elSearchInput) {
+        elSearchInput.style.borderColor = '';
+        elSearchInput.style.boxShadow = '';
+    }
+    const elNumNfInput = document.getElementById('entryNumNF');
+    if (elNumNfInput) {
+        elNumNfInput.style.borderColor = '';
+        elNumNfInput.style.boxShadow = '';
+    }
+
     if (id) {
         const item = state.lancamentos.find(l => l.id === id);
         if (item) {
@@ -2082,6 +2143,19 @@ async function editEntry(id, tipo) {
         }
     }
 
+    // Validação de Título Quitado / Pago sem parcelas em aberto
+    const parcelasFilhas = (state.lancamentos || []).filter(p => p.pai_id === item.id);
+    const temParcelaAberta = parcelasFilhas.length > 0 
+        ? parcelasFilhas.some(p => p.status === 'ABERTO' || p.status === 'PARCIAL' || p.status === 'ATRASADO')
+        : (item.status === 'ABERTO' || item.status === 'PARCIAL' || item.status === 'ATRASADO');
+
+    const isLiquidado = (item.status === 'PAGO' || item.status === 'RECEBIDO' || item.status === 'CONCLUIDO');
+    if (isLiquidado && !temParcelaAberta) {
+        showToast('O título só poderá ser alterado se houver o estorno / voltar para pendente.', 'warning');
+        alert('Título Quitado / Pago!\n\nEste lançamento não possui parcelas em aberto e está com status de PAGO.\n\nO título só poderá ser alterado se houver o estorno / voltar para pendente.');
+        return;
+    }
+
     // Lançamentos integrados de outros módulos (Compras, Manutenção, etc.):
     // Permite ajustar exclusivamente prazos/vencimentos e valores das parcelas
     const isIntegrado = item.origem_modulo && item.origem_modulo !== 'MANUAL' && item.origem_modulo !== 'FINANCEIRO';
@@ -2277,6 +2351,19 @@ async function deleteEntry(id) {
         } catch (_) {}
     }
     if (!l) return;
+
+    // Bloqueio de exclusão em notas pagas / liquidadas sem parcelas em aberto
+    const isPagoOuLiquidado = (l.status === 'PAGO' || l.status === 'RECEBIDO' || (parseFloat(l.valor_pago) >= parseFloat(l.valor_total) && parseFloat(l.valor_total) > 0));
+    const parcelasFilhas = (state.lancamentos || []).filter(p => p.pai_id === l.id);
+    const temParcelaAberta = parcelasFilhas.length > 0 
+        ? parcelasFilhas.some(p => p.status === 'ABERTO' || p.status === 'PARCIAL' || p.status === 'ATRASADO')
+        : false;
+
+    if (isPagoOuLiquidado && !temParcelaAberta) {
+        showToast('O título só poderá ser excluído se houver o estorno / voltar para pendente.', 'warning');
+        alert('Não é possível excluir este lançamento:\n\nO título está quitado/pago e não possui parcelas em aberto.\n\nPara excluir, realize primeiro o estorno da baixa para que ele retorne ao status pendente.');
+        return;
+    }
 
     const mod = l.tipo === 'RECEBER' ? 'financeiro_receber' : 'financeiro_pagar';
     if (typeof canDo === 'function' && !canDo(mod, 'delete')) {
@@ -2837,6 +2924,234 @@ async function isCnpjCadastrado(cnpjInput, clienteNomeTyped = '') {
     return { valid: matched, cnpj: targetCnpj };
 }
 
+// ==============================================================================
+// VALIDAÇÃO EM TEMPO REAL: FORNECEDOR / FAVORECIDO CADASTRADO (CONTAS A PAGAR)
+// ==============================================================================
+window.validateFavorecidoRealtime = function(showInlineError = true) {
+    const elSearch = document.getElementById('entryEntidadeSearch');
+    const elHidden = document.getElementById('entryEntidade');
+    const msgEl = document.getElementById('entryFavorecidoValidationMsg');
+    const tipo = document.getElementById('entryTipo')?.value || 'PAGAR';
+    
+    if (!elSearch || tipo !== 'PAGAR') {
+        if (msgEl) msgEl.style.display = 'none';
+        return true;
+    }
+
+    const val = (elHidden?.value || elSearch.value || '').trim();
+    if (!val) {
+        if (msgEl) msgEl.style.display = 'none';
+        elSearch.style.borderColor = '';
+        elSearch.style.boxShadow = '';
+        const btnSubmit = document.querySelector('#entryForm button[type="submit"]');
+        if (btnSubmit) {
+            delete btnSubmit.dataset.blockedFavorecido;
+            if (!btnSubmit.dataset.blockedDuplicate) {
+                btnSubmit.style.opacity = '';
+                btnSubmit.style.cursor = 'pointer';
+                btnSubmit.title = '';
+            }
+        }
+        return false;
+    }
+
+    const valNorm = val.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+    const matchedFornecedor = (state.fornecedores || []).find(f => {
+        const n1 = (f.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        const n2 = (f.nome_fantasia || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        const n3 = (f.razao_social || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        return n1 === valNorm || n2 === valNorm || n3 === valNorm;
+    });
+
+    const matchedMotorista = (state.motoristasFrota || []).find(m => (m.nome_completo || m.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() === valNorm);
+    const matchedFuncionario = (state.funcionariosDP || []).find(d => (d.nome_completo || d.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() === valNorm);
+    const matchedPrestador = (state.prestadoresComercial || []).find(p => (p.nome_prestador || p.nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() === valNorm);
+    const matchedCliente = (state.clientes || []).find(c => (c.nome || c.razao_social || c.cliente_nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() === valNorm);
+
+    const isCadastrado = Boolean(matchedFornecedor || matchedMotorista || matchedFuncionario || matchedPrestador || matchedCliente);
+    const btnSubmit = document.querySelector('#entryForm button[type="submit"]');
+
+    if (!isCadastrado) {
+        elSearch.style.borderColor = '#ef4444';
+        elSearch.style.boxShadow = '0 0 0 2px rgba(239, 68, 68, 0.15)';
+        if (msgEl) {
+            msgEl.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(239, 68, 68, 0.08); border:1px solid #ef4444; color:#dc2626; padding:8px 12px; border-radius:8px; gap:8px;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <i data-lucide="alert-circle" style="width:16px;height:16px;flex-shrink:0;"></i>
+                        <span><strong>Favorecido não cadastrado!</strong> É obrigatório cadastrar o fornecedor antes de lançar a nota.</span>
+                    </div>
+                    <button type="button" onclick="openModal('fornecedorModal')" style="background:#ef4444; color:#fff; border:none; border-radius:6px; padding:4px 10px; font-size:0.75rem; font-weight:700; cursor:pointer; flex-shrink:0; white-space:nowrap;">Cadastrar Fornecedor</button>
+                </div>
+            `;
+            msgEl.style.display = 'block';
+            if (typeof lucide !== 'undefined') lucide.createIcons({ root: msgEl });
+        }
+        if (btnSubmit) {
+            btnSubmit.dataset.blockedFavorecido = 'true';
+            btnSubmit.style.opacity = '0.5';
+            btnSubmit.style.cursor = 'not-allowed';
+            btnSubmit.title = 'Preencha um favorecido cadastrado para salvar';
+        }
+        return false;
+    } else {
+        elSearch.style.borderColor = '#10b981';
+        elSearch.style.boxShadow = '0 0 0 2px rgba(16, 185, 129, 0.12)';
+        const matchedName = (matchedFornecedor?.nome || matchedMotorista?.nome_completo || matchedFuncionario?.nome_completo || matchedPrestador?.nome_prestador || matchedCliente?.nome || val);
+        if (msgEl) {
+            msgEl.innerHTML = `
+                <div style="display:flex; align-items:center; gap:6px; color:#059669; font-size:0.78rem; font-weight:700; padding:4px 8px;">
+                    <i data-lucide="check-circle-2" style="width:14px;height:14px;color:#10b981;"></i>
+                    <span>Fornecedor validado no cadastro: <strong>${matchedName}</strong></span>
+                </div>
+            `;
+            msgEl.style.display = 'block';
+            if (typeof lucide !== 'undefined') lucide.createIcons({ root: msgEl });
+        }
+        if (btnSubmit) {
+            delete btnSubmit.dataset.blockedFavorecido;
+            if (!btnSubmit.dataset.blockedDuplicate) {
+                btnSubmit.style.opacity = '';
+                btnSubmit.style.cursor = 'pointer';
+                btnSubmit.title = '';
+            }
+        }
+        return true;
+    }
+};
+
+// ==============================================================================
+// VALIDAÇÃO EM TEMPO REAL: DUPLICIDADE DE NOTA FISCAL (CONTAS A PAGAR)
+// ==============================================================================
+let duplicateCheckTimeout = null;
+window.debounceCheckPagarRealtime = function() {
+    clearTimeout(duplicateCheckTimeout);
+    duplicateCheckTimeout = setTimeout(() => {
+        checkPagarDuplicateRealtime();
+    }, 300);
+};
+
+window.checkPagarDuplicateRealtime = async function() {
+    const elNumNF = document.getElementById('entryNumNF');
+    const elSearch = document.getElementById('entryEntidadeSearch');
+    const elHidden = document.getElementById('entryEntidade');
+    const alertBox = document.getElementById('entryDuplicateNfAlert');
+    const alertText = document.getElementById('entryDuplicateNfText');
+    const btnVer = document.getElementById('btnVerNotaDuplicada');
+    const btnSubmit = document.querySelector('#entryForm button[type="submit"]');
+    const currentId = document.getElementById('entryId')?.value || null;
+    const tipo = document.getElementById('entryTipo')?.value || 'PAGAR';
+
+    if (!elNumNF || !elSearch || tipo !== 'PAGAR') {
+        if (alertBox) alertBox.style.display = 'none';
+        return null;
+    }
+
+    const rawNf = (elNumNF.value || '').trim();
+    const cleanNf = rawNf.replace(/^0+/, '').toLowerCase();
+    const favorecidoNome = (elHidden?.value || elSearch.value || '').trim();
+
+    if (!cleanNf || !favorecidoNome) {
+        if (alertBox) alertBox.style.display = 'none';
+        if (btnSubmit) {
+            delete btnSubmit.dataset.blockedDuplicate;
+            if (!btnSubmit.dataset.blockedFavorecido) {
+                btnSubmit.style.opacity = '';
+                btnSubmit.style.cursor = 'pointer';
+                btnSubmit.title = '';
+            }
+        }
+        return null;
+    }
+
+    const normFav = favorecidoNome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+    // 1. Busca local rápida em state.lancamentos
+    let duplicate = (state.lancamentos || []).find(l => {
+        if (l.tipo !== 'PAGAR') return false;
+        if (currentId && (l.id === currentId || l.pai_id === currentId)) return false;
+
+        const lNf = (l.num_nf || getLancamentoNumNF(l) || '').toString().trim().replace(/^0+/, '').toLowerCase();
+        if (!lNf || lNf !== cleanNf) return false;
+
+        const lNome = (l.entidade_nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        if (lNome === normFav || (normFav.length >= 4 && lNome.includes(normFav)) || (lNome.length >= 4 && normFav.includes(lNome))) {
+            return true;
+        }
+        return false;
+    });
+
+    // 2. Se não achou localmente, consulta no Supabase para garantir
+    if (!duplicate && supabaseClient) {
+        try {
+            let q = supabaseClient
+                .from('fin_lancamentos')
+                .select('id, codigo_sequencial, num_nf, entidade_nome, valor_total, data_vencimento, data_emissao, status, pai_id')
+                .eq('tipo', 'PAGAR')
+                .ilike('num_nf', rawNf);
+
+            if (currentId) {
+                q = q.neq('id', currentId).neq('pai_id', currentId);
+            }
+
+            const { data: dbDups } = await q.limit(5);
+            if (dbDups && dbDups.length > 0) {
+                duplicate = dbDups.find(d => {
+                    const dNome = (d.entidade_nome || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                    return dNome === normFav || (normFav.length >= 4 && dNome.includes(normFav)) || (dNome.length >= 4 && normFav.includes(dNome));
+                });
+            }
+        } catch (e) {
+            console.warn('Erro ao consultar duplicidade remota:', e);
+        }
+    }
+
+    if (duplicate) {
+        elNumNF.style.borderColor = '#ef4444';
+        elNumNF.style.boxShadow = '0 0 0 2px rgba(239, 68, 68, 0.15)';
+        elSearch.style.borderColor = '#ef4444';
+
+        if (alertBox && alertText) {
+            alertText.innerHTML = `⚠️ <strong>Nota Fiscal Duplicada!</strong> Já existe uma nota lançada com o Nº <strong>${rawNf}</strong> para este fornecedor. Lançamento: <strong>${duplicate.codigo_sequencial || duplicate.id}</strong> | Valor: <strong>${formatCurrency(duplicate.valor_total)}</strong> | Vencimento: <strong>${formatDate(duplicate.data_vencimento || duplicate.data_emissao)}</strong>.`;
+            if (btnVer) {
+                btnVer.style.display = 'block';
+                btnVer.onclick = () => {
+                    if (typeof viewEntry === 'function') viewEntry(duplicate.id);
+                };
+            }
+            alertBox.style.display = 'flex';
+            if (typeof lucide !== 'undefined') lucide.createIcons({ root: alertBox });
+        }
+
+        if (btnSubmit) {
+            btnSubmit.dataset.blockedDuplicate = 'true';
+            btnSubmit.style.opacity = '0.5';
+            btnSubmit.style.cursor = 'not-allowed';
+            btnSubmit.title = 'Lançamento bloqueado: Nota Fiscal já cadastrada para este fornecedor';
+        }
+
+        showToast(`Atenção: A NF "${rawNf}" já existe para "${favorecidoNome}". Lançamento bloqueado!`, 'warning');
+        return duplicate;
+    } else {
+        if (alertBox) alertBox.style.display = 'none';
+        if (elNumNF.style.borderColor === 'rgb(239, 68, 68)') {
+            elNumNF.style.borderColor = '';
+            elNumNF.style.boxShadow = '';
+        }
+
+        if (btnSubmit) {
+            delete btnSubmit.dataset.blockedDuplicate;
+            if (!btnSubmit.dataset.blockedFavorecido) {
+                btnSubmit.style.opacity = '';
+                btnSubmit.style.cursor = 'pointer';
+                btnSubmit.title = '';
+            }
+        }
+        return null;
+    }
+};
+
 async function isNotaFiscalDuplicada(tipo, numNf, clienteNome, clienteCnpj, currentId = null) {
     const cleanNf = (numNf || '').toString().trim().replace(/^0+/, '');
     if (!cleanNf) return { duplicate: false };
@@ -3118,7 +3433,21 @@ async function handleEntrySubmit(e) {
 
     if (!elEmissao || !elEmissao.value) markError(elEmissao, 'Data de Emissão');
     if (!elNumNF || !elNumNF.value.trim()) markError(elNumNF, 'Número da Nota / Documento');
-    if (!entidadeNome) markError(elEntidadeSearch, 'Favorecido');
+    if (!entidadeNome) {
+        markError(elEntidadeSearch, 'Favorecido');
+    } else if (tipo === 'PAGAR') {
+        const isCadastrado = typeof validateFavorecidoRealtime === 'function' ? validateFavorecidoRealtime(true) : true;
+        if (!isCadastrado) {
+            markError(elEntidadeSearch, 'Favorecido (Não cadastrado)');
+            showToast(`Fornecedor "${entidadeNome}" não está cadastrado! Selecione um fornecedor cadastrado ou realize o cadastro antes de lançar a nota.`, 'error');
+            alert(`Fornecedor Não Cadastrado!\n\nO favorecido "${entidadeNome}" não foi encontrado na base de fornecedores cadastrados.\n\nPara garantir a integridade e evitar inconsistências, não é permitido lançar notas sem o fornecedor estar cadastrado.\n\nPor favor, cadastre o fornecedor na aba "CADASTRO" antes de continuar.`);
+            if (elEntidadeSearch) {
+                elEntidadeSearch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                elEntidadeSearch.focus();
+            }
+            return;
+        }
+    }
     if (!catId) markError(elCatSearch, 'Tipo Despesa (Plano de Contas)');
 
     // Validação de Itens / Detalhamento
@@ -3240,38 +3569,17 @@ async function handleEntrySubmit(e) {
     const numNFVal = (formData.get('num_nf') || '').trim();
 
     // Validação de Duplicidade de Nota Fiscal / Documento para o mesmo Favorecido/Fornecedor
-    if (numNFVal && entidadeNome) {
-        try {
-            let dupQuery = supabaseClient
-                .from('fin_lancamentos')
-                .select('id, num_nf, entidade_nome, status, pai_id')
-                .eq('tipo', tipo)
-                .ilike('num_nf', numNFVal)
-                .ilike('entidade_nome', entidadeNome);
-
-            if (id) {
-                // Na edição, desconsidera o próprio lançamento e suas parcelas irmãs/filhas
-                dupQuery = dupQuery.neq('id', id).neq('pai_id', id);
+    if (tipo === 'PAGAR' && typeof checkPagarDuplicateRealtime === 'function') {
+        const dup = await checkPagarDuplicateRealtime();
+        if (dup) {
+            showToast(`A nota fiscal "${numNFVal}" já está lançada para "${entidadeNome}". Lançamento bloqueado!`, 'error');
+            alert(`Nota Fiscal Duplicada!\n\nO número de nota fiscal "${numNFVal}" já foi lançado para o fornecedor "${entidadeNome}".\n\nCódigo do lançamento: ${dup.codigo_sequencial || dup.id}\nValor: ${formatCurrency(dup.valor_total)}\nVencimento: ${formatDate(dup.data_vencimento || dup.data_emissao)}\n\nPara evitar duplicidade de despesas e pagamentos, não é permitido lançar a mesma nota fiscal.`);
+            markError(elNumNF, 'Número Nota / Documento (Já existe para este fornecedor)');
+            if (elNumNF) {
+                elNumNF.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                elNumNF.focus();
             }
-
-            const { data: dups, error: dupErr } = await dupQuery.limit(5);
-
-            if (dupErr) {
-                console.warn('Aviso ao consultar duplicidade de notas:', dupErr);
-            } else if (dups && dups.length > 0) {
-                // Filtrar caso alguma das duplicatas encontradas seja a mãe deste ID caso o id atual seja filha
-                const trueDups = dups.filter(d => d.id !== id && d.pai_id !== id);
-                if (trueDups.length > 0) {
-                    showToast(`A nota fiscal/documento "${numNFVal}" já está lançada para "${entidadeNome}".`, 'error');
-                    alert(`Nota Já Lançada!\n\nO número de documento/nota "${numNFVal}" já foi cadastrado para o favorecido "${entidadeNome}".\n\nNão é permitido cadastrar documentos duplicados para o mesmo fornecedor/favorecido.`);
-                    markError(elNumNF, 'Número Nota / Documento (Já existe para este fornecedor)');
-                    elNumNF.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    elNumNF.focus();
-                    return;
-                }
-            }
-        } catch (chkErr) {
-            console.error('Erro na checagem de nota duplicada:', chkErr);
+            return;
         }
     }
 
@@ -3289,6 +3597,8 @@ async function handleEntrySubmit(e) {
         ? (qtdParcelas > 1 ? firstParcCheque : (formData.get('numero_cheque') || null)) 
         : null;
 
+    const loggedUser = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
+
     const mainRecord = {
         data_emissao: formData.get('data_emissao'),
         num_nf: formData.get('num_nf'),
@@ -3304,7 +3614,8 @@ async function handleEntrySubmit(e) {
         tipo: tipo,
         is_parcelado: isParcelado,
         qtd_parcelas: qtdParcelas,
-        status: 'ABERTO'
+        status: 'ABERTO',
+        created_by: loggedUser
     };
 
     try {
@@ -3372,6 +3683,12 @@ async function handleEntrySubmit(e) {
                     valor_pago: parentIsPaid ? (currentParent?.valor_pago || parc1Val) : 0,
                     data_pagamento: parentIsPaid ? (currentParent?.data_pagamento || new Date().toISOString().split('T')[0]) : null
                 };
+
+                const nowStr = new Date().toLocaleString('pt-BR');
+                const userStr = window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
+                const obsEditLine = `[ALTERAÇÃO DE NOTA (${nowStr}) por ${userStr}]: Alterou dados da nota (${mainRecord.descricao}, Favorecido: ${mainRecord.entidade_nome}, Valor Total: ${formatCurrency(finalTotal)}).`;
+                const curParentObs = currentParent?.observacoes || (state.lancamentos.find(x => x.id === id)?.observacoes) || '';
+                parentUpdate.observacoes = curParentObs ? `${curParentObs}\n${obsEditLine}` : obsEditLine;
 
                 const { error: upErr } = await supabaseClient.from('fin_lancamentos').update(parentUpdate).eq('id', id);
                 if (upErr) throw upErr;
@@ -3451,7 +3768,7 @@ async function handleEntrySubmit(e) {
                 }
             } else {
                 // Edição de registro não parcelado - Preservar status de pagamento
-                const { data: currentRec } = await supabaseClient.from('fin_lancamentos').select('status, valor_pago, data_pagamento, conta_bancaria_id, valor_total').eq('id', id).maybeSingle();
+                const { data: currentRec } = await supabaseClient.from('fin_lancamentos').select('codigo_sequencial, observacoes, status, valor_pago, data_pagamento, conta_bancaria_id, valor_total').eq('id', id).maybeSingle();
                 const curPago = parseFloat(currentRec?.valor_pago || 0);
                 const isPaidRec = currentRec && (
                     currentRec.status === 'PAGO' ||
@@ -3459,9 +3776,15 @@ async function handleEntrySubmit(e) {
                     (curPago > 0 && Math.abs(curPago - finalTotal) < 0.05) ||
                     (curPago >= finalTotal && curPago > 0)
                 );
+
+                const nowStr = new Date().toLocaleString('pt-BR');
+                const userStr = window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
+                const obsEditLine = `[ALTERAÇÃO DE NOTA (${nowStr}) por ${userStr}]: Alterou dados da nota (${mainRecord.descricao}, Favorecido: ${mainRecord.entidade_nome}, Valor Total: ${formatCurrency(finalTotal)}).`;
+                const curRecObs = currentRec?.observacoes || (state.lancamentos.find(x => x.id === id)?.observacoes) || '';
                 
                 const singleUpdate = {
                     ...mainRecord,
+                    observacoes: curRecObs ? `${curRecObs}\n${obsEditLine}` : obsEditLine,
                     status: isPaidRec ? 'PAGO' : 'ABERTO',
                     valor_pago: isPaidRec ? (currentRec.valor_pago || finalTotal) : 0,
                     data_pagamento: isPaidRec ? (currentRec.data_pagamento || new Date().toISOString().split('T')[0]) : null,
@@ -3473,7 +3796,10 @@ async function handleEntrySubmit(e) {
             }
 
             if (typeof registrarLog === 'function') {
-                registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Editou lançamento (${mainRecord.tipo}): ${mainRecord.descricao} - Fornecedor/Entidade: ${mainRecord.entidade_nome} (Valor Total: R$ ${finalTotal})`);
+                const itemDb = state.lancamentos.find(x => x.id === id);
+                const codSeq = itemDb?.codigo_sequencial || (mainRecord.num_nf ? `NF ${mainRecord.num_nf}` : '');
+                const codLabel = codSeq ? `[${codSeq}] ` : (id ? `[Ref: ${id.substring(0,8)}] ` : '');
+                registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: ${codLabel}Editou nota/lançamento (${mainRecord.tipo}): ${mainRecord.descricao} - Favorecido: ${mainRecord.entidade_nome} (Valor Total: R$ ${finalTotal}) (RefID: ${id})`);
             }
 
             // Deletar itens antigos de todos os lançamentos do grupo
@@ -3554,7 +3880,9 @@ async function handleEntrySubmit(e) {
             }
 
             if (typeof registrarLog === 'function') {
-                registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Lançou ${allLancamentoIds.length} parcelas vinculadas para (${mainRecord.tipo.toLowerCase()}): ${firstItemDesc} - Entidade: ${mainRecord.entidade_nome}`);
+                const codLabel = parentInserted.codigo_sequencial ? `[${parentInserted.codigo_sequencial}] ` : '';
+                const nfTag = mainRecord.num_nf ? `[NF: ${mainRecord.num_nf}] ` : '';
+                registrarLog('financeiro', 'INCLUSÃO', `DETALHE: ${codLabel}${nfTag}(RefID: ${parentInserted.id}) Lançou ${allLancamentoIds.length} parcelas vinculadas para (${mainRecord.tipo.toLowerCase()}): ${firstItemDesc} - Entidade: ${mainRecord.entidade_nome} (Valor Total: R$ ${finalTotal})`);
             }
         } else {
             // Novo lançamento único (não parcelado)
@@ -3563,7 +3891,9 @@ async function handleEntrySubmit(e) {
             lancamentoId = inserted.id;
             allLancamentoIds.push(inserted.id);
             if (typeof registrarLog === 'function') {
-                registrarLog('financeiro', 'INCLUSÃO', `DETALHE: Lançou ${mainRecord.tipo.toLowerCase()}: ${mainRecord.descricao} - Fornecedor/Entidade: ${mainRecord.entidade_nome} (Valor: R$ ${mainRecord.valor_total})`);
+                const codLabel = inserted.codigo_sequencial ? `[${inserted.codigo_sequencial}] ` : '';
+                const nfTag = mainRecord.num_nf ? `[NF: ${mainRecord.num_nf}] ` : '';
+                registrarLog('financeiro', 'INCLUSÃO', `DETALHE: ${codLabel}${nfTag}(RefID: ${inserted.id}) Lançou ${mainRecord.tipo.toLowerCase()}: ${mainRecord.descricao} - Fornecedor/Entidade: ${mainRecord.entidade_nome} (Valor: R$ ${mainRecord.valor_total})`);
             }
         }
 
@@ -4296,26 +4626,24 @@ async function handlePayment(e) {
             }
         }
 
-        if (motivoText || finalTipoDivergencia !== 'NENHUM') {
-            if (motivoText) {
-                updateObj.motivo_divergencia = motivoText;
-            }
-            let infoLog = '';
-            if (finalTipoDivergencia === 'JUROS') {
-                infoLog = `[BAIXA COM JUROS (+${formatCurrency(valorJurosBaixa)}) em ${formatDate(dataPagamento)} por ${loggedUser}]${motivoText ? ': ' + motivoText : ''}`;
-            } else if (finalTipoDivergencia === 'DESCONTO') {
-                infoLog = `[BAIXA TOTAL COM DESCONTO (-${formatCurrency(valorDescontoBaixa)}) em ${formatDate(dataPagamento)} por ${loggedUser}]${motivoText ? ': ' + motivoText : ''}`;
-            } else if (finalTipoDivergencia === 'PARCIAL') {
-                const novoVenc = document.getElementById('payNovoVencimento')?.value;
-                const vencLog = (novoVenc && novoVenc !== l.data_vencimento) ? ` | Próximo Vencimento: ${formatDate(novoVenc)}` : ` | Vencimento mantido: ${formatDate(l.data_vencimento)}`;
-                infoLog = `[BAIXA PARCIAL (Pago: ${formatCurrency(valorPagoInput)} | Saldo Restante: ${formatCurrency(absDiff)}${vencLog}) em ${formatDate(dataPagamento)} por ${loggedUser}]${motivoText ? ': ' + motivoText : ''}`;
-            } else if (motivoText) {
-                infoLog = `[MOTIVO DIVERGÊNCIA BAIXA (${formatDate(dataPagamento)}) por ${loggedUser}]: ${motivoText}`;
-            }
-            if (infoLog) {
-                updateObj.observacoes = l.observacoes ? `${l.observacoes}\n${infoLog}` : infoLog;
-            }
+        let infoLog = '';
+        if (finalTipoDivergencia === 'JUROS') {
+            infoLog = `[BAIXA COM JUROS (+${formatCurrency(valorJurosBaixa)}) em ${formatDate(dataPagamento)} por ${loggedUser}]${motivoText ? ': ' + motivoText : ''}`;
+        } else if (finalTipoDivergencia === 'DESCONTO') {
+            infoLog = `[BAIXA TOTAL COM DESCONTO (-${formatCurrency(valorDescontoBaixa)}) em ${formatDate(dataPagamento)} por ${loggedUser}]${motivoText ? ': ' + motivoText : ''}`;
+        } else if (finalTipoDivergencia === 'PARCIAL') {
+            const novoVenc = document.getElementById('payNovoVencimento')?.value;
+            const vencLog = (novoVenc && novoVenc !== l.data_vencimento) ? ` | Próximo Vencimento: ${formatDate(novoVenc)}` : ` | Vencimento mantido: ${formatDate(l.data_vencimento)}`;
+            infoLog = `[BAIXA PARCIAL (Pago: ${formatCurrency(valorPagoInput)} | Saldo Restante: ${formatCurrency(absDiff)}${vencLog}) em ${formatDate(dataPagamento)} por ${loggedUser}]${motivoText ? ': ' + motivoText : ''}`;
+        } else if (motivoText) {
+            infoLog = `[MOTIVO DIVERGÊNCIA BAIXA (${formatDate(dataPagamento)}) por ${loggedUser}]: ${motivoText}`;
+        } else {
+            infoLog = `[LIQUIDAÇÃO DE NOTA (${formatDate(dataPagamento)}) por ${loggedUser}]: Baixa realizada no valor de ${formatCurrency(valorPagoInput)} via ${forma || '—'}. Conta: ${conta.nome}.`;
         }
+        if (motivoText) {
+            updateObj.motivo_divergencia = motivoText;
+        }
+        updateObj.observacoes = l.observacoes ? `${l.observacoes}\n${infoLog}` : infoLog;
 
         let { error: errL } = await supabaseClient.from('fin_lancamentos').update(updateObj).eq('id', id);
         if (errL && (errL.message?.includes('valor_juros') || errL.message?.includes('valor_desconto') || errL.message?.includes('tipo_divergencia') || errL.message?.includes('motivo_divergencia'))) {
@@ -4353,7 +4681,9 @@ async function handlePayment(e) {
 
         if (typeof registrarLog === 'function') {
             const jurosDesc = finalTipoDivergencia === 'JUROS' ? ` - Juros: +${formatCurrency(valorJurosBaixa)}` : '';
-            registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: Baixou/Registrou pagamento no lançamento (${l.tipo}): ${l.descricao} - Valor Baixado: R$ ${valorPagoInput} (Esperado: R$ ${currentPayExpectedValue})${jurosDesc}. Conta: ${conta.nome}${motivoText ? ' - Motivo: ' + motivoText : ''}`);
+            const codSeq = l.codigo_sequencial ? `[${l.codigo_sequencial}] ` : '';
+            const nfTag = (l.num_nf || getLancamentoNumNF(l)) ? `[NF: ${l.num_nf || getLancamentoNumNF(l)}] ` : '';
+            registrarLog('financeiro', 'ALTERAÇÃO', `DETALHE: ${codSeq}${nfTag}(RefID: ${l.id}) Baixou/Registrou pagamento no lançamento (${l.tipo}): ${l.descricao} - Favorecido: ${l.entidade_nome || '—'} - Valor Baixado: R$ ${valorPagoInput} (Esperado: R$ ${currentPayExpectedValue})${jurosDesc}. Conta: ${conta.nome}${motivoText ? ' - Motivo: ' + motivoText : ''}`);
         }
 
         closeModal('paymentModal');
@@ -6544,6 +6874,30 @@ function setupEventListeners() {
     const bulkPaymentForm = document.getElementById('bulkPaymentForm');
     if (bulkPaymentForm) bulkPaymentForm.addEventListener('submit', handleBulkPayment);
 
+    // Listeners em tempo real para Contas a Pagar: Favorecido e Duplicidade de NF
+    const elEntryNF = document.getElementById('entryNumNF');
+    const elEntrySearch = document.getElementById('entryEntidadeSearch');
+
+    if (elEntryNF) {
+        elEntryNF.addEventListener('input', () => {
+            if (typeof debounceCheckPagarRealtime === 'function') debounceCheckPagarRealtime();
+        });
+        elEntryNF.addEventListener('blur', () => {
+            if (typeof checkPagarDuplicateRealtime === 'function') checkPagarDuplicateRealtime();
+        });
+    }
+
+    if (elEntrySearch) {
+        elEntrySearch.addEventListener('input', () => {
+            if (typeof validateFavorecidoRealtime === 'function') validateFavorecidoRealtime(false);
+            if (typeof debounceCheckPagarRealtime === 'function') debounceCheckPagarRealtime();
+        });
+        elEntrySearch.addEventListener('blur', () => {
+            if (typeof validateFavorecidoRealtime === 'function') validateFavorecidoRealtime(true);
+            if (typeof checkPagarDuplicateRealtime === 'function') checkPagarDuplicateRealtime();
+        });
+    }
+
     // Aplicar máscaras de CPF/CNPJ e Telefone no Fornecedor
     const fDocEl = document.getElementById('fDoc');
     if (fDocEl) applyMask(fDocEl, maskCnpjCpf);
@@ -8154,6 +8508,21 @@ window.deleteBulkSelected = async () => {
     
     const ids = Array.from(checked).map(chk => chk.value);
     
+    // Bloqueio de exclusão em lote para notas pagas sem parcelas em aberto
+    const paidItems = ids.map(id => state.lancamentos.find(item => item.id === id)).filter(l => {
+        if (!l) return false;
+        const isPago = (l.status === 'PAGO' || l.status === 'RECEBIDO' || (parseFloat(l.valor_pago) >= parseFloat(l.valor_total) && parseFloat(l.valor_total) > 0));
+        const parcs = (state.lancamentos || []).filter(p => p.pai_id === l.id);
+        const temAberta = parcs.some(p => p.status === 'ABERTO' || p.status === 'PARCIAL' || p.status === 'ATRASADO');
+        return isPago && !temAberta;
+    });
+
+    if (paidItems.length > 0) {
+        showToast(`Não é possível excluir títulos pagos (${paidItems.length} selecionado(s)). É necessário estorná-los primeiro.`, 'warning');
+        alert(`Operação Bloqueada!\n\nVocê selecionou ${paidItems.length} lançamento(s) que já foram quitados/pagos.\n\nTítulos quitados não podem ser excluídos. Realize primeiro o estorno da baixa para que retornem a pendente.`);
+        return;
+    }
+
     if (!confirm(`Deseja realmente excluir ${ids.length} lançamentos selecionados?`)) return;
     
     openPinModal(async () => {
@@ -9048,6 +9417,10 @@ window.selectFinEntidade = (nome, itemEl, tipo = null) => {
             if (catSearch) catSearch.value = '';
             if (catId) catId.value = '';
         }
+
+        // Validação imediata e checagem de duplicidade ao selecionar da lista
+        if (typeof validateFavorecidoRealtime === 'function') validateFavorecidoRealtime(true);
+        if (typeof checkPagarDuplicateRealtime === 'function') checkPagarDuplicateRealtime();
     } catch (err) {
         console.warn('Erro ao auto-preencher plano de contas para o favorecido:', err);
     }
@@ -10571,19 +10944,72 @@ async function showRecordHistory(id) {
     if (modal) modal.classList.add('active');
 
     try {
-        // 2. Buscar logs de auditoria no Supabase
+        // 2. Buscar logs de auditoria no Supabase com filtros precisos
         const orConditions = [
             `descricao.ilike.%${l.id}%`
         ];
-        if (l.codigo_sequencial) orConditions.push(`descricao.ilike.%${l.codigo_sequencial}%`);
-        if (l.num_nf) orConditions.push(`descricao.ilike.%${l.num_nf}%`);
+        if (l.codigo_sequencial) {
+            orConditions.push(`descricao.ilike.%${l.codigo_sequencial}%`);
+        }
+        if (l.num_nf && String(l.num_nf).trim()) {
+            const nfClean = String(l.num_nf).trim();
+            // Apenas com prefixo explícito de NF para não casar com valores monetários nem outros números soltos
+            orConditions.push(`descricao.ilike.%NF ${nfClean}%`);
+            orConditions.push(`descricao.ilike.%NF: ${nfClean}%`);
+            orConditions.push(`descricao.ilike.%[NF: ${nfClean}]%`);
+        }
+        if (l.entidade_nome && l.entidade_nome.trim().length >= 3) {
+            const cleanEnt = l.entidade_nome.trim().replace(/[%,*]/g, '');
+            orConditions.push(`descricao.ilike.%Entidade: ${cleanEnt}%`);
+            orConditions.push(`descricao.ilike.%Favorecido: ${cleanEnt}%`);
+        }
 
-        const { data: dbLogs } = await supabaseClient
+        const { data: rawDbLogs } = await supabaseClient
             .from('logs_atividade')
             .select('*')
             .eq('modulo', 'financeiro')
             .or(orConditions.join(','))
-            .order('created_at', { ascending: true });
+            .order('data_hora', { ascending: false });
+
+        // Validação Estrita em Memória: O log deve pertencer com certeza a este lançamento
+        const dbLogs = (rawDbLogs || []).filter(log => {
+            const d = log.descricao || '';
+            // 1. Corresponde ao ID direto do lançamento
+            if (d.includes(l.id)) return true;
+            // 2. Corresponde ao Código Sequencial (ex: CAP-2487)
+            if (l.codigo_sequencial && d.includes(l.codigo_sequencial)) return true;
+            
+            // 3. Notas legadas anteriores ao padrão de código:
+            // O log deve pertencer ao Favorecido/Fornecedor deste lançamento
+            if (l.entidade_nome && l.entidade_nome.trim().length >= 3) {
+                const normEnt = l.entidade_nome.trim().toLowerCase();
+                const dLower = d.toLowerCase();
+                if (dLower.includes(normEnt)) {
+                    // Se for log de inclusão (LANÇOU / CADASTROU / CRIOU)
+                    const act = (log.acao || '').toUpperCase();
+                    const isInc = act === 'INCLUSÃO' || act === 'INCLUSAO' || dLower.includes('lançou') || dLower.includes('cadastrou') || dLower.includes('criou');
+                    if (isInc) {
+                        const valStr1 = String(l.valor_total);
+                        const valStr2 = parseFloat(l.valor_total).toFixed(2);
+                        const hasVal = d.includes(valStr1) || d.includes(valStr2);
+                        const logTime = new Date(log.data_hora || log.created_at || Date.now()).getTime();
+                        const lancTime = new Date(l.created_at || Date.now()).getTime();
+                        const isCloseTime = Math.abs(logTime - lancTime) < 30 * 60 * 1000; // 30 minutos
+
+                        if (hasVal || isCloseTime) return true;
+                    }
+
+                    // Se for log com menção explícita de NF
+                    if (l.num_nf && String(l.num_nf).trim()) {
+                        const nf = String(l.num_nf).trim().toLowerCase();
+                        if (dLower.includes(`nf ${nf}`) || dLower.includes(`nf: ${nf}`) || dLower.includes(`[nf: ${nf}]`)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        });
 
         const historyItems = [];
         const loggedUserDefault = window.currentUser?.user_metadata?.nome_completo || window.currentUser?.email || localStorage.getItem('user_email') || 'Operador';
@@ -10598,8 +11024,20 @@ async function showRecordHistory(id) {
             return act === 'INCLUSÃO' || act === 'INCLUSAO' || dUpper.includes('LANÇOU') || dUpper.includes('CADASTROU') || dUpper.includes('CRIOU');
         });
 
-        const dataCriacao = inclusaoLog ? new Date(inclusaoLog.created_at) : new Date(l.created_at || l.data_emissao || l.data_vencimento || Date.now());
-        const autorCriacao = inclusaoLog?.usuario_email || (l.origem_modulo ? `Integrado via ${l.origem_modulo}` : loggedUserDefault);
+        const dataCriacao = inclusaoLog 
+            ? new Date(inclusaoLog.data_hora || inclusaoLog.created_at) 
+            : new Date(l.created_at || l.data_emissao || l.data_vencimento || Date.now());
+
+        let autorCriacao = 'Usuário não registrado no log';
+        if (inclusaoLog && inclusaoLog.usuario_email) {
+            autorCriacao = inclusaoLog.usuario_email;
+        } else if (l.created_by && String(l.created_by).includes('@')) {
+            autorCriacao = l.created_by;
+        } else if (l.origem_modulo && l.origem_modulo.toUpperCase() !== 'MANUAL') {
+            autorCriacao = `Integrado via ${l.origem_modulo}`;
+        } else if (l.origem_modulo === 'MANUAL') {
+            autorCriacao = l.created_by || 'Lançamento Manual (Usuário não registrado)';
+        }
 
         historyItems.push({
             id: 'init_event',
@@ -10630,7 +11068,7 @@ async function showRecordHistory(id) {
 
                 // Ignora o log de inclusão que já foi renderizado como marco inicial
                 if (inclusaoLog && log.id === inclusaoLog.id) return;
-                if (dUpper.includes('CRIOU') || dUpper.includes('LANÇOU') && act === 'INCLUSÃO') return;
+                if ((dUpper.includes('CRIOU') || dUpper.includes('LANÇOU')) && (act === 'INCLUSÃO' || act === 'INCLUSAO')) return;
 
                 let actionName = 'NOTA ALTERADA';
                 let iconName = 'edit-3';
@@ -10672,7 +11110,7 @@ async function showRecordHistory(id) {
 
                 historyItems.push({
                     id: 'log_' + log.id,
-                    date: new Date(log.created_at),
+                    date: new Date(log.data_hora || log.created_at || Date.now()),
                     user: log.usuario_email || 'Operador',
                     action: actionName,
                     icon: iconName,
@@ -10690,7 +11128,7 @@ async function showRecordHistory(id) {
         if (l.observacoes) {
             const obsLines = l.observacoes.split('\n');
             obsLines.forEach((line, idx) => {
-                if (line.includes('[ALTERAÇÃO DE PAGAMENTO') || line.includes('[AJUSTE DE PARCELA') || line.includes('[MOTIVO DIVERGÊNCIA') || line.includes('[MOTIVO ESTORNO')) {
+                if (line.includes('[ALTERAÇÃO DE NOTA') || line.includes('[ALTERAÇÃO DE PAGAMENTO') || line.includes('[AJUSTE DE PARCELA') || line.includes('[MOTIVO DIVERGÊNCIA') || line.includes('[MOTIVO ESTORNO')) {
                     let parsedUser = loggedUserDefault;
                     const matchUser = line.match(/por (.*?)]:/);
                     if (matchUser && matchUser[1]) parsedUser = matchUser[1].trim();
@@ -10710,7 +11148,14 @@ async function showRecordHistory(id) {
                     let fgC = '#7c3aed';
                     let tit = 'Ajuste nos Dados da Baixa';
 
-                    if (line.includes('[AJUSTE DE PARCELA')) {
+                    if (line.includes('[ALTERAÇÃO DE NOTA')) {
+                        act = 'NOTA ALTERADA';
+                        ic = 'file-pen-line';
+                        mCol = '#0284c7';
+                        bgC = 'rgba(2, 132, 199, 0.12)';
+                        fgC = '#0284c7';
+                        tit = 'Alteração dos Dados da Nota';
+                    } else if (line.includes('[AJUSTE DE PARCELA')) {
                         act = 'AJUSTE DE PARCELA';
                         ic = 'calendar-clock';
                         mCol = '#0284c7';
@@ -10765,10 +11210,37 @@ async function showRecordHistory(id) {
             const vJuros = parseFloat(l.valor_juros) || 0;
             const isParc = l.status === 'PARCIAL';
 
+            // Buscar usuário real que baixou / liquidou nos logs de auditoria ou observações estruturadas
+            const paymentLog = (dbLogs || []).find(log => {
+                const act = (log.acao || '').toUpperCase();
+                const dUpper = (log.descricao || '').toUpperCase();
+                return dUpper.includes('BAIXOU') || dUpper.includes('PAGAMENTO') || dUpper.includes('LIQUIDOU') || act.includes('BAIXA');
+            });
+
+            let paymentUser = null;
+            if (paymentLog && paymentLog.usuario_email) {
+                paymentUser = paymentLog.usuario_email;
+            } else if (l.observacoes) {
+                const obsLines = l.observacoes.split('\n');
+                for (const line of obsLines) {
+                    if (line.includes('[BAIXA') || line.includes('[LIQUIDAÇÃO') || line.includes('[MOTIVO DIVERGÊNCIA BAIXA') || line.includes('[PAGAMENTO')) {
+                        const matchUser = line.match(/por (.*?)]/);
+                        if (matchUser && matchUser[1]) {
+                            paymentUser = matchUser[1].trim();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (!paymentUser) {
+                paymentUser = 'Usuário não registrado no log';
+            }
+
             historyItems.push({
                 id: 'pay_event',
                 date: dtPgto,
-                user: loggedUserDefault,
+                user: paymentUser,
                 action: isParc ? 'BAIXA PARCIAL' : (l.tipo === 'RECEBER' ? 'NOTA RECEBIDA' : 'NOTA PAGA'),
                 icon: isParc ? 'pie-chart' : 'check-circle-2',
                 markerColor: isParc ? '#d97706' : '#059669',
@@ -10791,14 +11263,14 @@ async function showRecordHistory(id) {
 
         // 7. ORDENAÇÃO CRONOLÓGICA (Top-down):
         // Inicia com o lançamento da nota no topo e termina com a última alteração no rodapé da timeline!
-        historyItems.sort((a, b) => a.date.getTime() - b.date.getTime());
+        historyItems.sort((a, b) => b.date.getTime() - a.date.getTime());
 
         // 8. RENDERIZAÇÃO DA TIMELINE VERTICAL
         if (container) {
             container.innerHTML = `
                 <div class="v-timeline">
                     ${historyItems.map((item, index) => {
-                        const isLatest = index === historyItems.length - 1;
+                        const isLatest = index === 0;
                         const dateStr = item.date.toLocaleDateString('pt-BR') + ' às ' + item.date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
                         const detailsHtml = (item.details && item.details.length > 0) ? `

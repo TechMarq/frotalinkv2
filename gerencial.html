@@ -436,6 +436,15 @@
         .badge-info { background: rgba(6,182,212,0.15); color: #67e8f9; }
         .badge-purple { background: rgba(168,85,247,0.15); color: #d8b4fe; }
 
+        /* Badges Temáticas de Combustível */
+        .badge-fuel-gnv { background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35); }
+        .badge-fuel-gasolina { background: rgba(239, 68, 68, 0.18); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.35); }
+        .badge-fuel-diesel { background: rgba(59, 130, 246, 0.18); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.35); }
+        .badge-fuel-etanol { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); }
+        .badge-fuel-arla { background: rgba(6, 182, 212, 0.18); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.35); }
+        .badge-fuel-eletrico { background: rgba(168, 85, 247, 0.18); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35); }
+        .badge-fuel-outro { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.25); }
+
         /* ─── ACCENT COLORS ─── */
         .accent-green { color: var(--success); }
         .accent-red { color: var(--danger); }
@@ -520,11 +529,650 @@
             .header-controls { width: 100%; }
         }
 
+        /* ─── MODAL FULLSCREEN EXPANDIDO: CLASSIFICAÇÕES DA FROTA ─── */
+        .stat-mini-clickable {
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+        .stat-mini-clickable:hover {
+            transform: translateY(-3px);
+            border-color: rgba(16, 185, 129, 0.45);
+            background: rgba(16, 185, 129, 0.06);
+            box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.25);
+        }
+        .stat-mini-clickable .expand-hint {
+            position: absolute;
+            top: 0.65rem;
+            right: 0.65rem;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #10b981;
+            background: rgba(16, 185, 129, 0.12);
+            padding: 2px 7px;
+            border-radius: 999px;
+            opacity: 0.75;
+            transition: opacity 0.2s;
+        }
+        .stat-mini-clickable:hover .expand-hint {
+            opacity: 1;
+        }
+
+        /* ─── HIERARQUIA CENTROS DE CUSTO COMPRAS (PAI > FILHOS) ─── */
+        .tr-cc-pai {
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .tr-cc-pai:hover {
+            background: rgba(255, 255, 255, 0.045) !important;
+        }
+        .btn-toggle-filhos {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #cbd5e1;
+            border-radius: 6px;
+            width: 24px;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        .btn-toggle-filhos:hover {
+            background: rgba(16, 185, 129, 0.2);
+            border-color: rgba(16, 185, 129, 0.4);
+            color: #34d399;
+        }
+        .btn-toggle-filhos.active {
+            transform: rotate(180deg);
+            background: rgba(16, 185, 129, 0.25);
+            color: #34d399;
+        }
+        .tr-cc-filhos-wrap {
+            display: none;
+            background: rgba(15, 23, 42, 0.55);
+        }
+        .tr-cc-filhos-wrap.open {
+            display: table-row;
+        }
+        .filhos-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+            margin: 0.35rem 0 0.5rem;
+        }
+        .filhos-table th {
+            text-align: left;
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #94a3b8;
+            padding: 0.4rem 0.6rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .filhos-table td {
+            padding: 0.45rem 0.6rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            color: #cbd5e1;
+        }
+        .filhos-table tr:last-child td {
+            border-bottom: none;
+        }
+        .filhos-table tr:hover td {
+            background: rgba(255, 255, 255, 0.025);
+        }
+        .chip-subgrupo-count {
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            color: #94a3b8;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-left: 6px;
+        }
+
+        #modalClassificacoesFrota {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            background: rgba(10, 15, 29, 0.88);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            padding: 1.5rem;
+            overflow-y: auto;
+            align-items: center;
+            justify-content: center;
+            animation: fadeInModal 0.25s ease-out forwards;
+        }
+        #modalClassificacoesFrota.active {
+            display: flex;
+        }
+        @keyframes fadeInModal {
+            from { opacity: 0; transform: scale(0.97); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .modal-fullscreen-container {
+            width: 100%;
+            max-width: 1280px;
+            max-height: 92vh;
+            background: linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.92) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 20px;
+            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255,255,255,0.06);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .modal-fullscreen-header {
+            padding: 1.4rem 1.75rem;
+            background: rgba(15, 23, 42, 0.6);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .modal-fullscreen-body {
+            padding: 1.75rem;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .class-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.25rem;
+        }
+        .class-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 1.35rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            position: relative;
+            transition: all 0.25s ease;
+        }
+        .class-card:hover {
+            transform: translateY(-3px);
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.18);
+            box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.5);
+        }
+        .class-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+        .class-card-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+        }
+        .class-card-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .class-card-name {
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: #ffffff;
+            margin: 0;
+            line-height: 1.2;
+        }
+        .class-card-origin {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+        .class-card-total {
+            font-size: 2.2rem;
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: -0.02em;
+        }
+        .class-status-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.3rem 0.65rem;
+            border-radius: 8px;
+            font-size: 0.73rem;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #cbd5e1;
+        }
+        .status-chip.chip-rodando {
+            background: rgba(16, 185, 129, 0.12);
+            border-color: rgba(16, 185, 129, 0.3);
+            color: #34d399;
+        }
+        .status-chip.chip-garagem {
+            background: rgba(245, 158, 11, 0.12);
+            border-color: rgba(245, 158, 11, 0.3);
+            color: #fbbf24;
+        }
+        .status-chip.chip-manut {
+            background: rgba(239, 68, 68, 0.12);
+            border-color: rgba(239, 68, 68, 0.3);
+            color: #f87171;
+        }
+        .status-chip.chip-patio {
+            background: rgba(148, 163, 184, 0.12);
+            border-color: rgba(148, 163, 184, 0.25);
+            color: #94a3b8;
+        }
+        .class-card-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 999px;
+            overflow: hidden;
+            display: flex;
+        }
+        .class-card-bar-seg {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
+        /* ─── FILTROS INTELIGENTES DA FROTA (MULTISELECT CASCATEADO) ─── */
+        .frota-filter-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 0.75rem 1rem;
+            margin-bottom: 1.25rem;
+            position: relative;
+            z-index: 50;
+        }
+
+        .frota-filter-group {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            flex-wrap: wrap;
+            flex: 1;
+        }
+
+        .frota-filter-title {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            white-space: nowrap;
+        }
+
+        .frota-multiselect-container {
+            position: relative;
+            min-width: 220px;
+        }
+
+        .frota-multiselect-trigger {
+            background: rgba(15, 23, 42, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 0.45rem 0.85rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+            min-height: 38px;
+        }
+
+        .frota-multiselect-trigger:hover,
+        .frota-multiselect-trigger.active {
+            border-color: var(--primary);
+            background: rgba(15, 23, 42, 0.95);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+
+        .frota-multiselect-trigger i,
+        .frota-multiselect-trigger svg {
+            transition: transform 0.2s ease;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        .frota-multiselect-trigger.active i,
+        .frota-multiselect-trigger.active svg {
+            transform: rotate(180deg);
+            color: var(--primary);
+        }
+
+        .frota-multiselect-dropdown {
+            position: absolute;
+            top: calc(100% + 5px);
+            left: 0;
+            width: 100%;
+            min-width: 260px;
+            max-width: 380px;
+            background: #0b1329;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius);
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(99, 102, 241, 0.15);
+            display: none;
+            flex-direction: column;
+            z-index: 1000;
+            max-height: 320px;
+            overflow: hidden;
+            animation: fadeInDown 0.18s ease-out;
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .frota-multiselect-dropdown.show {
+            display: flex;
+        }
+
+        .frota-dropdown-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.55rem 0.8rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(15, 23, 42, 0.85);
+        }
+
+        .frota-dropdown-search {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.4rem 0.65rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(15, 23, 42, 0.5);
+        }
+
+        .frota-dropdown-search input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text);
+            font-size: 0.8rem;
+            width: 100%;
+            font-family: inherit;
+        }
+
+        .frota-dropdown-search input::placeholder {
+            color: #64748b;
+        }
+
+        .btn-link-filter {
+            background: none;
+            border: none;
+            color: var(--primary-light, #818cf8);
+            font-size: 0.72rem;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 0 2px;
+            transition: color 0.15s ease;
+        }
+
+        .btn-link-filter:hover {
+            color: #ffffff;
+            text-decoration: underline;
+        }
+
+        .frota-dropdown-options {
+            overflow-y: auto;
+            max-height: 220px;
+            padding: 0.4rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .frota-dropdown-options::-webkit-scrollbar {
+            width: 5px;
+        }
+        .frota-dropdown-options::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        .frota-option-item {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            padding: 0.45rem 0.65rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.81rem;
+            color: var(--text-soft);
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+
+        .frota-option-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text);
+        }
+
+        .frota-option-item.selected {
+            background: rgba(99, 102, 241, 0.15);
+            color: #ffffff;
+        }
+
+        .frota-option-item input[type="checkbox"] {
+            accent-color: var(--primary);
+            width: 15px;
+            height: 15px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .frota-option-info {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .frota-option-main {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        .frota-option-sub {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .frota-count-badge {
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-muted);
+        }
+
+        .frota-option-item.selected .frota-count-badge {
+            background: rgba(99, 102, 241, 0.3);
+            color: #c7d2fe;
+        }
+
+        @media (max-width: 768px) {
+            .frota-filter-group {
+                flex-direction: column;
+                align-items: stretch;
+                width: 100%;
+            }
+            .frota-multiselect-container {
+                width: 100%;
+                min-width: 0;
+            }
+            .frota-multiselect-dropdown {
+                max-width: 100%;
+            }
+            #btn-limpar-filtros-frota {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        /* ─── MODAL DETALHE DO VEÍCULO (DRILL-DOWN COMBUSTÍVEL & MANUTENÇÃO) ─── */
+        #modalDetalheVeiculoFrota {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(4, 9, 20, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            z-index: 1100;
+            align-items: center;
+            justify-content: center;
+            padding: 1.25rem;
+            animation: fadeInModal 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        #modalDetalheVeiculoFrota.active {
+            display: flex;
+        }
+
+        .td-drilldown {
+            cursor: pointer;
+            position: relative;
+            transition: all 0.18s ease;
+            text-decoration: underline dotted rgba(255, 255, 255, 0.35);
+            text-underline-offset: 3px;
+        }
+        .td-drilldown:hover {
+            filter: brightness(1.25);
+            text-decoration: underline solid currentColor;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 4px;
+        }
+
+        .modal-tabs-header {
+            display: flex;
+            gap: 0.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0 1.5rem;
+            background: rgba(15, 23, 42, 0.45);
+        }
+        .modal-tab-btn {
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 0.75rem 1.25rem;
+            color: var(--text-muted);
+            font-size: 0.86rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+        }
+        .modal-tab-btn:hover {
+            color: var(--text);
+        }
+        .modal-tab-btn.active {
+            color: #ffffff;
+            border-bottom-color: var(--primary);
+            background: rgba(99, 102, 241, 0.08);
+        }
+
+        /* Estilo da Cascata de Manutenção (Grupo > Subgrupo > Item) */
+        .cascata-grupo-row {
+            cursor: pointer;
+            background: rgba(15, 23, 42, 0.75) !important;
+            transition: background 0.15s ease;
+            user-select: none;
+        }
+        .cascata-grupo-row:hover {
+            background: rgba(30, 41, 59, 0.9) !important;
+        }
+        .cascata-subgrupo-row {
+            cursor: pointer;
+            background: rgba(15, 23, 42, 0.5) !important;
+            transition: background 0.15s ease;
+            user-select: none;
+        }
+        .cascata-subgrupo-row:hover {
+            background: rgba(30, 41, 59, 0.7) !important;
+        }
+        .cascata-item-row {
+            background: rgba(15, 23, 42, 0.25) !important;
+            font-size: 0.8rem;
+        }
+        .cascata-item-row:hover {
+            background: rgba(255, 255, 255, 0.04) !important;
+        }
+        .btn-cascata-toggle {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 4px;
+            color: #cbd5e1;
+            width: 22px;
+            height: 22px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            margin-right: 0.5rem;
+            transition: transform 0.2s ease;
+            vertical-align: middle;
+        }
+        .btn-cascata-toggle.open {
+            transform: rotate(180deg);
+            background: rgba(99, 102, 241, 0.25);
+            color: #a5b4fc;
+        }
+
         /* ─── PRINT ESTILIZADO PARA RELATÓRIO EXECUTIVO ─── */
         @media print {
             body { background: #ffffff !important; color: #0f172a !important; background-image: none !important; }
             .page-wrap { padding: 0 !important; max-width: 100% !important; }
-            .ger-header-left .back-link, .header-controls, .tabs-header, .btn-action, #loading-overlay { display: none !important; }
+            .ger-header-left .back-link, .header-controls, .tabs-header, .btn-action, #loading-overlay, #modalClassificacoesFrota, #modalDetalheVeiculoFrota { display: none !important; }
             .view-section { display: block !important; margin-bottom: 2rem; }
             .card, .health-radar-card, .patrimonio-strip, .alertas-box, .kpi-card, .stat-mini {
                 background: #ffffff !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important;
@@ -610,22 +1258,25 @@
         </div>
     </div>
 
-    <!-- ─── TABS DE NAVEGAÇÃO EXECUTIVA (5 ABAS AGRUPADAS) ─── -->
+    <!-- ─── TABS DE NAVEGAÇÃO EXECUTIVA (6 ABAS DEDICADAS) ─── -->
     <nav class="tabs-header">
         <button class="tab-item active" onclick="switchTab('cockpit')">
             <i data-lucide="layout-dashboard"></i> Cockpit Executivo
         </button>
         <button class="tab-item" onclick="switchTab('financeiro')">
-            <i data-lucide="dollar-sign"></i> Financeiro & Compras
+            <i data-lucide="dollar-sign"></i> Financeiro
         </button>
         <button class="tab-item" onclick="switchTab('frota')">
-            <i data-lucide="truck"></i> Frota & Operações
+            <i data-lucide="truck"></i> Frota
+        </button>
+        <button class="tab-item" onclick="switchTab('operacoes')">
+            <i data-lucide="boxes"></i> Operações & Estoque
         </button>
         <button class="tab-item" onclick="switchTab('pessoas')">
             <i data-lucide="users"></i> Pessoas & Compliance
         </button>
         <button class="tab-item" onclick="switchTab('comercial')">
-            <i data-lucide="briefcase"></i> Comercial & Estoque
+            <i data-lucide="briefcase"></i> Comercial
         </button>
     </nav>
 
@@ -1188,141 +1839,147 @@
         <div class="section-banner">
             <div class="section-banner-title">
                 <i data-lucide="truck" style="color:var(--primary);"></i>
-                <span>Visão Geral da Frota, TCO & Centros de Custo Veiculares</span>
+                <span>Gestão Financeira da Frota & TCO</span>
             </div>
-            <span class="section-banner-sub">Ocupação, Patrimônio FIPE, Custo Total de Propriedade (TCO), Seguros, IPVA, Multas, Rastreamento, Combustível e Manutenção</span>
+            <span class="section-banner-sub">Custo Total de Propriedade (TCO), Combustível, Manutenção e Custo Médio por KM Rodado</span>
         </div>
 
-        <!-- Big Numbers de Frota & TCO -->
-        <div class="kpi-row-6">
-            <div class="stat-mini">
-                <span class="stat-mini-label">🚛 Frota Ativa Total</span>
-                <span class="stat-mini-val accent-indigo" id="kpi-frota-total">0</span>
-                <span class="stat-mini-sub" id="kpi-frota-casa-agreg-sub">Casa vs Agregados</span>
+        <!-- ─── BARRA DE FILTROS INTELIGENTES DA FROTA (CASCATEADOS) ─── -->
+        <div class="frota-filter-bar">
+            <div class="frota-filter-group">
+                <div class="frota-filter-title">
+                    <i data-lucide="filter" style="width:14px;height:14px;color:var(--primary);"></i>
+                    <span>Filtros da Frota:</span>
+                </div>
+
+                <!-- Multi-select Classificação -->
+                <div class="frota-multiselect-container" id="container-filtro-classificacao">
+                    <div class="frota-multiselect-trigger" id="trigger-filtro-classificacao" tabindex="0">
+                        <span class="frota-multiselect-label" id="label-filtro-classificacao">Classificação: Todas</span>
+                        <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
+                    </div>
+                    <div class="frota-multiselect-dropdown" id="dropdown-filtro-classificacao">
+                        <div class="frota-dropdown-header">
+                            <span style="font-weight:700; font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Classificação</span>
+                            <div style="display:flex; gap:0.5rem; align-items:center;">
+                                <button type="button" class="btn-link-filter" id="btn-classif-todos">Todas</button>
+                                <span style="color:rgba(255,255,255,0.2); font-size:0.75rem;">|</span>
+                                <button type="button" class="btn-link-filter" id="btn-classif-limpar">Limpar</button>
+                            </div>
+                        </div>
+                        <div class="frota-dropdown-options" id="options-filtro-classificacao">
+                            <!-- Opções dinâmicas carregadas via JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Multi-select Placa -->
+                <div class="frota-multiselect-container" id="container-filtro-placa">
+                    <div class="frota-multiselect-trigger" id="trigger-filtro-placa" tabindex="0">
+                        <span class="frota-multiselect-label" id="label-filtro-placa">Placas: Todas</span>
+                        <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
+                    </div>
+                    <div class="frota-multiselect-dropdown" id="dropdown-filtro-placa">
+                        <div class="frota-dropdown-header">
+                            <span style="font-weight:700; font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Placas da Frota</span>
+                            <div style="display:flex; gap:0.5rem; align-items:center;">
+                                <button type="button" class="btn-link-filter" id="btn-placa-todos">Todas</button>
+                                <span style="color:rgba(255,255,255,0.2); font-size:0.75rem;">|</span>
+                                <button type="button" class="btn-link-filter" id="btn-placa-limpar">Limpar</button>
+                            </div>
+                        </div>
+                        <div class="frota-dropdown-search">
+                            <i data-lucide="search" style="width:13px;height:13px;color:var(--text-muted);margin-left:4px;"></i>
+                            <input type="text" id="search-filtro-placa" placeholder="Buscar placa ou modelo..." autocomplete="off">
+                        </div>
+                        <div class="frota-dropdown-options" id="options-filtro-placa">
+                            <!-- Opções dinâmicas carregadas e cascateadas via JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Badge de contagem / status de filtro -->
+                <div id="badge-filtro-frota-status" class="badge badge-info" style="display:none; align-items:center; gap:0.4rem; padding:0.35rem 0.65rem; font-size:0.75rem;">
+                    <i data-lucide="check-circle" style="width:12px;height:12px;"></i>
+                    <span id="text-filtro-frota-status">Exibindo 0 veículos</span>
+                </div>
             </div>
-            <div class="stat-mini">
-                <span class="stat-mini-label">✅ Em Operação (Alocados)</span>
-                <span class="stat-mini-val accent-green" id="kpi-frota-alocados">0</span>
-                <span class="stat-mini-sub" id="kpi-frota-disp-manut-sub">Pátio: 0 | Oficina: 0</span>
-            </div>
-            <div class="stat-mini">
-                <span class="stat-mini-label">💎 Patrimônio Frota (FIPE)</span>
-                <span class="stat-mini-val accent-cyan" id="kpi-frota-fipe-total">R$ 0,00</span>
-                <span class="stat-mini-sub" id="kpi-frota-fipe-media">Média/veículo: R$ 0,00</span>
-            </div>
-            <div class="stat-mini">
+
+            <!-- Botão Limpar Filtros -->
+            <button type="button" class="btn-action" id="btn-limpar-filtros-frota" style="display:none; background:rgba(239,68,68,0.12); border-color:rgba(239,68,68,0.25); color:#fca5a5; font-size:0.78rem; height:34px; padding:0 0.8rem;">
+                <i data-lucide="x" style="width:13px;height:13px;"></i>
+                <span>Limpar Filtros</span>
+            </button>
+        </div>
+
+        <!-- Big Numbers Financeiros da Frota (5 Indicadores de Custos) -->
+        <div class="kpi-grid-auto" style="margin-bottom:1.25rem;">
+            <div class="stat-mini" style="border-left:3px solid #ef4444;">
                 <span class="stat-mini-label">💸 Custo Total Frota (TCO)</span>
                 <span class="stat-mini-val accent-red" id="kpi-frota-tco-total">R$ 0,00</span>
-                <span class="stat-mini-sub" id="kpi-frota-tco-fipe-perc">0% sobre valor FIPE</span>
-            </div>
-            <div class="stat-mini">
-                <span class="stat-mini-label">🛣️ KM Rodado no Período</span>
-                <span class="stat-mini-val" id="kpi-frota-km-total">0 KM</span>
-                <span class="stat-mini-sub" id="kpi-frota-custo-km-global">TCO/KM: R$ 0,00/KM</span>
-            </div>
-            <div class="stat-mini">
-                <span class="stat-mini-label">🛡️ Seguros Vigentes</span>
-                <span class="stat-mini-val accent-purple" id="kpi-frota-seguros-ok">0 / 0</span>
-                <span class="stat-mini-sub" id="kpi-frota-seguros-alerta-sub">0 vencidos | 0 a vencer</span>
-            </div>
-        </div>
-
-        <!-- Evolução Mensal de Custos da Frota + Status de Ocupação -->
-        <div class="grid-2-1">
-            <div class="card">
-                <div class="card-title">
-                    <div class="card-title-left">
-                        <i data-lucide="bar-chart-3" style="color:var(--primary);"></i>
-                        <span>Evolução Mensal dos Custos da Frota (Combustível + Manutenção + Peças + Seguros/Doc)</span>
-                    </div>
-                    <span id="badge-chart-frota-meses" class="badge badge-info">Mês a Mês</span>
-                </div>
-                <div class="chart-wrap chart-wrap-tall">
-                    <canvas id="chart-frota-evolucao-mensal"></canvas>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-title">
-                    <div class="card-title-left">
-                        <i data-lucide="pie-chart" style="color:var(--success);"></i>
-                        <span>Status de Ocupação da Frota</span>
-                    </div>
-                </div>
-                <div class="chart-wrap" style="height:190px;">
-                    <canvas id="chart-frota-status"></canvas>
-                </div>
-                <div style="margin-top:0.75rem;">
-                    <div class="metric-row">
-                        <span class="metric-label">🏠 Frota Própria (Casa)</span>
-                        <span class="metric-value accent-indigo" id="kpi-frota-qtd-casa">0</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">🤝 Veículos Agregados / Prestadores</span>
-                        <span class="metric-value accent-cyan" id="kpi-frota-qtd-agregados">0</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">⏸️ Disponíveis no Pátio</span>
-                        <span class="metric-value" id="kpi-frota-disponiveis">0</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">🔧 Parados em Manutenção</span>
-                        <span class="metric-value accent-red" id="kpi-frota-em-manut">0</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ─── SEÇÃO: CENTROS DE CUSTO DA FROTA (SEGUROS, IPVA, MULTAS, RASTREIO, FINANCIAMENTOS) ─── -->
-        <div class="section-banner">
-            <div class="section-banner-title">
-                <i data-lucide="layers" style="color:var(--warning);"></i>
-                <span>Centros de Custo da Frota & Despesas Veiculares (Seguros, IPVA, Multas, Rastreamento, etc.)</span>
-            </div>
-            <span class="section-banner-sub">Cruzamento real do Plano de Contas Veicular (Financeiro), Centros de Custo (Compras) e Apólices de Seguro</span>
-        </div>
-
-        <!-- 6 Cards de Centros de Custo Específicos da Frota -->
-        <div class="kpi-row-6">
-            <div class="stat-mini" style="border-left:3px solid #6366f1;">
-                <span class="stat-mini-label">🛡️ Seguros de Veículos</span>
-                <span class="stat-mini-val accent-indigo" id="kpi-cc-seguros">R$ 0,00</span>
-                <span class="stat-mini-sub" id="kpi-cc-seguros-sub">Plano 0495 + Seguros</span>
-            </div>
-            <div class="stat-mini" style="border-left:3px solid #06b6d4;">
-                <span class="stat-mini-label">📄 IPVA, Licenc., DUDA, GRT/DETRO</span>
-                <span class="stat-mini-val accent-cyan" id="kpi-cc-documentacao">R$ 0,00</span>
-                <span class="stat-mini-sub">Taxas & impostos veiculares</span>
-            </div>
-            <div class="stat-mini" style="border-left:3px solid #ef4444;">
-                <span class="stat-mini-label">🚨 Multas & Infrações</span>
-                <span class="stat-mini-val accent-red" id="kpi-cc-multas">R$ 0,00</span>
-                <span class="stat-mini-sub">Plano 0082 / 0532</span>
+                <span class="stat-mini-sub" id="kpi-frota-tco-fipe-perc">Soma consolidada dos custos</span>
             </div>
             <div class="stat-mini" style="border-left:3px solid #10b981;">
-                <span class="stat-mini-label">📡 Monitoramento & Rastreio</span>
-                <span class="stat-mini-val accent-green" id="kpi-cc-rastreio">R$ 0,00</span>
-                <span class="stat-mini-sub">Telemetria e rastreadores</span>
+                <span class="stat-mini-label">⛽ Gasto Combustível</span>
+                <span class="stat-mini-val accent-green" id="kpi-frota-comb-total">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-frota-comb-sub">Abastecimentos no período</span>
             </div>
             <div class="stat-mini" style="border-left:3px solid #f59e0b;">
-                <span class="stat-mini-label">🏦 Financiamentos & Consórcios</span>
-                <span class="stat-mini-val accent-amber" id="kpi-cc-financiamentos">R$ 0,00</span>
-                <span class="stat-mini-sub">Parcelas de frota</span>
+                <span class="stat-mini-label">🔧 Custo Manutenção</span>
+                <span class="stat-mini-val accent-amber" id="kpi-frota-manut-total">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-frota-manut-sub">Peças, MO, pneus e serviços</span>
             </div>
-            <div class="stat-mini" style="border-left:3px solid #a855f7;">
-                <span class="stat-mini-label">🧼 Lavagem, Pedágio & Estac.</span>
-                <span class="stat-mini-val accent-purple" id="kpi-cc-lavagem-pedagio">R$ 0,00</span>
-                <span class="stat-mini-sub">Operação de rota</span>
+            <div class="stat-mini" style="border-left:3px solid #6366f1;">
+                <span class="stat-mini-label">🛣️ KM Rodado no Período</span>
+                <span class="stat-mini-val accent-indigo" id="kpi-frota-km-total">0 KM</span>
+                <span class="stat-mini-sub">Quilometragem acumulada</span>
+            </div>
+            <div class="stat-mini" style="border-left:3px solid #06b6d4;">
+                <span class="stat-mini-label">📊 Custo Médio por KM (R$/KM)</span>
+                <span class="stat-mini-val accent-cyan" id="kpi-frota-custo-km-global">R$ 0,00/KM</span>
+                <span class="stat-mini-sub">TCO / KM rodado</span>
             </div>
         </div>
 
-        <div class="grid-2">
-            <!-- Gráfico de Centros de Custo da Frota -->
+        <!-- Evolução dos Custos da Frota (Combustível vs Manutenção) -->
+        <div class="card" style="margin-bottom:1.5rem;">
+            <div class="card-title">
+                <div class="card-title-left">
+                    <i data-lucide="bar-chart-3" style="color:var(--primary);"></i>
+                    <span>Evolução dos Custos da Frota (Combustível vs Manutenção)</span>
+                </div>
+                <span id="badge-chart-frota-meses" class="badge badge-info">Período Selecionado</span>
+            </div>
+            <div class="chart-wrap chart-wrap-tall">
+                <canvas id="chart-frota-evolucao-mensal"></canvas>
+            </div>
+        </div>
+
+        <!-- ─── SEÇÃO: CUSTO MANUTENÇÃO ─── -->
+        <div class="section-banner">
+            <div class="section-banner-title">
+                <i data-lucide="wrench" style="color:var(--warning);"></i>
+                <span>Custo Manutenção</span>
+            </div>
+            <span class="section-banner-sub">Detalhamento analítico e hierárquico dos gastos com Peças, Mão de Obra, Pneus, Serviços e Oficinas</span>
+        </div>
+
+        <!-- Cards Dinâmicos e Inteligentes dos Centros de Custo de Manutenção -->
+        <div class="kpi-grid-auto" id="cc-frota-kpi-container" style="margin-bottom:1.25rem;">
+            <div class="stat-mini" style="border-left:3px solid #ef4444;">
+                <span class="stat-mini-label">🔧 Total Manutenção</span>
+                <span class="stat-mini-val accent-red" id="kpi-manut-total-geral">R$ 0,00</span>
+                <span class="stat-mini-sub">Soma de todos os centros de manutenção</span>
+            </div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:1.5rem;">
+            <!-- Gráfico de Distribuição de Manutenção -->
             <div class="card">
                 <div class="card-title">
                     <div class="card-title-left">
                         <i data-lucide="pie-chart" style="color:var(--warning);"></i>
-                        <span>Distribuição por Centro de Custo / Categoria Veicular</span>
+                        <span>Distribuição por Centro de Custo de Manutenção</span>
                     </div>
                     <span class="badge badge-warning">Centros de Custo</span>
                 </div>
@@ -1331,178 +1988,102 @@
                 </div>
             </div>
 
-            <!-- Tabela Analítica de Centros de Custo da Frota -->
+            <!-- Tabela Hierárquica Analítica: Centros de Custo de Manutenção -->
             <div class="card">
                 <div class="card-title">
                     <div class="card-title-left">
                         <i data-lucide="table" style="color:var(--info);"></i>
-                        <span>Tabela Analítica — Centros de Custo & Despesas da Frota</span>
+                        <span>Tabela Analítica — Centros de Custo de Manutenção & Subgrupos</span>
                     </div>
+                    <span class="badge badge-info"><i data-lucide="chevron-down" style="width:12px;height:12px;vertical-align:middle;"></i> Clique no Pai p/ expandir</span>
                 </div>
                 <div class="table-scroll">
                     <table class="ranking-table">
                         <thead>
                             <tr>
-                                <th>Centro de Custo / Natureza Veicular</th>
-                                <th style="text-align:right;">Realizado / Pago</th>
-                                <th style="text-align:right;">Previsto / Aberto</th>
-                                <th style="text-align:right;">Total Período</th>
-                                <th style="text-align:right;">% TCO</th>
+                                <th>Centro de Custo Pai (G1) / Subgrupos</th>
+                                <th style="text-align:center;">Qtd Itens</th>
+                                <th style="text-align:right;">Valor Compras</th>
+                                <th style="text-align:right;">% Grupo</th>
+                                <th style="text-align:center;">Subgrupos</th>
                             </tr>
                         </thead>
                         <tbody id="frota-centros-custo-body">
-                            <tr><td colspan="5" class="empty-msg">Calculando centros de custo da frota...</td></tr>
+                            <tr><td colspan="5" class="empty-msg">Calculando centros de custo de manutenção...</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
 
-        <!-- Painel de Gestão de Seguros e Apólices da Frota -->
-        <div class="grid-2">
-            <div class="card">
-                <div class="card-title">
-                    <div class="card-title-left">
-                        <i data-lucide="shield" style="color:var(--primary);"></i>
-                        <span>Resumo de Seguradoras & Corretores da Frota</span>
-                    </div>
-                    <span id="seguros-cobertura-badge" class="badge badge-info">Cobertura FIPE</span>
-                </div>
-                <div class="table-scroll">
-                    <table class="ranking-table">
-                        <thead>
-                            <tr>
-                                <th>Seguradora / Corretor</th>
-                                <th>Qtd Veículos</th>
-                                <th>Vencidos / Alerta</th>
-                                <th style="text-align:right;">Patrimônio FIPE Segurado</th>
-                            </tr>
-                        </thead>
-                        <tbody id="frota-seguradoras-body">
-                            <tr><td colspan="4" class="empty-msg">Carregando apólices da frota...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-title">
-                    <div class="card-title-left">
-                        <i data-lucide="shield-alert" style="color:var(--danger);"></i>
-                        <span>Controle de Vencimento de Apólices de Seguro por Veículo</span>
-                    </div>
-                    <span class="badge badge-danger">Prioridade Renovação</span>
-                </div>
-                <div class="table-scroll">
-                    <table class="ranking-table">
-                        <thead>
-                            <tr>
-                                <th>Placa / Modelo</th>
-                                <th>Seguradora / Corretor</th>
-                                <th>Vencimento</th>
-                                <th style="text-align:right;">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="frota-apolices-vencimento-body">
-                            <tr><td colspan="4" class="empty-msg">Verificando vigência de apólices...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- ─── SEÇÃO: COMBUSTÍVEL & MANUTENÇÃO (EVOLUÇÃO MENSAL & DETALHES) ─── -->
+        <!-- ─── SEÇÃO: COMBUSTÍVEL & ABASTECIMENTO DA FROTA ─── -->
         <div class="section-banner">
             <div class="section-banner-title">
                 <i data-lucide="fuel" style="color:var(--success);"></i>
-                <span>Combustível (Abastecimento) & Manutenção (Oficinas)</span>
+                <span>Combustível & Abastecimento da Frota</span>
             </div>
-            <span class="section-banner-sub">Evolução mensal de consumo, preço por litro, postos, manutenções preventivas vs corretivas e oficinas</span>
+            <span class="section-banner-sub">Gastos, volume total abastecido, eficiência (KM/L), tipos de combustível e consumo por classificação veicular</span>
         </div>
 
-        <div class="grid-2">
-            <!-- Card Detalhado de Combustível + Gráfico Mensal -->
+        <!-- Big Numbers de Combustível -->
+        <div class="kpi-grid-auto" style="margin-bottom:1.25rem;">
+            <div class="stat-mini" style="border-left:3px solid #10b981;">
+                <span class="stat-mini-label">💸 Gasto Total Combustível</span>
+                <span class="stat-mini-val accent-green" id="kpi-comb-gasto">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-comb-gasto-sub">Período selecionado</span>
+            </div>
+            <div class="stat-mini" style="border-left:3px solid #06b6d4;">
+                <span class="stat-mini-label">🛢️ Volume Total Abastecido</span>
+                <span class="stat-mini-val accent-cyan" id="kpi-comb-litros">0 L</span>
+                <span class="stat-mini-sub" id="kpi-comb-litros-sub">Litros / M³</span>
+            </div>
+            <div class="stat-mini" style="border-left:3px solid #f59e0b;">
+                <span class="stat-mini-label">📊 Preço Médio por Litro</span>
+                <span class="stat-mini-val accent-amber" id="kpi-comb-preco-medio">R$ 0,00</span>
+                <span class="stat-mini-sub">Média ponderada</span>
+            </div>
+            <div class="stat-mini" style="border-left:3px solid #6366f1;">
+                <span class="stat-mini-label">⚡ Eficiência Média Frota</span>
+                <span class="stat-mini-val accent-indigo" id="kpi-comb-km-l">-- KM/L</span>
+                <span class="stat-mini-sub">Rendimento da frota</span>
+            </div>
+            <div class="stat-mini" style="border-left:3px solid #ec4899;">
+                <span class="stat-mini-label">🪙 Custo Combustível / KM</span>
+                <span class="stat-mini-val accent-pink" id="kpi-comb-custo-km">R$ --/KM</span>
+                <span class="stat-mini-sub">Gasto / KM rodado</span>
+            </div>
+        </div>
+
+        <!-- 2 Gráficos Inteligentes de Combustível -->
+        <div class="grid-2" style="margin-bottom:1.5rem;">
+            <!-- Gráfico 1: Tipos de Combustível -->
             <div class="card">
                 <div class="card-title">
                     <div class="card-title-left">
-                        <i data-lucide="fuel" style="color:var(--success);"></i>
-                        <span>Indicadores & Evolução Mensal de Combustível</span>
+                        <i data-lucide="pie-chart" style="color:var(--success);"></i>
+                        <span>Distribuição por Tipo de Combustível</span>
                     </div>
-                    <span id="badge-chart-comb-meses" class="badge badge-success">Abastecimento</span>
+                    <span class="badge badge-success">Tipos Ativos</span>
                 </div>
-                <div class="grid-3" style="margin-bottom:1rem;">
-                    <div class="stat-mini">
-                        <span class="stat-mini-label">💸 Gasto Total</span>
-                        <span class="stat-mini-val accent-red" id="kpi-comb-gasto">R$ 0,00</span>
-                    </div>
-                    <div class="stat-mini">
-                        <span class="stat-mini-label">🛢️ Volume Total</span>
-                        <span class="stat-mini-val accent-green" id="kpi-comb-litros">0 L</span>
-                    </div>
-                    <div class="stat-mini">
-                        <span class="stat-mini-label">📊 Preço Médio/L</span>
-                        <span class="stat-mini-val accent-amber" id="kpi-comb-preco-medio">R$ 0,00</span>
-                    </div>
+                <div class="chart-wrap">
+                    <canvas id="chart-comb-tipos"></canvas>
                 </div>
-                <div class="chart-wrap chart-wrap-sm">
-                    <canvas id="chart-comb-evolucao-mensal"></canvas>
-                </div>
-                <div style="margin-top:0.85rem;">
-                    <div class="metric-row">
-                        <span class="metric-label"><i data-lucide="gauge" style="width:14px;height:14px;"></i> Consumo Médio da Frota</span>
-                        <span class="metric-value accent-cyan" id="kpi-comb-km-l">-- KM/L</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label"><i data-lucide="coins" style="width:14px;height:14px;"></i> Custo de Combustível por KM</span>
-                        <span class="metric-value" id="kpi-comb-custo-km">R$ --/KM</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label"><i data-lucide="map-pin" style="width:14px;height:14px;"></i> Principal Posto Acionado</span>
-                        <span class="metric-value accent-indigo" id="kpi-comb-top-posto">—</span>
-                    </div>
-                </div>
+                <div id="comb-tipos-legend" style="margin-top:0.75rem; display:flex; flex-direction:column; gap:0.35rem;"></div>
             </div>
 
-            <!-- Card Detalhado de Manutenção + Gráfico Mensal -->
+            <!-- Gráfico 2: Classificação da Frota Abastecida -->
             <div class="card">
                 <div class="card-title">
                     <div class="card-title-left">
-                        <i data-lucide="wrench" style="color:var(--danger);"></i>
-                        <span>Indicadores & Evolução Mensal de Manutenções</span>
+                        <i data-lucide="layers" style="color:var(--info);"></i>
+                        <span>Combustível por Classificação da Frota</span>
                     </div>
-                    <span id="badge-chart-manut-meses" class="badge badge-danger">Oficinas</span>
+                    <span class="badge badge-info">Próprios vs Agregados</span>
                 </div>
-                <div class="grid-3" style="margin-bottom:1rem;">
-                    <div class="stat-mini">
-                        <span class="stat-mini-label">💸 Custo Manutenção</span>
-                        <span class="stat-mini-val accent-red" id="kpi-manut-gasto">R$ 0,00</span>
-                    </div>
-                    <div class="stat-mini">
-                        <span class="stat-mini-label">🔩 Peças vs Serviços</span>
-                        <span class="stat-mini-val accent-amber" style="font-size:0.98rem;" id="kpi-manut-pecas-servicos">R$ 0 / R$ 0</span>
-                    </div>
-                    <div class="stat-mini">
-                        <span class="stat-mini-label">🛡️ Eficiência Prev.</span>
-                        <span class="stat-mini-val accent-cyan" id="kpi-manut-taxa-prev">0%</span>
-                    </div>
+                <div class="chart-wrap">
+                    <canvas id="chart-comb-classificacao"></canvas>
                 </div>
-                <div class="chart-wrap chart-wrap-sm">
-                    <canvas id="chart-manut-evolucao-mensal"></canvas>
-                </div>
-                <div style="margin-top:0.85rem;">
-                    <div class="metric-row">
-                        <span class="metric-label">📋 Total de OSs no Período | Ticket Médio</span>
-                        <span class="metric-value" id="kpi-manut-total">0</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">⏳ OSs Pendentes / Em Andamento</span>
-                        <span class="metric-value accent-amber" id="kpi-manut-pendentes">0</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label"><span class="badge badge-success">PREV</span> Preventivas vs <span class="badge badge-danger">CORR</span> Corretivas</span>
-                        <span class="metric-value"><span class="accent-green" id="kpi-manut-preventivas">0</span> / <span class="accent-red" id="kpi-manut-corretivas">0</span></span>
-                    </div>
-                </div>
+                <div id="comb-classif-legend" style="margin-top:0.75rem; display:flex; flex-direction:column; gap:0.35rem;"></div>
             </div>
         </div>
 
@@ -1513,10 +2094,16 @@
                     <i data-lucide="alert-octagon" style="color:var(--danger);"></i>
                     <span>Ranking de Custos por Veículo no Período (TCO Completo por Placa)</span>
                 </div>
-                <span class="badge badge-danger">Top 10 Vilões de Custo</span>
+                <div style="display:flex; align-items:center; gap:0.6rem;">
+                    <button type="button" class="btn-action" id="btn-toggle-todos-viloes" onclick="toggleExibirTodosVeiculosRanking()" style="font-size:0.75rem; height:32px; padding:0 0.85rem; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; display:flex; align-items:center; gap:0.45rem;">
+                        <i data-lucide="list" style="width:13px;height:13px;"></i>
+                        <span id="label-toggle-viloes">Ver Todos os Veículos</span>
+                    </button>
+                    <span class="badge badge-danger" id="badge-viloes-count">Top 10 Vilões de Custo</span>
+                </div>
             </div>
             <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.9rem;">
-                Consolidação real de todos os centros de custo vinculados a cada placa: Combustível + Manutenção + Compras de Peças + Despesas Financeiras/Seguros/Multas/Adicionais.
+                Consolidação real por placa: <strong>Combustível</strong> + <strong>Manutenção</strong> (OSs de oficina, compras de peças/serviços e saídas de estoque aplicadas). <em>Dica: clique diretamente sobre o valor de <strong>Combustível</strong> ou <strong>Manutenção</strong> para abrir a auditoria analítica e a cascata de itens do veículo.</em>
             </p>
             <div class="table-scroll">
                 <table class="ranking-table">
@@ -1527,8 +2114,6 @@
                             <th>Tipo</th>
                             <th style="text-align:right;">Combustível</th>
                             <th style="text-align:right;">Manutenção</th>
-                            <th style="text-align:right;">Peças/Compras</th>
-                            <th style="text-align:right;">Seguros/Doc/Outros</th>
                             <th style="text-align:right;">KM Rodado</th>
                             <th style="text-align:right;">R$ / KM</th>
                             <th style="text-align:right;">Custo Total</th>
@@ -1536,7 +2121,7 @@
                         </tr>
                     </thead>
                     <tbody id="viloes-frota-body">
-                        <tr><td colspan="11" class="empty-msg">Calculando custos consolidados por veículo...</td></tr>
+                        <tr><td colspan="9" class="empty-msg">Calculando custos consolidados por veículo...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1786,6 +2371,133 @@
             </div>
         </div>
 
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         ABA 4 — OPERAÇÕES & ESTOQUE (ALMOXARIFADO, PEÇAS & INVENTÁRIO)
+    ══════════════════════════════════════════════════════════════ -->
+    <section id="view-operacoes" class="view-section">
+
+        <!-- ─── SEÇÃO: STATUS OPERACIONAL DA FROTA & APÓLICES DE SEGURO ─── -->
+        <div class="section-banner">
+            <div class="section-banner-title">
+                <i data-lucide="shield-check" style="color:var(--primary);"></i>
+                <span>Status Operacional da Frota, Alocação de Veículos & Apólices de Seguro</span>
+            </div>
+            <span class="section-banner-sub">Classificações, ocupação, pátio, oficinas, apólices de seguro, seguradoras e controle de renovações</span>
+        </div>
+
+        <!-- Big Numbers Operacionais (Cards Clicáveis para Modal de Classificações) -->
+        <div class="kpi-grid-auto" style="margin-bottom:1.25rem;">
+            <div class="stat-mini stat-mini-clickable" onclick="abrirModalClassificacoesFrota('total')" title="Clique para expandir o Raio-X de Classificações e Quantidades da Frota">
+                <span class="expand-hint"><i data-lucide="maximize-2" style="width:11px;height:11px;"></i> Expandir</span>
+                <span class="stat-mini-label">🚛 Frota Ativa Total</span>
+                <span class="stat-mini-val accent-indigo" id="kpi-frota-total">0</span>
+                <span class="stat-mini-sub" id="kpi-frota-casa-agreg-sub">Carregando classificações...</span>
+            </div>
+            <div class="stat-mini stat-mini-clickable" onclick="abrirModalClassificacoesFrota('alocados')" title="Clique para expandir o Raio-X de Veículos em Operação (Rodando)">
+                <span class="expand-hint"><i data-lucide="maximize-2" style="width:11px;height:11px;"></i> Expandir</span>
+                <span class="stat-mini-label">✅ Em Operação (Rodando)</span>
+                <span class="stat-mini-val accent-green" id="kpi-frota-alocados">0</span>
+                <span class="stat-mini-sub" id="kpi-frota-disp-manut-sub">Pátio: 0 | Oficina: 0</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">💎 Patrimônio Frota (FIPE)</span>
+                <span class="stat-mini-val accent-cyan" id="kpi-frota-fipe-total">R$ 0,00</span>
+                <span class="stat-mini-sub" id="kpi-frota-fipe-media">Média/veículo: R$ 0,00</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-mini-label">🛡️ Seguros Vigentes</span>
+                <span class="stat-mini-val accent-purple" id="kpi-frota-seguros-ok">0 / 0</span>
+                <span class="stat-mini-sub" id="kpi-frota-seguros-alerta-sub">0 vencidos | 0 a vencer</span>
+            </div>
+        </div>
+
+        <!-- Status de Ocupação da Frota + Resumo de Seguradoras -->
+        <div class="grid-2-1" style="margin-bottom:1.25rem;">
+            <div class="card stat-mini-clickable" onclick="abrirModalClassificacoesFrota('status')" title="Clique para expandir as Classificações da Frota">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="pie-chart" style="color:var(--success);"></i>
+                        <span>Status de Ocupação da Frota</span>
+                    </div>
+                    <span class="expand-hint" style="position:static;"><i data-lucide="maximize-2" style="width:11px;height:11px;"></i> Expandir</span>
+                </div>
+                <div class="chart-wrap" style="height:190px;">
+                    <canvas id="chart-frota-status"></canvas>
+                </div>
+                <div style="margin-top:0.75rem;">
+                    <div class="metric-row">
+                        <span class="metric-label">🚗 Frota Própria (Empresa)</span>
+                        <span class="metric-value accent-indigo" id="kpi-frota-qtd-casa">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">🤝 Veículos Agregados / Prestadores</span>
+                        <span class="metric-value accent-cyan" id="kpi-frota-qtd-agregados">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">⏸️ Disponíveis no Pátio</span>
+                        <span class="metric-value" id="kpi-frota-disponiveis">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">🔧 Parados em Manutenção</span>
+                        <span class="metric-value accent-red" id="kpi-frota-em-manut">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left">
+                        <i data-lucide="shield" style="color:var(--primary);"></i>
+                        <span>Resumo de Seguradoras & Corretores da Frota</span>
+                    </div>
+                    <span id="seguros-cobertura-badge" class="badge badge-info">Cobertura FIPE</span>
+                </div>
+                <div class="table-scroll" style="max-height: 280px;">
+                    <table class="ranking-table">
+                        <thead>
+                            <tr>
+                                <th>Seguradora / Corretor</th>
+                                <th>Qtd Veículos</th>
+                                <th>Vencidos / Alerta</th>
+                                <th style="text-align:right;">Patrimônio FIPE Segurado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="frota-seguradoras-body">
+                            <tr><td colspan="4" class="empty-msg">Carregando apólices da frota...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabela de Controle de Vencimento de Apólices por Veículo -->
+        <div class="card" style="margin-bottom:1.75rem;">
+            <div class="card-title">
+                <div class="card-title-left">
+                    <i data-lucide="shield-alert" style="color:var(--danger);"></i>
+                    <span>Controle de Vencimento de Apólices de Seguro por Veículo</span>
+                </div>
+                <span class="badge badge-danger">Prioridade Renovação</span>
+            </div>
+            <div class="table-scroll" style="max-height: 260px;">
+                <table class="ranking-table">
+                    <thead>
+                        <tr>
+                            <th>Placa / Modelo</th>
+                            <th>Seguradora / Corretor</th>
+                            <th>Vencimento</th>
+                            <th style="text-align:right;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="frota-apolices-vencimento-body">
+                        <tr><td colspan="4" class="empty-msg">Verificando vigência de apólices...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- ─── SEÇÃO: ESTOQUE & ALMOXARIFADO ─── -->
         <div class="section-banner">
             <div class="section-banner-title">
@@ -1905,7 +2617,202 @@
 
 </div><!-- /page-wrap -->
 
+<!-- ══════════════════════════════════════════════════════════════
+     MODAL FULLSCREEN EXPANDIDO: CLASSIFICAÇÕES & STATUS DA FROTA
+══════════════════════════════════════════════════════════════ -->
+<div id="modalClassificacoesFrota" role="dialog" aria-modal="true" aria-labelledby="modalClassFrotaTitle">
+    <div class="modal-fullscreen-container">
+        
+        <!-- Header do Modal -->
+        <div class="modal-fullscreen-header">
+            <div style="display:flex; align-items:center; gap:0.9rem;">
+                <div style="background:rgba(16, 185, 129, 0.15); border:1px solid rgba(16, 185, 129, 0.35); padding:0.6rem; border-radius:12px; color:#10b981; display:flex; align-items:center; justify-content:center;">
+                    <i data-lucide="layers" style="width:24px;height:24px;"></i>
+                </div>
+                <div>
+                    <h2 id="modalClassFrotaTitle" style="margin:0; font-size:1.25rem; font-weight:800; color:#ffffff; letter-spacing:-0.01em;">
+                        Raio-X de Classificações & Ocupação da Frota
+                    </h2>
+                    <p style="margin:0.15rem 0 0; font-size:0.75rem; color:#94a3b8;">
+                        Consolidação em tempo real dos veículos próprios (Frota) e prestadores agregados (Comercial)
+                    </p>
+                </div>
+            </div>
+
+            <!-- Resumo Rápido no Header + Botão Fechar -->
+            <div style="display:flex; align-items:center; gap:1rem;">
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <span class="status-chip chip-rodando" id="modal-header-chip-rodando">
+                        <i data-lucide="play" style="width:12px;height:12px;"></i> <span id="modal-hdr-rodando">0</span> Rodando
+                    </span>
+                    <span class="status-chip chip-garagem" id="modal-header-chip-garagem">
+                        <i data-lucide="home" style="width:12px;height:12px;"></i> <span id="modal-hdr-garagem">0</span> Garagem
+                    </span>
+                    <span class="status-chip chip-manut" id="modal-header-chip-manut">
+                        <i data-lucide="wrench" style="width:12px;height:12px;"></i> <span id="modal-hdr-manut">0</span> Oficina
+                    </span>
+                    <span class="status-chip chip-patio" id="modal-header-chip-patio">
+                        <i data-lucide="parking-circle" style="width:12px;height:12px;"></i> <span id="modal-hdr-patio">0</span> Pátio
+                    </span>
+                </div>
+
+                <button type="button" onclick="fecharModalClassificacoesFrota()" title="Fechar (ESC)" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:10px; width:38px; height:38px; color:#cbd5e1; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.2)'; this.style.borderColor='rgba(239,68,68,0.4)'; this.style.color='#ef4444';" onmouseout="this.style.background='rgba(255,255,255,0.08)'; this.style.borderColor='rgba(255,255,255,0.15)'; this.style.color='#cbd5e1';">
+                    <i data-lucide="x" style="width:19px;height:19px;"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Corpo do Modal: Cards Visuais -->
+        <div class="modal-fullscreen-body">
+            
+            <!-- Banner Informativo -->
+            <div style="background:rgba(16, 185, 129, 0.08); border:1px solid rgba(16, 185, 129, 0.22); border-radius:12px; padding:0.85rem 1.2rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem;">
+                <div style="display:flex; align-items:center; gap:0.6rem; color:#d1fae5; font-size:0.82rem;">
+                    <i data-lucide="info" style="width:17px;height:17px;color:#10b981;flex-shrink:0;"></i>
+                    <span>Exibindo a distribuição exata dos veículos conforme a <strong>Classificação Oficial</strong> cadastrada no sistema.</span>
+                </div>
+                <div style="font-size:0.78rem; color:#94a3b8;">
+                    Total Geral Monitorado: <strong style="color:#ffffff;" id="modal-total-geral-badge">0 veículos</strong>
+                </div>
+            </div>
+
+            <!-- Grid de Cards Visuais por Classificação -->
+            <div class="class-cards-grid" id="modal-class-cards-container">
+                <!-- Inserido dinamicamente via JS -->
+            </div>
+
+        </div>
+
+        <!-- Footer do Modal -->
+        <div style="padding:0.9rem 1.75rem; background:rgba(15, 23, 42, 0.6); border-top:1px solid rgba(255, 255, 255, 0.08); display:flex; align-items:center; justify-content:space-between;">
+            <span style="font-size:0.75rem; color:#64748b;">FrotaLink · Gestão Integrada de Frotas & Operações</span>
+            <button type="button" class="btn-cancel" onclick="fecharModalClassificacoesFrota()" style="padding:0.5rem 1.25rem; font-size:0.8rem; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; border-radius:8px; cursor:pointer;">
+                Fechar (ESC)
+            </button>
+        </div>
+
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     MODAL DRILL-DOWN: DETALHE DE CUSTOS DO VEÍCULO (COMBUSTÍVEL & MANUTENÇÃO)
+══════════════════════════════════════════════════════════════ -->
+<div id="modalDetalheVeiculoFrota" role="dialog" aria-modal="true" aria-labelledby="modalDetalheVeiculoTitle">
+    <div class="modal-fullscreen-container" style="max-width:1150px; height:88vh;">
+        <!-- Header -->
+        <div class="modal-fullscreen-header" style="padding:1.1rem 1.5rem;">
+            <div style="display:flex; align-items:center; gap:0.85rem; flex-wrap:wrap;">
+                <div style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:12px; width:44px; height:44px; display:flex; align-items:center; justify-content:center; color:var(--primary);">
+                    <i data-lucide="truck" style="width:24px;height:24px;"></i>
+                </div>
+                <div>
+                    <div style="display:flex; align-items:center; gap:0.6rem;">
+                        <h2 id="modalDetalheVeiculoTitle" style="font-size:1.3rem; font-weight:800; color:#ffffff; margin:0; letter-spacing:0.04em;">ABC-1234</h2>
+                        <span id="modalDetalheVeiculoTipoBadge" class="badge badge-info">Frota Própria</span>
+                    </div>
+                    <span id="modalDetalheVeiculoModelo" style="font-size:0.83rem; color:var(--text-muted);">VOLVO FH 540</span>
+                </div>
+            </div>
+
+            <!-- KPIs Rápidos do Veículo no Período -->
+            <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+                <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.4rem 0.75rem; text-align:right;">
+                    <div style="font-size:0.68rem; color:var(--text-muted); font-weight:700;">CUSTO TOTAL (TCO)</div>
+                    <div id="modalDetalheKpiTco" style="font-size:1.05rem; font-weight:800; color:#ef4444;">R$ 0,00</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.4rem 0.75rem; text-align:right;">
+                    <div style="font-size:0.68rem; color:var(--text-muted); font-weight:700;">COMBUSTÍVEL</div>
+                    <div id="modalDetalheKpiComb" style="font-size:1.05rem; font-weight:800; color:#10b981;">R$ 0,00</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.4rem 0.75rem; text-align:right;">
+                    <div style="font-size:0.68rem; color:var(--text-muted); font-weight:700;">MANUTENÇÃO</div>
+                    <div id="modalDetalheKpiManut" style="font-size:1.05rem; font-weight:800; color:#f59e0b;">R$ 0,00</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.4rem 0.75rem; text-align:right;">
+                    <div style="font-size:0.68rem; color:var(--text-muted); font-weight:700;">KM RODADO / R$/KM</div>
+                    <div id="modalDetalheKpiKm" style="font-size:1.05rem; font-weight:800; color:#38bdf8;">0 KM · R$ 0,00/KM</div>
+                </div>
+                <button type="button" onclick="fecharModalDetalheVeiculoFrota()" title="Fechar (ESC)" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:10px; width:38px; height:38px; color:#cbd5e1; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.2s; margin-left:0.5rem;" onmouseover="this.style.background='rgba(239,68,68,0.2)'; this.style.color='#ef4444';" onmouseout="this.style.background='rgba(255,255,255,0.08)'; this.style.color='#cbd5e1';">
+                    <i data-lucide="x" style="width:19px;height:19px;"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Abas do Modal -->
+        <div class="modal-tabs-header">
+            <button type="button" class="modal-tab-btn active" id="modal-tab-btn-combustivel" onclick="switchModalDetalheTab('combustivel')">
+                <i data-lucide="fuel" style="width:15px;height:15px;"></i>
+                <span id="modal-tab-label-combustivel">⛽ Abastecimentos & Combustível</span>
+            </button>
+            <button type="button" class="modal-tab-btn" id="modal-tab-btn-manutencao" onclick="switchModalDetalheTab('manutencao')">
+                <i data-lucide="wrench" style="width:15px;height:15px;"></i>
+                <span id="modal-tab-label-manutencao">🔧 Manutenção & Centros de Custo (Cascata)</span>
+            </button>
+        </div>
+
+        <!-- Corpo do Modal -->
+        <div class="modal-fullscreen-body" style="padding:1.25rem 1.5rem; overflow-y:auto; flex:1;">
+            
+            <!-- Painel 1: Abastecimentos -->
+            <div id="modal-painel-combustivel">
+                <div id="modal-combustivel-summary" style="margin-bottom:1rem;"></div>
+                <div class="table-scroll">
+                    <table class="ranking-table" style="font-size:0.83rem;">
+                        <thead>
+                            <tr>
+                                <th>Data / Hora</th>
+                                <th>Motorista</th>
+                                <th>Posto / Estabelecimento</th>
+                                <th>Combustível</th>
+                                <th style="text-align:right;">Litros</th>
+                                <th style="text-align:right;">Preço / L</th>
+                                <th style="text-align:right;">Valor Total</th>
+                                <th style="text-align:right;">KM Veículo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modal-combustivel-body">
+                            <!-- Inserido dinamicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Painel 2: Manutenções (Cascata Grupo > Subgrupo > Itens) -->
+            <div id="modal-painel-manutencao" style="display:none;">
+                <div id="modal-manutencao-summary" style="margin-bottom:1rem;"></div>
+                <div class="table-scroll">
+                    <table class="ranking-table" style="font-size:0.83rem;">
+                        <thead>
+                            <tr>
+                                <th>Centro de Custo / Subgrupo / Item</th>
+                                <th style="text-align:center;">Origem / Doc</th>
+                                <th>Fornecedor / Oficina</th>
+                                <th style="text-align:center;">Data</th>
+                                <th style="text-align:right;">Qtd</th>
+                                <th style="text-align:right;">Valor Total</th>
+                                <th style="text-align:right;">% Manut.</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modal-manutencao-cascata-body">
+                            <!-- Inserido dinamicamente via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Footer do Modal -->
+        <div style="padding:0.75rem 1.5rem; background:rgba(15,23,42,0.7); border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:0.75rem; color:#64748b;">FrotaLink · Auditoria e Detalhamento Analítico de Custos</span>
+            <button type="button" onclick="fecharModalDetalheVeiculoFrota()" style="padding:0.45rem 1.2rem; font-size:0.8rem; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; border-radius:8px; cursor:pointer;">
+                Fechar (ESC)
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Script do Painel Gerencial -->
-<script src="gerencial.js"></script>
+<script src="gerencial.js?v=20261111_fuel_tags_colors"></script>
 </body>
 </html>

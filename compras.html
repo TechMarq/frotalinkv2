@@ -1122,12 +1122,21 @@
                     <label>Período</label>
                     <select id="filterDatePreset" class="filter-select" onchange="handleDatePresetChange(this)">
                         <option value="month" selected>Mês Atual</option>
-                        <option value="all">Todos os Períodos</option>
-                        <option value="15days">Últimos 15D</option>
+                        <option value="specificMonth">Mês Específico...</option>
                         <option value="lastMonth">Mês Anterior</option>
+                        <option value="15days">Últimos 15D</option>
                         <option value="nextMonth">Próximo Mês</option>
-                        <option value="custom">Personalizado</option>
+                        <option value="all">Todos os Períodos</option>
+                        <option value="custom">Personalizado (De / Até)</option>
                     </select>
+                </div>
+
+                <!-- Seletor de Mês Específico (1 clique) -->
+                <div id="specificMonthContainer" style="display:none; align-items:center;">
+                    <div class="filter-group" style="min-width: 140px;">
+                        <label>Mês Selecionado</label>
+                        <input type="month" id="filterSpecificMonth" class="filter-select" style="font-weight:700;" onchange="handleSpecificMonthChange(this.value)">
+                    </div>
                 </div>
 
                 <div id="customDateContainer" style="display:none; gap:1rem;">
@@ -2254,7 +2263,7 @@
     </div>
 
     <!-- SCRIPTS -->
-    <script src="compras.js?v=20261110_parcela1_fix"></script>
+    <script src="compras.js?v=20261111_fechamento_vales_shield"></script>
     <script src="orb_menu.js?v=20260901_06"></script>
     <script>
         if (typeof lucide !== 'undefined') lucide.createIcons();
