@@ -549,24 +549,24 @@ function renderContratos() {
 
         // Mapa de células por key
         const cellMap = {
-            cliente:     `<td data-label="Cliente" onclick="openContratoModal('${c.id}', true)" style="cursor:pointer;" title="Clique para visualizar os dados"><div style="font-weight:800;color:var(--primary);">${c.cliente_nome || 'N/A'}</div><div style="font-size:0.7rem;color:var(--text-muted);">${c.vigencia || '-'}</div></td>`,
-            cnpj:        `<td data-label="CNPJ">${c.cliente_cnpj_cpf || '-'}</td>`,
-            descricao:   `<td data-label="Descrição"><div>${c.descricao_contrato || '-'}</div><div style="font-size:0.7rem;color:var(--primary);font-weight:700;">VERSÃO: ${c.versao_contrato || '-'}</div></td>`,
-            versao:      `<td data-label="Versão"><span style="font-size:0.75rem;font-weight:700;color:var(--primary);">${c.versao_contrato || '-'}</span></td>`,
-            referencia:  `<td data-label="Referência"><span style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;">${c.referencia || '-'}</span></td>`,
-            vigencia:    `<td data-label="Vigência">${c.vigencia || '-'}</td>`,
-            demanda:     `<td data-label="Demanda">${c.tipo_demanda_nome || '-'}</td>`,
-            tabela:      `<td data-label="Tabela">${c.tabela_preco_nome || '-'}</td>`,
-            assinatura:  `<td data-label="Assinatura">${c.data_assinatura ? new Date(c.data_assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}</td>`,
-            prazo:       `<td data-label="Prazo">${c.prazo_meses ? c.prazo_meses + ' meses' : '-'}</td>`,
-            vencimento:  `<td data-label="Vencimento"><div style="font-weight:700;color:${vencColor};display:flex;align-items:center;flex-wrap:wrap;gap:4px;">${c.data_vencimento ? new Date(c.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}${alertIcon}</div><div style="font-size:0.65rem;color:var(--text-muted);">${c.prazo_meses || 0} meses</div></td>`,
-            status:      `<td data-label="Status"><span style="background:${statusColor}22;color:${statusColor};padding:0.2rem 0.6rem;border-radius:6px;font-size:0.65rem;font-weight:800;border:1px solid ${statusColor}44;">${isVencido ? 'VENCIDO' : (c.status_nome || 'N/A')}</span></td>`,
-            email:       `<td data-label="Email"><span style="font-size:0.78rem;">${c.cliente_email || '-'}</span></td>`,
-            telefone:    `<td data-label="Telefone">${c.cliente_telefone || '-'}</td>`,
-            responsavel: `<td data-label="Responsável">${c.nome_responsavel || '-'}</td>`,
-            contato:     `<td data-label="Contato Resp.">${c.contato_responsavel || '-'}</td>`,
-            observacao:  `<td data-label="Observações"><span style="font-size:0.75rem;color:var(--text-muted);max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(c.observacao || '').replace(/"/g,"'")}">${c.observacao || '-'}</span></td>`,
-            acoes:       `<td style="text-align:right;"><div style="display:flex;gap:8px;justify-content:flex-end;"><button class="action-btn-mini" onclick="openHistoricoModal('${c.id}')" title="Histórico"><i data-lucide="history"></i></button><button class="action-btn-mini" onclick="openContratoModal('${c.id}')" title="Editar"><i data-lucide="edit-2"></i></button><button class="action-btn-mini" onclick="deleteContrato('${c.id}')" style="color:#ef4444;" title="Excluir"><i data-lucide="trash-2"></i></button></div></td>`
+            cliente:     `<td data-label="Cliente" onclick="openContratoModal('${c.id}', true)" style="cursor:pointer;" title="Clique para visualizar os dados"><div style="font-weight:800;color:var(--primary);font-size:0.75rem;">${c.cliente_nome || 'N/A'}</div><div style="font-size:0.67rem;color:var(--text-muted);">${c.vigencia || '-'}</div></td>`,
+            cnpj:        `<td data-label="CNPJ" style="font-size:0.72rem;font-family:'JetBrains Mono',monospace;">${c.cliente_cnpj_cpf || '-'}</td>`,
+            descricao:   `<td data-label="Descrição"><div style="font-size:0.73rem;">${c.descricao_contrato || '-'}</div><div style="font-size:0.67rem;color:var(--primary);font-weight:700;">VERSÃO: ${c.versao_contrato || '-'}</div></td>`,
+            versao:      `<td data-label="Versão" style="text-align:center;"><span style="font-size:0.72rem;font-weight:700;color:var(--primary);">${c.versao_contrato || '-'}</span></td>`,
+            referencia:  `<td data-label="Referência"><span style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;">${c.referencia || '-'}</span></td>`,
+            vigencia:    `<td data-label="Vigência" style="font-size:0.72rem;">${c.vigencia || '-'}</td>`,
+            demanda:     `<td data-label="Demanda" style="font-size:0.72rem;">${c.tipo_demanda_nome || '-'}</td>`,
+            tabela:      `<td data-label="Tabela" style="font-size:0.72rem;">${c.tabela_preco_nome || '-'}</td>`,
+            assinatura:  `<td data-label="Assinatura" style="font-size:0.72rem;text-align:center;">${c.data_assinatura ? new Date(c.data_assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}</td>`,
+            prazo:       `<td data-label="Prazo" style="font-size:0.72rem;text-align:center;">${c.prazo_meses ? c.prazo_meses + ' meses' : '-'}</td>`,
+            vencimento:  `<td data-label="Vencimento"><div style="font-size:0.74rem;font-weight:700;color:${vencColor};display:flex;align-items:center;flex-wrap:wrap;gap:4px;">${c.data_vencimento ? new Date(c.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}${alertIcon}</div><div style="font-size:0.65rem;color:var(--text-muted);">${c.prazo_meses || 0} meses</div></td>`,
+            status:      `<td data-label="Status" style="text-align:center;"><span style="background:${statusColor}22;color:${statusColor};padding:0.15rem 0.45rem;border-radius:6px;font-size:0.62rem;font-weight:800;border:1px solid ${statusColor}44;display:inline-block;white-space:nowrap;">${isVencido ? 'VENCIDO' : (c.status_nome || 'N/A')}</span></td>`,
+            email:       `<td data-label="Email"><span style="font-size:0.72rem;">${c.cliente_email || '-'}</span></td>`,
+            telefone:    `<td data-label="Telefone" style="font-size:0.72rem;">${c.cliente_telefone || '-'}</td>`,
+            responsavel: `<td data-label="Responsável" style="font-size:0.72rem;">${c.nome_responsavel || '-'}</td>`,
+            contato:     `<td data-label="Contato Resp." style="font-size:0.72rem;">${c.contato_responsavel || '-'}</td>`,
+            observacao:  `<td data-label="Observações"><span style="font-size:0.72rem;color:var(--text-muted);max-width:180px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(c.observacao || '').replace(/"/g,"'")}">${c.observacao || '-'}</span></td>`,
+            acoes:       `<td style="text-align:right;white-space:nowrap;"><div style="display:flex;gap:4px;justify-content:flex-end;"><button class="action-btn-mini" onclick="openHistoricoModal('${c.id}')" title="Histórico"><i data-lucide="history"></i></button><button class="action-btn-mini" onclick="openContratoModal('${c.id}')" title="Editar"><i data-lucide="edit-2"></i></button><button class="action-btn-mini" onclick="deleteContrato('${c.id}')" style="color:#ef4444;" title="Excluir"><i data-lucide="trash-2"></i></button></div></td>`
         };
 
         const visibleCells = colConfig.order
@@ -588,16 +588,37 @@ function renderTableHeader() {
     const tr = document.getElementById('contractsHeader');
     if (!tr) return;
 
+    const defaultWidths = {
+        cliente: 'min-width: 160px;',
+        cnpj: 'width: 120px;',
+        descricao: 'min-width: 140px;',
+        versao: 'width: 75px; text-align: center;',
+        referencia: 'width: 90px;',
+        vigencia: 'width: 90px;',
+        demanda: 'width: 110px;',
+        tabela: 'width: 110px;',
+        assinatura: 'width: 80px; text-align: center;',
+        prazo: 'width: 80px; text-align: center;',
+        vencimento: 'width: 95px;',
+        status: 'width: 90px; text-align: center;',
+        email: 'width: 120px;',
+        telefone: 'width: 100px;',
+        responsavel: 'width: 110px;',
+        contato: 'width: 100px;',
+        observacao: 'width: 130px;',
+        acoes: 'width: 85px; text-align: right;'
+    };
+
     tr.innerHTML = colConfig.order
         .filter(k => colConfig.visible[k] !== false)
         .map(k => {
             const def = COL_DEFS.find(d => d.key === k);
             if (!def) return '';
+            const wStyle = defaultWidths[k] || '';
             if (def.sortKey) {
-                return `<th onclick="handleSort('${def.sortKey}')" style="cursor:pointer;">${def.label} <i data-lucide="chevrons-up-down" style="width:14px;opacity:0.3;"></i></th>`;
+                return `<th onclick="handleSort('${def.sortKey}')" style="cursor:pointer; ${wStyle}">${def.label} <i data-lucide="chevrons-up-down" style="width:12px;opacity:0.4;"></i></th>`;
             }
-            const align = k === 'acoes' ? 'text-align:right;' : '';
-            return `<th style="${align}">${def.label}</th>`;
+            return `<th style="${wStyle}">${def.label}</th>`;
         }).join('');
 }
 
@@ -1864,27 +1885,27 @@ window.setPropostaVersao = (version, render = true) => {
         if (version === 1) {
             header.innerHTML = `
                 <tr style="background:rgba(255,255,255,0.04);">
-                    <th style="padding:0.6rem 0.5rem;text-align:center;color:var(--text-muted);font-weight:700;width:36px;">#</th>
-                    <th style="padding:0.6rem 0.5rem;text-align:left;color:var(--text-muted);font-weight:700;">Descrição</th>
-                    <th style="padding:0.6rem 0.5rem;text-align:center;color:var(--text-muted);font-weight:700;width:80px;">Unidade</th>
-                    <th style="padding:0.6rem 0.5rem;text-align:right;color:var(--text-muted);font-weight:700;width:90px;">Qtd.</th>
-                    <th style="padding:0.6rem 0.5rem;text-align:right;color:var(--text-muted);font-weight:700;width:110px;">Preço Unit.</th>
-                    <th style="padding:0.6rem 0.5rem;text-align:right;color:var(--text-muted);font-weight:700;width:110px;">Total</th>
+                    <th style="padding:0.50rem 0.45rem;text-align:center;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:34px;">#</th>
+                    <th style="padding:0.50rem 0.45rem;text-align:left;color:var(--text-muted);font-size:0.68rem;font-weight:800;">Descrição</th>
+                    <th style="padding:0.50rem 0.45rem;text-align:center;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:75px;">Unidade</th>
+                    <th style="padding:0.50rem 0.45rem;text-align:right;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:75px;">Qtd.</th>
+                    <th style="padding:0.50rem 0.45rem;text-align:right;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:95px;">Preço Unit.</th>
+                    <th style="padding:0.50rem 0.45rem;text-align:right;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:95px;">Total</th>
                     <th style="width:36px;"></th>
                 </tr>
             `;
         } else {
             header.innerHTML = `
                 <tr style="background:rgba(255,255,255,0.04);">
-                    <th style="padding:0.6rem 0.5rem;text-align:center;color:var(--text-muted);font-weight:700;width:36px;">#</th>
-                    <th style="padding:0.6rem 0.5rem;text-align:left;color:var(--text-muted);font-weight:700;min-width:130px;">Origem</th>
-                    <th style="padding:0.6rem 0.5rem;text-align:left;color:var(--text-muted);font-weight:700;min-width:130px;">Destino</th>
-                    <th style="padding:0.6rem 0.5rem;text-align:right;color:var(--text-muted);font-weight:700;width:80px;">Qtd. Veíc.</th>
-                    <th style="padding:0.6rem 0.5rem;text-align:right;color:var(--text-muted);font-weight:700;width:85px;">Total KM</th>
-                    <th style="padding:0.6rem 0.5rem;text-align:right;color:var(--text-muted);font-weight:700;width:90px;">Valor KM</th>
-                    <th style="padding:0.6rem 0.5rem;text-align:right;color:var(--text-muted);font-weight:700;width:100px;">Valor Veíc.</th>
-                    <th style="padding:0.6rem 0.5rem;text-align:center;color:var(--text-muted);font-weight:700;width:60px;">Volta?</th>
-                    <th style="padding:0.6rem 0.5rem;text-align:right;color:var(--text-muted);font-weight:700;width:110px;">Total</th>
+                    <th style="padding:0.50rem 0.45rem;text-align:center;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:34px;">#</th>
+                    <th style="padding:0.50rem 0.45rem;text-align:left;color:var(--text-muted);font-size:0.68rem;font-weight:800;min-width:110px;">Origem</th>
+                    <th style="padding:0.50rem 0.45rem;text-align:left;color:var(--text-muted);font-size:0.68rem;font-weight:800;min-width:110px;">Destino</th>
+                    <th style="padding:0.50rem 0.45rem;text-align:right;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:70px;">Qtd. Veíc.</th>
+                    <th style="padding:0.50rem 0.45rem;text-align:right;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:75px;">Total KM</th>
+                    <th style="padding:0.50rem 0.45rem;text-align:right;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:80px;">Valor KM</th>
+                    <th style="padding:0.50rem 0.45rem;text-align:right;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:85px;">Valor Veíc.</th>
+                    <th style="padding:0.50rem 0.45rem;text-align:center;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:55px;">Volta?</th>
+                    <th style="padding:0.50rem 0.45rem;text-align:right;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:95px;">Total</th>
                     <th style="width:36px;"></th>
                 </tr>
             `;
@@ -1995,34 +2016,34 @@ function renderItensProposta() {
             const total = valorVeiculo * (item.qtd_veiculos || 1) * (item.habilitar_volta ? 2 : 1);
             return `
                 <tr data-idx="${idx}">
-                    <td style="text-align:center;font-weight:800;color:var(--primary);font-size:0.8rem;">${idx + 1}</td>
+                    <td style="text-align:center;font-weight:800;color:var(--primary);font-size:0.75rem;">${idx + 1}</td>
                     <td><input class="item-input" type="text" placeholder="Origem"
                         value="${(item.origem || '').replace(/"/g, '&quot;')}"
                         oninput="updateItemProposta(${idx},'origem',this.value)"></td>
                     <td><input class="item-input" type="text" placeholder="Destino"
                         value="${(item.destino || '').replace(/"/g, '&quot;')}"
                         oninput="updateItemProposta(${idx},'destino',this.value)"></td>
-                    <td><input class="item-input" type="number" placeholder="1" min="1" style="width: 70px; text-align: right;"
+                    <td><input class="item-input" type="number" placeholder="1" min="1" style="width: 65px; text-align: right;"
                         value="${item.qtd_veiculos ?? 1}"
                         oninput="updateItemProposta(${idx},'qtd_veiculos',this.value)"></td>
-                    <td><input class="item-input" type="number" placeholder="0" min="0" style="width: 80px; text-align: right;"
+                    <td><input class="item-input" type="number" placeholder="0" min="0" style="width: 70px; text-align: right;"
                         value="${item.total_km || ''}"
                         oninput="updateItemProposta(${idx},'total_km',this.value)"></td>
-                    <td><input class="item-input" type="number" placeholder="0,00" min="0" step="0.01" style="width: 85px; text-align: right;"
+                    <td><input class="item-input" type="number" placeholder="0,00" min="0" step="0.01" style="width: 75px; text-align: right;"
                         value="${item.valor_km || ''}"
                         oninput="updateItemProposta(${idx},'valor_km',this.value)"></td>
-                    <td class="row-veiculo-val" style="font-weight:600;color:var(--text-muted);text-align:right;padding-right:0.5rem;white-space:nowrap;">
+                    <td class="row-veiculo-val" style="font-weight:600;font-size:0.73rem;color:var(--text-muted);text-align:right;padding-right:0.4rem;white-space:nowrap;">
                         ${fmtMoeda(valorVeiculo)}
                     </td>
                     <td style="text-align:center;">
                         <input type="checkbox" ${item.habilitar_volta ? 'checked' : ''} 
                             onchange="updateItemProposta(${idx},'habilitar_volta',this.checked)"
-                            style="cursor:pointer; width:16px; height:16px; accent-color:var(--primary);">
+                            style="cursor:pointer; width:15px; height:15px; accent-color:var(--primary);">
                     </td>
-                    <td class="row-total-val" style="font-weight:700;color:#fff;white-space:nowrap;text-align:right;padding-right:0.5rem;">
+                    <td class="row-total-val" style="font-weight:700;font-size:0.74rem;color:#fff;white-space:nowrap;text-align:right;padding-right:0.4rem;">
                         ${fmtMoeda(total)}
                     </td>
-                    <td><button class="btn-remove-item" onclick="removeItemProposta(${idx})" title="Remover">
+                    <td style="text-align:right;"><button class="btn-remove-item" onclick="removeItemProposta(${idx})" title="Remover">
                         <i data-lucide="trash-2" style="width:12px;"></i>
                     </button></td>
                 </tr>
@@ -2031,23 +2052,23 @@ function renderItensProposta() {
     } else {
         tbody.innerHTML = propostaAtual.itens.map((item, idx) => `
             <tr data-idx="${idx}">
-                <td style="text-align:center;font-weight:800;color:var(--primary);font-size:0.8rem;">${idx + 1}</td>
+                <td style="text-align:center;font-weight:800;color:var(--primary);font-size:0.75rem;">${idx + 1}</td>
                 <td><input class="item-input" type="text" placeholder="Descrição do serviço/produto"
                     value="${(item.descricao || '').replace(/"/g, '&quot;')}"
                     oninput="updateItemProposta(${idx},'descricao',this.value)"></td>
                 <td><input class="item-input" type="text" placeholder="KM, Hrs, Un"
                     value="${(item.unidade || '').replace(/"/g, '&quot;')}"
                     oninput="updateItemProposta(${idx},'unidade',this.value)"></td>
-                <td><input class="item-input" type="number" placeholder="0" min="0" style="width: 90px; text-align: right;"
+                <td><input class="item-input" type="number" placeholder="0" min="0" style="width: 70px; text-align: right;"
                     value="${item.quantidade || ''}"
                     oninput="updateItemProposta(${idx},'quantidade',this.value)"></td>
-                <td><input class="item-input" type="number" placeholder="0,00" min="0" step="0.01" style="width: 110px; text-align: right;"
+                <td><input class="item-input" type="number" placeholder="0,00" min="0" step="0.01" style="width: 85px; text-align: right;"
                     value="${item.preco_unit || ''}"
                     oninput="updateItemProposta(${idx},'preco_unit',this.value)"></td>
-                <td class="row-total-val" style="font-weight:700;color:#fff;white-space:nowrap;text-align:right;padding-right:0.5rem;">
+                <td class="row-total-val" style="font-weight:700;font-size:0.74rem;color:#fff;white-space:nowrap;text-align:right;padding-right:0.4rem;">
                     ${fmtMoeda((item.quantidade || 0) * (item.preco_unit || 0))}
                 </td>
-                <td><button class="btn-remove-item" onclick="removeItemProposta(${idx})" title="Remover">
+                <td style="text-align:right;"><button class="btn-remove-item" onclick="removeItemProposta(${idx})" title="Remover">
                     <i data-lucide="trash-2" style="width:12px;"></i>
                 </button></td>
             </tr>
@@ -2982,34 +3003,34 @@ function renderPrestadores() {
         if (p.status === 'Inativo') statusStyle = 'background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);';
 
         const pendenciaBadge = p.tem_pendencia 
-            ? `<span style="font-size: 0.72rem; font-weight:800; padding:2px 8px; border-radius:12px; background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3);" title="${p.pendencia_descricao || 'Com pendência'}">SIM</span>`
-            : `<span style="font-size: 0.72rem; font-weight:700; color:var(--text-muted);">NÃO</span>`;
+            ? `<span style="font-size: 0.65rem; font-weight:800; padding:1px 6px; border-radius:10px; background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3);" title="${p.pendencia_descricao || 'Com pendência'}">SIM</span>`
+            : `<span style="font-size: 0.68rem; font-weight:700; color:var(--text-muted);">NÃO</span>`;
 
         const actionDriveBtn = p.link_documentos
             ? `<a href="${p.link_documentos}" target="_blank" rel="noopener noreferrer" class="action-btn-mini" title="Abrir pasta de documentos (Google Drive)" style="background: rgba(59,130,246,0.15); color: #3b82f6; border: 1px solid rgba(59,130,246,0.3); display: inline-flex; align-items: center; justify-content: center; text-decoration: none;">
-                <i data-lucide="folder-git-2" style="width:14px;"></i>
+                <i data-lucide="folder-git-2"></i>
                </a>`
             : `<button class="action-btn-mini" onclick="alert('Nenhuma pasta de documentos cadastrada para este prestador.')" title="Sem pasta cadastrada" style="opacity: 0.35; cursor: not-allowed; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: var(--text-muted);">
-                <i data-lucide="folder" style="width:14px;"></i>
+                <i data-lucide="folder"></i>
                </button>`;
 
         return `
             <tr>
-                <td style="font-weight: 700; color: #fff;">${p.nome_prestador}</td>
-                <td><span style="font-size:0.75rem; font-weight:800; background:rgba(99,102,241,0.12); color:var(--primary); padding:2px 8px; border-radius:6px;">${p.tipo_contrato || '-'}</span></td>
-                <td>${docFormatted}</td>
-                <td><span class="proposta-status-badge" style="${statusStyle}">${p.status || 'Ativo'}</span></td>
-                <td>${p.marca || ''} ${p.modelo || ''} <span style="font-family:'JetBrains Mono',monospace; font-weight:800; color:var(--primary); margin-left:4px;">(${p.placa || '-'})</span></td>
-                <td>${fmtDataBR(p.data_proxima_vistoria)}</td>
-                <td>${pendenciaBadge}</td>
-                <td style="text-align: center;">
-                    <div style="display: flex; gap: 0.4rem; justify-content: center; align-items: center;">
+                <td style="font-weight: 700; font-size: 0.74rem;">${p.nome_prestador}</td>
+                <td style="text-align: center;"><span style="font-size:0.65rem; font-weight:800; background:rgba(99,102,241,0.12); color:var(--primary); padding:1px 6px; border-radius:4px; display:inline-block;">${p.tipo_contrato || '-'}</span></td>
+                <td style="font-size:0.72rem; font-family:'JetBrains Mono',monospace;">${docFormatted}</td>
+                <td style="text-align: center;"><span class="proposta-status-badge" style="font-size:0.62rem; padding:2px 6px; ${statusStyle}">${p.status || 'Ativo'}</span></td>
+                <td style="font-size:0.72rem;">${p.marca || ''} ${p.modelo || ''} <span style="font-family:'JetBrains Mono',monospace; font-weight:800; color:var(--primary); margin-left:4px;">(${p.placa || '-'})</span></td>
+                <td style="text-align: center; font-size:0.72rem;">${fmtDataBR(p.data_proxima_vistoria)}</td>
+                <td style="text-align: center;">${pendenciaBadge}</td>
+                <td style="text-align: right; white-space: nowrap;">
+                    <div style="display: flex; gap: 4px; justify-content: flex-end; align-items: center;">
                         ${actionDriveBtn}
                         <button class="action-btn-mini" onclick="openPrestadorModal('${p.id}')" title="Editar Prestador">
-                            <i data-lucide="edit-2" style="width:14px;"></i>
+                            <i data-lucide="edit-2"></i>
                         </button>
                         <button class="action-btn-mini" onclick="deletePrestador('${p.id}')" title="Excluir Prestador" style="background: rgba(239,68,68,0.1); color: #ef4444;">
-                            <i data-lucide="trash-2" style="width:14px;"></i>
+                            <i data-lucide="trash-2"></i>
                         </button>
                     </div>
                 </td>

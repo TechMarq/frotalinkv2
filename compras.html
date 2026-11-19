@@ -45,11 +45,75 @@
             backdrop-filter: blur(12px);
         }
 
+        /* --- PADRÃO COMPACTO DE TABELAS COMPRAS (INSPIRAÇÃO MÓDULO FROTA) --- */
+        .table-container table {
+            width: 100% !important;
+            table-layout: auto !important;
+            border-collapse: separate !important;
+            border-spacing: 0 4px !important;
+        }
+
         .table-container th {
             position: sticky;
             top: 0;
             z-index: 10;
             background: var(--bg-card);
+            padding: 0.50rem 0.45rem !important;
+            font-size: 0.68rem !important;
+            font-weight: 800 !important;
+            color: var(--text-muted, #64748b) !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.3px !important;
+            vertical-align: middle !important;
+            line-height: 1.15 !important;
+            white-space: nowrap !important;
+            hyphens: none !important;
+            word-break: normal !important;
+            border-bottom: 2px solid var(--border-card, rgba(255, 255, 255, 0.08)) !important;
+        }
+
+        .table-container td {
+            padding: 0.44rem 0.45rem !important;
+            font-size: 0.74rem !important;
+            vertical-align: middle !important;
+            hyphens: none !important;
+            word-break: normal !important;
+            border-top: 1px solid var(--border-card, rgba(255, 255, 255, 0.05)) !important;
+            border-bottom: 1px solid var(--border-card, rgba(255, 255, 255, 0.05)) !important;
+            background: var(--bg-card, rgba(255, 255, 255, 0.02)) !important;
+        }
+
+        .table-container tr td:first-child {
+            border-left: 1px solid var(--border-card, rgba(255, 255, 255, 0.05)) !important;
+            border-radius: 8px 0 0 8px !important;
+        }
+
+        .table-container tr td:last-child {
+            border-right: 1px solid var(--border-card, rgba(255, 255, 255, 0.05)) !important;
+            border-radius: 0 8px 8px 0 !important;
+        }
+
+        .table-container tr {
+            transition: all 0.15s ease;
+        }
+
+        .table-container tr:hover td {
+            background: rgba(255, 255, 255, 0.04) !important;
+        }
+
+        [data-theme="green_pastel"] .table-container td {
+            background: #ffffff !important;
+            border-color: rgba(45, 158, 107, 0.15) !important;
+        }
+
+        [data-theme="green_pastel"] .table-container tr:hover td {
+            background: rgba(45, 158, 107, 0.05) !important;
+        }
+
+        [data-theme="green_pastel"] .table-container th {
+            background: #f8fafc !important;
+            color: #1a7a50 !important;
+            border-bottom-color: rgba(45, 158, 107, 0.2) !important;
         }
 
         /* Rodapé de Paginação Moderno (Estilo Abastecimento/Manutenção) */
@@ -1342,14 +1406,14 @@
                 <table class="mobile-cards" style="width: 100%;">
                     <thead>
                         <tr>
-                            <th style="width: 40px; text-align: center;"><input type="checkbox" id="chkAllVales"
+                            <th style="width: 38px; text-align: center;"><input type="checkbox" id="chkAllVales"
                                     onclick="toggleSelectAllVales(this)"></th>
-                            <th>Data</th>
-                            <th>Nº Nota / Vale</th>
+                            <th style="width: 78px; text-align: center;">Data</th>
+                            <th style="width: 95px;">Nº Nota / Vale</th>
                             <th>Fornecedor</th>
-                            <th>Placa</th>
-                            <th>Valor Vale</th>
-                            <th>Faturamento / Situação</th>
+                            <th style="width: 95px;">Placa</th>
+                            <th style="width: 95px; text-align: right;">Valor Vale</th>
+                            <th style="width: 135px;">Faturamento / Situação</th>
                         </tr>
                     </thead>
                     <tbody id="tbodyVales">
@@ -1388,16 +1452,16 @@
                 <table class="mobile-cards" style="width: 100%;">
                     <thead>
                         <tr>
-                            <th style="width: 40px; text-align: center;"><input type="checkbox" id="chkAllIntegracao"
+                            <th style="width: 38px; text-align: center;"><input type="checkbox" id="chkAllIntegracao"
                                     onclick="toggleSelectAllIntegracao(this)"></th>
-                            <th>Data Emissão</th>
-                            <th>Vencimento</th>
-                            <th>Nº Nota</th>
+                            <th style="width: 78px; text-align: center;">Data Emissão</th>
+                            <th style="width: 78px; text-align: center;">Vencimento</th>
+                            <th style="width: 85px;">Nº Nota</th>
                             <th>Fornecedor</th>
-                            <th>Forma Pgto</th>
-                            <th>Parcelado?</th>
-                            <th>Valor Total</th>
-                            <th>Situação / Origem</th>
+                            <th style="width: 100px;">Forma Pgto</th>
+                            <th style="width: 75px; text-align: center;">Parcelado?</th>
+                            <th style="width: 95px; text-align: right;">Valor Total</th>
+                            <th style="width: 135px;">Situação / Origem</th>
                         </tr>
                     </thead>
                     <tbody id="tbodyIntegracao">
@@ -2263,7 +2327,7 @@
     </div>
 
     <!-- SCRIPTS -->
-    <script src="compras.js?v=20261112_auto_plano_fornecedor"></script>
+    <script src="compras.js?v=20261113_fix_servico_dropdown_alignment"></script>
     <script src="orb_menu.js?v=20260901_06"></script>
     <script>
         if (typeof lucide !== 'undefined') lucide.createIcons();

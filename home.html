@@ -639,7 +639,10 @@
                 const gerencialCard = document.getElementById('module-card-gerencial');
                 if (gerencialCard) {
                     const showGerencial = window.currentUserRole === 'admin' ||
-                        (window.currentUserPermissions && window.currentUserPermissions['gerencial']?.view);
+                        (window.currentUserPermissions && (
+                            window.currentUserPermissions['gerencial']?.view ||
+                            Object.keys(window.currentUserPermissions).some(k => k.startsWith('gerencial_') && window.currentUserPermissions[k]?.view)
+                        ));
                     gerencialCard.style.display = showGerencial ? 'flex' : 'none';
                 }
 

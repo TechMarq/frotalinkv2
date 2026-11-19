@@ -172,9 +172,15 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
         }
         window.currentUserAccess  = accessData;
         window.currentUserPermissions = accessData.permissions || {};
-        // Se for admin, garantir permissões completas para o módulo 'dp' em memória
-        if (accessData.role === 'admin') {
+        // Se for admin ou perfil gerencial, garantir permissões completas para 'dp' e 'gerencial' em memória
+        if (accessData.role === 'admin' || accessData.role === 'gerencial') {
             if (!window.currentUserPermissions['dp']) window.currentUserPermissions['dp'] = { view: true, create: true, edit: true, delete: true };
+            if (!window.currentUserPermissions['gerencial']) window.currentUserPermissions['gerencial'] = { view: true, create: true, edit: true, delete: true };
+            ['financeiro', 'frota', 'operacoes', 'pessoas', 'comercial'].forEach(tab => {
+                if (!window.currentUserPermissions[`gerencial_${tab}`]) {
+                    window.currentUserPermissions[`gerencial_${tab}`] = { view: true, create: true, edit: true, delete: true };
+                }
+            });
         }
         window.currentEmpresaId   = accessData.empresa_id || null;
 
@@ -243,12 +249,13 @@ window.currentEmpresa     = null;  // ← NOVO: dados completos da empresa
         }
 
         if (requiredModule && requiredModule !== 'admin') {
-            const hasViewPerm = window.currentUserRole === 'admin' || 
-                window.currentUserRole === 'gerencial' ||
-                (window.currentUserPermissions[requiredModule] && window.currentUserPermissions[requiredModule].view) ||
-                Object.keys(window.currentUserPermissions).some(key => 
+            const currentRole = (window.currentUserRole || accessData.role || '').toLowerCase();
+            const hasViewPerm = currentRole === 'admin' || 
+                currentRole === 'gerencial' ||
+                (window.currentUserPermissions && window.currentUserPermissions[requiredModule] && window.currentUserPermissions[requiredModule].view) ||
+                (window.currentUserPermissions && Object.keys(window.currentUserPermissions).some(key => 
                     (key.startsWith(requiredModule + '_') || key === requiredModule) && window.currentUserPermissions[key].view
-                );
+                ));
             
             if (!hasViewPerm) {
                 // Sem permissão para este módulo

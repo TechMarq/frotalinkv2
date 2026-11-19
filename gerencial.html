@@ -1260,22 +1260,22 @@
 
     <!-- ─── TABS DE NAVEGAÇÃO EXECUTIVA (6 ABAS DEDICADAS) ─── -->
     <nav class="tabs-header">
-        <button class="tab-item active" onclick="switchTab('cockpit')">
+        <button class="tab-item active" id="tab-btn-cockpit" onclick="switchTab('cockpit')">
             <i data-lucide="layout-dashboard"></i> Cockpit Executivo
         </button>
-        <button class="tab-item" onclick="switchTab('financeiro')">
+        <button class="tab-item" id="tab-btn-financeiro" onclick="switchTab('financeiro')">
             <i data-lucide="dollar-sign"></i> Financeiro
         </button>
-        <button class="tab-item" onclick="switchTab('frota')">
+        <button class="tab-item" id="tab-btn-frota" onclick="switchTab('frota')">
             <i data-lucide="truck"></i> Frota
         </button>
-        <button class="tab-item" onclick="switchTab('operacoes')">
+        <button class="tab-item" id="tab-btn-operacoes" onclick="switchTab('operacoes')">
             <i data-lucide="boxes"></i> Operações & Estoque
         </button>
-        <button class="tab-item" onclick="switchTab('pessoas')">
+        <button class="tab-item" id="tab-btn-pessoas" onclick="switchTab('pessoas')">
             <i data-lucide="users"></i> Pessoas & Compliance
         </button>
-        <button class="tab-item" onclick="switchTab('comercial')">
+        <button class="tab-item" id="tab-btn-comercial" onclick="switchTab('comercial')">
             <i data-lucide="briefcase"></i> Comercial
         </button>
     </nav>
@@ -1341,10 +1341,10 @@
             </div>
 
             <div class="health-actions-wrap">
-                <button class="btn-action btn-refresh" style="width:100%;justify-content:center;" onclick="switchTab('financeiro')">
+                <button class="btn-action btn-refresh" id="cockpit-btn-financeiro" style="width:100%;justify-content:center;" onclick="switchTab('financeiro')">
                     <i data-lucide="trending-up" style="width:15px;height:15px;"></i> Finanças & Compras
                 </button>
-                <button class="btn-action btn-print" style="width:100%;justify-content:center;" onclick="switchTab('frota')">
+                <button class="btn-action btn-print" id="cockpit-btn-frota" style="width:100%;justify-content:center;" onclick="switchTab('frota')">
                     <i data-lucide="truck" style="width:15px;height:15px;"></i> Frota & Centros Custo
                 </button>
             </div>

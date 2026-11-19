@@ -9154,7 +9154,7 @@ window.handleFinAutocompleteKeydown = (e, inputEl) => {
         currentFinAutocompleteIndex--;
         if (currentFinAutocompleteIndex < 0) currentFinAutocompleteIndex = items.length - 1;
         updateFinAutocompleteHighlight(items);
-    } else if (e.key === 'Enter') {
+    } else if (e.key === 'Enter' || ((e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space') && currentFinAutocompleteIndex >= 0)) {
         if (currentFinAutocompleteIndex >= 0) {
             e.preventDefault();
             items[currentFinAutocompleteIndex].click();

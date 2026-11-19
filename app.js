@@ -49,6 +49,83 @@ let whatsappConfig = { api_type: 'evolution', api_url: '', instance: '', apikey:
 let whatsappDestinatarios = [];
 let inativoMotivos = [];
 
+// --- Filtro de Alertas da Frota (Seguro a Vencer / Vencido) ---
+let isVehicleAlertsFilterActive = false;
+window.isVehicleAlertsFilterActive = isVehicleAlertsFilterActive;
+
+function getVehicleAlertInfo(vehicle) {
+    if (!vehicle || !vehicle.vencimento_seguro) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const venc = new Date(vehicle.vencimento_seguro + 'T00:00:00');
+    if (isNaN(venc.getTime())) return null;
+    const diffTime = venc - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+        const absDays = Math.abs(diffDays);
+        return {
+            type: 'expired',
+            diffDays: diffDays,
+            label: absDays === 1 ? 'Vencido há 1 dia' : `Vencido há ${absDays} dias`,
+            shortLabel: `Vencido há ${absDays}d`,
+            fullTitle: 'Seguro Vencido',
+            icon: '🔴',
+            color: '#ef4444',
+            bg: 'rgba(239, 68, 68, 0.12)',
+            border: 'rgba(239, 68, 68, 0.35)'
+        };
+    } else if (diffDays <= 30) {
+        let label = '';
+        if (diffDays === 0) label = 'Vence hoje';
+        else if (diffDays === 1) label = 'Vence amanhã';
+        else label = `Vence em ${diffDays} dias`;
+
+        const shortLabel = diffDays === 0 ? 'Vence hoje' : `Vence em ${diffDays}d`;
+
+        return {
+            type: 'warning',
+            diffDays: diffDays,
+            label: label,
+            shortLabel: shortLabel,
+            fullTitle: 'Seguro a Vencer',
+            icon: '🟠',
+            color: '#f59e0b',
+            bg: 'rgba(245, 158, 11, 0.12)',
+            border: 'rgba(245, 158, 11, 0.35)'
+        };
+    }
+    return null;
+}
+window.getVehicleAlertInfo = getVehicleAlertInfo;
+
+function updateVehicleAlertsCount() {
+    let count = 0;
+    vehicles.forEach(v => {
+        if (getVehicleAlertInfo(v)) count++;
+    });
+    const el = document.getElementById('count-veh-alertas');
+    if (el) el.innerText = count;
+    return count;
+}
+window.updateVehicleAlertsCount = updateVehicleAlertsCount;
+
+function toggleVehicleAlertsFilter() {
+    isVehicleAlertsFilterActive = !isVehicleAlertsFilterActive;
+    window.isVehicleAlertsFilterActive = isVehicleAlertsFilterActive;
+    
+    const btn = document.getElementById('filter-veh-alertas');
+    if (btn) {
+        if (isVehicleAlertsFilterActive) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    }
+    renderFullVehicles();
+}
+window.toggleVehicleAlertsFilter = toggleVehicleAlertsFilter;
+
 // --- Seleção de Veículos para Exportação (PDF / Excel) ---
 let selectedVehicleIds = new Set();
 window.selectedVehicleIds = selectedVehicleIds;
@@ -211,6 +288,19 @@ const COL_DEFS = {
 
 const LS_KEY = 'frotalink_cols_v2';
 
+function ensureActionsAtEnd(tab) {
+    if (!COL_DEFS[tab]) return;
+    if (tab !== 'vehicles' && tab !== 'drivers') return;
+    const idx = COL_DEFS[tab].findIndex(c => c.key === 'actions');
+    if (idx !== -1) {
+        const [actionCol] = COL_DEFS[tab].splice(idx, 1);
+        actionCol.visible = true; // sempre visível na tabela
+        COL_DEFS[tab].push(actionCol);
+    } else {
+        COL_DEFS[tab].push({ key: 'actions', label: 'Ações', visible: true });
+    }
+}
+
 function loadColConfig() {
     try {
         const saved = localStorage.getItem(LS_KEY);
@@ -228,7 +318,11 @@ function loadColConfig() {
                     ];
                     COL_DEFS[tab] = merged;
                 }
+                ensureActionsAtEnd(tab);
             });
+        } else {
+            ensureActionsAtEnd('vehicles');
+            ensureActionsAtEnd('drivers');
         }
     } catch (e) { /* ignore */ }
 }
@@ -238,7 +332,12 @@ function saveColConfig() {
 }
 
 function getActiveCols(tab) {
-    return COL_DEFS[tab].filter(c => c.visible);
+    ensureActionsAtEnd(tab);
+    const active = COL_DEFS[tab].filter(c => c.visible && c.key !== 'actions');
+    if (COL_DEFS[tab].some(c => c.key === 'actions') || tab === 'vehicles' || tab === 'drivers') {
+        active.push({ key: 'actions', label: 'Ações', visible: true });
+    }
+    return active;
 }
 
 // ---------- Panel UI ----------
@@ -255,29 +354,53 @@ function renderColPanel(tab) {
     const list = document.getElementById('colList-' + tab);
     if (!list) return;
 
-    list.innerHTML = COL_DEFS[tab].map((col, idx) => `
-        <div class="col-chip ${col.visible ? '' : 'hidden-col'}"
-             draggable="true"
-             data-tab="${tab}"
-             data-idx="${idx}"
-             id="chip-${tab}-${idx}"
-             ondragstart="onChipDragStart(event)"
-             ondragover="onChipDragOver(event)"
-             ondrop="onChipDrop(event)"
-             ondragleave="onChipDragLeave(event)"
-             ondragend="onChipDragEnd(event)">
-            <span class="col-chip-grip">⠿</span>
-            <span>${col.label}</span>
-            <button class="col-chip-eye" title="${col.visible ? 'Ocultar coluna' : 'Mostrar coluna'}"
-                    onclick="toggleColVisibility('${tab}', ${idx})" type="button">
-                ${col.visible ? '👁' : '🚫'}
-            </button>
-        </div>
-    `).join('');
+    ensureActionsAtEnd(tab);
+
+    list.innerHTML = COL_DEFS[tab].map((col, idx) => {
+        const isActions = col.key === 'actions';
+        if (isActions) {
+            return `
+                <div class="col-chip"
+                     style="background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.35); color: #10b981; font-weight: 700; cursor: default;"
+                     data-tab="${tab}"
+                     data-idx="${idx}"
+                     id="chip-${tab}-${idx}"
+                     title="Coluna fixa sempre no final da tabela">
+                    <span style="font-size: 0.8rem;">📌</span>
+                    <span>${col.label} <small style="font-size: 0.68rem; opacity: 0.85;">(Sempre no final)</small></span>
+                    <button class="col-chip-eye" style="opacity: 0.8; cursor: not-allowed;" title="A coluna de ações é sempre visível como a última coluna da tabela" type="button" disabled>
+                        👁
+                    </button>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="col-chip ${col.visible ? '' : 'hidden-col'}"
+                 draggable="true"
+                 data-tab="${tab}"
+                 data-idx="${idx}"
+                 id="chip-${tab}-${idx}"
+                 ondragstart="onChipDragStart(event)"
+                 ondragover="onChipDragOver(event)"
+                 ondrop="onChipDrop(event)"
+                 ondragleave="onChipDragLeave(event)"
+                 ondragend="onChipDragEnd(event)">
+                <span class="col-chip-grip">⠿</span>
+                <span>${col.label}</span>
+                <button class="col-chip-eye" title="${col.visible ? 'Ocultar coluna' : 'Mostrar coluna'}"
+                        onclick="toggleColVisibility('${tab}', ${idx})" type="button">
+                    ${col.visible ? '👁' : '🚫'}
+                </button>
+            </div>
+        `;
+    }).join('');
 }
 
 function toggleColVisibility(tab, idx) {
+    if (COL_DEFS[tab][idx]?.key === 'actions') return; // Coluna de ações é sempre visível
     COL_DEFS[tab][idx].visible = !COL_DEFS[tab][idx].visible;
+    ensureActionsAtEnd(tab);
     saveColConfig();
     renderColPanel(tab);
     renderAll();
@@ -341,6 +464,7 @@ function resetColumns(tab) {
         ],
     };
     COL_DEFS[tab] = origDefs[tab];
+    ensureActionsAtEnd(tab);
     saveColConfig();
     renderColPanel(tab);
     renderAll();
@@ -375,14 +499,24 @@ function onChipDragEnd(e) {
 
 function onChipDrop(e) {
     e.preventDefault();
-    const targetIdx = parseInt(e.currentTarget.dataset.idx);
+    let targetIdx = parseInt(e.currentTarget.dataset.idx);
     const targetTab = e.currentTarget.dataset.tab;
 
     if (dragSrcTab !== targetTab || dragSrcIdx === targetIdx) return;
 
     const cols = COL_DEFS[targetTab];
+    // Ações nunca pode ser arrastada
+    if (cols[dragSrcIdx]?.key === 'actions') return;
+
+    // Se o destino for a coluna de ações, posiciona imediatamente antes dela
+    if (cols[targetIdx]?.key === 'actions') {
+        targetIdx = Math.max(0, targetIdx - 1);
+    }
+
     const [moved] = cols.splice(dragSrcIdx, 1);
     cols.splice(targetIdx, 0, moved);
+
+    ensureActionsAtEnd(targetTab);
 
     saveColConfig();
     renderColPanel(targetTab);
@@ -609,6 +743,7 @@ function checkNotifications() {
     alerts.sort((a, b) => a.diffDays - b.diffDays);
 
     updateNotiUI(alerts);
+    updateVehicleAlertsCount();
 }
 
 function updateNotiUI(alerts) {
@@ -1350,6 +1485,13 @@ function toggleStatusFilter(status) {
 }
 
 function toggleClassificationFilter(classif) {
+    if (isVehicleAlertsFilterActive) {
+        isVehicleAlertsFilterActive = false;
+        window.isVehicleAlertsFilterActive = false;
+        const btnAlertas = document.getElementById('filter-veh-alertas');
+        if (btnAlertas) btnAlertas.classList.remove('active');
+    }
+
     const index = currentClassificationFilters.indexOf(classif);
     if (index > -1) {
         currentClassificationFilters.splice(index, 1);
@@ -1363,6 +1505,13 @@ function toggleClassificationFilter(classif) {
 }
 
 function setVehicleStatusFilter(status) {
+    if (isVehicleAlertsFilterActive) {
+        isVehicleAlertsFilterActive = false;
+        window.isVehicleAlertsFilterActive = false;
+        const btnAlertas = document.getElementById('filter-veh-alertas');
+        if (btnAlertas) btnAlertas.classList.remove('active');
+    }
+
     currentVehicleStatusFilter = status;
     window.currentVehicleStatusFilter = status;
 
@@ -1404,6 +1553,9 @@ function updateVehicleStatusCounts() {
 
     const elTodos = document.getElementById('count-veh-status-TODOS');
     if (elTodos) elTodos.innerText = todos;
+
+    // Atualiza também a contagem de alertas de veículos
+    updateVehicleAlertsCount();
 }
 
 // --- Filtros de Status Operacional para Motoristas / Equipe ---
@@ -2044,22 +2196,28 @@ function renderFullVehicles() {
 
     const searchWords = searchTerm.split(/\s+/).filter(w => w);
     const filtered = vehicles.filter(v => {
-        // Filtro por Status Operacional do Veículo (ATIVO / INATIVO / TODOS)
-        if (typeof currentVehicleStatusFilter !== 'undefined') {
-            if (currentVehicleStatusFilter === 'ATIVO') {
-                if (v.status === 'INATIVO') return false;
-            } else if (currentVehicleStatusFilter === 'INATIVO') {
-                if (v.status !== 'INATIVO') return false;
+        // Se filtro exclusivo de alertas estiver ativo:
+        if (isVehicleAlertsFilterActive) {
+            const alertInfo = getVehicleAlertInfo(v);
+            if (!alertInfo) return false;
+        } else {
+            // Filtro por Status Operacional do Veículo (ATIVO / INATIVO / TODOS)
+            if (typeof currentVehicleStatusFilter !== 'undefined') {
+                if (currentVehicleStatusFilter === 'ATIVO') {
+                    if (v.status === 'INATIVO') return false;
+                } else if (currentVehicleStatusFilter === 'INATIVO') {
+                    if (v.status !== 'INATIVO') return false;
+                }
             }
-        }
 
-        // Filtro por Classificação (Multi-seleção)
-        if (currentClassificationFilters.length > 0) {
-            // Treat null/empty/unknown classification as 'OUTRO'
-            const effectiveClass = (v.classificacao && KNOWN_CLASSIFICATIONS.includes(v.classificacao))
-                ? v.classificacao
-                : 'OUTRO';
-            if (!currentClassificationFilters.includes(effectiveClass)) return false;
+            // Filtro por Classificação (Multi-seleção)
+            if (currentClassificationFilters.length > 0) {
+                // Treat null/empty/unknown classification as 'OUTRO'
+                const effectiveClass = (v.classificacao && KNOWN_CLASSIFICATIONS.includes(v.classificacao))
+                    ? v.classificacao
+                    : 'OUTRO';
+                if (!currentClassificationFilters.includes(effectiveClass)) return false;
+            }
         }
 
         const searchableText = [
@@ -2083,7 +2241,18 @@ function renderFullVehicles() {
     const sort = currentSort.vehicles;
 
     // Sorteia os dados filtrados
-    sortVehiclesList(filtered, sort);
+    if (isVehicleAlertsFilterActive && sort.key === 'placa' && sort.dir === 'asc') {
+        filtered.sort((a, b) => {
+            const infoA = getVehicleAlertInfo(a);
+            const infoB = getVehicleAlertInfo(b);
+            const diffA = infoA ? infoA.diffDays : 9999;
+            const diffB = infoB ? infoB.diffDays : 9999;
+            if (diffA !== diffB) return diffA - diffB;
+            return (a.placa || '').localeCompare(b.placa || '');
+        });
+    } else {
+        sortVehiclesList(filtered, sort);
+    }
 
     const actionsHtml = (v) => {
         const driveUrl = v.drive_folder_url || '';
@@ -2136,7 +2305,21 @@ function renderFullVehicles() {
                 case 'placa': return `<td class="col-placa"><span class="plate">${v.placa}</span></td>`;
                 case 'marca_modelo': return `<td class="col-marca_modelo">${v.marca || ''} ${v.modelo}</td>`;
                 case 'proprietario': return `<td class="col-proprietario">${v.proprietario || '-'}</td>`;
-                case 'venc_seguro': return `<td class="col-venc_seguro">${formatDate(v.vencimento_seguro)}</td>`;
+                case 'venc_seguro': {
+                    const alertInfo = getVehicleAlertInfo(v);
+                    const dateFormatted = formatDate(v.vencimento_seguro);
+                    if (!v.vencimento_seguro) {
+                        return `<td class="col-venc_seguro">-</td>`;
+                    }
+                    if (alertInfo) {
+                        return `<td class="col-venc_seguro">
+                            <span style="display:inline-flex; align-items:center; gap:5px; font-weight:700; color:${alertInfo.color}; background:${alertInfo.bg}; border:1px solid ${alertInfo.border}; padding:3px 8px; border-radius:6px; font-size:0.75rem;" title="${alertInfo.fullTitle} (${alertInfo.label})">
+                                <span>${alertInfo.icon}</span> ${dateFormatted} <small style="font-weight:800; opacity:0.9;">(${alertInfo.shortLabel})</small>
+                            </span>
+                        </td>`;
+                    }
+                    return `<td class="col-venc_seguro">${dateFormatted}</td>`;
+                }
                 case 'seguradora': return `<td class="col-seguradora">${v.seguradora || '-'}</td>`;
                 case 'numero_apolice': return `<td class="col-numero_apolice">${v.numero_apolice || '-'}</td>`;
                 case 'valor_premio': return `<td class="col-valor_premio">${v.valor_premio ? 'R$ ' + Number(v.valor_premio).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</td>`;
@@ -2193,6 +2376,7 @@ function renderFullVehicles() {
 
             const driveUrl = v.drive_folder_url || '';
             const canvasUrl = v.canvas_url || '';
+            const alertInfo = getVehicleAlertInfo(v);
 
             return `
                 <div class="mob-card" onclick="openVehicleDetail('${v.id}')">
@@ -2209,6 +2393,17 @@ function renderFullVehicles() {
                             <span class="mob-km-text"><strong>${(v.km_atual || 0).toLocaleString('pt-BR')}</strong> km</span>
                         </div>
                     </div>
+
+                    ${alertInfo ? `
+                        <div style="margin: 6px 0; padding: 4px 8px; background: ${alertInfo.bg}; border: 1px solid ${alertInfo.border}; border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-size: 0.7rem; font-weight: 800; color: ${alertInfo.color}; display: inline-flex; align-items: center; gap: 4px;">
+                                <span>${alertInfo.icon}</span> ${alertInfo.fullTitle}
+                            </span>
+                            <span style="font-size: 0.68rem; font-weight: 700; color: ${alertInfo.color};">
+                                ${formatDate(v.vencimento_seguro)} (${alertInfo.shortLabel})
+                            </span>
+                        </div>
+                    ` : ''}
 
                     <div class="mob-card-foot">
                         <div class="mob-driver-col">
@@ -2616,21 +2811,27 @@ function getFilteredVehicles() {
     const searchWords = searchTerm.split(/\s+/).filter(w => w);
 
     let filtered = vehicles.filter(v => {
-        // Filtro por Status Operacional do Veículo (ATIVO / INATIVO / TODOS)
-        if (typeof currentVehicleStatusFilter !== 'undefined') {
-            if (currentVehicleStatusFilter === 'ATIVO') {
-                if (v.status === 'INATIVO') return false;
-            } else if (currentVehicleStatusFilter === 'INATIVO') {
-                if (v.status !== 'INATIVO') return false;
+        // Se filtro exclusivo de alertas estiver ativo:
+        if (isVehicleAlertsFilterActive) {
+            const alertInfo = getVehicleAlertInfo(v);
+            if (!alertInfo) return false;
+        } else {
+            // Filtro por Status Operacional do Veículo (ATIVO / INATIVO / TODOS)
+            if (typeof currentVehicleStatusFilter !== 'undefined') {
+                if (currentVehicleStatusFilter === 'ATIVO') {
+                    if (v.status === 'INATIVO') return false;
+                } else if (currentVehicleStatusFilter === 'INATIVO') {
+                    if (v.status !== 'INATIVO') return false;
+                }
             }
-        }
 
-        // Filtro por Classificação (Multi-seleção)
-        if (typeof currentClassificationFilters !== 'undefined' && currentClassificationFilters.length > 0) {
-            const effectiveClass = (v.classificacao && KNOWN_CLASSIFICATIONS.includes(v.classificacao))
-                ? v.classificacao
-                : 'OUTRO';
-            if (!currentClassificationFilters.includes(effectiveClass)) return false;
+            // Filtro por Classificação (Multi-seleção)
+            if (typeof currentClassificationFilters !== 'undefined' && currentClassificationFilters.length > 0) {
+                const effectiveClass = (v.classificacao && KNOWN_CLASSIFICATIONS.includes(v.classificacao))
+                    ? v.classificacao
+                    : 'OUTRO';
+                if (!currentClassificationFilters.includes(effectiveClass)) return false;
+            }
         }
 
         const searchableText = [
@@ -2651,7 +2852,18 @@ function getFilteredVehicles() {
     });
 
     const sort = currentSort.vehicles;
-    sortVehiclesList(filtered, sort);
+    if (isVehicleAlertsFilterActive && sort.key === 'placa' && sort.dir === 'asc') {
+        filtered.sort((a, b) => {
+            const infoA = getVehicleAlertInfo(a);
+            const infoB = getVehicleAlertInfo(b);
+            const diffA = infoA ? infoA.diffDays : 9999;
+            const diffB = infoB ? infoB.diffDays : 9999;
+            if (diffA !== diffB) return diffA - diffB;
+            return (a.placa || '').localeCompare(b.placa || '');
+        });
+    } else {
+        sortVehiclesList(filtered, sort);
+    }
 
     return filtered;
 }
@@ -3043,23 +3255,33 @@ function exportFleetToPDF() {
         if (distinctClasses.length > 0) subTitle += ` | Classificação: ${distinctClasses.join(', ')}`;
     } else {
         if (searchTerm) subTitle += ` | Busca: "${searchTerm}"`;
-        if (typeof currentVehicleStatusFilter !== 'undefined') {
-            subTitle += ` | Status: ${currentVehicleStatusFilter === 'ATIVO' ? 'Ativos' : (currentVehicleStatusFilter === 'INATIVO' ? 'Inativos' : 'Todos')}`;
-        }
-        if (typeof currentClassificationFilters !== 'undefined' && currentClassificationFilters.length > 0) {
-            subTitle += ` | Filtro: ${currentClassificationFilters.join(', ')}`;
+        if (isVehicleAlertsFilterActive) {
+            subTitle += ` | Filtro: ALERTAS (Seguro a Vencer / Vencido)`;
+        } else {
+            if (typeof currentVehicleStatusFilter !== 'undefined') {
+                subTitle += ` | Status: ${currentVehicleStatusFilter === 'ATIVO' ? 'Ativos' : (currentVehicleStatusFilter === 'INATIVO' ? 'Inativos' : 'Todos')}`;
+            }
+            if (typeof currentClassificationFilters !== 'undefined' && currentClassificationFilters.length > 0) {
+                subTitle += ` | Filtro: ${currentClassificationFilters.join(', ')}`;
+            }
         }
     }
     doc.text(subTitle, 14, 30);
 
     const head = [activeCols.map(c => c.label)];
     const body = filtered.map(v => {
+        const alertInfo = getVehicleAlertInfo(v);
         return activeCols.map(col => {
             switch (col.key) {
                 case 'placa': return v.placa;
                 case 'marca_modelo': return `${v.marca || ''} ${v.modelo}`;
                 case 'proprietario': return v.proprietario || '-';
-                case 'venc_seguro': return formatDate(v.vencimento_seguro);
+                case 'venc_seguro': {
+                    const dateStr = formatDate(v.vencimento_seguro);
+                    if (!v.vencimento_seguro) return '-';
+                    if (alertInfo) return `${dateStr} (${alertInfo.shortLabel})`;
+                    return dateStr;
+                }
                 case 'seguradora': return v.seguradora || '-';
                 case 'numero_apolice': return v.numero_apolice || '-';
                 case 'valor_premio': return v.valor_premio ? 'R$ ' + Number(v.valor_premio).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-';

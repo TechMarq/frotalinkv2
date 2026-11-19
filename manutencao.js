@@ -639,21 +639,24 @@ function getMaintStatusCategory(m) {
 
 function getStatusOriginInfo(m) {
     if (!m) return null;
-    const motivo = (m.autorizacao_motivo || '').trim();
     const status = (m.status || '').toUpperCase();
-    const hasNf = !!m.numero_nf;
-    const isComprasOrigem = m.origem === 'COMPRAS';
+    
+    // Regra de Negócio: tags de conclusão/origem na coluna de status são EXCLUSIVAS
+    // para registros cujo status seja 'CONCLUIDO'. Registros Pendentes, Agendados, Atrasados etc. não exibem tags.
+    if (status !== 'CONCLUIDO') {
+        return null;
+    }
 
-    // 1. Concluído ou vinculado via Compras (Nota Fiscal)
-    if (motivo.includes('pela Nota #') || motivo.startsWith('[COMPRAS') || (status === 'CONCLUIDO' && (hasNf || isComprasOrigem) && !motivo.includes('novo registro'))) {
-        const nfMatch = motivo.match(/Nota #([^\s,\.\)]+)/i);
-        const nfNum = nfMatch ? nfMatch[1] : (m.numero_nf || '');
-        const lbl = nfNum ? `COMPRAS • NF #${nfNum}` : 'COMPRAS • NF';
-        const title = motivo || (nfNum ? `Concluído automaticamente pela Nota #${nfNum}` : 'Concluído via Compras');
+    const motivo = (m.autorizacao_motivo || '').trim();
+    const nfFromMotivo = motivo.match(/Nota #([^\s,\.\)]+)/i);
+
+    // 1. Concluído automaticamente por uma Nota Fiscal posterior vinculada lançada em Compras
+    if (nfFromMotivo && (motivo.includes('pela Nota #') || motivo.startsWith('[COMPRAS') || motivo.includes('Nota #'))) {
+        const nfNum = nfFromMotivo[1];
         return {
             type: 'COMPRAS',
-            label: lbl,
-            tooltip: title,
+            label: `COMPRAS • NF #${nfNum}`,
+            tooltip: motivo || `Concluído automaticamente pela Nota #${nfNum}`,
             icon: 'receipt',
             bg: 'rgba(37, 99, 235, 0.10)',
             border: 'rgba(37, 99, 235, 0.28)',
@@ -691,8 +694,8 @@ function getStatusOriginInfo(m) {
         };
     }
 
-    // 4. Alteração manual de status
-    if (motivo === '[MANUAL]' || (status === 'CONCLUIDO' && m.autorizado_em)) {
+    // 4. Alteração manual de status pelo usuário
+    if (motivo === '[MANUAL]' || m.autorizado_em) {
         return {
             type: 'MANUAL',
             label: 'MANUAL',
@@ -704,29 +707,7 @@ function getStatusOriginInfo(m) {
         };
     }
 
-    // 5. Se status for PENDENTE / AGENDADO: indicar se veio de Compras ou Manual
-    if (hasNf || isComprasOrigem) {
-        const nfNum = m.numero_nf || '';
-        return {
-            type: 'CRIADO_COMPRAS',
-            label: nfNum ? `COMPRAS • NF #${nfNum}` : 'COMPRAS',
-            tooltip: 'Lançado a partir do módulo de Compras',
-            icon: 'receipt',
-            bg: 'rgba(2, 132, 199, 0.08)',
-            border: 'rgba(2, 132, 199, 0.22)',
-            color: '#0284c7'
-        };
-    }
-
-    return {
-        type: 'CRIADO_MANUAL',
-        label: 'MANUAL',
-        tooltip: 'OS criada manualmente no módulo de Manutenção',
-        icon: 'file-edit',
-        bg: 'rgba(100, 116, 139, 0.08)',
-        border: 'rgba(100, 116, 139, 0.20)',
-        color: '#64748b'
-    };
+    return null;
 }
 
 function getStatusOriginBadge(m) {
@@ -1162,7 +1143,14 @@ function renderMaintTable() {
                 </td>
                 <td data-label="Data" style="font-size: 0.8rem; font-weight: 500;">${m.data ? new Date(m.data + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
                 <td data-label="NF / Nota" style="font-size: 0.8rem; font-weight: 700; color: #10b981;">
-                    ${m.numero_nota ? `<span style="padding: 2px 7px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 6px; font-weight: 800; font-size: 0.75rem;">#${m.numero_nota}</span>` : '<span style="color: #64748b; font-size: 0.75rem;">---</span>'}
+                    ${m.numero_nota ? `
+                        <span onclick="event.stopPropagation(); openCompraDetailsFromMaint('${m.compra_id || m.numero_nota}')" 
+                              style="cursor: pointer; padding: 3px 8px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 6px; font-weight: 800; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s;"
+                              onmouseover="this.style.background='#10b981'; this.style.color='#ffffff'; this.style.borderColor='#10b981';"
+                              onmouseout="this.style.background='rgba(16, 185, 129, 0.1)'; this.style.color='#10b981'; this.style.borderColor='rgba(16, 185, 129, 0.25)';"
+                              title="Clique para ver os detalhes da compra desta Nota #${m.numero_nota}">
+                            <i data-lucide="external-link" style="width: 12px; height: 12px;"></i>#${m.numero_nota}
+                        </span>` : '<span style="color: #64748b; font-size: 0.75rem;">---</span>'}
                 </td>
                 <td data-label="Fornecedor / Oficina" style="font-size: 0.8rem; font-weight: 600; color: #94a3b8;">${m.fornecedores?.nome || '---'}</td>
                 <td data-label="Serviço / Itens">${servicosHtml || '---'}</td>
@@ -1305,7 +1293,7 @@ function renderMaintTable() {
                                 <div class="mob-plate-row">
                                     ${alertHtml}
                                     <span class="mob-plate">${m.veiculos?.placa || '---'}</span>
-                                    ${m.numero_nota ? `<span class="mob-nf-badge">#${m.numero_nota}</span>` : ''}
+                                    ${m.numero_nota ? `<span class="mob-nf-badge" onclick="event.stopPropagation(); openCompraDetailsFromMaint('${m.compra_id || m.numero_nota}')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 3px;" title="Clique para ver detalhes da nota #${m.numero_nota}"><i data-lucide="external-link" style="width: 11px; height: 11px;"></i>#${m.numero_nota}</span>` : ''}
                                 </div>
                                 <div class="mob-maint-subhead">
                                     <span><i data-lucide="calendar" style="width: 11px; height: 11px;"></i> ${dataFormatted}</span>
@@ -1402,7 +1390,15 @@ window.openMaintDetail = function(id) {
         <div class="detail-item"><strong>Placa / Veículo</strong><span style="font-family:'JetBrains Mono',monospace; color:#38bdf8; font-weight:800;">${veh?.placa || '---'}</span> ${veh?.modelo ? `<br><small style="color:var(--text-muted); font-size:0.75rem;">${veh.modelo}</small>` : ''}</div>
         <div class="detail-item"><strong>Data do Serviço</strong>${dataFormatted}</div>
         <div class="detail-item"><strong>Status</strong><span class="badge ${isConcluido ? 'success' : (m.status === 'AGENDADO' ? 'purple' : 'warning')}">${statusLabel}</span></div>
-        <div class="detail-item"><strong>Nota Fiscal</strong>${m.numero_nota ? `<span style="color:#10b981; font-weight:800;">#${m.numero_nota}</span>` : '---'}</div>
+        <div class="detail-item">
+            <strong>Nota Fiscal</strong>
+            ${m.numero_nota ? `
+                <span onclick="openCompraDetailsFromMaint('${m.compra_id || m.numero_nota}')" 
+                      style="color:#10b981; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:4px; text-decoration: underline;" 
+                      title="Clique para ver os detalhes completos desta Nota Fiscal">
+                    <i data-lucide="external-link" style="width: 13px; height: 13px;"></i>#${m.numero_nota}
+                </span>` : '---'}
+        </div>
         <div class="detail-item"><strong>Oficina / Fornecedor</strong>${m.fornecedores?.nome || '---'}</div>
         <div class="detail-item"><strong>KM no Momento</strong>${m.km_atual ? `${parseFloat(m.km_atual).toLocaleString('pt-BR')} km` : '---'}</div>
         ${(() => {
@@ -1948,9 +1944,11 @@ window.openMaintModal = async (id = null) => {
                 if (groupNota && inputNota) {
                     if (m.numero_nota) {
                         inputNota.value = `#${m.numero_nota}`;
+                        inputNota.dataset.compraRef = m.compra_id || m.numero_nota;
                         groupNota.style.display = 'block';
                     } else {
                         inputNota.value = '';
+                        inputNota.dataset.compraRef = '';
                         groupNota.style.display = 'none';
                     }
                 }
@@ -1966,7 +1964,12 @@ window.openMaintModal = async (id = null) => {
             if (statusFormSel) statusFormSel.value = 'PENDENTE';
             
             const groupNota = document.getElementById('group_maint_numero_nota');
+            const inputNota = document.getElementById('maint_numero_nota');
             if (groupNota) groupNota.style.display = 'none';
+            if (inputNota) {
+                inputNota.value = '';
+                inputNota.dataset.compraRef = '';
+            }
 
             addMaintItem();
         }
@@ -3220,8 +3223,12 @@ window.autoCompletePreviousMaintenance = async function({ veiculoId, servicos, c
 
             const items = m.manutencao_itens || [];
             const hasMatchingService = items.some(it => {
-                // Conclusão estrita apenas se houver servico_id vinculado compatível
-                return it.servico_id && servicoIds.includes(it.servico_id);
+                if (it.servico_id && servicoIds.includes(it.servico_id)) return true;
+                if (it.descricao) {
+                    const cleanDesc = it.descricao.replace(/\[ID:[^\]]+\]\s*/i, '').trim().toUpperCase();
+                    if (cleanNames.some(cn => cn === cleanDesc || cleanDesc.includes(cn) || cn.includes(cleanDesc))) return true;
+                }
+                return false;
             });
 
             if (hasMatchingService && !idsToComplete.includes(m.id)) {
@@ -3342,4 +3349,404 @@ window.handleMaintServicoKeydown = (e, input) => {
         items[idx].style.background = 'rgba(245, 158, 11, 0.2)';
     }
 };
+
+// ==========================================
+// INTEGRAÇÃO: VISUALIZAR COMPRA COMPLETA (OFICIAL COMPRAS)
+// ==========================================
+
+function formatCompraDateBR(dateStr) {
+    if (!dateStr) return '-';
+    try {
+        const parts = String(dateStr).split('T')[0].split('-');
+        if (parts.length === 3) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return dateStr;
+    } catch { return dateStr; }
+}
+
+function formatCompraDateTimeBR(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    } catch { return dateStr; }
+}
+
+window.closeViewModal = function() {
+    const modal = document.getElementById('viewCompraModal');
+    if (modal) modal.classList.remove('active');
+};
+window.closeCompraDetailsFromMaint = window.closeViewModal;
+
+window.openCompraDetailsFromMaint = async function(compraRef) {
+    if (!compraRef) return;
+    try {
+        const modal = document.getElementById('viewCompraModal');
+        if (!modal) return;
+
+        const cleanRef = String(compraRef).replace(/^#/, '').trim();
+
+        // 1. Abrir modal imediatamente com estado de carregamento
+        document.getElementById('viewCodUnico').innerText = 'COD: Carregando...';
+        document.getElementById('viewData').innerText = '-';
+        document.getElementById('viewNumNota').innerText = '#' + cleanRef;
+        document.getElementById('viewVencimento').innerText = '-';
+        document.getElementById('viewParcelado').innerText = '-';
+        document.getElementById('viewFornecedor').innerText = 'Carregando...';
+        document.getElementById('viewEspecie').innerText = '-';
+        document.getElementById('viewFormaPgto').innerText = '-';
+        document.getElementById('viewPlanoContas').innerText = '-';
+        document.getElementById('viewUsuario').innerHTML = '';
+        document.getElementById('viewTotalValue').innerText = 'R$ 0,00';
+        document.getElementById('viewItemsList').innerHTML = '<div style="text-align:center; padding: 2.5rem; color: #64748b; font-weight:600;"><i data-lucide="loader-2" class="animate-spin" style="width:24px; height:24px; margin-bottom:8px; display:inline-block;"></i><br>Carregando detalhes da compra...</div>';
+
+        document.getElementById('viewValesVinculadosSection').style.display = 'none';
+        document.getElementById('viewAdicionaisSection').style.display = 'none';
+        document.getElementById('viewParcelasSection').style.display = 'none';
+        document.getElementById('viewObsSection').style.display = 'none';
+
+        modal.classList.add('active');
+        if (window.lucide) lucide.createIcons();
+
+        const client = supabaseClient || window.supabaseClient;
+        if (!client) {
+            alert('Conexão com o banco de dados não disponível.');
+            return;
+        }
+
+        // 2. Buscar a compra na tabela compras (por id, numero_nota ou ilike)
+        let compra = null;
+        const { data: byId } = await client
+            .from('compras')
+            .select('*')
+            .eq('id', cleanRef)
+            .limit(1);
+
+        if (byId && byId.length > 0) {
+            compra = byId[0];
+        } else {
+            const { data: byNota, error: errNota } = await client
+                .from('compras')
+                .select('*')
+                .eq('numero_nota', cleanRef)
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            if (!errNota && byNota && byNota.length > 0) {
+                compra = byNota[0];
+            } else {
+                const { data: byIlike } = await client
+                    .from('compras')
+                    .select('*')
+                    .ilike('numero_nota', `%${cleanRef}%`)
+                    .limit(1);
+                if (byIlike && byIlike.length > 0) compra = byIlike[0];
+            }
+        }
+
+        if (!compra) {
+            document.getElementById('viewItemsList').innerHTML = `<div style="text-align:center; padding: 2.5rem; color: #ef4444; font-weight:700;">Nota #${cleanRef} não foi localizada no banco de dados.</div>`;
+            return;
+        }
+
+        // 3. Buscar filhos e dados complementares em consultas isoladas e seguras
+        const [itensRes, addsRes, parcsRes, fornRes, espRes, pgtoRes, catRes, centrosRes, veicsRes, maintTypesRes, maintActionsRes] = await Promise.all([
+            client.from('compra_itens').select('*').eq('compra_id', compra.id).order('created_at', { ascending: true }),
+            client.from('compra_adicionais').select('*').eq('compra_id', compra.id),
+            client.from('compra_parcelas').select('*').eq('compra_id', compra.id).order('numero_parcela', { ascending: true }),
+            compra.fornecedor_id ? client.from('fornecedores').select('id, nome, nome_fantasia, cnpj_cpf').eq('id', compra.fornecedor_id).maybeSingle() : Promise.resolve({ data: null }),
+            compra.especie_id ? client.from('especies_nota').select('id, nome').eq('id', compra.especie_id).maybeSingle() : Promise.resolve({ data: null }),
+            compra.forma_pagamento_id ? client.from('formas_pagamento').select('id, nome').eq('id', compra.forma_pagamento_id).maybeSingle() : Promise.resolve({ data: null }),
+            compra.categoria_id ? client.from('fin_plano_contas').select('id, nome, codigo').eq('id', compra.categoria_id).maybeSingle() : Promise.resolve({ data: null }),
+            client.from('centros_custo').select('id, nome'),
+            client.from('veiculos').select('id, placa, modelo'),
+            client.from('manutencao_tipos').select('id, descricao'),
+            client.from('manutencao_acoes').select('id, descricao')
+        ]);
+
+        const fornData = fornRes?.data;
+        const espData = espRes?.data;
+        const pgtoData = pgtoRes?.data;
+        const catData = catRes?.data;
+        const centrosCusto = centrosRes?.data || [];
+        const vehicles = veicsRes?.data || [];
+        const maintTypes = maintTypesRes?.data || [];
+        const maintActions = maintActionsRes?.data || [];
+
+        // 4. Renderizar tudo com a mecânica oficial do Compras
+        renderCompraModalInMaint({
+            compra,
+            itens: itensRes?.data || [],
+            adicionais: addsRes?.data || [],
+            parcelas: parcsRes?.data || [],
+            fornData,
+            espData,
+            pgtoData,
+            catData,
+            centrosCusto,
+            vehicles,
+            maintTypes,
+            maintActions
+        });
+
+    } catch (err) {
+        console.error('Erro ao abrir compra na manutenção:', err);
+        const list = document.getElementById('viewItemsList');
+        if (list) list.innerHTML = `<div style="text-align:center; padding: 2rem; color: #ef4444; font-weight:700;">Erro ao carregar detalhes da compra: ${err.message}</div>`;
+    }
+};
+
+function renderCompraModalInMaint(ctx) {
+    const { compra: c, itens, adicionais, parcelas, fornData, espData, pgtoData, catData, centrosCusto, vehicles, maintTypes, maintActions } = ctx;
+
+    // Código, Data e Número
+    document.getElementById('viewCodUnico').innerText = 'COD: ' + (c.id || 'N/A');
+    document.getElementById('viewData').innerText = formatCompraDateBR(c.data_emissao || c.data);
+    document.getElementById('viewNumNota').innerText = '#' + (c.numero_nota || c.numeroNota || 'S/N');
+    
+    // Vencimento
+    const vencText = c.data_vencimento ? formatCompraDateBR(c.data_vencimento) : 'N/A';
+    document.getElementById('viewVencimento').innerText = vencText;
+
+    // Parcelado status
+    const isParcelado = c.financeiro_parcelado || ((c.qtd_parcelas || 1) > 1) || (parcelas && parcelas.length > 0);
+    const qtdParc = c.qtd_parcelas || (parcelas ? parcelas.length : 1);
+    const elParcelado = document.getElementById('viewParcelado');
+    if (elParcelado) {
+        elParcelado.innerText = isParcelado ? `SIM (${qtdParc}x)` : 'NÃO (À vista)';
+        elParcelado.style.color = isParcelado ? '#059669' : '#475569';
+    }
+
+    // Fornecedor
+    const fornNome = fornData?.nome || fornData?.nome_fantasia || c.fornecedor_nome || c.fornecedor || 'FORNECEDOR NÃO INFORMADO';
+    document.getElementById('viewFornecedor').innerText = fornNome;
+
+    // Espécie e Forma Pgto
+    document.getElementById('viewEspecie').innerText = espData?.nome || 'NFE - NOTA FISCAL ELETRONICA';
+    document.getElementById('viewFormaPgto').innerText = pgtoData?.nome || 'A VISTA';
+
+    // Plano de Contas
+    let planoContasFormatted = 'NÃO ESPECIFICADO';
+    if (catData) {
+        const cod = catData.codigo || catData.cod;
+        planoContasFormatted = cod ? `${cod} - ${catData.nome}` : catData.nome;
+    } else if (c.categoria_nome || c.categoriaNome) {
+        planoContasFormatted = c.categoria_nome || c.categoriaNome;
+    }
+    document.getElementById('viewPlanoContas').innerText = planoContasFormatted;
+
+    // Usuário de registro e data
+    const usuarioNome = c.usuario_registro || c.responsavel || 'SISTEMA';
+    const regDateStr = c.created_at ? formatCompraDateTimeBR(c.created_at) : formatCompraDateBR(c.data_emissao);
+    
+    let alteracaoHtml = '';
+    const altUsuarioNome = c.usuario_alteracao || c.alterado_por;
+    if (altUsuarioNome) {
+        const altDateStr = c.data_alteracao || c.updated_at ? formatCompraDateTimeBR(c.data_alteracao || c.updated_at) : '';
+        alteracaoHtml = `
+            <div style="margin-top: 4px; font-size: 0.78rem; color: #b45309; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+                <span style="display:inline-flex; align-items:center; gap:4px; font-weight:700;"><i data-lucide="edit-3" style="width:13px; height:13px; color:#d97706; vertical-align:middle;"></i> Alterado por: <strong>${altUsuarioNome}</strong></span>
+                ${altDateStr ? `<span style="color:#cbd5e1; margin:0 2px;">•</span><span style="color:#64748b; font-weight:600;"><i data-lucide="clock" style="width:12px; height:12px; vertical-align:middle;"></i> ${altDateStr}</span>` : ''}
+            </div>
+        `;
+    }
+
+    document.getElementById('viewUsuario').innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+                <span style="display:inline-flex; align-items:center; gap:4px;"><i data-lucide="user-check" style="width:14px; height:14px; color:#059669; vertical-align:middle;"></i> <strong>${usuarioNome}</strong></span>
+                <span style="color:#cbd5e1; margin:0 4px;">•</span>
+                <span style="color:#475569; font-size:0.82rem; font-weight:600; display:inline-flex; align-items:center; gap:4px;"><i data-lucide="calendar" style="width:13px; height:13px; color:#d97706; vertical-align:middle;"></i> ${regDateStr}</span>
+            </div>
+            ${alteracaoHtml}
+        </div>
+    `;
+
+    // Itens da Nota
+    const itemsList = document.getElementById('viewItemsList');
+    if (!itens || itens.length === 0) {
+        itemsList.innerHTML = '<div style="text-align:center; padding: 1.5rem; color: #64748b; font-weight: 600;">Nenhum item cadastrado para esta compra.</div>';
+    } else {
+        itemsList.innerHTML = itens.map(it => {
+            const isS = it.tipo === 'servico';
+            const label = isS ? 'S' : 'P';
+            const color = isS ? '#d97706' : '#059669';
+            
+            const cc = centrosCusto.find(x => x.id == it.centro_custo_id);
+            const ccName = cc ? cc.nome : 'SEM CENTRO DE CUSTO';
+
+            let linkInfo = '';
+            if (it.vinculo_veiculo_id) {
+                const v = vehicles.find(veh => veh.id == it.vinculo_veiculo_id);
+                if (v) linkInfo = `<span class="placa-badge" style="font-size:0.65rem; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 6px; border-radius:4px; font-weight:700;">🚗 ${v.placa}</span>`;
+            } else if (it.vinculo_pessoa) {
+                linkInfo = `<span class="placa-badge" style="font-size:0.65rem; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 6px; border-radius:4px; font-weight:700;">👤 ${it.vinculo_pessoa}</span>`;
+            }
+
+            const isStockLinked = (it.estoque === true || it.estoque === 'true');
+            const stockAction = isStockLinked ? `
+                <span style="color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;">📦 ESTOQUE</span>
+            ` : '';
+
+            // Manutenção Vinculada
+            const hasMaint = it.maint_control;
+            const typeObj = maintTypes.find(t => t.id == it.maint_tipo_id);
+            const actionObj = maintActions.find(a => a.id == it.maint_acao_id);
+            const tipoDesc = typeObj ? typeObj.descricao : null;
+            const acaoDesc = actionObj ? actionObj.descricao : null;
+            const kmVal = it.maint_km ? `${it.maint_km} KM` : null;
+
+            let controleInfo = null;
+            if (it.maint_controle === 'KM' && it.maint_intervalo_km) {
+                controleInfo = `A cada ${it.maint_intervalo_km} KM`;
+            } else if (it.maint_controle === 'DATA' && it.maint_intervalo_meses) {
+                controleInfo = `A cada ${it.maint_intervalo_meses} Meses`;
+            }
+
+            let garantiaInfo = null;
+            if (it.maint_garantia) {
+                garantiaInfo = it.maint_meses_garantia ? `${it.maint_meses_garantia} Meses` : 'Sim';
+            }
+
+            const qtd = parseFloat(it.quantidade || 0);
+            const unit = parseFloat(it.valor_unitario || 0);
+            const totalItem = (qtd * unit).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+
+            return `
+                <div class="view-item-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 0.6rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+                        <div style="display: flex; align-items: flex-start; gap: 10px; flex: 1;">
+                            <span style="color:${color}; font-weight:900; font-size:0.75rem; border:1px solid ${color}33; width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; border-radius:6px; background:${color}12; flex-shrink: 0; margin-top: 2px;">${label}</span>
+                            <div>
+                                <h4 style="font-weight: 800; font-size: 0.95rem; color: #0f172a; margin: 0 0 0.4rem 0; line-height: 1.3;">${it.produto}</h4>
+                                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                    <span style="font-size: 0.72rem; color: #475569; font-weight: 700; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; border: 1px solid #e2e8f0;">QTD: ${qtd}</span>
+                                    <span style="font-size: 0.72rem; color: #475569; font-weight: 700; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; border: 1px solid #e2e8f0;">Unit: R$ ${unit.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                                    <span style="color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 4px;">${ccName}</span>
+                                    ${linkInfo}
+                                    ${stockAction}
+                                </div>
+                            </div>
+                        </div>
+                        <div style="text-align: right; flex-shrink: 0;">
+                            <span style="font-size: 0.65rem; color: #64748b; font-weight: 800; text-transform: uppercase; display: block; margin-bottom: 2px;">Valor Subtotal</span>
+                            <span style="font-weight: 900; color: #047857; font-size: 1.15rem; line-height: 1;">R$ ${totalItem}</span>
+                        </div>
+                    </div>
+
+                    ${hasMaint ? `
+                        <div style="margin-top: 0.8rem; padding: 0.75rem 1rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px;">
+                            <div style="display:flex; align-items:center; gap:6px; font-weight:800; font-size:0.75rem; color:#047857; margin-bottom: 0.5rem; text-transform: uppercase;">
+                                <i data-lucide="wrench" style="width:14px; height:14px; color:#047857;"></i> Manutenção Vinculada
+                            </div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                                ${tipoDesc ? `<span style="font-size:0.72rem; background:#ffffff; border:1px solid #a7f3d0; padding:3px 10px; border-radius:6px; color:#0f172a; font-weight:700;"><span style="color:#64748b; font-weight:600;">Tipo:</span> ${tipoDesc}</span>` : ''}
+                                ${acaoDesc ? `<span style="font-size:0.72rem; background:#ffffff; border:1px solid #a7f3d0; padding:3px 10px; border-radius:6px; color:#0f172a; font-weight:700;"><span style="color:#64748b; font-weight:600;">Ação:</span> ${acaoDesc}</span>` : ''}
+                                ${kmVal ? `<span style="font-size:0.72rem; background:#ffffff; border:1px solid #a7f3d0; padding:3px 10px; border-radius:6px; color:#0f172a; font-weight:700;"><span style="color:#64748b; font-weight:600;">KM Execução:</span> ${kmVal}</span>` : ''}
+                                ${controleInfo ? `<span style="font-size:0.72rem; background:#fffbeb; border:1px solid #fde68a; padding:3px 10px; border-radius:6px; color:#d97706; font-weight:800;"><span style="color:#b45309; font-weight:600;">Próx. Troca:</span> ${controleInfo}</span>` : ''}
+                                ${garantiaInfo ? `<span style="font-size:0.72rem; background:#eff6ff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; color:#1d4ed8; font-weight:800;"><span style="color:#2563eb; font-weight:600;">Garantia:</span> ${garantiaInfo}</span>` : ''}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Custos Adicionais & Descontos
+    const adSection = document.getElementById('viewAdicionaisSection');
+    const adList = document.getElementById('viewAdicionaisList');
+    if (adicionais && adicionais.length > 0) {
+        adSection.style.display = 'block';
+        adList.innerHTML = adicionais.map(ad => {
+            const isDesc = parseFloat(ad.valor || 0) < 0 || (ad.descricao && ad.descricao.includes('[DESCONTO]'));
+            const color = isDesc ? '#ef4444' : '#2563eb';
+            const bg = isDesc ? '#fef2f2' : '#eff6ff';
+            const border = isDesc ? '#fecaca' : '#bfdbfe';
+            const valStr = Math.abs(parseFloat(ad.valor || 0)).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+            return `
+                <div style="display:flex; justify-content:space-between; align-items:center; background:${bg}; border:1px solid ${border}; padding:0.6rem 1rem; border-radius:8px;">
+                    <span style="font-weight:700; font-size:0.8rem; color:${color};">${ad.descricao}</span>
+                    <span style="font-weight:900; font-size:0.85rem; color:${color};">${isDesc ? '-' : '+'} R$ ${valStr}</span>
+                </div>
+            `;
+        }).join('');
+    } else {
+        adSection.style.display = 'none';
+    }
+
+    // Parcelas
+    const parcSection = document.getElementById('viewParcelasSection');
+    const parcList = document.getElementById('viewParcelasList');
+    if (parcelas && parcelas.length > 0) {
+        parcSection.style.display = 'block';
+        parcList.innerHTML = parcelas.map((p, idx) => {
+            const dateStr = formatCompraDateBR(p.data_vencimento || p.data);
+            const valStr = parseFloat(p.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+            return `
+                <div class="view-parc-badge" style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 0.75rem 0.6rem; border-radius: 10px; text-align: center;">
+                    <p style="font-size:0.65rem; font-weight: 800; color: #047857; text-transform: uppercase; margin: 0 0 2px 0;">PARCELA ${idx + 1}/${parcelas.length}</p>
+                    <p style="font-weight: 800; font-size: 0.95rem; color: #0f172a; margin: 2px 0;">R$ ${valStr}</p>
+                    <p style="font-size: 0.72rem; font-weight: 700; color: #d97706; margin: 2px 0 0 0;">📅 ${dateStr}</p>
+                </div>
+            `;
+        }).join('');
+    } else {
+        parcSection.style.display = 'none';
+    }
+
+    // Observações
+    const obsSection = document.getElementById('viewObsSection');
+    if (c.observacoes) {
+        obsSection.style.display = 'block';
+        document.getElementById('viewObservacoes').innerText = c.observacoes;
+    } else {
+        obsSection.style.display = 'none';
+    }
+
+    // Total
+    const totalVal = parseFloat(c.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    document.getElementById('viewTotalValue').innerText = `R$ ${totalVal}`;
+
+    // Botão Editar / Bloqueado
+    const isIntegrada = c.integrado_financeiro === true || c.integradoFinanceiro === true;
+    const btnEdit = document.getElementById('btnEditFromView');
+    if (btnEdit) {
+        if (isIntegrada) {
+            btnEdit.style.background = '#64748b';
+            btnEdit.style.cursor = 'not-allowed';
+            btnEdit.style.boxShadow = 'none';
+            btnEdit.innerHTML = '<i data-lucide="lock" style="width:16px; height:16px;"></i> NOTA INTEGRADA AO FINANCEIRO (BLOQUEADA)';
+            btnEdit.onclick = () => {
+                alert('⚠️ Esta nota fiscal já está integrada ao setor Financeiro e não pode ser alterada.\n\nPara modificá-la, solicite ao setor Financeiro que exclua o lançamento correspondente para que a nota retorne.');
+            };
+        } else {
+            btnEdit.style.background = '#059669';
+            btnEdit.style.cursor = 'pointer';
+            btnEdit.style.boxShadow = '0 4px 12px rgba(5,150,105,0.25)';
+            btnEdit.innerHTML = '<i data-lucide="edit-3" style="width:16px; height:16px;"></i> EDITAR NOTA';
+            btnEdit.onclick = () => {
+                closeViewModal();
+                window.location.href = `compras.html?editId=${encodeURIComponent(c.id)}`;
+            };
+        }
+    }
+
+    if (window.lucide) lucide.createIcons();
+}
+
+// Fechar com ESC específico para o modal de compra na manutenção
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('viewCompraModal');
+        if (modal && modal.classList.contains('active')) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeViewModal();
+        }
+    }
+}, true);
+
 

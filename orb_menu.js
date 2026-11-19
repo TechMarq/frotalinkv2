@@ -6,6 +6,7 @@
 (function() {
     const modules = [
         { id: 'home', icon: 'layout-grid', label: 'Hub', url: 'home.html' },
+        { id: 'gerencial', icon: 'pie-chart', label: 'Gerencial', url: 'gerencial.html' },
         { id: 'operacao', icon: 'navigation', label: 'Operação', url: 'operacao.html' },
         { id: 'fleet', icon: 'car', label: 'Frota', url: 'index.html' },
         { id: 'fuel', icon: 'fuel', label: 'Abastecimento', url: 'abastecimento.html' },
@@ -21,6 +22,7 @@
 
     const authModuleMap = {
         'home': null,
+        'gerencial': 'gerencial',
         'operacao': 'frota',
         'fleet': 'frota',
         'fuel': 'abastecimento',
@@ -89,6 +91,13 @@
                 hasViewPerm = window.currentUserRole === 'admin' || 
                     (window.currentUserPermissions && Object.keys(window.currentUserPermissions).some(key => key.endsWith('_auditoria') && window.currentUserPermissions[key].view));
                 isEnabled = hasViewPerm;
+            } else if (modId === 'gerencial') {
+                hasViewPerm = window.currentUserRole === 'admin' ||
+                    (window.currentUserPermissions && (
+                        (window.currentUserPermissions['gerencial'] && window.currentUserPermissions['gerencial'].view) ||
+                        Object.keys(window.currentUserPermissions).some(key => key.startsWith('gerencial_') && window.currentUserPermissions[key].view)
+                    ));
+                isEnabled = hasViewPerm;
             } else if (modId === 'operacao') {
                 hasViewPerm = window.currentUserRole === 'admin' ||
                     (window.currentUserPermissions && (
@@ -140,9 +149,9 @@
             const visibleSatellites = Array.from(satellites).filter(sat => !sat.classList.contains('orb-hidden'));
 
             // Expand radius and widen arc for better distribution
-            const radius = 140; // pixels
+            const radius = 145; // pixels
             const startAngle = -85; // Almost straight up
-            const endAngle = -220; // Past left, heading down
+            const endAngle = -225; // Past left, heading down
             const step = visibleSatellites.length > 1 ? (endAngle - startAngle) / (visibleSatellites.length - 1) : 0;
 
             visibleSatellites.forEach((sat, i) => {

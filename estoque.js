@@ -400,31 +400,37 @@ function renderInventory(data = filteredData) {
         
         row.className = 'inventory_row_clickable';
         row.innerHTML = `
-            <td data-label="Produto & Marca">
-                <div class="product-info">
-                    <span class="product-name" onclick="openProductViewModal('${item.id}')" style="cursor: pointer; color: var(--primary-light); text-decoration: underline;">${item.nome}</span>
-                    <span class="product-meta">${item.marca} - ${item.ref || 'S/ REF'}</span>
+            <td data-label="Produto & Marca" style="padding: 0.44rem 0.45rem; vertical-align: middle;">
+                <div class="product-info" style="display: flex; flex-direction: column; gap: 2px;">
+                    <span class="product-name" onclick="openProductViewModal('${item.id}')" style="cursor: pointer; color: #059669; font-weight: 800; font-size: 0.75rem; text-decoration: underline;" title="${item.nome}">${item.nome}</span>
+                    <span class="product-meta" style="font-size: 0.62rem; color: #94a3b8; font-weight: 600;">${item.marca || 'S/ MARCA'} - ${item.ref || 'S/ REF'}${item.codigo_interno ? ' | INT: ' + item.codigo_interno : ''}</span>
                 </div>
             </td>
-            <td data-label="Aplicação"><span style="color: var(--text-muted); font-size: 0.8rem;">${item.aplicacao || 'N/A'}</span></td>
-            <td data-label="Estoque">
-                <div style="display: flex; flex-direction: column;">
-                    <span style="font-weight: 700; color: ${isLowStock ? '#d97706' : '#059669'}">${item.estoque_atual} ${item.unidade || ''}</span>
-                    <span style="font-size: 0.65rem; color: var(--text-muted);">MÍN: ${item.estoque_minimo}</span>
+            <td data-label="Aplicação" style="padding: 0.44rem 0.45rem; vertical-align: middle;">
+                <span style="color: #475569; font-size: 0.72rem; font-weight: 600; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;" title="${item.aplicacao || 'N/A'}">${item.aplicacao || 'N/A'}</span>
+            </td>
+            <td data-label="Estoque" style="padding: 0.44rem 0.45rem; vertical-align: middle; text-align: center; white-space: nowrap;">
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <span style="font-weight: 800; font-size: 0.80rem; color: ${isLowStock ? '#d97706' : '#059669'}">${item.estoque_atual} ${item.unidade || ''}</span>
+                    <span style="font-size: 0.60rem; color: #94a3b8; font-weight: 600;">MÍN: ${item.estoque_minimo}</span>
                 </div>
             </td>
-            <td data-label="Vlr. Custo"><span style="font-size: 0.85rem;">R$ ${item.valor_custo?.toLocaleString('pt-BR', {minimumFractionDigits: 2}) || '0,00'}</span></td>
-            <td data-label="Vlr. Venda" style="color: #10b981; font-weight: 700;">R$ ${item.valor_venda?.toLocaleString('pt-BR', {minimumFractionDigits: 2}) || '0,00'}</td>
+            <td data-label="Vlr. Custo" style="padding: 0.44rem 0.45rem; vertical-align: middle; text-align: right; white-space: nowrap;">
+                <span style="font-size: 0.75rem; font-weight: 700; color: #475569;">R$ ${item.valor_custo?.toLocaleString('pt-BR', {minimumFractionDigits: 2}) || '0,00'}</span>
+            </td>
+            <td data-label="Vlr. Venda" style="padding: 0.44rem 0.45rem; vertical-align: middle; text-align: right; white-space: nowrap;">
+                <span style="color: #059669; font-weight: 800; font-size: 0.78rem;">R$ ${item.valor_venda?.toLocaleString('pt-BR', {minimumFractionDigits: 2}) || '0,00'}</span>
+            </td>
             ${(!canEdit && !canDel) ? '' : `
-            <td data-label="Ações" style="text-align: right;">
-                <div class="table-actions" style="display: flex; gap: 0.4rem; justify-content: flex-end;">
+            <td data-label="Ações" style="padding: 0.44rem 0.45rem; vertical-align: middle; text-align: right; white-space: nowrap;">
+                <div class="table-actions" style="display: flex; gap: 4px; justify-content: flex-end;">
                     ${canEdit ? `
-                    <button class="action-btn" onclick="event.stopPropagation(); editProduct('${item.id}')" title="Editar" style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); color: var(--primary-light); padding: 0.5rem; border-radius: 8px; cursor: pointer;">
-                        <i data-lucide="edit-3" style="width: 14px;"></i>
+                    <button class="action-btn" onclick="event.stopPropagation(); editProduct('${item.id}')" title="Editar" style="background: #f1f5f9; border: 1px solid #cbd5e1; color: #0284c7; padding: 4px 7px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f1f5f9'">
+                        <i data-lucide="edit-3" style="width: 12px; height: 12px;"></i>
                     </button>` : ''}
                     ${canDel ? `
-                    <button class="action-btn" onclick="event.stopPropagation(); deleteProduct('${item.id}')" title="Excluir" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; padding: 0.5rem; border-radius: 8px; cursor: pointer;">
-                        <i data-lucide="trash-2" style="width: 14px;"></i>
+                    <button class="action-btn" onclick="event.stopPropagation(); deleteProduct('${item.id}')" title="Excluir" style="background: #fef2f2; border: 1px solid #fecaca; color: #ef4444; padding: 4px 7px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fef2f2'">
+                        <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
                     </button>` : ''}
                 </div>
             </td>`}
@@ -991,18 +997,18 @@ function setupEventListeners() {
                 return;
             }
             if (isVendaActive) {
+                // Se houver algum autocomplete aberto dentro dos cards de saída, fecha apenas o dropdown
+                const openAuto = Array.from(document.querySelectorAll('#v_itens_container .autocomplete-results')).find(el => el.style.display === 'block');
+                if (openAuto) {
+                    openAuto.style.display = 'none';
+                    return;
+                }
                 const searchResults = document.getElementById('v_search_results');
                 if (searchResults && searchResults.style.display === 'block') {
                     searchResults.style.display = 'none';
                     return;
                 }
-                if (vendaItems && vendaItems.length > 0) {
-                    if (confirm('Há itens adicionados no carrinho de saída. Tem certeza de que deseja sair e descartar?')) {
-                        closeVendaModal();
-                    }
-                } else {
-                    closeVendaModal();
-                }
+                closeVendaModal();
                 return;
             }
 
@@ -1277,12 +1283,12 @@ async function loadProductHistory(productId) {
                 }
 
                 row.innerHTML = `
-                    <td style="color: #334155; font-size: 0.75rem; font-weight: 600; padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9;">${date}</td>
-                    <td style="padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9;"><span style="color: ${isCancelled ? '#9ca3af' : color}; font-weight: 800; font-size: 0.72rem; ${isCancelled ? 'text-decoration: line-through;' : ''}">${displayTipo}</span></td>
-                    <td style="font-weight: 800; color: #0f172a; text-align: center; padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9; ${isCancelled ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${Math.round(h.quantidade)}</td>
-                    <td style="font-weight: 900; color: #059669; text-align: center; font-size: 0.85rem; padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9;">${Math.round(rowSaldo)}</td>
-                    <td style="color: #0f172a; font-weight: 700; padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9; ${isCancelled ? 'text-decoration: line-through;' : ''}">R$ ${parseFloat(h.valor_unitario || 0).toFixed(2)}</td>
-                    <td style="font-size: 0.75rem; color: ${isCancelled ? '#ef4444' : '#475569'}; font-weight: ${isCancelled ? '700' : '500'}; padding: 0.75rem 0.5rem; border-bottom: 1px solid #f1f5f9;">
+                    <td style="color: #475569; font-size: 0.74rem; font-weight: 700; padding: 0.44rem 0.45rem; border-bottom: 1px solid #f1f5f9; white-space: nowrap;">${date}</td>
+                    <td style="padding: 0.44rem 0.45rem; border-bottom: 1px solid #f1f5f9; white-space: nowrap;"><span style="color: ${isCancelled ? '#9ca3af' : color}; font-weight: 800; font-size: 0.68rem; ${isCancelled ? 'text-decoration: line-through;' : ''}">${displayTipo}</span></td>
+                    <td style="font-weight: 800; font-size: 0.78rem; color: #0f172a; text-align: center; padding: 0.44rem 0.45rem; border-bottom: 1px solid #f1f5f9; white-space: nowrap; ${isCancelled ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${Math.round(h.quantidade)}</td>
+                    <td style="font-weight: 900; color: #059669; text-align: center; font-size: 0.80rem; padding: 0.44rem 0.45rem; border-bottom: 1px solid #f1f5f9; white-space: nowrap;">${Math.round(rowSaldo)}</td>
+                    <td style="color: #0f172a; font-weight: 700; font-size: 0.74rem; text-align: right; padding: 0.44rem 0.45rem; border-bottom: 1px solid #f1f5f9; white-space: nowrap; ${isCancelled ? 'text-decoration: line-through;' : ''}">R$ ${parseFloat(h.valor_unitario || 0).toFixed(2)}</td>
+                    <td style="font-size: 0.72rem; color: ${isCancelled ? '#ef4444' : '#475569'}; font-weight: ${isCancelled ? '700' : '500'}; padding: 0.44rem 0.45rem; border-bottom: 1px solid #f1f5f9;">
                         ${cellContent}
                     </td>
                 `;
@@ -1517,15 +1523,15 @@ function applyHistoryFilters() {
         return true;
     });
 
-    // 2. Atualizar cards de estatísticas (baseado no mês atual ou filtrado)
-    updateHistoryStats(matchedRaw);
-
-    // 3. Montar registros de acordo com historyViewMode ('venda' ou 'item')
+    // 2. Montar registros de acordo com historyViewMode ('venda' ou 'item')
     if (historyViewMode === 'venda') {
         filteredHistoryRecords = buildGroupedSalesHistory(matchedRaw, searchTerm);
     } else {
         filteredHistoryRecords = buildItemHistory(matchedRaw, searchTerm);
     }
+
+    // 3. Atualizar cards de estatísticas baseado nos registros filtrados
+    updateHistoryStats(filteredHistoryRecords);
 
     historyCurrentPage = 1;
     renderCurrentHistoryPage();
@@ -1730,35 +1736,35 @@ function renderCurrentHistoryPage() {
 
     tbody.innerHTML = '';
 
-    // 1. Configurar Cabeçalho de acordo com a visão selecionada
+    // 1. Configurar Cabeçalho de acordo com a visão selecionada (Padrão Compacto Frota)
     if (historyViewMode === 'venda') {
         thead.innerHTML = `
             <tr>
-                <th style="padding: 0.9rem 0.8rem; width: 95px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">DATA</th>
-                <th style="padding: 0.9rem 0.8rem; width: 135px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">CÓDIGO / TIPO</th>
-                <th style="padding: 0.9rem 0.8rem; width: 140px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">DESTINO / DETALHES</th>
-                <th style="padding: 0.9rem 0.8rem; min-width: 250px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle;">RESUMO DOS ITENS</th>
-                <th style="padding: 0.9rem 0.8rem; width: 90px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; text-align: center; white-space: nowrap;">QTD TOTAL</th>
-                <th style="padding: 0.9rem 0.8rem; width: 105px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">VALOR TOTAL</th>
-                <th style="padding: 0.9rem 0.8rem; width: 90px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">LUCRO</th>
-                <th style="padding: 0.9rem 0.8rem; width: 135px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">RESPONSÁVEL</th>
-                <th style="padding: 0.9rem 0.8rem; width: 115px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; text-align: right; white-space: nowrap;">AÇÃO</th>
+                <th style="padding: 0.50rem 0.42rem; width: 78px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; white-space: nowrap;">DATA</th>
+                <th style="padding: 0.50rem 0.42rem; width: 95px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; white-space: nowrap;">CÓDIGO / TIPO</th>
+                <th style="padding: 0.50rem 0.42rem; width: 110px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; white-space: nowrap;">DESTINO / DETALHES</th>
+                <th style="padding: 0.50rem 0.42rem; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle;">RESUMO DOS ITENS</th>
+                <th style="padding: 0.50rem 0.42rem; width: 68px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; text-align: center; white-space: nowrap;">QTD TOTAL</th>
+                <th style="padding: 0.50rem 0.42rem; width: 85px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; text-align: right; white-space: nowrap;">VALOR TOTAL</th>
+                <th style="padding: 0.50rem 0.42rem; width: 70px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; text-align: right; white-space: nowrap;">LUCRO</th>
+                <th style="padding: 0.50rem 0.42rem; width: 95px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; white-space: nowrap;">RESPONSÁVEL</th>
+                <th style="padding: 0.50rem 0.42rem; width: 80px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; text-align: right; white-space: nowrap;">AÇÃO</th>
             </tr>
         `;
     } else {
         thead.innerHTML = `
             <tr>
-                <th style="padding: 0.9rem 0.8rem; width: 95px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">DATA</th>
-                <th style="padding: 0.9rem 0.8rem; min-width: 180px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle;">PRODUTO</th>
-                <th style="padding: 0.9rem 0.8rem; width: 110px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">LOTE / REF</th>
-                <th style="padding: 0.9rem 0.8rem; width: 90px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">TIPO</th>
-                <th style="padding: 0.9rem 0.8rem; width: 90px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; text-align: center; white-space: nowrap;">QUANTIDADE</th>
-                <th style="padding: 0.9rem 0.8rem; width: 85px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; text-align: center; white-space: nowrap;">SALDO</th>
-                <th style="padding: 0.9rem 0.8rem; width: 105px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">VLR. UNITÁRIO</th>
-                <th style="padding: 0.9rem 0.8rem; width: 90px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">LUCRO</th>
-                <th style="padding: 0.9rem 0.8rem; min-width: 160px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle;">MOTIVO / FORNECEDOR</th>
-                <th style="padding: 0.9rem 0.8rem; width: 135px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;">RESPONSÁVEL</th>
-                <th style="padding: 0.9rem 0.8rem; width: 90px; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle; text-align: right; white-space: nowrap;">AÇÃO</th>
+                <th style="padding: 0.50rem 0.42rem; width: 78px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; white-space: nowrap;">DATA</th>
+                <th style="padding: 0.50rem 0.42rem; min-width: 140px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle;">PRODUTO</th>
+                <th style="padding: 0.50rem 0.42rem; width: 80px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; white-space: nowrap;">LOTE / REF</th>
+                <th style="padding: 0.50rem 0.42rem; width: 65px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; white-space: nowrap;">TIPO</th>
+                <th style="padding: 0.50rem 0.42rem; width: 58px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; text-align: center; white-space: nowrap;">QUANTIDADE</th>
+                <th style="padding: 0.50rem 0.42rem; width: 52px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; text-align: center; white-space: nowrap;">SALDO</th>
+                <th style="padding: 0.50rem 0.42rem; width: 78px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; text-align: right; white-space: nowrap;">VLR. UNITÁRIO</th>
+                <th style="padding: 0.50rem 0.42rem; width: 65px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; text-align: right; white-space: nowrap;">LUCRO</th>
+                <th style="padding: 0.50rem 0.42rem; min-width: 110px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle;">MOTIVO / FORNECEDOR</th>
+                <th style="padding: 0.50rem 0.42rem; width: 95px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; white-space: nowrap;">RESPONSÁVEL</th>
+                <th style="padding: 0.50rem 0.42rem; width: 65px; font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; vertical-align: middle; text-align: right; white-space: nowrap;">AÇÃO</th>
             </tr>
         `;
     }
@@ -1807,11 +1813,11 @@ function renderCurrentHistoryPage() {
             if (!cleanResp) cleanResp = 'Sistema';
 
             const respCellHtml = `
-                <div style="display: flex; align-items: center; gap: 6px;" title="${rawResp}">
-                    <div style="width: 22px; height: 22px; border-radius: 50%; background: #f1f5f9; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #475569; font-size: 0.65rem; font-weight: 800; text-transform: uppercase;">
+                <div style="display: flex; align-items: center; gap: 4px;" title="${rawResp}">
+                    <div style="width: 19px; height: 19px; border-radius: 50%; background: #f1f5f9; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #475569; font-size: 0.60rem; font-weight: 800; text-transform: uppercase;">
                         ${cleanResp.charAt(0)}
                     </div>
-                    <span style="font-size: 0.74rem; font-weight: 700; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 105px; text-transform: capitalize;">
+                    <span style="font-size: 0.70rem; font-weight: 700; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 72px; text-transform: capitalize;">
                         ${cleanResp}
                     </span>
                 </div>
@@ -1822,64 +1828,64 @@ function renderCurrentHistoryPage() {
                 let itemsSummaryHtml = '';
                 if (rec.itens && rec.itens.length > 0) {
                     itemsSummaryHtml = rec.itens.map(it => `
-                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                            <span style="font-weight: 700; color: #1e293b; font-size: 0.78rem; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 240px;" title="${it.nome}">
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                            <span style="font-weight: 700; color: #1e293b; font-size: 0.72rem; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 200px;" title="${it.nome}">
                                 ${it.nome}
                             </span>
-                            <span style="font-size: 0.72rem; font-weight: 800; color: ${it.isEstorno ? '#d97706' : '#dc2626'}; white-space: nowrap; background: #ffffff; padding: 1px 6px; border-radius: 4px; border: 1px solid #e2e8f0;">
+                            <span style="font-size: 0.66rem; font-weight: 800; color: ${it.isEstorno ? '#d97706' : '#dc2626'}; white-space: nowrap; background: #ffffff; padding: 1px 4px; border-radius: 3px; border: 1px solid #e2e8f0;">
                                 ${it.isEstorno ? 'Estorno ' : ''}${Math.round(it.quantidade)} un
                             </span>
                         </div>
                     `).join('');
                 } else {
-                    itemsSummaryHtml = '<span style="font-size: 0.75rem; color: #94a3b8;">Nenhum item</span>';
+                    itemsSummaryHtml = '<span style="font-size: 0.70rem; color: #94a3b8;">Nenhum item</span>';
                 }
 
                 row.innerHTML = `
-                    <td data-label="DATA" style="padding: 0.85rem 0.8rem; vertical-align: middle; border: 1px solid #e2e8f0; border-right: none; border-radius: 10px 0 0 10px; white-space: nowrap;">
-                        <span style="font-size: 0.82rem; font-weight: 700; color: #475569;">${dateStr}</span>
+                    <td data-label="DATA" style="padding: 0.44rem 0.42rem; vertical-align: middle; border: 1px solid #e2e8f0; border-right: none; border-radius: 8px 0 0 8px; white-space: nowrap;">
+                        <span style="font-size: 0.75rem; font-weight: 700; color: #475569;">${dateStr}</span>
                     </td>
-                    <td data-label="CÓDIGO / TIPO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
-                        <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
+                    <td data-label="CÓDIGO / TIPO" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                        <div style="display: flex; flex-direction: column; gap: 2px; align-items: flex-start;">
                             <button type="button" onclick="editSaleByCodigo('${rec.codigo}')" 
-                                style="white-space: nowrap; background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; border-radius: 8px; padding: 4px 9px; font-size: 0.8rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s;"
+                                style="white-space: nowrap; background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; border-radius: 6px; padding: 2px 7px; font-size: 0.72rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s;"
                                 onmouseover="this.style.background='#d1fae5'" onmouseout="this.style.background='#ecfdf5'">
-                                <i data-lucide="shopping-cart" style="width: 13px; height: 13px;"></i>
+                                <i data-lucide="shopping-cart" style="width: 11px; height: 11px;"></i>
                                 ${rec.codigo}
                             </button>
-                            <span style="white-space: nowrap; font-size: 0.65rem; font-weight: 800; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 0.15rem 0.5rem; border-radius: 6px; text-transform: uppercase;">
+                            <span style="white-space: nowrap; font-size: 0.60rem; font-weight: 800; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 0.1rem 0.4rem; border-radius: 4px; text-transform: uppercase;">
                                 ${rec.tipoLabel}
                             </span>
                         </div>
                     </td>
-                    <td data-label="DESTINO / DETALHES" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
-                        <div style="display: inline-flex; align-items: center; gap: 5px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 3px 8px; border-radius: 6px; font-weight: 800; font-size: 0.78rem; color: #1e293b; white-space: nowrap;">
-                            <i data-lucide="truck" style="width: 13px; height: 13px; color: #059669; flex-shrink: 0;"></i>
+                    <td data-label="DESTINO / DETALHES" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                        <div style="display: inline-flex; align-items: center; gap: 4px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 2px 6px; border-radius: 5px; font-weight: 800; font-size: 0.72rem; color: #1e293b; white-space: nowrap;">
+                            <i data-lucide="truck" style="width: 11px; height: 11px; color: #059669; flex-shrink: 0;"></i>
                             <span>${rec.destino.replace(/placa:\s*/i, 'Placa: ')}</span>
                         </div>
                     </td>
-                    <td data-label="RESUMO DOS ITENS" style="padding: 0.6rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
-                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px;">
+                    <td data-label="RESUMO DOS ITENS" style="padding: 0.35rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 7px; display: flex; flex-direction: column; gap: 3px;">
                             ${itemsSummaryHtml}
                         </div>
                     </td>
-                    <td data-label="QTD TOTAL" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: center; white-space: nowrap;">
-                        <span style="font-weight: 900; font-size: 0.95rem; color: #dc2626;">${Math.round(rec.total_qtd)} un</span>
+                    <td data-label="QTD TOTAL" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: center; white-space: nowrap;">
+                        <span style="font-weight: 800; font-size: 0.80rem; color: #dc2626;">${Math.round(rec.total_qtd)} un</span>
                     </td>
-                    <td data-label="VALOR TOTAL" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
-                        <span style="font-weight: 800; font-size: 0.88rem; color: #0f172a;">R$ ${rec.total_valor.toFixed(2)}</span>
+                    <td data-label="VALOR TOTAL" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: right; white-space: nowrap;">
+                        <span style="font-weight: 800; font-size: 0.78rem; color: #0f172a;">R$ ${rec.total_valor.toFixed(2)}</span>
                     </td>
-                    <td data-label="LUCRO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
-                        <span style="font-size: 0.82rem; font-weight: 800; color: #059669;">${rec.total_lucro > 0 ? 'R$ ' + rec.total_lucro.toFixed(2) : '---'}</span>
+                    <td data-label="LUCRO" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: right; white-space: nowrap;">
+                        <span style="font-size: 0.75rem; font-weight: 800; color: #059669;">${rec.total_lucro > 0 ? 'R$ ' + rec.total_lucro.toFixed(2) : '---'}</span>
                     </td>
-                    <td data-label="RESPONSÁVEL" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                    <td data-label="RESPONSÁVEL" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
                         ${respCellHtml}
                     </td>
-                    <td data-label="AÇÃO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border: 1px solid #e2e8f0; border-left: none; border-radius: 0 10px 10px 0; text-align: right; white-space: nowrap;">
+                    <td data-label="AÇÃO" style="padding: 0.44rem 0.42rem; vertical-align: middle; border: 1px solid #e2e8f0; border-left: none; border-radius: 0 8px 8px 0; text-align: right; white-space: nowrap;">
                         <button type="button" onclick="editSaleByCodigo('${rec.codigo}')" 
-                            style="white-space: nowrap; background: #059669; color: #ffffff; border: none; border-radius: 8px; padding: 7px 12px; font-size: 0.75rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s; box-shadow: 0 1px 3px rgba(5,150,105,0.25);"
+                            style="white-space: nowrap; background: #059669; color: #ffffff; border: none; border-radius: 6px; padding: 4px 8px; font-size: 0.70rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s; box-shadow: 0 1px 2px rgba(5,150,105,0.2);"
                             onmouseover="this.style.background='#047857'" onmouseout="this.style.background='#059669'">
-                            <i data-lucide="edit-3" style="width: 13px; height: 13px;"></i> Ver Venda
+                            <i data-lucide="edit-3" style="width: 11px; height: 11px;"></i> Ver Venda
                         </button>
                     </td>
                 `;
@@ -1890,49 +1896,49 @@ function renderCurrentHistoryPage() {
                 const borderColor = rec.tipo === 'ENTRADA' ? '#a7f3d0' : (rec.tipo === 'AJUSTE' ? '#bfdbfe' : '#fde68a');
 
                 row.innerHTML = `
-                    <td data-label="DATA" style="padding: 0.85rem 0.8rem; vertical-align: middle; border: 1px solid #e2e8f0; border-right: none; border-radius: 10px 0 0 10px; white-space: nowrap;">
-                        <span style="font-size: 0.82rem; font-weight: 700; color: #475569;">${dateStr}</span>
+                    <td data-label="DATA" style="padding: 0.44rem 0.42rem; vertical-align: middle; border: 1px solid #e2e8f0; border-right: none; border-radius: 8px 0 0 8px; white-space: nowrap;">
+                        <span style="font-size: 0.75rem; font-weight: 700; color: #475569;">${dateStr}</span>
                     </td>
-                    <td data-label="CÓDIGO / TIPO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
-                        <span style="white-space: nowrap; font-size: 0.68rem; font-weight: 800; color: ${typeColor}; background: ${bgColor}; border: 1px solid ${borderColor}; padding: 0.25rem 0.6rem; border-radius: 6px; text-transform: uppercase;">
+                    <td data-label="CÓDIGO / TIPO" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                        <span style="white-space: nowrap; font-size: 0.62rem; font-weight: 800; color: ${typeColor}; background: ${bgColor}; border: 1px solid ${borderColor}; padding: 0.15rem 0.45rem; border-radius: 4px; text-transform: uppercase;">
                             ${rec.tipo}
                         </span>
                     </td>
-                    <td data-label="DESTINO / DETALHES" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
-                        <div style="font-size: 0.76rem; color: #475569; font-weight: 600; line-height: 1.3;">
+                    <td data-label="DESTINO / DETALHES" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                        <div style="font-size: 0.70rem; color: #475569; font-weight: 600; line-height: 1.25;">
                             ${(rec.motivo || 'Movimentação Avulsa').replace('[AJUSTE]', '').trim()}
                         </div>
                     </td>
-                    <td data-label="RESUMO DOS ITENS" style="padding: 0.6rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
-                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                    <td data-label="RESUMO DOS ITENS" style="padding: 0.35rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 7px; display: flex; align-items: center; justify-content: space-between; gap: 6px;">
                             <div style="display: flex; flex-direction: column; min-width: 0;">
-                                <span onclick="openProductViewModal('${rec.item_id}')" style="font-weight: 800; color: #059669; font-size: 0.8rem; cursor: pointer; text-decoration: underline; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 240px;" title="${rec.item_nome}">
+                                <span onclick="openProductViewModal('${rec.item_id}')" style="font-weight: 800; color: #059669; font-size: 0.74rem; cursor: pointer; text-decoration: underline; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 200px;" title="${rec.item_nome}">
                                     ${rec.item_nome}
                                 </span>
-                                <span style="font-size: 0.65rem; color: #94a3b8; font-weight: 600;">INT: ${rec.item_cod_int} | REF: ${rec.item_ref}</span>
+                                <span style="font-size: 0.60rem; color: #94a3b8; font-weight: 600;">INT: ${rec.item_cod_int} | REF: ${rec.item_ref}</span>
                             </div>
-                            <span style="font-size: 0.72rem; font-weight: 800; color: ${typeColor}; white-space: nowrap; background: #ffffff; padding: 1px 6px; border-radius: 4px; border: 1px solid #e2e8f0;">
+                            <span style="font-size: 0.66rem; font-weight: 800; color: ${typeColor}; white-space: nowrap; background: #ffffff; padding: 1px 4px; border-radius: 3px; border: 1px solid #e2e8f0;">
                                 ${Math.round(rec.quantidade)} un
                             </span>
                         </div>
                     </td>
-                    <td data-label="QTD TOTAL" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: center; white-space: nowrap;">
-                        <span style="font-weight: 900; font-size: 0.95rem; color: ${typeColor};">${Math.round(rec.quantidade)} un</span>
+                    <td data-label="QTD TOTAL" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: center; white-space: nowrap;">
+                        <span style="font-weight: 800; font-size: 0.80rem; color: ${typeColor};">${Math.round(rec.quantidade)} un</span>
                     </td>
-                    <td data-label="VALOR TOTAL" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
-                        <span style="font-weight: 800; font-size: 0.88rem; color: #0f172a;">R$ ${(rec.quantidade * rec.valor_unitario).toFixed(2)}</span>
+                    <td data-label="VALOR TOTAL" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: right; white-space: nowrap;">
+                        <span style="font-weight: 800; font-size: 0.78rem; color: #0f172a;">R$ ${(rec.quantidade * rec.valor_unitario).toFixed(2)}</span>
                     </td>
-                    <td data-label="LUCRO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
-                        <span style="font-size: 0.82rem; font-weight: 800; color: #059669;">${rec.lucro > 0 ? 'R$ ' + rec.lucro.toFixed(2) : '---'}</span>
+                    <td data-label="LUCRO" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: right; white-space: nowrap;">
+                        <span style="font-size: 0.75rem; font-weight: 800; color: #059669;">${rec.lucro > 0 ? 'R$ ' + rec.lucro.toFixed(2) : '---'}</span>
                     </td>
-                    <td data-label="RESPONSÁVEL" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                    <td data-label="RESPONSÁVEL" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
                         ${respCellHtml}
                     </td>
-                    <td data-label="AÇÃO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border: 1px solid #e2e8f0; border-left: none; border-radius: 0 10px 10px 0; text-align: right; white-space: nowrap;">
+                    <td data-label="AÇÃO" style="padding: 0.44rem 0.42rem; vertical-align: middle; border: 1px solid #e2e8f0; border-left: none; border-radius: 0 8px 8px 0; text-align: right; white-space: nowrap;">
                         <button type="button" onclick="openProductViewModal('${rec.item_id}')" 
-                            style="white-space: nowrap; background: #f8fafc; color: #334155; border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 12px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s;"
+                            style="white-space: nowrap; background: #f8fafc; color: #334155; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 0.70rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s;"
                             onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
-                            <i data-lucide="eye" style="width: 13px; height: 13px;"></i> Ver Item
+                            <i data-lucide="eye" style="width: 11px; height: 11px;"></i> Ver Item
                         </button>
                     </td>
                 `;
@@ -1981,60 +1987,60 @@ function renderCurrentHistoryPage() {
             if (!cleanResp) cleanResp = 'Sistema';
 
             const respCellHtml = `
-                <div style="display: flex; align-items: center; gap: 6px;" title="${rawResp}">
-                    <div style="width: 22px; height: 22px; border-radius: 50%; background: #f1f5f9; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #475569; font-size: 0.65rem; font-weight: 800; text-transform: uppercase;">
+                <div style="display: flex; align-items: center; gap: 4px;" title="${rawResp}">
+                    <div style="width: 19px; height: 19px; border-radius: 50%; background: #f1f5f9; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #475569; font-size: 0.60rem; font-weight: 800; text-transform: uppercase;">
                         ${cleanResp.charAt(0)}
                     </div>
-                    <span style="font-size: 0.74rem; font-weight: 700; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 105px; text-transform: capitalize;">
+                    <span style="font-size: 0.70rem; font-weight: 700; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 72px; text-transform: capitalize;">
                         ${cleanResp}
                     </span>
                 </div>
             `;
 
             row.innerHTML = `
-                <td data-label="DATA" style="padding: 0.85rem 0.8rem; vertical-align: middle; border: 1px solid #e2e8f0; border-right: none; border-radius: 10px 0 0 10px; white-space: nowrap;">
-                    <span style="font-size: 0.82rem; font-weight: 700; color: #475569;">${dateStr}</span>
+                <td data-label="DATA" style="padding: 0.44rem 0.42rem; vertical-align: middle; border: 1px solid #e2e8f0; border-right: none; border-radius: 8px 0 0 8px; white-space: nowrap;">
+                    <span style="font-size: 0.75rem; font-weight: 700; color: #475569;">${dateStr}</span>
                 </td>
-                <td data-label="PRODUTO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; ${rec.isCancelled ? 'opacity: 0.5;' : ''}">
+                <td data-label="PRODUTO" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; ${rec.isCancelled ? 'opacity: 0.5;' : ''}">
                     <div style="display: flex; flex-direction: column;">
-                        <span class="product-name" onclick="openProductViewModal('${h.item_id}')" style="font-weight: 800; color: #059669; font-size: 0.85rem; cursor: pointer; text-decoration: underline; ${rec.isCancelled ? 'text-decoration: line-through;' : ''}">${rec.item_nome}</span>
-                        <span style="font-size: 0.65rem; color: #94a3b8; font-weight: 600;">INT: ${rec.item_cod_int}</span>
+                        <span class="product-name" onclick="openProductViewModal('${h.item_id}')" style="font-weight: 800; color: #059669; font-size: 0.75rem; cursor: pointer; text-decoration: underline; ${rec.isCancelled ? 'text-decoration: line-through;' : ''}">${rec.item_nome}</span>
+                        <span style="font-size: 0.60rem; color: #94a3b8; font-weight: 600;">INT: ${rec.item_cod_int}</span>
                     </div>
                 </td>
-                <td data-label="LOTE / REF" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap; ${rec.isCancelled ? 'opacity: 0.5;' : ''}">
-                    <span style="font-size: 0.75rem; color: #64748b; font-weight: 600; ${rec.isCancelled ? 'text-decoration: line-through;' : ''}">${rec.item_ref}</span>
+                <td data-label="LOTE / REF" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap; ${rec.isCancelled ? 'opacity: 0.5;' : ''}">
+                    <span style="font-size: 0.70rem; color: #64748b; font-weight: 600; ${rec.isCancelled ? 'text-decoration: line-through;' : ''}">${rec.item_ref}</span>
                 </td>
-                <td data-label="TIPO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
-                    <span style="font-size: 0.65rem; font-weight: 800; color: ${rec.isCancelled ? '#9ca3af' : typeColor}; background: ${rec.isCancelled ? '#9ca3af20' : typeColor + '15'}; padding: 0.25rem 0.55rem; border-radius: 6px; text-transform: uppercase; ${rec.isCancelled ? 'text-decoration: line-through;' : ''}">
+                <td data-label="TIPO" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                    <span style="font-size: 0.60rem; font-weight: 800; color: ${rec.isCancelled ? '#9ca3af' : typeColor}; background: ${rec.isCancelled ? '#9ca3af20' : typeColor + '15'}; padding: 0.15rem 0.42rem; border-radius: 4px; text-transform: uppercase; ${rec.isCancelled ? 'text-decoration: line-through;' : ''}">
                         ${rec.isCancelled ? 'CANCELADA' : rec.tipo}
                     </span>
                 </td>
-                <td data-label="QUANTIDADE" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: center; white-space: nowrap;">
-                    <span style="font-weight: 900; font-size: 0.95rem; color: ${rec.isCancelled ? '#9ca3af' : (isSaida ? '#dc2626' : (isAjuste ? '#2563eb' : '#059669'))}; ${rec.isCancelled ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${Math.round(h.quantidade)}</span>
+                <td data-label="QUANTIDADE" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: center; white-space: nowrap;">
+                    <span style="font-weight: 800; font-size: 0.80rem; color: ${rec.isCancelled ? '#9ca3af' : (isSaida ? '#dc2626' : (isAjuste ? '#2563eb' : '#059669'))}; ${rec.isCancelled ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${Math.round(h.quantidade)}</span>
                 </td>
-                <td data-label="SALDO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: center; white-space: nowrap;">
-                    <span style="font-weight: 900; font-size: 1rem; color: #059669;">${Math.round(rowSaldo)}</span>
+                <td data-label="SALDO" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: center; white-space: nowrap;">
+                    <span style="font-weight: 800; font-size: 0.80rem; color: #059669;">${Math.round(rowSaldo)}</span>
                 </td>
-                <td data-label="VLR. UNITÁRIO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap; ${rec.isCancelled ? 'opacity: 0.5;' : ''}">
-                    <span style="font-size: 0.82rem; font-weight: 700; color: #475569; ${rec.isCancelled ? 'text-decoration: line-through;' : ''}">R$ ${parseFloat(h.valor_unitario || 0).toFixed(2)}</span>
+                <td data-label="VLR. UNITÁRIO" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: right; white-space: nowrap; ${rec.isCancelled ? 'opacity: 0.5;' : ''}">
+                    <span style="font-size: 0.74rem; font-weight: 700; color: #475569; ${rec.isCancelled ? 'text-decoration: line-through;' : ''}">R$ ${parseFloat(h.valor_unitario || 0).toFixed(2)}</span>
                 </td>
-                <td data-label="LUCRO" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
-                    <span style="font-size: 0.82rem; font-weight: 800; color: #059669; ${rec.isCancelled ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${h.lucro > 0 ? 'R$ ' + parseFloat(h.lucro).toFixed(2) : '---'}</span>
+                <td data-label="LUCRO" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; text-align: right; white-space: nowrap;">
+                    <span style="font-size: 0.74rem; font-weight: 800; color: #059669; ${rec.isCancelled ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${h.lucro > 0 ? 'R$ ' + parseFloat(h.lucro).toFixed(2) : '---'}</span>
                 </td>
-                <td data-label="MOTIVO / FORNECEDOR" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
-                    <span style="font-size: 0.76rem; color: ${rec.isCancelled ? '#ef4444' : (isVenda ? '#059669' : '#475569')}; font-weight: 600; line-height: 1.3; ${isVenda ? 'cursor: pointer; text-decoration: underline;' : ''} ${rec.isCancelled ? 'text-decoration: none !important;' : ''}" 
+                <td data-label="MOTIVO / FORNECEDOR" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                    <span style="font-size: 0.70rem; color: ${rec.isCancelled ? '#ef4444' : (isVenda ? '#059669' : '#475569')}; font-weight: 600; line-height: 1.25; ${isVenda ? 'cursor: pointer; text-decoration: underline;' : ''} ${rec.isCancelled ? 'text-decoration: none !important;' : ''}" 
                           ${isVenda ? `onclick="editSaleByCodigo('${rec.vendaCodigo}')"` : ''}>
                         ${(h.motivo || 'N/A').replace(' | ', '<br><span style="color:#059669; font-weight:800; font-style:normal;">')}</span>
                     </span>
                 </td>
-                <td data-label="RESPONSÁVEL" style="padding: 0.85rem 0.8rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
+                <td data-label="RESPONSÁVEL" style="padding: 0.44rem 0.42rem; vertical-align: middle; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
                     ${respCellHtml}
                 </td>
-                <td data-label="AÇÕES" style="padding: 0.85rem 0.8rem; vertical-align: middle; border: 1px solid #e2e8f0; border-left: none; border-radius: 0 10px 10px 0; text-align: right; white-space: nowrap;">
+                <td data-label="AÇÕES" style="padding: 0.44rem 0.42rem; vertical-align: middle; border: 1px solid #e2e8f0; border-left: none; border-radius: 0 8px 8px 0; text-align: right; white-space: nowrap;">
                     ${isVenda ? `
                         <button type="button" onclick="editSaleByCodigo('${rec.vendaCodigo}')" 
-                            style="white-space: nowrap; background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; border-radius: 8px; padding: 5px 10px; font-size: 0.75rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
-                            <i data-lucide="edit-3" style="width: 12px; height: 12px;"></i> Venda
+                            style="white-space: nowrap; background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; border-radius: 6px; padding: 3px 6px; font-size: 0.68rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 3px;">
+                            <i data-lucide="edit-3" style="width: 11px; height: 11px;"></i> Venda
                         </button>
                     ` : ''}
                 </td>
@@ -2277,27 +2283,51 @@ function updateHistoryFilterDropdowns(searchTerm, typeFilter, periodFilter) {
     filterPeriodSelect.value = currentPeriod;
 }
 
-function updateHistoryStats(data) {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+function updateHistoryStats(records = []) {
+    let totalEntradasQtd = 0;
+    let totalSaidasQtd = 0;
+    let totalSaidasValor = 0;
+    let totalLucro = 0;
 
-    const thisMonth = (data || []).filter(h => {
-        const d = new Date(h.data || h.created_at);
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    (records || []).forEach(rec => {
+        if (!rec || rec.isCancelled) return;
+
+        if (rec.isGroup) {
+            // Grupo de venda (visão por venda)
+            totalSaidasQtd += (parseFloat(rec.total_qtd) || 0);
+            totalSaidasValor += (parseFloat(rec.total_valor) || 0);
+            totalLucro += (parseFloat(rec.total_lucro) || 0);
+        } else {
+            // Movimentação individual (visão por item ou registros avulsos)
+            const raw = rec.raw || rec;
+            const tipo = (rec.tipo || raw.tipo || '').toUpperCase();
+            const motivo = (rec.motivo || raw.motivo || '');
+            const isAjuste = motivo.startsWith('[AJUSTE]');
+            const qtd = Math.abs(parseFloat(rec.quantidade !== undefined ? rec.quantidade : raw.quantidade) || 0);
+            const unit = parseFloat(rec.valor_unitario !== undefined ? rec.valor_unitario : raw.valor_unitario) || 0;
+            const lucro = parseFloat(rec.lucro !== undefined ? rec.lucro : raw.lucro) || 0;
+
+            if (tipo === 'ENTRADA') {
+                totalEntradasQtd += qtd;
+            } else if (tipo === 'SAIDA' && !isAjuste) {
+                totalSaidasQtd += qtd;
+                totalSaidasValor += (qtd * unit);
+                totalLucro += lucro;
+            }
+        }
     });
-
-    const entradas = thisMonth.filter(h => h.tipo === 'ENTRADA' && !(h.motivo && h.motivo.includes('[CANCELADA]'))).reduce((acc, h) => acc + (parseFloat(h.quantidade) || 0), 0);
-    const saidas = thisMonth.filter(h => h.tipo === 'SAIDA' && !(h.motivo && h.motivo.includes('[CANCELADA]'))).reduce((acc, h) => acc + (parseFloat(h.quantidade) || 0), 0);
-    const lucro = thisMonth.filter(h => h.tipo === 'SAIDA' && !(h.motivo && h.motivo.includes('[CANCELADA]'))).reduce((acc, h) => acc + (parseFloat(h.lucro) || 0), 0);
 
     const elEntradas = document.getElementById('stat_entradas');
     const elSaidas = document.getElementById('stat_saidas');
+    const elValorSaidas = document.getElementById('stat_valor_saidas');
     const elLucro = document.getElementById('stat_lucro');
 
-    if (elEntradas) elEntradas.innerText = `${Math.round(entradas)} itens`;
-    if (elSaidas) elSaidas.innerText = `${Math.round(saidas)} itens`;
-    if (elLucro) elLucro.innerText = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lucro);
+    const fmtMoeda = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+
+    if (elEntradas) elEntradas.innerText = `${Math.round(totalEntradasQtd)} itens`;
+    if (elSaidas) elSaidas.innerText = `${Math.round(totalSaidasQtd)} itens`;
+    if (elValorSaidas) elValorSaidas.innerText = fmtMoeda(totalSaidasValor);
+    if (elLucro) elLucro.innerText = fmtMoeda(totalLucro);
 }
 
 
@@ -3079,7 +3109,46 @@ async function openVendaModal() {
     }
 }
 
-function closeVendaModal() {
+function hasVendaUnsavedData() {
+    const vModal = document.getElementById('vendaModal');
+    if (!vModal || (!vModal.classList.contains('active') && vModal.style.display !== 'block')) return false;
+
+    // Verificar se algum card de item possui produto selecionado ou digitado, ou placa/pessoa preenchida
+    const cards = document.querySelectorAll('#v_itens_container .v-item-card');
+    for (const card of cards) {
+        const prodId = card.querySelector('.v-item-prod-id')?.value?.trim();
+        const prodSearch = card.querySelector('.v-item-prod-search')?.value?.trim();
+        const veicId = card.querySelector('.v-item-veic-id')?.value?.trim();
+        const veicSearch = card.querySelector('.v-item-veic-search')?.value?.trim();
+        const pessoa = card.querySelector('.v-item-pess-search')?.value?.trim();
+        if (prodId || prodSearch || veicId || veicSearch || pessoa) {
+            return true;
+        }
+    }
+    // Se o usuário adicionou múltiplos cards
+    if (cards.length > 1) return true;
+
+    // Observações preenchidas
+    const obs = document.getElementById('v_observacoes')?.value?.trim();
+    if (obs && obs.length > 0) return true;
+
+    // Cliente preenchido
+    const cliente = document.getElementById('v_cliente')?.value?.trim();
+    if (cliente && cliente.length > 0) return true;
+
+    // Veículo geral selecionado
+    const veicGeral = document.getElementById('v_veiculo_id')?.value;
+    if (veicGeral) return true;
+
+    return false;
+}
+window.hasVendaUnsavedData = hasVendaUnsavedData;
+
+function closeVendaModal(force = false) {
+    if (!force && hasVendaUnsavedData()) {
+        const confirmExit = confirm('Existem dados preenchidos na saída de estoque.\n\nTem certeza de que deseja cancelar e descartar as informações?');
+        if (!confirmExit) return;
+    }
     if (typeof closeBarcodeScanner === 'function') {
         closeBarcodeScanner();
     }
@@ -3142,6 +3211,8 @@ function addVendaItemRow(data = {}, shouldFocus = true) {
     const prodDisplay = selectedProd ? `${selectedProd.nome} ${selectedProd.marca ? `(${selectedProd.marca})` : ''}` : (data.nome || '');
     const stockQty = selectedProd ? selectedProd.estoque_atual : null;
     const stockUnit = selectedProd ? (selectedProd.unidade || 'UN') : (data.unidade || 'UN');
+    const appText = selectedProd?.aplicacao || data.aplicacao || '';
+    const hasProd = !!(selectedProd || data.produto_id);
 
     const isPessoa = data.vinculo_tipo === 'pessoa' || (!!data.vinculo_pessoa && !data.vinculo_veiculo_id);
     const selectedVeh = vehiclesData.find(v => v.id === data.vinculo_veiculo_id) || null;
@@ -3179,11 +3250,18 @@ function addVendaItemRow(data = {}, shouldFocus = true) {
             <div class="autocomplete-wrapper" style="position: relative; min-width: 0;">
                 <div style="position: relative; display: flex; align-items: center;">
                     <i data-lucide="search" style="position: absolute; left: 12px; width: 14px; height: 14px; color: #94a3b8; pointer-events: none;"></i>
-                    <input type="text" class="v-item-prod-search" placeholder="Buscar peça ou ler código de barras..." value="${prodDisplay}" oninput="handleVendaProdSearch(this)" onfocus="handleVendaProdSearch(this)" autocomplete="off" style="width: 100%; height: 38px; padding-left: 38px; padding-right: 155px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.82rem; font-weight: 600; color: #0f172a;">
+                    <input type="text" class="v-item-prod-search" placeholder="Buscar peça ou ler código de barras..." value="${prodDisplay}" ${hasProd ? 'readonly' : ''} oninput="handleVendaProdSearch(this)" onfocus="handleVendaProdSearch(this)" onkeydown="handleVendaProdKeydown(event, this)" autocomplete="off" style="width: 100%; height: 38px; padding-left: 38px; padding-right: 155px; background: ${hasProd ? '#f1f5f9' : '#f8fafc'}; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.82rem; font-weight: 600; color: #0f172a; cursor: ${hasProd ? 'not-allowed' : 'text'};">
                     <span class="v-item-stock-tag" style="position: absolute; right: 42px; font-size: 0.65rem; font-weight: 700; color: #059669; background: #ecfdf5; padding: 2px 6px; border-radius: 6px; border: 1px solid #a7f3d0; ${stockQty !== null ? '' : 'display:none;'}">Estoque: ${stockQty !== null ? stockQty : 0} ${stockUnit}</span>
-                    <button type="button" class="btn-scan-item-row" onclick="openBarcodeScanner('${rowId}')" title="Bipar código de barras com a câmera" style="position: absolute; right: 6px; width: 30px; height: 28px; background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
+                    <button type="button" class="btn-clear-prod-row" onclick="clearVendaCardProduct(this)" title="Remover produto vinculado para escolher outro" style="position: absolute; right: 6px; width: 30px; height: 28px; background: #fee2e2; border: 1px solid #fecaca; color: #ef4444; border-radius: 6px; display: ${hasProd ? 'flex' : 'none'}; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
+                        <i data-lucide="x" style="width: 15px; height: 15px;"></i>
+                    </button>
+                    <button type="button" class="btn-scan-item-row" onclick="openBarcodeScanner('${rowId}')" title="Bipar código de barras com a câmera" style="position: absolute; right: 6px; width: 30px; height: 28px; background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; border-radius: 6px; display: ${hasProd ? 'none' : 'flex'}; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
                         <i data-lucide="scan-barcode" style="width: 16px; height: 16px;"></i>
                     </button>
+                </div>
+                <div class="v-item-app-badge" style="font-size: 0.72rem; font-weight: 700; color: #059669; margin-top: 4px; display: ${appText ? 'flex' : 'none'}; align-items: center; gap: 4px; padding-left: 2px;">
+                    <i data-lucide="truck" style="width: 12px; height: 12px; flex-shrink: 0;"></i>
+                    <span class="v-item-app-text">APLICAÇÃO: ${appText}</span>
                 </div>
                 <input type="hidden" class="v-item-prod-id" value="${data.produto_id || ''}">
                 <input type="hidden" class="v-item-prod-nome" value="${data.nome || (selectedProd ? selectedProd.nome : '')}">
@@ -3602,45 +3680,134 @@ function handleCardMaintGarantiaChange(selectEl) {
 }
 window.handleCardMaintGarantiaChange = handleCardMaintGarantiaChange;
 
-// Autocomplete Busca de Produtos no Card
+// Navegação por teclado no Autocomplete de Produtos
+let currentVendaProdIndex = -1;
+
+function handleVendaProdKeydown(e, inputEl) {
+    if (inputEl.readOnly) return;
+    const wrapper = inputEl.closest('.autocomplete-wrapper');
+    if (!wrapper) return;
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
+    if (!resultsDiv || resultsDiv.style.display === 'none') return;
+
+    const items = resultsDiv.querySelectorAll('.autocomplete-item');
+    if (items.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        currentVendaProdIndex++;
+        if (currentVendaProdIndex >= items.length) currentVendaProdIndex = 0;
+        updateVendaProdHighlight(items);
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        currentVendaProdIndex--;
+        if (currentVendaProdIndex < 0) currentVendaProdIndex = items.length - 1;
+        updateVendaProdHighlight(items);
+    } else if (e.key === 'Enter' || ((e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space') && currentVendaProdIndex >= 0)) {
+        if (currentVendaProdIndex >= 0 && items[currentVendaProdIndex]) {
+            e.preventDefault();
+            items[currentVendaProdIndex].click();
+            currentVendaProdIndex = -1;
+        }
+    } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        resultsDiv.style.display = 'none';
+        currentVendaProdIndex = -1;
+    }
+}
+window.handleVendaProdKeydown = handleVendaProdKeydown;
+
+function updateVendaProdHighlight(items) {
+    items.forEach((item, idx) => {
+        if (idx === currentVendaProdIndex) {
+            item.classList.add('selected');
+            item.style.background = '#f0fdf4';
+            item.style.color = '#059669';
+            item.scrollIntoView({ block: 'nearest' });
+        } else {
+            item.classList.remove('selected');
+            item.style.background = '';
+            item.style.color = '';
+        }
+    });
+}
+
+// Autocomplete Busca de Produtos no Card (Busca Abrangente Tokenizada com Aplicação)
 function handleVendaProdSearch(inputEl) {
+    if (inputEl.readOnly) return;
+    currentVendaProdIndex = -1;
     const wrapper = inputEl.closest('.autocomplete-wrapper');
     const resultsDiv = wrapper.querySelector('.autocomplete-results');
-    const query = (inputEl.value || '').toLowerCase().trim();
+    const rawQuery = (inputEl.value || '').trim();
 
     const activeItems = (inventoryData || []).filter(item => item.status !== 'INATIVO');
 
-    const filtered = query.length === 0
-        ? activeItems.slice(0, 30)
-        : activeItems.filter(item => 
-            (item.nome && item.nome.toLowerCase().includes(query)) || 
-            (item.ref && item.ref.toLowerCase().includes(query)) ||
-            (item.marca && item.marca.toLowerCase().includes(query)) ||
-            (item.codigo_barras && item.codigo_barras.toLowerCase().includes(query)) ||
-            (item.codigo_interno && item.codigo_interno.toLowerCase().includes(query))
-        ).slice(0, 25);
+    const cleanStr = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    const cleanQuery = cleanStr(rawQuery);
+    const tokens = cleanQuery.split(/\s+/).filter(Boolean);
+
+    let filtered = [];
+    if (tokens.length === 0) {
+        filtered = activeItems.slice(0, 30);
+    } else {
+        filtered = activeItems.filter(item => {
+            const ref = cleanStr(item.ref);
+            const codBarras = cleanStr(item.codigo_barras);
+            const codInterno = cleanStr(item.codigo_interno);
+
+            // Match exato rápido por código de barras / ref / código interno
+            if (codBarras === cleanQuery || codInterno === cleanQuery || ref === cleanQuery) {
+                return true;
+            }
+
+            // Busca abrangente multi-termo (nome, marca, aplicacao, categoria, ref, codigos, descricao)
+            const haystack = [
+                item.nome,
+                item.marca,
+                item.aplicacao,
+                item.categoria,
+                item.ref,
+                item.codigo_barras,
+                item.codigo_interno,
+                item.descricao
+            ].map(cleanStr).join(' ');
+
+            return tokens.every(tok => haystack.includes(tok));
+        }).slice(0, 35);
+    }
 
     if (filtered.length === 0) {
-        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color: #64748b;">Nenhum produto ativo encontrado</div>';
+        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color: #64748b; font-size: 0.8rem; padding: 0.8rem;">Nenhum produto ativo encontrado</div>';
     } else {
         resultsDiv.innerHTML = filtered.map(item => `
-            <div class="autocomplete-item" onclick="selectVendaCardProduct('${item.id}', '${item.nome.replace(/'/g, "\\'")}', '${(item.marca || '').replace(/'/g, "\\'")}', ${parseFloat(item.valor_venda || 0)}, ${parseFloat(item.estoque_atual || 0)}, '${item.unidade || 'UN'}', ${parseFloat(item.valor_custo || 0)}, this)">
-                <div>
-                    <div style="font-weight: 700; color: #0f172a;">${item.nome} ${item.marca ? `(${item.marca})` : ''}</div>
-                    <div style="font-size: 0.7rem; color: #64748b;">Ref: ${item.ref || 'S/R'} | Cód: ${item.codigo_interno || item.codigo_barras || '--'}</div>
+            <div class="autocomplete-item" onclick="selectVendaCardProduct('${item.id}', '${(item.nome || '').replace(/'/g, "\\'")}', '${(item.marca || '').replace(/'/g, "\\'")}', ${parseFloat(item.valor_venda || 0)}, ${parseFloat(item.estoque_atual || 0)}, '${item.unidade || 'UN'}', ${parseFloat(item.valor_custo || 0)}, '${(item.aplicacao || '').replace(/'/g, "\\'")}', this)">
+                <div style="flex: 1; min-width: 0; padding-right: 0.75rem;">
+                    <div style="font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.nome} ${item.marca ? `(${item.marca})` : ''}</div>
+                    <div style="font-size: 0.7rem; color: #64748b; margin-top: 1px;">Ref: ${item.ref || 'S/R'} | Cód: ${item.codigo_interno || item.codigo_barras || '--'}</div>
+                    <div style="font-size: 0.72rem; color: #059669; font-weight: 700; margin-top: 2px; display: flex; align-items: center; gap: 4px;">
+                        <i data-lucide="truck" style="width: 12px; height: 12px; flex-shrink: 0;"></i>
+                        <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">APLICAÇÃO: ${item.aplicacao || 'UNIVERSAL / MULTIVEÍCULOS'}</span>
+                    </div>
                 </div>
-                <div style="text-align: right;">
-                    <div style="font-weight: 800; color: #059669;">R$ ${parseFloat(item.valor_venda || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
-                    <div style="font-size: 0.7rem; color: #475569;">Saldo: <b>${item.estoque_atual} ${item.unidade || 'UN'}</b></div>
+                <div style="text-align: right; flex-shrink: 0;">
+                    <div style="font-weight: 800; color: #059669; font-size: 0.85rem;">R$ ${parseFloat(item.valor_venda || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+                    <div style="font-size: 0.7rem; color: #475569; margin-top: 1px;">Saldo: <b>${item.estoque_atual} ${item.unidade || 'UN'}</b></div>
                 </div>
             </div>
         `).join('');
     }
     resultsDiv.style.display = 'block';
+    if (window.lucide) lucide.createIcons();
 }
 window.handleVendaProdSearch = handleVendaProdSearch;
 
-function selectVendaCardProduct(id, nome, marca, valVenda, estoqueAtual, unidade, valorCusto, itemEl) {
+function selectVendaCardProduct(id, nome, marca, valVenda, estoqueAtual, unidade, valorCusto, aplicacao, itemEl) {
+    // Compatibilidade caso chamada com 8 argumentos onde o 8º é o elemento card
+    if (aplicacao && (aplicacao.nodeType || aplicacao.classList || typeof aplicacao !== 'string')) {
+        itemEl = aplicacao;
+        aplicacao = '';
+    }
     if (!itemEl) return;
     const card = itemEl.classList?.contains('v-item-card') ? itemEl : (itemEl.closest ? itemEl.closest('.v-item-card') : null);
     if (!card) return;
@@ -3653,8 +3820,14 @@ function selectVendaCardProduct(id, nome, marca, valVenda, estoqueAtual, unidade
     const stockTag = card.querySelector('.v-item-stock-tag');
     const unitInput = card.querySelector('.v-item-unit');
     const resultsDiv = card.querySelector('.autocomplete-results');
+    const appBadge = card.querySelector('.v-item-app-badge');
+    const appTextEl = card.querySelector('.v-item-app-text');
 
     searchInput.value = `${nome} ${marca ? `(${marca})` : ''}`.trim();
+    searchInput.readOnly = true;
+    searchInput.style.background = '#f1f5f9';
+    searchInput.style.cursor = 'not-allowed';
+
     hiddenId.value = id;
     hiddenNome.value = nome;
     hiddenUnidade.value = unidade;
@@ -3663,6 +3836,21 @@ function selectVendaCardProduct(id, nome, marca, valVenda, estoqueAtual, unidade
     if (stockTag) {
         stockTag.innerText = `Estoque: ${estoqueAtual} ${unidade}`;
         stockTag.style.display = 'block';
+    }
+
+    // Alterna botões: mostra botão de limpar (X) e oculta scanner
+    const clearBtn = card.querySelector('.btn-clear-prod-row');
+    const scanBtn = card.querySelector('.btn-scan-item-row');
+    if (clearBtn) clearBtn.style.display = 'flex';
+    if (scanBtn) scanBtn.style.display = 'none';
+
+    if (appBadge && appTextEl) {
+        if (aplicacao && aplicacao.trim()) {
+            appTextEl.innerText = `APLICAÇÃO: ${aplicacao.trim()}`;
+            appBadge.style.display = 'flex';
+        } else {
+            appBadge.style.display = 'none';
+        }
     }
 
     if (unitInput) {
@@ -3675,8 +3863,65 @@ function selectVendaCardProduct(id, nome, marca, valVenda, estoqueAtual, unidade
     }
 
     updateVendaCardSubtotal(unitInput);
+
+    // Foca automaticamente no campo de quantidade e seleciona o texto
+    setTimeout(() => {
+        const qtdInput = card.querySelector('.v-item-qtd');
+        if (qtdInput) {
+            qtdInput.focus();
+            qtdInput.select();
+        }
+    }, 60);
 }
 window.selectVendaCardProduct = selectVendaCardProduct;
+
+function clearVendaCardProduct(btn) {
+    const card = btn ? btn.closest('.v-item-card') : null;
+    if (!card) return;
+
+    const searchInput = card.querySelector('.v-item-prod-search');
+    const hiddenId = card.querySelector('.v-item-prod-id');
+    const hiddenNome = card.querySelector('.v-item-prod-nome');
+    const hiddenUnidade = card.querySelector('.v-item-prod-unidade');
+    const hiddenCusto = card.querySelector('.v-item-prod-custo');
+    const stockTag = card.querySelector('.v-item-stock-tag');
+    const unitInput = card.querySelector('.v-item-unit');
+    const appBadge = card.querySelector('.v-item-app-badge');
+    const clearBtn = card.querySelector('.btn-clear-prod-row');
+    const scanBtn = card.querySelector('.btn-scan-item-row');
+    const resultsDiv = card.querySelector('.autocomplete-results');
+
+    if (hiddenId) hiddenId.value = '';
+    if (hiddenNome) hiddenNome.value = '';
+    if (hiddenUnidade) hiddenUnidade.value = 'UN';
+    if (hiddenCusto) hiddenCusto.value = '0';
+
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.readOnly = false;
+        searchInput.style.background = '#f8fafc';
+        searchInput.style.cursor = 'text';
+    }
+
+    if (stockTag) stockTag.style.display = 'none';
+    if (appBadge) appBadge.style.display = 'none';
+    if (unitInput) unitInput.value = '';
+
+    if (clearBtn) clearBtn.style.display = 'none';
+    if (scanBtn) scanBtn.style.display = 'flex';
+
+    if (resultsDiv) {
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+    }
+
+    updateVendaCardSubtotal(unitInput);
+
+    if (searchInput) {
+        searchInput.focus();
+    }
+}
+window.clearVendaCardProduct = clearVendaCardProduct;
 
 // =========================================================================
 // SCANNER DE CÓDIGO DE BARRAS VIA CÂMERA (HTML5-QRCODE + HAPTIC & AUDIO)
@@ -3975,6 +4220,7 @@ function applyScannedBarcode(code, item) {
             parseFloat(item.estoque_atual || 0),
             item.unidade || 'UN',
             parseFloat(item.valor_custo || 0),
+            item.aplicacao || '',
             card
         );
 

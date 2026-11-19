@@ -1174,6 +1174,63 @@
             background: rgba(255, 255, 255, 0.25);
             color: #ffffff;
         }
+
+        /* Estilo do Botão de Filtro de Alertas da Frota */
+        .filter-chip.filter-alertas {
+            background: rgba(239, 68, 68, 0.08);
+            color: #ef4444;
+            border-color: rgba(239, 68, 68, 0.28);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-weight: 800;
+            transition: all 0.2s ease;
+        }
+        .filter-chip.filter-alertas .filter-count {
+            background: rgba(239, 68, 68, 0.16);
+            color: #ef4444;
+            font-weight: 800;
+        }
+        .filter-chip.filter-alertas:hover {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.45);
+            color: #dc2626;
+            transform: translateY(-1px);
+        }
+        .filter-chip.filter-alertas.active {
+            background: #ef4444 !important;
+            color: #ffffff !important;
+            border-color: #dc2626 !important;
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.35) !important;
+        }
+        .filter-chip.filter-alertas.active .filter-count {
+            background: rgba(255, 255, 255, 0.3) !important;
+            color: #ffffff !important;
+        }
+        [data-theme="green_pastel"] .filter-chip.filter-alertas {
+            background: #fff1f2;
+            color: #e11d48;
+            border-color: #fecdd3;
+        }
+        [data-theme="green_pastel"] .filter-chip.filter-alertas .filter-count {
+            background: #ffe4e6;
+            color: #be123c;
+        }
+        [data-theme="green_pastel"] .filter-chip.filter-alertas:hover {
+            background: #ffe4e6;
+            border-color: #fda4af;
+            color: #be123c;
+        }
+        [data-theme="green_pastel"] .filter-chip.filter-alertas.active {
+            background: #e11d48 !important;
+            color: #ffffff !important;
+            border-color: #be123c !important;
+            box-shadow: 0 2px 8px rgba(225, 29, 72, 0.3) !important;
+        }
+        [data-theme="green_pastel"] .filter-chip.filter-alertas.active .filter-count {
+            background: rgba(255, 255, 255, 0.3) !important;
+            color: #ffffff !important;
+        }
     </style>
 </head>
 
@@ -1367,6 +1424,15 @@
                                 id="count-veh-status-TODOS">0</span>
                         </button>
                     </div>
+
+                    <div style="width: 1px; height: 26px; background: rgba(0,0,0,0.12);" class="status-filter-separator"></div>
+
+                    <!-- Filtro de Alertas da Frota (Seguro a Vencer / Vencido) -->
+                    <button type="button" id="filter-veh-alertas" class="filter-chip filter-alertas"
+                        onclick="toggleVehicleAlertsFilter()" title="Exibir apenas veículos com alertas (seguro a vencer ou vencido)">
+                        <i data-lucide="bell" style="width: 13px; height: 13px;"></i> ALERTAS <span class="filter-count"
+                            id="count-veh-alertas">0</span>
+                    </button>
 
                     <div style="width: 1px; height: 26px; background: rgba(0,0,0,0.12);" class="status-filter-separator"></div>
 
@@ -2284,7 +2350,7 @@
         </button>
     </nav>
 
-    <script src="app.js?v=20261109_mobile_noti_fix"></script>
+    <script src="app.js?v=20261116_col_acoes_fixa"></script>
     <script src="orb_menu.js"></script>
 </body>
 

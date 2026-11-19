@@ -1186,17 +1186,17 @@ function renderGenericTab(tab) {
     if (tab === 'fornecedores') { 
         data = config.fornecedores; 
         title = "Fornecedor"; 
-        extraCol = "<th>Documento</th><th>Plano de Contas</th><th>Cidade</th>";
+        extraCol = "<th style=\"width:130px;\">Documento</th><th style=\"width:150px;\">Plano de Contas</th><th style=\"width:120px;\">Cidade</th>";
     }
     else if (tab === 'custo') { 
         data = config.centrosCusto; 
         title = "Centro de Custo"; 
-        extraCol = "<th>Código</th>";
+        extraCol = "<th style=\"width:90px;\">Código</th>";
     }
     else if (tab === 'pagamento') { data = config.tiposPgto; title = "Forma de Pagamento"; }
     else if (tab === 'especie') { data = config.especiesNota || []; title = "Espécie de Nota"; }
 
-    thead.innerHTML = `<tr><th>ID</th><th>Nome / Descrição</th>${extraCol}<th style="text-align:right">Ações</th></tr>`;
+    thead.innerHTML = `<tr><th style="width:65px;">ID</th><th>Nome / Descrição</th>${extraCol}<th style="width:75px; text-align:right;">Ações</th></tr>`;
 
     const search = document.getElementById('genericSearch').value.toLowerCase();
     const filtered = data.filter(d => (d.nome || '').toLowerCase().includes(search));
@@ -1205,26 +1205,26 @@ function renderGenericTab(tab) {
     document.getElementById('btnGenericAdd').innerHTML = `<i data-lucide="plus"></i> Cadastrar ${title}`;
 
     list.innerHTML = filtered.map(d => {
-        let cells = `<td data-label="ID">#${d.id}</td><td data-label="Nome / Descrição" style="font-weight:700;">${(d.parentId ? '<span style="color:var(--text-muted); font-size:0.8rem; margin-right:0.3rem;">↳</span>' : '') + d.nome}</td>`;
+        let cells = `<td data-label="ID" style="white-space:nowrap;"><span style="font-family:'JetBrains Mono'; font-weight:700; font-size:0.72rem; color:var(--text-muted);">#${d.id}</span></td><td data-label="Nome / Descrição" style="font-weight:700; font-size:0.74rem;">${(d.parentId ? '<span style="color:var(--text-muted); font-size:0.75rem; margin-right:0.3rem;">↳</span>' : '') + d.nome}</td>`;
         if (tab === 'fornecedores') {
-            let planoLabel = '<span style="color:var(--text-muted); font-size:0.75rem;">Sem vínculo</span>';
+            let planoLabel = '<span style="color:var(--text-muted); font-size:0.70rem;">Sem vínculo</span>';
             if (d.plano_contas_id && config.categorias) {
                 const cat = config.categorias.find(c => c.id === d.plano_contas_id);
                 if (cat) {
-                    planoLabel = `<span style="background:rgba(5, 150, 105, 0.12); color:#059669; border:1px solid rgba(5, 150, 105, 0.25); padding:2px 8px; border-radius:6px; font-weight:700; font-size:0.75rem;">${(cat.codigo ? `${cat.codigo} - ` : '') + cat.nome}</span>`;
+                    planoLabel = `<span style="background:rgba(5, 150, 105, 0.12); color:#059669; border:1px solid rgba(5, 150, 105, 0.25); padding:1px 6px; border-radius:4px; font-weight:700; font-size:0.68rem;">${(cat.codigo ? `${cat.codigo} - ` : '') + cat.nome}</span>`;
                 }
             }
-            cells += `<td data-label="Documento">${d.cnpj_cpf || d.doc || '-'}</td><td data-label="Plano de Contas">${planoLabel}</td><td data-label="Cidade">${d.cidade || '-'}</td>`;
+            cells += `<td data-label="Documento" style="font-size:0.72rem; white-space:nowrap;">${d.cnpj_cpf || d.doc || '-'}</td><td data-label="Plano de Contas">${planoLabel}</td><td data-label="Cidade" style="font-size:0.72rem;">${d.cidade || '-'}</td>`;
         } else if (tab === 'custo') {
-            cells += `<td data-label="Código"><span class="cod-badge">${d.cod || '-'}</span></td>`;
+            cells += `<td data-label="Código" style="white-space:nowrap;"><span class="cod-badge" style="font-size:0.68rem; padding:1px 6px;">${d.cod || '-'}</span></td>`;
         }
         return `
             <tr>
                 ${cells}
-                <td data-label="Ações">
-                    <div class="table-actions" style="display:flex; gap:0.5rem; justify-content: flex-end;">
-                        <button class="btn-edit" onclick="editGeneric('${tab}', '${d.id}', '${d.nome}')" data-perm="compras_cadastros:edit" style="background:none; border:none; color:var(--text-muted); cursor:pointer;"><i data-lucide="edit-2" style="width:14px;"></i></button>
-                        <button class="btn-delete" onclick="deleteGeneric('${tab}', '${d.id}')" data-perm="compras_cadastros:delete" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="trash-2" style="width:14px;"></i></button>
+                <td data-label="Ações" style="text-align:right; white-space:nowrap;">
+                    <div class="table-actions" style="display:flex; gap:0.35rem; justify-content: flex-end;">
+                        <button class="action-btn-mini" onclick="editGeneric('${tab}', '${d.id}', '${d.nome}')" data-perm="compras_cadastros:edit" title="Editar" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--text-muted); border-radius:6px; cursor:pointer; width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center;"><i data-lucide="edit-2" style="width:12px; height:12px;"></i></button>
+                        <button class="action-btn-mini" onclick="deleteGeneric('${tab}', '${d.id}')" data-perm="compras_cadastros:delete" title="Excluir" style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); color:#ef4444; border-radius:6px; cursor:pointer; width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center;"><i data-lucide="trash-2" style="width:12px; height:12px;"></i></button>
                     </div>
                 </td>
             </tr>`;
@@ -1700,7 +1700,7 @@ window.openViewModal = async (id) => {
             linkInfo = `<span class="placa-badge" style="font-size:0.65rem; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 6px; border-radius:4px; font-weight:700;">👤 ${it.pessoa || it.vinculo_pessoa}</span>`;
         }
 
-        const isStockLinked = (it.estoque === true || it.estoque === 'true') && it.produtoId;
+        const isStockLinked = (it.estoque === true || it.estoque === 'true') && (it.produtoId || it.produto_id);
         const stockAction = isStockLinked ? `
             <span style="color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;">📦 ESTOQUE</span>
             <button type="button" class="btn-subst-view" onclick="openSubstituirProdutoModal('${c.id}', ${idx})" style="padding: 2px 8px; border-radius: 4px; border: 1px solid #93c5fd; background: #ffffff; color: #1d4ed8; font-size: 0.7rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; transition: all 0.2s;" title="Substituir produto vinculado no estoque"><i data-lucide="refresh-cw" style="width:11px; height:11px;"></i> Substituir Produto</button>
@@ -2256,7 +2256,7 @@ function addItemRow(data = {}, shouldFocus = true, itemIndex = null) {
                 <div class="servico-input-group autocomplete-wrapper" style="flex:1; display:${data.tipo === 'servico' ? 'block' : 'none'}; position:relative;">
                     <input type="text" class="item-servico-desc compra-input" placeholder="Descrição do serviço ou despesa..." style="width:100%" value="${data.produto || ''}" data-servico-id="${data.servicoId || data.servico_id || ''}" autocomplete="off" oninput="handleServicoDescSearch(this); window.checkSimilarRecentItem(this.closest('.item-row'))" onfocus="handleServicoDescSearch(this)" onkeydown="handleAutocompleteKeydown(event, this)">
                     <input type="hidden" class="item-servico-id" value="${data.servicoId || data.servico_id || ''}">
-                    <div class="autocomplete-results" style="position:absolute; top:100%; left:0; right:0; z-index:500; display:none;"></div>
+                    <div class="autocomplete-results"></div>
                 </div>
                 
                 <div class="product-actions-group" style="display:${data.tipo === 'servico' ? 'none' : 'flex'}; gap:0.3rem;">
@@ -2285,7 +2285,7 @@ function addItemRow(data = {}, shouldFocus = true, itemIndex = null) {
             </div>
             <div class="input-group" style="flex:1; min-width:180px;">
                 <div class="input-with-btn">
-                    <select class="item-cc compra-input" style="font-size:0.75rem; height:36px; width:100%;">
+                    <select class="item-cc compra-input" onchange="handleItemCcChange(this)" style="font-size:0.75rem; height:36px; width:100%;">
                         <option value="">Centro de Custo...</option>
                         ${config.centrosCusto.filter(cc => !!cc.parentId).sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR')).map(cc => `<option value="${cc.id}" ${data.centroCustoId === cc.id ? 'selected' : ''}>${cc.nome}</option>`).join('')}
                     </select>
@@ -2397,31 +2397,59 @@ function addItemRow(data = {}, shouldFocus = true, itemIndex = null) {
     }
 }
 
-window.toggleRowStock = (el) => {
-    el.classList.toggle('active');
+window.toggleRowStock = (el, forceState) => {
+    if (!el) return;
+    if (typeof forceState === 'boolean') {
+        if (forceState) el.classList.add('active');
+        else el.classList.remove('active');
+    } else {
+        el.classList.toggle('active');
+    }
     const isStock = el.classList.contains('active');
-    el.nextElementSibling.innerText = isStock ? 'SIM' : 'NÃO';
+    if (el.nextElementSibling) {
+        el.nextElementSibling.innerText = isStock ? 'SIM' : 'NÃO';
+    }
     const row = el.closest('.item-row');
+    if (!row) return;
     
     const vin = row.querySelector('.item-vinculo-section');
     const ven = row.querySelector('.item-venda-section');
     const line3 = row.querySelector('.item-line-3');
 
     if (isStock) {
-        vin.style.display = 'none';
-        ven.style.display = 'flex';
-        row.querySelector('.maint-toggle-wrapper').style.display = 'none';
-        row.querySelector('.maint-details-panel').style.display = 'none';
+        if (vin) vin.style.display = 'none';
+        if (ven) ven.style.display = 'flex';
+        const mWrap = row.querySelector('.maint-toggle-wrapper');
+        if (mWrap) mWrap.style.display = 'none';
+        const mPan = row.querySelector('.maint-details-panel');
+        if (mPan) mPan.style.display = 'none';
         if (line3) line3.style.display = 'none';
     } else {
-        vin.style.display = 'flex';
-        ven.style.display = 'none';
-        row.querySelector('.maint-toggle-wrapper').style.display = 'flex';
-        if (row.querySelector('.maint-control-toggle').classList.contains('active')) {
-            row.querySelector('.maint-details-panel').style.display = 'grid';
+        if (vin) vin.style.display = 'flex';
+        if (ven) ven.style.display = 'none';
+        const mWrap = row.querySelector('.maint-toggle-wrapper');
+        if (mWrap) mWrap.style.display = 'flex';
+        const mCtrl = row.querySelector('.maint-control-toggle');
+        const mPan = row.querySelector('.maint-details-panel');
+        if (mCtrl && mCtrl.classList.contains('active') && mPan) {
+            mPan.style.display = 'grid';
         }
         if (line3) line3.style.display = 'grid';
-        window.updateVinculoDisplay(row);
+        if (window.updateVinculoDisplay) window.updateVinculoDisplay(row);
+    }
+};
+
+window.handleItemCcChange = (selectEl) => {
+    if (!selectEl) return;
+    const selectedText = selectEl.options[selectEl.selectedIndex]?.text || '';
+    if (selectedText.toUpperCase().includes('ESTOQUE')) {
+        const row = selectEl.closest('.item-row');
+        if (row) {
+            const stockToggle = row.querySelector('.stock-toggle');
+            if (stockToggle && !stockToggle.classList.contains('active')) {
+                window.toggleRowStock(stockToggle, true);
+            }
+        }
     }
 };
 
@@ -2556,9 +2584,13 @@ let currentAutocompleteIndex = -1;
 // Posiciona dropdown com position:fixed, quebrando overflow do modal
 function positionDropdown(inputEl, resultsDiv) {
     const rect = inputEl.getBoundingClientRect();
-    resultsDiv.style.top    = (rect.bottom + 4) + 'px';
-    resultsDiv.style.left   = rect.left + 'px';
-    resultsDiv.style.width  = rect.width + 'px';
+    resultsDiv.style.position = 'fixed';
+    resultsDiv.style.top      = (rect.bottom + 4) + 'px';
+    resultsDiv.style.left     = rect.left + 'px';
+    resultsDiv.style.width    = rect.width + 'px';
+    resultsDiv.style.zIndex   = '99999';
+    resultsDiv.style.maxHeight = '250px';
+    resultsDiv.style.overflowY = 'auto';
 }
 
 window.handleAutocompleteKeydown = (e, inputEl) => {
@@ -2578,10 +2610,13 @@ window.handleAutocompleteKeydown = (e, inputEl) => {
         currentAutocompleteIndex--;
         if (currentAutocompleteIndex < 0) currentAutocompleteIndex = items.length - 1;
         updateAutocompleteHighlight(items);
-    } else if (e.key === 'Enter' || (e.key === ' ' && currentAutocompleteIndex >= 0)) {
+    } else if (e.key === 'Enter' || ((e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space') && currentAutocompleteIndex >= 0)) {
         if (currentAutocompleteIndex >= 0) {
             e.preventDefault();
-            items[currentAutocompleteIndex].click();
+            const target = items[currentAutocompleteIndex];
+            if (target) {
+                target.click();
+            }
             currentAutocompleteIndex = -1;
         }
     } else if (e.key === 'Escape') {
@@ -2859,44 +2894,77 @@ window.selectCategoria = (id, label, itemEl) => {
     }
 };
 
+window.selectServico = (id, descricao, itemEl) => {
+    const wrapper = itemEl.closest('.autocomplete-wrapper');
+    if (!wrapper) return;
+    const descInput = wrapper.querySelector('.item-servico-desc');
+    const idInput = wrapper.querySelector('.item-servico-id');
+    const resultsDiv = wrapper.querySelector('.autocomplete-results');
+
+    if (descInput) {
+        descInput.value = descricao;
+        descInput.setAttribute('data-servico-id', id);
+    }
+    if (idInput) idInput.value = id;
+    if (resultsDiv) {
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+    }
+
+    const row = itemEl.closest('.item-row');
+    if (row && typeof window.checkSimilarRecentItem === 'function') {
+        window.checkSimilarRecentItem(row);
+    }
+};
+
 window.handleServicoDescSearch = (el) => {
+    currentAutocompleteIndex = -1;
     const query = (el.value || '').toLowerCase().trim();
     const resultsDiv = el.parentElement ? el.parentElement.querySelector('.autocomplete-results') : null;
     if (!resultsDiv) return;
 
-    if (query.length < 2) {
+    if (query.length < 1) {
         resultsDiv.innerHTML = '';
         resultsDiv.style.display = 'none';
         return;
     }
 
+    if (!window.manutencaoServicos || window.manutencaoServicos.length === 0) {
+        if (supabaseClient) {
+            supabaseClient.from('manutencao_servicos').select('id, descricao').order('descricao')
+                .then(({ data: sv }) => {
+                    if (sv && sv.length > 0) {
+                        window.manutencaoServicos = sv;
+                        handleServicoDescSearch(el);
+                    }
+                });
+        }
+    }
+
     const matches = (window.manutencaoServicos || [])
-        .filter(s => s.descricao.toLowerCase().includes(query))
+        .filter(s => s.descricao && s.descricao.toLowerCase().includes(query))
         .slice(0, 10);
 
     if (matches.length === 0) {
-        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted); font-size:0.75rem;">Nenhum serviço encontrado...</div>';
+        positionDropdown(el, resultsDiv);
+        resultsDiv.style.display = 'block';
         return;
     }
 
-    resultsDiv.innerHTML = matches.map(s => `
+    resultsDiv.innerHTML = matches.map(s => {
+        const safeDesc = s.descricao.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        return `
         <div class="autocomplete-item"
              style="padding: 0.6rem 0.8rem; cursor: pointer; background: var(--bg-card, #1e293b); border-bottom: 1px solid rgba(255,255,255,0.05);"
              data-servico-id="${s.id}"
-             onmousedown="event.preventDefault();
-                 const wrapper = this.closest('.autocomplete-wrapper');
-                 const descInput = wrapper.querySelector('.item-servico-desc');
-                 const idInput = wrapper.querySelector('.item-servico-id');
-                 if (descInput) {
-                     descInput.value = '${s.descricao.replace(/'/g, "\\'").replace(/"/g, '&quot;')}';
-                     descInput.setAttribute('data-servico-id', '${s.id}');
-                 }
-                 if (idInput) idInput.value = '${s.id}';
-                 this.closest('.autocomplete-results').style.display='none';
-                 window.checkSimilarRecentItem(this.closest('.item-row'));">
+             onclick="selectServico('${s.id}', '${safeDesc}', this)"
+             onmousedown="event.preventDefault(); selectServico('${s.id}', '${safeDesc}', this);">
             <span style="font-size:0.85rem; font-weight:600;">${s.descricao}</span>
         </div>
-    `).join('');
+        `;
+    }).join('');
+    positionDropdown(el, resultsDiv);
     resultsDiv.style.display = 'block';
 };
 
@@ -2948,7 +3016,28 @@ window.selectProduct = (id, nome, marca, itemEl) => {
     resultsDiv.innerHTML = '';
 
     const row = itemEl.closest('.item-row');
-    if (row) window.checkSimilarRecentItem(row);
+    if (row) {
+        // Se a linha não tem placa de veículo nem pessoa vinculada, ativa automaticamente o modo Estoque (SIM)
+        const vehInput = row.querySelector('.item-veiculo');
+        const pessoaInput = row.querySelector('.item-pessoa');
+        const hasVehicleOrPerson = (vehInput && vehInput.value) || (pessoaInput && pessoaInput.value.trim());
+        const stockToggle = row.querySelector('.stock-toggle');
+
+        if (!hasVehicleOrPerson && stockToggle && !stockToggle.classList.contains('active')) {
+            window.toggleRowStock(stockToggle, true);
+        }
+
+        // Se o produto tiver valor_venda no catálogo, preenche o campo de valor venda se estiver vazio
+        const prodObj = (config.produtos || []).find(p => p.id === id);
+        if (prodObj && prodObj.valor_venda) {
+            const vendaInput = row.querySelector('.item-venda');
+            if (vendaInput && (!vendaInput.value || parseFloat(vendaInput.value) === 0)) {
+                vendaInput.value = prodObj.valor_venda;
+            }
+        }
+
+        window.checkSimilarRecentItem(row);
+    }
 };
 
 // Close autocomplete when clicking outside
@@ -3344,6 +3433,22 @@ async function handleSaveCompra(e) {
             return;
         }
     }
+
+    if (window.isSavingCompra) {
+        console.warn("⚠️ Processo de salvamento já em andamento. Aguarde a conclusão.");
+        return;
+    }
+    window.isSavingCompra = true;
+
+    const submitBtn = document.querySelector('#compraForm button[type="submit"]') || document.getElementById('btnSalvarCompra');
+    const originalBtnText = submitBtn ? submitBtn.innerText : '';
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.6';
+        submitBtn.style.pointerEvents = 'none';
+        submitBtn.innerText = 'SALVANDO...';
+    }
+
     console.log("🚀 CLIQUE NO BOTÃO SALVAR DETECTADO! Modo:", isEditing ? `EDIÇÃO (${formEditId})` : "NOVA COMPRA");
     const client = window.authClient || supabaseClient;
     
@@ -3437,6 +3542,19 @@ async function handleSaveCompra(e) {
 
             if (itemsValid) {
                 const stockT = r.querySelector('.stock-toggle');
+                const isToggleActive = stockT ? stockT.classList.contains('active') : false;
+                const hasVeh = !!(r.querySelector('.item-veiculo')?.value);
+                const hasPessoa = !!(r.querySelector('.item-pessoa')?.value?.trim());
+                const ccSelect = r.querySelector('.item-cc');
+                const ccText = ccSelect ? (ccSelect.options[ccSelect.selectedIndex]?.text || '') : '';
+                const catSearchVal = document.getElementById('categoriaSearch')?.value || '';
+                const isEstoqueContext = ccText.toUpperCase().includes('ESTOQUE') || catSearchVal.toUpperCase().includes('ESTOQUE');
+                const isEstoqueCalculated = isServico ? false : (
+                    (isToggleActive && !!prodId) ||
+                    (!!prodId && isEstoqueContext) ||
+                    (!!prodId && !hasVeh && !hasPessoa)
+                );
+
                 items.push({
                     tipo: isServico ? 'servico' : 'peca',
                     produtoId: prodId,
@@ -3445,7 +3563,7 @@ async function handleSaveCompra(e) {
                     quantidade: qtd,
                     valorUnitario: unit,
                     valorVenda: isServico ? 0 : parseBr(r.querySelector('.item-venda').value),
-                    estoque: isServico ? false : (stockT ? (stockT.classList.contains('active') && !!prodId) : false),
+                    estoque: isEstoqueCalculated,
                     pessoa: r.querySelector('.item-pessoa')?.value || '',
                     veiculoId: r.querySelector('.item-veiculo')?.value || '',
                     centroCustoId, // New: item-level CC
@@ -3952,9 +4070,10 @@ async function handleSaveCompra(e) {
                 ? maintRecords.filter((_, idx) => idx >= oldExistingItems.length)
                 : maintRecords;
 
+            const newlyCreatedMaintIds = [];
+
             if (targetMaintRecords.length > 0) {
                 console.log(`🛠️ Criando registros de manutenção (${targetMaintRecords.length} registro(s))...`);
-                const newlyCreatedMaintIds = [];
                 for (const m of targetMaintRecords) {
                     try {
                         const isUuid = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -3972,6 +4091,22 @@ async function handleSaveCompra(e) {
                         const typeObj = maintTypes.find(t => t.id == m.tipo_id);
                         const typeDesc = typeObj ? typeObj.descricao.toUpperCase() : 'CORRETIVA';
 
+                        // Previne duplicidade se este item desta mesma compra já foi registrado
+                        const purchaseTag = `[ID:${compraData.id}]`;
+                        const { data: existingSameItem } = await client
+                            .from('manutencao_itens')
+                            .select('id, manutencao_id, manutencoes!inner(veiculo_id)')
+                            .ilike('descricao', `%${purchaseTag}%`)
+                            .ilike('descricao', `%${m.descricao.trim()}%`)
+                            .eq('manutencoes.veiculo_id', m.veiculo_id)
+                            .limit(1);
+
+                        if (existingSameItem && existingSameItem.length > 0) {
+                            console.log(`⚠️ Item de manutenção já registrado para esta compra (${purchaseTag} ${m.descricao}). Ignorando duplicação.`);
+                            newlyCreatedMaintIds.push(existingSameItem[0].manutencao_id);
+                            continue;
+                        }
+
                         // 1. Insert main maintenance record
                         const { data: newMaint, error: maintError } = await client.from('manutencoes').insert([{
                             veiculo_id: m.veiculo_id,
@@ -3979,7 +4114,7 @@ async function handleSaveCompra(e) {
                             tipo_id: m.tipo_id || null,
                             data: compraData.data,
                             km_atual: parseFloat(m.km_atual) || 0,
-                            status: 'PENDENTE', // Updated to PENDENTE as requested
+                            status: 'PENDENTE', // Permanece PENDENTE pois é a última troca e controla a próxima
                             empresa_id: window.currentEmpresaId || null
                         }]).select().single();
 
@@ -4089,9 +4224,9 @@ async function handleSaveCompra(e) {
                     for (const vId of Object.keys(servicesByVeh)) {
                         const grp = servicesByVeh[vId];
                         const servicoIds = grp.services.map(s => s.id).filter(Boolean);
-                        const cleanNames = grp.services.map(s => (s.descricao || '').trim().toUpperCase()).filter(Boolean);
+                        const cleanNames = grp.services.map(s => (s.descricao || '').replace(/\[ID:[^\]]+\]\s*/i, '').trim().toUpperCase()).filter(Boolean);
 
-                        const { data: maintsToClose } = await client
+                        let closeQuery = client
                             .from('manutencoes')
                             .select(`
                                 id, data, km_atual, status,
@@ -4100,21 +4235,46 @@ async function handleSaveCompra(e) {
                             .eq('veiculo_id', vId)
                             .neq('status', 'CONCLUIDO');
 
+                        if (newlyCreatedMaintIds.length > 0) {
+                            closeQuery = closeQuery.not('id', 'in', `(${newlyCreatedMaintIds.join(',')})`);
+                        }
+
+                        const { data: maintsToClose, error: closeErr } = await closeQuery;
+
+                        if (closeErr) {
+                            console.warn('[Compras -> Manutenção] Erro ao buscar OS anteriores para baixa:', closeErr);
+                            continue;
+                        }
+
                         if (maintsToClose && maintsToClose.length > 0) {
                             const idsToComplete = [];
                             maintsToClose.forEach(m => {
+                                // Trava 1: Nunca conclui os registros recém-criados
                                 if (newlyCreatedMaintIds.includes(m.id)) return;
 
-                                // Conclui apenas registros anteriores: data estritamente anterior, ou mesma data com KM estritamente superior
+                                const items = m.manutencao_itens || [];
+
+                                // Trava 2: Nunca conclui registros vinculados a esta mesma compra
+                                const isSamePurchase = items.some(it => {
+                                    const d = it.descricao || '';
+                                    return compraData.id && d.includes(`[ID:${compraData.id}]`);
+                                });
+                                if (isSamePurchase) return;
+
+                                // Trava 3: Conclui apenas registros estritamente anteriores (data anterior, ou mesma data com KM inferior)
                                 const isStrictlyOlderDate = compraData.data && m.data && m.data < compraData.data;
                                 const isSameDatePosteriorKm = compraData.data && m.data && m.data === compraData.data && grp.km && m.km_atual && parseFloat(grp.km) > parseFloat(m.km_atual);
                                 const isPosterior = isStrictlyOlderDate || isSameDatePosteriorKm;
                                 if (!isPosterior) return;
 
-                                const items = m.manutencao_itens || [];
+                                // Trava 4: Match do serviço (por servico_id ou descrição)
                                 const match = items.some(it => {
-                                    // Conclusão estrita apenas se houver servico_id vinculado compatível
-                                    return it.servico_id && servicoIds.includes(it.servico_id);
+                                    if (it.servico_id && servicoIds.includes(it.servico_id)) return true;
+                                    if (it.descricao) {
+                                        const cleanDesc = it.descricao.replace(/\[ID:[^\]]+\]\s*/i, '').trim().toUpperCase();
+                                        if (cleanNames.some(cn => cn === cleanDesc || cleanDesc.includes(cn) || cn.includes(cleanDesc))) return true;
+                                    }
+                                    return false;
                                 });
 
                                 if (match && !idsToComplete.includes(m.id)) {
@@ -4151,6 +4311,14 @@ async function handleSaveCompra(e) {
     } catch (error) {
         console.error("🔴 ERRO CRÍTICO NO SALVAMENTO:", error);
         alert("Erro crítico: " + error.message);
+    } finally {
+        window.isSavingCompra = false;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '';
+            submitBtn.style.pointerEvents = '';
+            submitBtn.innerText = originalBtnText || 'SALVAR COMPRA (CTRL+ENTER)';
+        }
     }
 }
 
@@ -4220,25 +4388,19 @@ async function rollbackMaintenance(compra) {
     
     console.log("🔍 Limpando manutenções anteriores da nota ID:", compra.id);
     try {
-        const tag = `[ID:${compra.id}]`;
-        const rawId = String(compra.id);
+        const rawId = String(compra.id).trim();
 
-        // Busca itens contendo o ID ou a tag no campo descricao
-        const { data: allItems, error: itemError } = await client
+        // 1. Busca itens vinculados a esta compra diretamente no Supabase por tag
+        const { data: matchedItems, error: itemError } = await client
             .from('manutencao_itens')
-            .select('id, manutencao_id, descricao');
+            .select('id, manutencao_id, descricao')
+            .ilike('descricao', `%ID:${rawId}%`);
 
         if (itemError) {
             console.warn("⚠️ Aviso ao buscar itens de manutenção para rollback:", itemError);
         }
 
-        // Filtra precisamente na memória para evitar problemas com colchetes em regex/like do SQL
-        const matchedItems = (allItems || []).filter(it => {
-            if (!it.descricao) return false;
-            return it.descricao.includes(tag) || it.descricao.includes(`ID:${rawId}`);
-        });
-
-        if (matchedItems.length > 0) {
+        if (matchedItems && matchedItems.length > 0) {
             const maintIds = [...new Set(matchedItems.map(it => it.manutencao_id).filter(Boolean))];
             
             // Delete items
@@ -4349,6 +4511,18 @@ function renderThead() {
     const thead = table.previousElementSibling || table.parentElement.querySelector('thead');
     if (!thead) return;
     const activeCols = COL_DEFS.compras.filter(c => c.visible);
+
+    const defaultWidths = {
+        data: '78px',
+        numeroNota: '95px',
+        especie: '80px',
+        placa: '95px',
+        itens_count: '110px',
+        valorTotal: '95px',
+        pagamento: '125px',
+        centro: '110px',
+        actions: '75px'
+    };
     
     thead.innerHTML = `<tr>${activeCols.map(c => {
         const isCurrent = currentSort.key === c.key;
@@ -4358,17 +4532,23 @@ function renderThead() {
         if (canSort) {
             if (isCurrent) {
                 icon = currentSort.dir === 'asc' 
-                    ? '<i data-lucide="chevron-up" style="width:14px; color:var(--primary);"></i>' 
-                    : '<i data-lucide="chevron-down" style="width:14px; color:var(--primary);"></i>';
+                    ? '<i data-lucide="chevron-up" style="width:13px; color:var(--primary);"></i>' 
+                    : '<i data-lucide="chevron-down" style="width:13px; color:var(--primary);"></i>';
             } else {
-                icon = '<i data-lucide="chevrons-up-down" style="width:12px; opacity:0.2;"></i>';
+                icon = '<i data-lucide="chevrons-up-down" style="width:11px; opacity:0.25;"></i>';
             }
         }
+
+        const alignRight = c.key === 'valorTotal' || c.key === 'actions';
+        const alignCenter = c.key === 'data';
+        const justify = alignRight ? 'flex-end' : (alignCenter ? 'center' : 'flex-start');
+        const widthStyle = defaultWidths[c.key] ? `width: ${defaultWidths[c.key]};` : '';
+        const alignStyle = alignRight ? 'text-align: right;' : (alignCenter ? 'text-align: center;' : '');
         
-        return `<th data-col-key="${c.key}" ${canSort ? `onclick="handleSort('${c.key}')" style="cursor:pointer; user-select:none; transition: all 0.2s;"` : ''} class="${isCurrent ? 'active-sort' : ''}">
-            <div style="display:flex; align-items:center; gap:0.5rem; justify-content: ${c.key === 'actions' ? 'flex-end' : 'flex-start'}">
-                ${c.label}
-                <span class="sort-icon-wrapper" style="display:flex; align-items:center;">${icon}</span>
+        return `<th data-col-key="${c.key}" ${canSort ? `onclick="handleSort('${c.key}')"` : ''} style="cursor:${canSort ? 'pointer' : 'default'}; user-select:none; transition: all 0.2s; ${widthStyle} ${alignStyle}" class="${isCurrent ? 'active-sort' : ''}">
+            <div style="display:flex; align-items:center; gap:0.35rem; justify-content: ${justify};">
+                <span>${c.label}</span>
+                ${icon ? `<span class="sort-icon-wrapper" style="display:flex; align-items:center;">${icon}</span>` : ''}
             </div>
         </th>`;
     }).join('')}</tr>`;
@@ -4530,11 +4710,11 @@ function renderCompras() {
         };
 
         const cells = activeCols.map(col => {
-            if (col.key === 'data') return `<td data-label="Data">${formatDateBR(c.data)}</td>`;
+            if (col.key === 'data') return `<td data-label="Data" style="text-align:center; white-space:nowrap;"><span style="font-size:0.75rem; font-weight:700;">${formatDateBR(c.data)}</span></td>`;
             if (col.key === 'numeroNota') {
                 let badge = '';
                 if (c.consolidadoVales || c.consolidado_vales) {
-                    badge = `<span style="background: rgba(16,185,129,0.15); color:#10b981; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.6rem; font-weight:800; border: 1px solid rgba(16,185,129,0.3); margin-left: 5px;">FECHAMENTO</span>`;
+                    badge = `<span style="background: rgba(16,185,129,0.15); color:#10b981; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.58rem; font-weight:800; border: 1px solid rgba(16,185,129,0.3); margin-left: 4px;">FECHAMENTO</span>`;
                 } else if (c.parentFaturamentoId || c.parent_faturamento_id) {
                     const parentId = c.parentFaturamentoId || c.parent_faturamento_id;
                     let parentText = '';
@@ -4546,20 +4726,23 @@ function renderCompras() {
                             parentText = ` (NF #${parentNf.numeroNota})`;
                         }
                     }
-                    badge = `<span style="background: rgba(245,158,11,0.15); color:#f59e0b; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.6rem; font-weight:800; border: 1px solid rgba(245,158,11,0.3); margin-left: 5px;">FATURADO${parentText}</span>`;
+                    badge = `<span style="background: rgba(245,158,11,0.15); color:#f59e0b; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.58rem; font-weight:800; border: 1px solid rgba(245,158,11,0.3); margin-left: 4px;">FATURADO${parentText}</span>`;
                 }
 
-                return `<td data-label="Nota"><span style="font-family:'JetBrains Mono'; font-weight:800; color:var(--primary); cursor:pointer; text-decoration:underline; text-underline-offset:4px; text-decoration-color:rgba(92,96,245,0.3);" onclick="openViewModal('${c.id}')">#${c.numeroNota}</span>${badge}</td>`;
+                return `<td data-label="Nota" style="white-space:nowrap;"><span style="font-family:'JetBrains Mono'; font-weight:800; font-size:0.75rem; color:var(--primary); cursor:pointer; text-decoration:underline; text-underline-offset:3px;" onclick="openViewModal('${c.id}')">#${c.numeroNota}</span>${badge}</td>`;
             }
             
             if (col.key === 'especie') {
                 const esp = (config.especiesNota || []).find(e => e.id == c.especieId);
                 const nome = esp ? esp.nome : '-';
                 const cor = getColor(nome);
-                return `<td data-label="Espécie"><span style="background:${cor}22; color:${cor}; padding:0.2rem 0.6rem; border-radius:6px; font-size:0.65rem; font-weight:800; border:1px solid ${cor}44;">${nome}</span></td>`;
+                return `<td data-label="Espécie" style="white-space:nowrap;"><span style="background:${cor}22; color:${cor}; padding:0.15rem 0.45rem; border-radius:4px; font-size:0.62rem; font-weight:800; border:1px solid ${cor}44;">${nome}</span></td>`;
             }
 
-            if (col.key === 'fornecedor') return `<td data-label="Fornecedor" style="font-weight:700;">${config.fornecedores.find(f => f.id == c.fornecedorId)?.nome || ''}</td>`;
+            if (col.key === 'fornecedor') {
+                const fornNome = config.fornecedores.find(f => f.id == c.fornecedorId)?.nome || '-';
+                return `<td data-label="Fornecedor" style="font-weight:700; font-size:0.74rem; line-height:1.25;" title="${fornNome}">${fornNome}</td>`;
+            }
             
             if (col.key === 'placa') {
                 const itns = c.itens || c.items || [];
@@ -4577,8 +4760,8 @@ function renderCompras() {
                 if (uniquePlacas.length === 0) return `<td data-label="Placa"><span style="color:var(--text-muted); font-size:0.7rem;">-</span></td>`;
                 
                 return `<td data-label="Placa">
-                    <div style="display:flex; flex-wrap:wrap; gap:4px;">
-                        ${uniquePlacas.map(p => `<span class="placa-badge">${p}</span>`).join('')}
+                    <div style="display:flex; flex-wrap:wrap; gap:3px;">
+                        ${uniquePlacas.map(p => `<span class="placa-badge" style="font-size:0.68rem; padding:1px 5px; border-radius:4px;">${p}</span>`).join('')}
                     </div>
                 </td>`;
             }
@@ -4589,13 +4772,13 @@ function renderCompras() {
                     const isS = it.tipo === 'servico';
                     const label = isS ? 'S' : 'P';
                     const col = isS ? '#f59e0b' : '#10b981';
-                    return `<div style="font-size:0.7rem; color:var(--text-muted); display:flex; align-items:center; gap:4px;">
-                        <span style="color:${col}; font-weight:900; font-size:0.6rem; border:1px solid ${col}44; width:14px; height:14px; display:flex; align-items:center; justify-content:center; border-radius:3px;">${label}</span>
-                        ${it.quantidade}x ${it.produto}
+                    return `<div style="font-size:0.68rem; color:var(--text-muted); display:flex; align-items:center; gap:3px; line-height:1.2;">
+                        <span style="color:${col}; font-weight:900; font-size:0.58rem; border:1px solid ${col}44; width:12px; height:12px; display:flex; align-items:center; justify-content:center; border-radius:3px;">${label}</span>
+                        <span>${it.quantidade}x ${it.produto}</span>
                     </div>`;
                 }).join('');
                 return `<td data-label="Itens">
-                    <div style="font-weight:800; color:var(--primary); margin-bottom:4px;">${itns.length} ite${itns.length > 1 ? 'ns' : 'm'}</div>
+                    <div style="font-weight:800; font-size:0.72rem; color:var(--primary); margin-bottom:2px;">${itns.length} ite${itns.length > 1 ? 'ns' : 'm'}</div>
                     ${summary}
                 </td>`;
             }
@@ -4618,11 +4801,11 @@ function renderCompras() {
                         }
                     });
                     if (Math.abs(totalFiltrado - totalNota) > 0.01) {
-                        subBadge = `<div style="font-size:0.72rem; color:#10b981; font-weight:700; margin-top:3px; white-space:nowrap; display:flex; align-items:center; gap:3px;" title="Valor correspondente apenas aos itens que atendem aos filtros ativos"><span>↳ Filtrado:</span> <span>R$ ${totalFiltrado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>`;
+                        subBadge = `<div style="font-size:0.68rem; color:#10b981; font-weight:700; margin-top:2px; white-space:nowrap; display:flex; align-items:center; gap:2px;" title="Valor correspondente apenas aos itens que atendem aos filtros ativos"><span>↳ Filtrado:</span> <span>R$ ${totalFiltrado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>`;
                     }
                 }
-                return `<td data-label="Valor Total">
-                    <div style="font-weight:800; color:#818cf8; font-size:1rem; white-space:nowrap;">R$ ${totalNota.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+                return `<td data-label="Valor Total" style="text-align:right; white-space:nowrap;">
+                    <div style="font-weight:800; color:#818cf8; font-size:0.80rem;">R$ ${totalNota.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
                     ${subBadge}
                 </td>`;
             }
@@ -4632,7 +4815,7 @@ function renderCompras() {
                 const nome = pgto ? pgto.nome : '-';
                 const cor = getColor(nome);
                 const venc = c.vencimento ? new Date(c.vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '-';
-                const parcInfo = c.parcelasData && c.parcelasData.length > 0 ? `<div style="font-size:0.6rem; color:#10b981; font-weight:800; margin-top:4px;"><i data-lucide="layers" style="width:10px; height:10px; vertical-align:middle;"></i> ${c.parcelasData.length}x PARCELADO</div>` : '';
+                const parcInfo = c.parcelasData && c.parcelasData.length > 0 ? `<div style="font-size:0.58rem; color:#10b981; font-weight:800; margin-top:2px;"><i data-lucide="layers" style="width:9px; height:9px; vertical-align:middle;"></i> ${c.parcelasData.length}x PARCELADO</div>` : '';
                 
                 let integPgtoTag = '';
                 const isIntegrado = c.integradoFinanceiro || c.integrado_financeiro;
@@ -4644,17 +4827,17 @@ function renderCompras() {
                 if (isIntegrado) {
                     const dtFormat = dtInteg ? new Date(dtInteg).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
                     if (isBaixadoDireto) {
-                        integPgtoTag = `<div style="font-size:0.6rem; color:#3b82f6; font-weight:800; margin-top:4px; display:flex; align-items:center; gap:3px;"><i data-lucide="check-square" style="width:10px; height:10px;"></i> Baixado / Já Pago ${dtFormat ? `(${dtFormat})` : ''}</div>`;
+                        integPgtoTag = `<div style="font-size:0.58rem; color:#3b82f6; font-weight:800; margin-top:2px; display:flex; align-items:center; gap:2px;"><i data-lucide="check-square" style="width:9px; height:9px;"></i> Baixado ${dtFormat ? `(${dtFormat})` : ''}</div>`;
                     } else {
-                        integPgtoTag = `<div style="font-size:0.6rem; color:#10b981; font-weight:800; margin-top:4px; display:flex; align-items:center; gap:3px;"><i data-lucide="check-circle-2" style="width:10px; height:10px;"></i> Integrado ${dtFormat ? `(${dtFormat})` : ''}</div>`;
+                        integPgtoTag = `<div style="font-size:0.58rem; color:#10b981; font-weight:800; margin-top:2px; display:flex; align-items:center; gap:2px;"><i data-lucide="check-circle-2" style="width:9px; height:9px;"></i> Integrado ${dtFormat ? `(${dtFormat})` : ''}</div>`;
                     }
                 } else if (isRetornoFinanceiro) {
-                    integPgtoTag = `<div style="font-size:0.6rem; color:#ef4444; font-weight:800; margin-top:4px; display:flex; align-items:center; gap:3px;" title="${motivoRetorno}"><i data-lucide="alert-circle" style="width:10px; height:10px;"></i> Retornou da Integração (Excluída no Fin.)</div>`;
+                    integPgtoTag = `<div style="font-size:0.58rem; color:#ef4444; font-weight:800; margin-top:2px; display:flex; align-items:center; gap:2px;" title="${motivoRetorno}"><i data-lucide="alert-circle" style="width:9px; height:9px;"></i> Retornou da Integração</div>`;
                 }
 
                 return `<td data-label="Pagamento">
-                    <span style="background:${cor}22; color:${cor}; padding:0.2rem 0.6rem; border-radius:6px; font-size:0.65rem; font-weight:800; border:1px solid ${cor}44;">${nome}</span>
-                    <div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px; font-weight:600;">Venc: ${venc}</div>
+                    <span style="background:${cor}22; color:${cor}; padding:0.15rem 0.45rem; border-radius:4px; font-size:0.62rem; font-weight:800; border:1px solid ${cor}44;">${nome}</span>
+                    <div style="font-size:0.68rem; color:var(--text-muted); margin-top:2px; font-weight:600;">Venc: ${venc}</div>
                     ${parcInfo}
                     ${integPgtoTag}
                 </td>`;
@@ -4662,14 +4845,14 @@ function renderCompras() {
 
             if (col.key === 'actions') {
                 const isIntegrada = c.integradoFinanceiro === true || c.integrado_financeiro === true;
-                return `<td data-label="Ações">
-                    <div style="display:flex; gap:0.5rem;">
+                return `<td data-label="Ações" style="text-align:right; white-space:nowrap;">
+                    <div style="display:flex; gap:0.35rem; justify-content:flex-end;">
                         ${isIntegrada ? `
-                            <button class="action-btn-mini" onclick="alert('⚠️ Esta nota fiscal já está integrada ao setor Financeiro e não pode ser alterada.\n\nPara modificá-la, o lançamento correspondente deve ser excluído no módulo Financeiro para que ela retorne.');" title="Nota integrada ao Financeiro (Bloqueada para alteração)" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); color:#64748b; border-radius:6px; cursor:not-allowed; width:28px; height:28px; display:flex; align-items:center; justify-content:center;"><i data-lucide="lock" style="width:14px;"></i></button>
-                            <button class="action-btn-mini" onclick="alert('⚠️ Esta nota fiscal já está integrada ao setor Financeiro e não pode ser excluída.\n\nPara excluí-la, o lançamento correspondente deve ser excluído no módulo Financeiro para que ela retorne.');" title="Nota integrada ao Financeiro (Bloqueada para exclusão)" style="background:rgba(239,68,68,0.03); border:1px solid rgba(239,68,68,0.08); color:#64748b; border-radius:6px; cursor:not-allowed; width:28px; height:28px; display:flex; align-items:center; justify-content:center;"><i data-lucide="lock" style="width:14px;"></i></button>
+                            <button class="action-btn-mini" onclick="alert('⚠️ Esta nota fiscal já está integrada ao setor Financeiro e não pode ser alterada.\n\nPara modificá-la, o lançamento correspondente deve ser excluído no módulo Financeiro para que ela retorne.');" title="Nota integrada ao Financeiro (Bloqueada para alteração)" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); color:#64748b; border-radius:6px; cursor:not-allowed; width:24px; height:24px; display:flex; align-items:center; justify-content:center;"><i data-lucide="lock" style="width:12px; height:12px;"></i></button>
+                            <button class="action-btn-mini" onclick="alert('⚠️ Esta nota fiscal já está integrada ao setor Financeiro e não pode ser excluída.\n\nPara excluí-la, o lançamento correspondente deve ser excluído no módulo Financeiro para que ela retorne.');" title="Nota integrada ao Financeiro (Bloqueada para exclusão)" style="background:rgba(239,68,68,0.03); border:1px solid rgba(239,68,68,0.08); color:#64748b; border-radius:6px; cursor:not-allowed; width:24px; height:24px; display:flex; align-items:center; justify-content:center;"><i data-lucide="lock" style="width:12px; height:12px;"></i></button>
                         ` : `
-                            <button class="action-btn-mini" onclick="openCompraModal('${c.id}')" title="Editar" data-perm="compras_historico:edit" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center;"><i data-lucide="edit-2" style="width:14px;"></i></button>
-                            <button class="action-btn-mini" onclick="deleteCompra('${c.id}')" title="Excluir" data-perm="compras_historico:delete" style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); color:#ef4444; border-radius:6px; cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center;"><i data-lucide="trash-2" style="width:14px;"></i></button>
+                            <button class="action-btn-mini" onclick="openCompraModal('${c.id}')" title="Editar" data-perm="compras_historico:edit" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; cursor:pointer; width:24px; height:24px; display:flex; align-items:center; justify-content:center;"><i data-lucide="edit-2" style="width:12px; height:12px;"></i></button>
+                            <button class="action-btn-mini" onclick="deleteCompra('${c.id}')" title="Excluir" data-perm="compras_historico:delete" style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); color:#ef4444; border-radius:6px; cursor:pointer; width:24px; height:24px; display:flex; align-items:center; justify-content:center;"><i data-lucide="trash-2" style="width:12px; height:12px;"></i></button>
                         `}
                     </div>
                 </td>`;
@@ -5983,15 +6166,15 @@ function renderIntegracaoThead() {
     if (!thead) return;
 
     const cols = [
-        { key: 'chk', label: `<input type="checkbox" id="chkAllIntegracao" onclick="toggleSelectAllIntegracao(this)">`, canSort: false, width: '40px' },
-        { key: 'data_emissao', label: 'Data Emissão', canSort: true },
-        { key: 'data_vencimento', label: 'Vencimento', canSort: true },
-        { key: 'numero_nota', label: 'Nº Nota', canSort: true },
+        { key: 'chk', label: `<input type="checkbox" id="chkAllIntegracao" onclick="toggleSelectAllIntegracao(this)">`, canSort: false, width: '38px', align: 'center' },
+        { key: 'data_emissao', label: 'Data Emissão', canSort: true, width: '78px', align: 'center' },
+        { key: 'data_vencimento', label: 'Vencimento', canSort: true, width: '78px', align: 'center' },
+        { key: 'numero_nota', label: 'Nº Nota', canSort: true, width: '85px' },
         { key: 'fornecedor', label: 'Fornecedor', canSort: true },
-        { key: 'forma_pagamento', label: 'Forma Pgto', canSort: true },
-        { key: 'parcelado', label: 'Parcelado?', canSort: true },
-        { key: 'valor_total', label: 'Valor Total', canSort: true },
-        { key: 'situacao', label: 'Situação / Origem', canSort: false }
+        { key: 'forma_pagamento', label: 'Forma Pgto', canSort: true, width: '100px' },
+        { key: 'parcelado', label: 'Parcelado?', canSort: true, width: '75px', align: 'center' },
+        { key: 'valor_total', label: 'Valor Total', canSort: true, width: '95px', align: 'right' },
+        { key: 'situacao', label: 'Situação / Origem', canSort: false, width: '135px' }
     ];
 
     thead.innerHTML = `<tr>${cols.map(c => {
@@ -6000,20 +6183,22 @@ function renderIntegracaoThead() {
         if (c.canSort) {
             if (isCurrent) {
                 icon = integracaoSort.dir === 'asc'
-                    ? '<i data-lucide="chevron-up" style="width:14px; color:var(--primary);"></i>'
-                    : '<i data-lucide="chevron-down" style="width:14px; color:var(--primary);"></i>';
+                    ? '<i data-lucide="chevron-up" style="width:13px; color:var(--primary);"></i>'
+                    : '<i data-lucide="chevron-down" style="width:13px; color:var(--primary);"></i>';
             } else {
-                icon = '<i data-lucide="chevrons-up-down" style="width:12px; opacity:0.2;"></i>';
+                icon = '<i data-lucide="chevrons-up-down" style="width:11px; opacity:0.25;"></i>';
             }
         }
 
-        const widthAttr = c.width ? `style="width:${c.width}; text-align:center;"` : '';
-        const sortAttr = c.canSort ? `onclick="handleIntegracaoSort('${c.key}')" style="cursor:pointer; user-select:none; transition: all 0.2s;"` : '';
+        const alignStyle = c.align === 'center' ? 'text-align:center;' : (c.align === 'right' ? 'text-align:right;' : '');
+        const justify = c.align === 'center' ? 'center' : (c.align === 'right' ? 'flex-end' : 'flex-start');
+        const widthAttr = c.width ? `width: ${c.width};` : '';
+        const sortAttr = c.canSort ? `onclick="handleIntegracaoSort('${c.key}')" style="cursor:pointer; user-select:none; ${widthAttr} ${alignStyle}"` : `style="${widthAttr} ${alignStyle}"`;
         const classAttr = isCurrent ? 'class="active-sort"' : '';
 
-        return `<th data-col-key="${c.key}" ${c.width ? widthAttr : `${sortAttr} ${classAttr}`}>
-            <div style="display:flex; align-items:center; gap:0.5rem; justify-content: ${c.key === 'chk' ? 'center' : 'flex-start'}">
-                ${c.label}
+        return `<th data-col-key="${c.key}" ${sortAttr} ${classAttr}>
+            <div style="display:flex; align-items:center; gap:0.35rem; justify-content: ${justify};">
+                <span>${c.label}</span>
                 ${icon ? `<span class="sort-icon-wrapper" style="display:flex; align-items:center;">${icon}</span>` : ''}
             </div>
         </th>`;
@@ -6132,24 +6317,24 @@ function renderIntegracaoTableOnly() {
         }
 
         tr.innerHTML = `
-            <td><input type="checkbox" class="chk-integracao" value="${comp.id}"></td>
-            <td>${formatDateBR(comp.data_emissao)}</td>
-            <td style="font-weight: 600; color: #f59e0b;">
+            <td style="text-align: center; vertical-align: middle;"><input type="checkbox" class="chk-integracao" value="${comp.id}"></td>
+            <td style="text-align: center; white-space: nowrap;"><span style="font-size:0.75rem; font-weight:700;">${formatDateBR(comp.data_emissao)}</span></td>
+            <td style="text-align: center; white-space: nowrap; font-weight: 600; color: #f59e0b; font-size: 0.74rem;">
                 ${displayVenc}
-                ${isParcelado ? `<span style="display:block; font-size:0.65rem; color:#f59e0b; font-weight:700;">(1ª Parcela)</span>` : ''}
+                ${isParcelado ? `<span style="display:block; font-size:0.58rem; color:#f59e0b; font-weight:700;">(1ª Parcela)</span>` : ''}
             </td>
-            <td style="font-weight: 700;">${comp.numero_nota || 'S/N'}</td>
-            <td>${fornecedorNome}</td>
-            <td><span class="badge" style="background: rgba(255,255,255,0.1);">${formaNome}</span></td>
-            <td>${comp.financeiro_parcelado ? `Sim (${comp.qtd_parcelas}x)` : 'Não'}</td>
-            <td style="font-weight: 700; color: #10b981;">${formatCurrency(comp.valor_total)}</td>
-            <td>
+            <td style="font-weight: 700; font-size: 0.75rem; white-space: nowrap;">${comp.numero_nota || 'S/N'}</td>
+            <td style="font-weight: 700; font-size: 0.74rem;" title="${fornecedorNome}">${fornecedorNome}</td>
+            <td style="white-space: nowrap;"><span class="badge" style="background: rgba(255,255,255,0.08); font-size:0.68rem; padding: 2px 6px;">${formaNome}</span></td>
+            <td style="text-align: center; white-space: nowrap; font-size: 0.72rem;">${comp.financeiro_parcelado ? `<span style="font-weight:800; color:#10b981;">Sim (${comp.qtd_parcelas}x)</span>` : '<span style="color:var(--text-muted);">Não</span>'}</td>
+            <td style="font-weight: 800; font-size: 0.80rem; color: #10b981; text-align: right; white-space: nowrap;">${formatCurrency(comp.valor_total)}</td>
+            <td style="white-space: nowrap;">
                 ${isRetornoFinanceiro ? `
-                    <span style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:800; padding:3px 8px; border-radius:6px; background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3);" title="${motivoRetorno}">
-                        <i data-lucide="alert-circle" style="width:12px; height:12px;"></i> RETORNO (EXCLUÍDA NO FIN.)
+                    <span style="display:inline-flex; align-items:center; gap:3px; font-size:0.62rem; font-weight:800; padding:2px 6px; border-radius:4px; background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3);" title="${motivoRetorno}">
+                        <i data-lucide="alert-circle" style="width:11px; height:11px;"></i> RETORNO FIN.
                     </span>
                 ` : `
-                    <span style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">Pendente de Envio</span>
+                    <span style="font-size:0.70rem; color:var(--text-muted); font-weight:600;">Pendente de Envio</span>
                 `}
             </td>
         `;
@@ -6898,13 +7083,13 @@ function renderValesThead() {
     if (!thead) return;
 
     const cols = [
-        { key: 'chk', label: `<input type="checkbox" id="chkAllVales" onclick="toggleSelectAllVales(this)">`, canSort: false, width: '40px' },
-        { key: 'data', label: 'Data', canSort: true },
-        { key: 'numeroNota', label: 'Nº Nota / Vale', canSort: true },
+        { key: 'chk', label: `<input type="checkbox" id="chkAllVales" onclick="toggleSelectAllVales(this)">`, canSort: false, width: '38px', align: 'center' },
+        { key: 'data', label: 'Data', canSort: true, width: '78px', align: 'center' },
+        { key: 'numeroNota', label: 'Nº Nota / Vale', canSort: true, width: '95px' },
         { key: 'fornecedor', label: 'Fornecedor', canSort: true },
-        { key: 'placa', label: 'Placa', canSort: true },
-        { key: 'valorTotal', label: 'Valor Vale', canSort: true },
-        { key: 'situacao', label: 'Faturamento / Situação', canSort: false }
+        { key: 'placa', label: 'Placa', canSort: true, width: '95px' },
+        { key: 'valorTotal', label: 'Valor Vale', canSort: true, width: '95px', align: 'right' },
+        { key: 'situacao', label: 'Faturamento / Situação', canSort: false, width: '135px' }
     ];
 
     thead.innerHTML = `<tr>${cols.map(c => {
@@ -6913,19 +7098,21 @@ function renderValesThead() {
         if (c.canSort) {
             if (isCurrent) {
                 icon = valesSort.dir === 'asc'
-                    ? '<i data-lucide="chevron-up" style="width:14px; color:var(--primary);"></i>'
-                    : '<i data-lucide="chevron-down" style="width:14px; color:var(--primary);"></i>';
+                    ? '<i data-lucide="chevron-up" style="width:13px; color:var(--primary);"></i>'
+                    : '<i data-lucide="chevron-down" style="width:13px; color:var(--primary);"></i>';
             } else {
-                icon = '<i data-lucide="chevrons-up-down" style="width:12px; opacity:0.2;"></i>';
+                icon = '<i data-lucide="chevrons-up-down" style="width:11px; opacity:0.25;"></i>';
             }
         }
 
-        const widthAttr = c.width ? `style="width:${c.width}; text-align:center;"` : '';
-        const sortAttr = c.canSort ? `onclick="handleValesSort('${c.key}')" style="cursor:pointer; user-select:none;"` : '';
+        const alignStyle = c.align === 'center' ? 'text-align:center;' : (c.align === 'right' ? 'text-align:right;' : '');
+        const justify = c.align === 'center' ? 'center' : (c.align === 'right' ? 'flex-end' : 'flex-start');
+        const widthAttr = c.width ? `width: ${c.width};` : '';
+        const sortAttr = c.canSort ? `onclick="handleValesSort('${c.key}')" style="cursor:pointer; user-select:none; ${widthAttr} ${alignStyle}"` : `style="${widthAttr} ${alignStyle}"`;
         const classAttr = isCurrent ? 'class="active-sort"' : '';
 
-        return `<th ${widthAttr || sortAttr} ${classAttr}>
-            <div style="display:flex; align-items:center; gap:0.5rem; justify-content: ${c.key === 'chk' ? 'center' : 'flex-start'}">
+        return `<th ${sortAttr} ${classAttr}>
+            <div style="display:flex; align-items:center; gap:0.35rem; justify-content: ${justify};">
                 ${c.label}
                 ${icon ? `<span class="sort-icon-wrapper" style="display:flex; align-items:center;">${icon}</span>` : ''}
             </div>
@@ -7182,15 +7369,15 @@ async function renderVales() {
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td style="text-align: center;">
+                <td style="text-align: center; vertical-align: middle;">
                     ${c.parentFaturamentoId ? '' : `<input type="checkbox" class="chk-vale" value="${c.id}" ${checked} onchange="handleSelectVale('${c.id}', this)">`}
                 </td>
-                <td>${formatDateBR(c.data)}</td>
-                <td style="font-weight: 700;">${c.numeroNota || 'S/N'}</td>
-                <td>${fornNome}</td>
-                <td><span class="badge" style="background: rgba(255,255,255,0.05);">${placa}</span></td>
-                <td style="font-weight: 700; color: #818cf8;">${formatCurrency(c.valorTotal)}</td>
-                <td>${statusHtml}</td>
+                <td style="text-align: center; white-space: nowrap;"><span style="font-size:0.75rem; font-weight:700;">${formatDateBR(c.data)}</span></td>
+                <td style="font-weight: 700; font-size:0.75rem; white-space: nowrap;">${c.numeroNota || 'S/N'}</td>
+                <td style="font-weight: 700; font-size:0.74rem;" title="${fornNome}">${fornNome}</td>
+                <td style="white-space: nowrap;"><span class="badge" style="background: rgba(255,255,255,0.05); font-size:0.68rem; padding:1px 6px;">${placa}</span></td>
+                <td style="font-weight: 800; font-size:0.80rem; color: #818cf8; text-align: right; white-space: nowrap;">${formatCurrency(c.valorTotal)}</td>
+                <td style="white-space: nowrap;">${statusHtml}</td>
             `;
             if (!c.parentFaturamentoId) {
                 tr.style.cursor = 'pointer';

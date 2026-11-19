@@ -41,22 +41,116 @@ let chartEstoqueEvolucaoMensal = null;
 let chartEstoqueCategorias = null;
 
 // ============================================================
+//  CONTROLE DE ACESSO & PERMISSÕES DAS ABAS
+// ============================================================
+function aplicarPermissoesGerencial() {
+    const role = (window.currentUserRole || '').toLowerCase();
+    const isUserAdmin = role === 'admin' || role === 'gerencial';
+    const perms = window.currentUserPermissions || {};
+
+    const hasAnyGerencial = isUserAdmin ||
+        (perms['gerencial'] && perms['gerencial'].view) ||
+        Object.keys(perms).some(k => k.startsWith('gerencial_') && perms[k].view);
+
+    if (!hasAnyGerencial) {
+        if (typeof showNoPermissionOverlay === 'function') {
+            showNoPermissionOverlay('gerencial');
+        } else {
+            alert('Acesso negado: você não possui permissão para visualizar o Painel Gerencial.');
+            window.location.href = 'home.html';
+        }
+        return false;
+    }
+
+    // Se estiver autorizado, remove qualquer overlay residual de bloqueio caso tenha sido renderizado
+    const existingOverlay = document.getElementById('auth-no-permission');
+    if (existingOverlay) existingOverlay.remove();
+
+    // Mapa de permissões das abas setoriais
+    const tabPermMap = {
+        'financeiro': isUserAdmin || !!perms['gerencial_financeiro']?.view,
+        'frota': isUserAdmin || !!perms['gerencial_frota']?.view,
+        'operacoes': isUserAdmin || !!perms['gerencial_operacoes']?.view,
+        'pessoas': isUserAdmin || !!perms['gerencial_pessoas']?.view,
+        'comercial': isUserAdmin || !!perms['gerencial_comercial']?.view
+    };
+
+    // Cockpit Executivo é sempre liberado se o usuário tem acesso ao Gerencial
+    const cockpitBtn = document.getElementById('tab-btn-cockpit');
+    if (cockpitBtn) cockpitBtn.style.display = 'inline-flex';
+
+    // Ajusta visibilidade dos botões das abas
+    Object.keys(tabPermMap).forEach(tabId => {
+        const canView = tabPermMap[tabId];
+        const btn = document.getElementById(`tab-btn-${tabId}`) || document.querySelector(`.tab-item[onclick*="${tabId}"]`);
+        if (btn) {
+            btn.style.display = canView ? 'inline-flex' : 'none';
+        }
+        const section = document.getElementById(`view-${tabId}`);
+        if (!canView && section) {
+            section.classList.remove('active');
+        }
+    });
+
+    // Atalhos do Cockpit
+    const btnFin = document.getElementById('cockpit-btn-financeiro');
+    if (btnFin) btnFin.style.display = tabPermMap['financeiro'] ? 'inline-flex' : 'none';
+
+    const btnFrota = document.getElementById('cockpit-btn-frota');
+    if (btnFrota) btnFrota.style.display = tabPermMap['frota'] ? 'inline-flex' : 'none';
+
+    // Se estiver em uma seção sem permissão, volta para o Cockpit
+    const currentActiveSection = document.querySelector('.view-section.active');
+    if (currentActiveSection) {
+        const currentId = currentActiveSection.id.replace('view-', '');
+        if (currentId !== 'cockpit' && !tabPermMap[currentId]) {
+            switchTab('cockpit');
+        }
+    }
+
+    return true;
+}
+
+// ============================================================
 //  INICIALIZAÇÃO & EVENT LISTENERS
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
+    let authInicializado = false;
+
+    function tentarIniciarGerencial() {
+        if (authInicializado) return true;
+        if (!window.authClient || !window.currentUser || window.currentUserRole === null) {
+            return false;
+        }
+
+        authInicializado = true;
+        sb = window.authClient;
+        empresaId = window.currentEmpresaId;
+        if (aplicarPermissoesGerencial()) {
+            initGerencial();
+        }
+        return true;
+    }
+
     function esperarAuth(attempts = 0) {
-        if (window.authClient) {
-            sb = window.authClient;
+        if (tentarIniciarGerencial()) return;
+
+        if (attempts < 60) {
+            setTimeout(() => esperarAuth(attempts + 1), 100);
+        } else {
+            console.warn('[Gerencial] Timeout esperando autenticação.');
+            sb = window.authClient || (window.supabase ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY) : null);
             empresaId = window.currentEmpresaId;
-            initGerencial();
-        } else if (attempts < 30) {
-            setTimeout(() => esperarAuth(attempts + 1), 150);
-        } else if (window.supabase) {
-            sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
-            initGerencial();
+            if (aplicarPermissoesGerencial()) {
+                initGerencial();
+            }
         }
     }
     esperarAuth();
+
+    window.addEventListener('auth:ready', () => {
+        tentarIniciarGerencial();
+    });
 
     const periodoSelect = document.getElementById('periodo-select');
     const mesPickerWrap = document.getElementById('mes-picker-wrap');
@@ -324,10 +418,21 @@ function mostrarLoading(show) {
 }
 
 window.switchTab = function(tabId) {
+    if (tabId !== 'cockpit') {
+        const role = (window.currentUserRole || '').toLowerCase();
+        const isUserAdmin = role === 'admin' || role === 'gerencial';
+        const perms = window.currentUserPermissions || {};
+        const canView = isUserAdmin || !!perms[`gerencial_${tabId}`]?.view;
+        if (!canView) {
+            alert('Acesso restrito: você não possui permissão para visualizar esta aba.');
+            return;
+        }
+    }
+
     document.querySelectorAll('.tabs-header .tab-item').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
 
-    const activeBtn = document.querySelector(`.tab-item[onclick*="${tabId}"]`);
+    const activeBtn = document.getElementById(`tab-btn-${tabId}`) || document.querySelector(`.tab-item[onclick*="${tabId}"]`);
     if (activeBtn) activeBtn.classList.add('active');
 
     const activeSection = document.getElementById(`view-${tabId}`);
