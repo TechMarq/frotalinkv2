@@ -647,7 +647,9 @@ function getStatusOriginInfo(m) {
         return null;
     }
 
-    const motivo = (m.autorizacao_motivo || '').trim();
+    const rawMotivo = (m.autorizacao_motivo || '').trim();
+    // Limpa tags estruturadas para analisar o motivo textual limpo
+    const motivo = rawMotivo.replace(/\[(ATRASO_KM|PRAZO_KM|KM_CONCLUSAO):[^\]]+\]\s*/gi, '').trim();
     const nfFromMotivo = motivo.match(/Nota #([^\s,\.\)]+)/i);
 
     // 1. Concluído automaticamente por uma Nota Fiscal posterior vinculada lançada em Compras
@@ -721,6 +723,80 @@ function getStatusOriginBadge(m) {
             <span>${info.label}</span>
         </div>
     `;
+}
+
+// Retorna as métricas de conclusão (atraso / no prazo e KM de referência)
+function getMaintConclusionInfo(m) {
+    if (!m) return null;
+    const isConcluido = (m.status || '').toUpperCase() === 'CONCLUIDO';
+    if (!isConcluido) return null;
+
+    const rawMotivo = (m.autorizacao_motivo || '').trim();
+
+    // 1. Tag explícita estruturada gravada no autorizacao_motivo
+    const atrasoMatch = rawMotivo.match(/\[ATRASO_KM:\s*([-\d\.]+)/i);
+    const prazoMatch = rawMotivo.match(/\[PRAZO_KM:\s*([+\-\d\.]+)/i);
+    const concKmMatch = rawMotivo.match(/KM_CONCLUSAO:\s*([\d\.]+)/i);
+
+    if (atrasoMatch) {
+        const diff = parseFloat(atrasoMatch[1]);
+        const concKm = concKmMatch ? parseFloat(concKmMatch[1]) : null;
+        return {
+            isAtrasado: true,
+            kmDiff: diff, // Valor negativo, ex: -15957
+            kmConclusao: concKm,
+            label: `${diff.toLocaleString('pt-BR')} km (Atraso)`
+        };
+    }
+
+    if (prazoMatch) {
+        const diff = parseFloat(prazoMatch[1]);
+        const concKm = concKmMatch ? parseFloat(concKmMatch[1]) : null;
+        return {
+            isAtrasado: false,
+            kmDiff: diff, // Valor positivo ou zero, ex: +255
+            kmConclusao: concKm,
+            label: `No prazo (${diff >= 0 ? '+' : ''}${diff.toLocaleString('pt-BR')} km)`
+        };
+    }
+
+    // 2. Fallback inteligente para registros legados concluídos sem tag explícita
+    const items = m.manutencao_itens || [];
+    let proxKm = null;
+    if (items.length > 0) {
+        const itWithKm = items.find(i => i.proxima_troca_km);
+        if (itWithKm) proxKm = parseFloat(itWithKm.proxima_troca_km);
+    }
+    if (!proxKm && m.proxima_troca_km) {
+        proxKm = parseFloat(m.proxima_troca_km);
+    }
+
+    if (proxKm && state.manutencoes && state.manutencoes.length > 0) {
+        // Tenta achar OS subsequente do mesmo veículo
+        const subsequent = state.manutencoes
+            .filter(other => 
+                other.veiculo_id === m.veiculo_id &&
+                other.id !== m.id &&
+                ((other.data && m.data && other.data > m.data) || (other.data === m.data && parseFloat(other.km_atual || 0) > parseFloat(m.km_atual || 0)))
+            )
+            .sort((a, b) => parseFloat(a.km_atual || 0) - parseFloat(b.km_atual || 0));
+
+        if (subsequent.length > 0) {
+            const nextM = subsequent[0];
+            const nextKm = parseFloat(nextM.km_atual || 0);
+            if (nextKm > 0) {
+                const diff = Math.round(proxKm - nextKm);
+                return {
+                    isAtrasado: diff < 0,
+                    kmDiff: diff,
+                    kmConclusao: nextKm,
+                    label: diff < 0 ? `${diff.toLocaleString('pt-BR')} km (Atraso)` : `No prazo (${diff >= 0 ? '+' : ''}${diff.toLocaleString('pt-BR')} km)`
+                };
+            }
+        }
+    }
+
+    return null;
 }
 
 function renderMaintTable() {
@@ -867,8 +943,10 @@ function renderMaintTable() {
                         valA = 0;
                         valB = 999999999;
                     } else if (isConcA && isConcB) {
-                        valA = 0;
-                        valB = 0;
+                        const concA = getMaintConclusionInfo(a);
+                        const concB = getMaintConclusionInfo(b);
+                        valA = concA ? concA.kmDiff : 99999999;
+                        valB = concB ? concB.kmDiff : 99999999;
                     } else {
                         const proxA = a.manutencao_itens?.[0]?.proxima_troca_km || a.proxima_troca_km;
                         const proxB = b.manutencao_itens?.[0]?.proxima_troca_km || b.proxima_troca_km;
@@ -1044,9 +1122,37 @@ function renderMaintTable() {
             }).join('')
             : '---';
         
-        const kmFaltanteHtml = isConcluido
-            ? '<span style="color: #64748b; font-size: 0.8rem;">---</span>'
-            : (proxKmList.length > 0
+        const concInfo = getMaintConclusionInfo(m);
+        let kmFaltanteHtml = '';
+        if (isConcluido) {
+            if (concInfo) {
+                const kmConcStr = concInfo.kmConclusao ? ` | KM na Conclusão: ${concInfo.kmConclusao.toLocaleString('pt-BR')} km` : '';
+                if (concInfo.isAtrasado) {
+                    kmFaltanteHtml = `
+                        <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px;">
+                            <span style="color: #ef4444; font-weight: 800; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 3px;" title="Troca realizada com atraso de ${Math.abs(concInfo.kmDiff).toLocaleString('pt-BR')} km${kmConcStr}">
+                                <i data-lucide="alert-circle" style="width: 12px; height: 12px; flex-shrink: 0;"></i>
+                                ${concInfo.kmDiff.toLocaleString('pt-BR')} km
+                            </span>
+                            <span style="font-size: 0.6rem; font-weight: 800; color: #ef4444; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 4px; padding: 1px 5px; text-transform: uppercase;">Atraso</span>
+                        </div>
+                    `;
+                } else {
+                    kmFaltanteHtml = `
+                        <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px;">
+                            <span style="color: #10b981; font-weight: 800; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 3px;" title="Troca realizada no prazo${kmConcStr}">
+                                <i data-lucide="check" style="width: 12px; height: 12px; flex-shrink: 0;"></i>
+                                ${concInfo.kmDiff >= 0 ? '+' : ''}${concInfo.kmDiff.toLocaleString('pt-BR')} km
+                            </span>
+                            <span style="font-size: 0.6rem; font-weight: 800; color: #10b981; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 4px; padding: 1px 5px; text-transform: uppercase;">No Prazo</span>
+                        </div>
+                    `;
+                }
+            } else {
+                kmFaltanteHtml = '<span style="color: #64748b; font-size: 0.78rem; font-weight: 600;">Concluído</span>';
+            }
+        } else {
+            kmFaltanteHtml = (proxKmList.length > 0
                 ? proxKmList.map(limit => {
                     const faltante = limit - currentKm;
                     
@@ -1057,6 +1163,7 @@ function renderMaintTable() {
                     return `<div style="color: ${color}; font-weight: 800; font-size: 0.8rem;" title="KM Atual do Veículo: ${currentKm.toLocaleString('pt-BR')} km | Próxima Troca: ${limit.toLocaleString('pt-BR')} km">${faltante.toLocaleString('pt-BR')} km</div>`;
                 }).join('')
                 : '<span style="color: #64748b; font-size: 0.8rem;">---</span>');
+        }
 
         const isOverdue = !isConcluido && (
             items.some(i => i.proxima_troca_km && currentKm >= parseFloat(i.proxima_troca_km)) ||
@@ -1161,6 +1268,12 @@ function renderMaintTable() {
                 <td data-label="Garantia">${garantiaHtml || '---'}</td>
                 <td data-label="Ações">
                     <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                        <button class="btn-action history" onclick="openMaintHistoryModal('${m.id}')" title="Ver Histórico de Registro"
+                            style="width: 32px; height: 32px; border-radius: 8px; background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.28); color: #818cf8; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; visibility: visible !important;"
+                            onmouseover="this.style.background='#6366f1'; this.style.color='#ffffff';"
+                            onmouseout="this.style.background='rgba(99, 102, 241, 0.12)'; this.style.color='#818cf8';">
+                            <i data-lucide="history" style="width: 15px; height: 15px;"></i>
+                        </button>
                         <button class="btn-action edit" onclick="openMaintModal('${m.id}')" data-perm="manutencao_os:edit" title="Editar Manutenção"
                             style="width: 32px; height: 32px; border-radius: 8px; background: rgba(5, 150, 105, 0.1); border: 1px solid rgba(5, 150, 105, 0.25); color: #059669; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; visibility: visible !important;"
                             onmouseover="this.style.background='#059669'; this.style.color='#ffffff';"
@@ -1248,9 +1361,20 @@ function renderMaintTable() {
 
                 let kmFaltanteText = '---';
                 let kmFaltanteColorClass = '';
+                const mobConcInfo = getMaintConclusionInfo(m);
                 if (isConcluido) {
-                    kmFaltanteText = 'Concluído';
-                    kmFaltanteColorClass = 'text-success';
+                    if (mobConcInfo) {
+                        if (mobConcInfo.isAtrasado) {
+                            kmFaltanteText = `${mobConcInfo.kmDiff.toLocaleString('pt-BR')} km (Atraso)`;
+                            kmFaltanteColorClass = 'text-danger';
+                        } else {
+                            kmFaltanteText = `No prazo (${mobConcInfo.kmDiff >= 0 ? '+' : ''}${mobConcInfo.kmDiff.toLocaleString('pt-BR')} km)`;
+                            kmFaltanteColorClass = 'text-success';
+                        }
+                    } else {
+                        kmFaltanteText = 'Concluído';
+                        kmFaltanteColorClass = 'text-success';
+                    }
                 } else if (proxKmList.length > 0) {
                     const limit = proxKmList[0];
                     const faltante = limit - currentKm;
@@ -1294,6 +1418,7 @@ function renderMaintTable() {
                                     ${alertHtml}
                                     <span class="mob-plate">${m.veiculos?.placa || '---'}</span>
                                     ${m.numero_nota ? `<span class="mob-nf-badge" onclick="event.stopPropagation(); openCompraDetailsFromMaint('${m.compra_id || m.numero_nota}')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 3px;" title="Clique para ver detalhes da nota #${m.numero_nota}"><i data-lucide="external-link" style="width: 11px; height: 11px;"></i>#${m.numero_nota}</span>` : ''}
+                                    <span class="mob-nf-badge" onclick="event.stopPropagation(); openMaintHistoryModal('${m.id}')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 3px; background: rgba(99,102,241,0.12); color: #818cf8; border-color: rgba(99,102,241,0.25);" title="Ver Histórico de Registro"><i data-lucide="history" style="width: 11px; height: 11px;"></i>Histórico</span>
                                 </div>
                                 <div class="mob-maint-subhead">
                                     <span><i data-lucide="calendar" style="width: 11px; height: 11px;"></i> ${dataFormatted}</span>
@@ -1402,6 +1527,32 @@ window.openMaintDetail = function(id) {
         <div class="detail-item"><strong>Oficina / Fornecedor</strong>${m.fornecedores?.nome || '---'}</div>
         <div class="detail-item"><strong>KM no Momento</strong>${m.km_atual ? `${parseFloat(m.km_atual).toLocaleString('pt-BR')} km` : '---'}</div>
         ${(() => {
+            if (!isConcluido) return '';
+            const conc = getMaintConclusionInfo(m);
+            if (!conc) return '';
+            const cor = conc.isAtrasado ? '#ef4444' : '#10b981';
+            const bg = conc.isAtrasado ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)';
+            const bdr = conc.isAtrasado ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)';
+            const icone = conc.isAtrasado ? 'alert-triangle' : 'check-circle-2';
+            const statusTexto = conc.isAtrasado 
+                ? `Troca Realizada com ATRASO de ${Math.abs(conc.kmDiff).toLocaleString('pt-BR')} km (${conc.kmDiff.toLocaleString('pt-BR')} km)`
+                : `Troca Realizada NO PRAZO (margem de ${conc.kmDiff >= 0 ? '+' : ''}${conc.kmDiff.toLocaleString('pt-BR')} km)`;
+
+            const proxKmLabel = m.proxima_troca_km ? parseFloat(m.proxima_troca_km).toLocaleString('pt-BR') + ' km' : (items[0]?.proxima_troca_km ? parseFloat(items[0].proxima_troca_km).toLocaleString('pt-BR') + ' km' : '---');
+
+            return `
+                <div class="detail-item full-width" style="background: ${bg}; border-color: ${bdr}; padding: 0.85rem; border-radius: 8px;">
+                    <strong style="color: ${cor}; display: flex; align-items: center; gap: 6px; font-size: 0.85rem;">
+                        <i data-lucide="${icone}" style="width: 16px; height: 16px;"></i> ${statusTexto}
+                    </strong>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
+                        <div>KM Previsto para Troca: <strong style="color: #6366f1;">${proxKmLabel}</strong></div>
+                        <div>KM Real na Conclusão: <strong style="color: ${cor};">${conc.kmConclusao ? conc.kmConclusao.toLocaleString('pt-BR') + ' km' : '---'}</strong></div>
+                    </div>
+                </div>
+            `;
+        })()}
+        ${(() => {
             const info = getStatusOriginInfo(m);
             if (!info) return '';
             return `<div class="detail-item full-width" style="border-color: ${info.border}; background: ${info.bg};">
@@ -1415,8 +1566,11 @@ window.openMaintDetail = function(id) {
             <strong>Itens & Serviços Realizados (${items.length})</strong>
             ${itemsHtml || '<span style="color:var(--text-muted); font-size:0.8rem;">Nenhum item registrado.</span>'}
         </div>
-        <div class="detail-item full-width" style="display: flex; justify-content: flex-end; padding: 0.5rem 0; background: transparent; border: none;">
-            <button type="button" class="btn btn-secondary" onclick="closeMaintDetail()" style="width: 100%; height: 42px; border-radius: 10px; font-weight: 700;">FECHAR</button>
+        <div class="detail-item full-width" style="display: flex; justify-content: flex-end; gap: 0.8rem; padding: 0.5rem 0; background: transparent; border: none;">
+            <button type="button" class="btn btn-secondary" onclick="closeMaintDetail()" style="flex: 1; height: 42px; border-radius: 10px; font-weight: 700;">FECHAR</button>
+            <button type="button" class="btn" onclick="openMaintHistoryModal('${m.id}')" style="flex: 1; height: 42px; border-radius: 10px; font-weight: 700; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); color: #818cf8; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
+                <i data-lucide="history" style="width: 16px; height: 16px;"></i> HISTÓRICO
+            </button>
         </div>
     `;
 
@@ -1650,7 +1804,7 @@ window.selectMaintStatus = async function(id, newStatus) {
     if (existingMenu) existingMenu.remove();
 
     if (newStatus === 'CONCLUIDO') {
-        return await window.toggleMaintStatus(id, 'TRIGGER_CONCLUIDO');
+        return window.openConcluirMaintModal(id);
     } else {
         return await applyStatusChange(id, newStatus);
     }
@@ -1660,55 +1814,213 @@ window.toggleMaintStatus = async (id, currentStatus) => {
     if (currentStatus === 'CONCLUIDO') {
         return await applyStatusChange(id, 'PENDENTE');
     }
+    return window.openConcluirMaintModal(id);
+};
 
+// Modal interativo de Conclusão Manual com confirmação de KM e cálculo de Atraso/Prazo
+window.openConcluirMaintModal = function(id) {
     const m = state.manutencoes.find(x => x.id === id);
     if (!m) return;
 
-    const vehicle = state.vehicles.find(v => v.id === m.veiculo_id);
-    const currentKm = vehicle?.km_atual || 0;
+    const modal = document.getElementById('modalConcluirMaint');
+    const infoBox = document.getElementById('concluirMaintInfoBox');
+    const idInput = document.getElementById('concluir_maint_id');
+    const kmInput = document.getElementById('concluir_km_real');
+    const motivoInput = document.getElementById('concluir_motivo');
+    if (!modal || !infoBox || !idInput || !kmInput) return;
+
+    const veh = state.vehicles.find(v => v.id === m.veiculo_id) || m.veiculos;
+    const placaStr = veh?.placa || 'Veículo';
+    const currentVehKm = veh?.km_atual || m.km_atual || 0;
+
+    // Acha a meta de próxima troca da OS
     const items = m.manutencao_itens || [];
+    let proxKm = null;
+    let descServico = 'Serviços Diversos';
+    if (items.length > 0) {
+        descServico = items.map(i => {
+            const acao = i.manutencao_acoes?.descricao || '';
+            const desc = i.descricao || '';
+            return acao ? `${acao} - ${desc}` : (desc || 'Item');
+        }).join(', ');
+        const itWithKm = items.find(i => i.proxima_troca_km);
+        if (itWithKm) proxKm = parseFloat(itWithKm.proxima_troca_km);
+    }
+    if (!proxKm && m.proxima_troca_km) {
+        proxKm = parseFloat(m.proxima_troca_km);
+    }
 
-    const earlyItems = [];
-    items.forEach(i => {
-        if (i.proxima_troca_km) {
-            const limit = parseFloat(i.proxima_troca_km);
-            const remaining = limit - currentKm;
-            // Se faltar MAIS de 2000km para a troca, exige autorização
-            if (remaining > 2000) {
-                earlyItems.push({
-                    desc: i.manutencao_acoes?.descricao || i.descricao || 'Item',
-                    remaining
-                });
-            }
-        }
-    });
+    window._concluirMaintTargetProxKm = proxKm;
+    window._concluirMaintOriginalMaint = m;
 
-    if (earlyItems.length > 0) {
-        const body = document.getElementById('authModalBody');
-        const idInput = document.getElementById('auth_maint_id');
-        const motivoInput = document.getElementById('auth_motivo');
+    idInput.value = id;
+    kmInput.value = currentVehKm ? Math.round(parseFloat(currentVehKm)) : '';
+    if (motivoInput) motivoInput.value = '';
 
-        if (idInput && motivoInput && body) {
-            idInput.value = id;
-            motivoInput.value = '';
-            body.innerHTML = `
-                <div style="display: flex; gap: 0.8rem; align-items: flex-start;">
-                    <i data-lucide="shield-alert" style="color: #ef4444; flex-shrink: 0;"></i>
-                    <div>
-                        <p style="margin: 0; font-weight: 700; color: #ef4444; font-size: 0.95rem;">Atenção: Manutenção Antecipada</p>
-                        <p style="margin: 5px 0 0; font-size: 0.85rem; color: var(--text-muted);">Os itens abaixo possuem vida útil restante:</p>
-                    </div>
-                </div>
-                <ul style="margin: 1rem 0 1rem 2.5rem; padding: 0; color: white; font-size: 0.85rem;">
-                    ${earlyItems.map(item => `<li style="margin-bottom: 5px;"><strong>${item.desc}</strong>: faltam <span style="color: #ef4444; font-weight: 800;">${item.remaining.toLocaleString('pt-BR')} km</span></li>`).join('')}
-                </ul>
-                <p style="margin: 0; font-size: 0.8rem; opacity: 0.8;">Justifique o motivo para autorizar a conclusão antecipada.</p>
-            `;
-            document.getElementById('modalAuth').classList.add('active');
-            if (window.lucide) lucide.createIcons();
-        }
+    infoBox.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+            <div>
+                <span style="font-family:'JetBrains Mono',monospace; font-weight:800; color:#059669; font-size:1.05rem;">${placaStr}</span>
+                ${veh?.modelo ? `<div style="font-size: 0.75rem; color: var(--text-muted);">${veh.modelo}</div>` : ''}
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Próxima Troca Prevista</div>
+                <div style="font-size: 1rem; font-weight: 800; color: #6366f1;">${proxKm ? proxKm.toLocaleString('pt-BR') + ' km' : 'Não informada'}</div>
+            </div>
+        </div>
+        <div style="font-size: 0.78rem; color: var(--text-main); border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 0.4rem;">
+            <strong>Serviços:</strong> ${descServico}
+        </div>
+    `;
+
+    modal.classList.add('active');
+    if (window.lucide) lucide.createIcons();
+    window.atualizarPreviewCalculoConclusao();
+    setTimeout(() => kmInput.focus(), 100);
+};
+
+window.closeConcluirMaintModal = function() {
+    const modal = document.getElementById('modalConcluirMaint');
+    if (modal) modal.classList.remove('active');
+    window._concluirMaintTargetProxKm = null;
+    window._concluirMaintOriginalMaint = null;
+};
+
+window.atualizarPreviewCalculoConclusao = function() {
+    const kmInput = document.getElementById('concluir_km_real');
+    const previewBox = document.getElementById('concluirCalculoPreview');
+    const reqStar = document.getElementById('concluir_motivo_required');
+    const motivoInput = document.getElementById('concluir_motivo');
+    if (!kmInput || !previewBox) return;
+
+    const kmVal = parseFloat(kmInput.value);
+    const proxKm = window._concluirMaintTargetProxKm;
+
+    if (isNaN(kmVal) || kmVal <= 0) {
+        previewBox.style.display = 'none';
+        if (reqStar) reqStar.style.display = 'none';
+        if (motivoInput) motivoInput.required = false;
+        return;
+    }
+
+    if (proxKm === null || isNaN(proxKm)) {
+        previewBox.style.display = 'block';
+        previewBox.style.background = 'rgba(100, 116, 139, 0.12)';
+        previewBox.style.border = '1px solid rgba(100, 116, 139, 0.25)';
+        previewBox.style.color = '#94a3b8';
+        previewBox.innerHTML = `ℹ️ Esta OS não possui meta de Próximo KM estipulada. A conclusão será registrada no KM ${kmVal.toLocaleString('pt-BR')}.`;
+        if (reqStar) reqStar.style.display = 'none';
+        if (motivoInput) motivoInput.required = false;
+        return;
+    }
+
+    const diff = Math.round(proxKm - kmVal);
+    previewBox.style.display = 'block';
+
+    if (diff < 0) {
+        // Atrasado
+        previewBox.style.background = 'rgba(239, 68, 68, 0.12)';
+        previewBox.style.border = '1px solid rgba(239, 68, 68, 0.35)';
+        previewBox.style.color = '#ef4444';
+        previewBox.innerHTML = `
+            <div style="display:flex; align-items:center; gap:6px;">
+                <i data-lucide="alert-triangle" style="width:16px; height:16px; flex-shrink:0;"></i>
+                <span><strong>ATENÇÃO:</strong> Troca realizada com <strong>ATRASO de ${Math.abs(diff).toLocaleString('pt-BR')} km</strong> (${diff.toLocaleString('pt-BR')} km).</span>
+            </div>
+        `;
+        if (reqStar) reqStar.style.display = 'none';
+        if (motivoInput) motivoInput.required = false;
     } else {
-        await applyStatusChange(id, 'CONCLUIDO');
+        // No prazo
+        previewBox.style.background = 'rgba(16, 185, 129, 0.12)';
+        previewBox.style.border = '1px solid rgba(16, 185, 129, 0.35)';
+        previewBox.style.color = '#10b981';
+        
+        if (diff > 2000) {
+            previewBox.innerHTML = `
+                <div style="display:flex; align-items:center; gap:6px; margin-bottom: 3px;">
+                    <i data-lucide="check-circle-2" style="width:16px; height:16px; flex-shrink:0;"></i>
+                    <span>Troca realizada <strong>NO PRAZO</strong> (+${diff.toLocaleString('pt-BR')} km de margem).</span>
+                </div>
+                <div style="font-size: 0.74rem; color: #f59e0b; margin-top: 4px;">
+                    ⚠️ Troca realizada muito antes do prazo (+2.000 km). Justificativa obrigatória abaixo.
+                </div>
+            `;
+            if (reqStar) reqStar.style.display = 'inline';
+            if (motivoInput) motivoInput.required = true;
+        } else {
+            previewBox.innerHTML = `
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <i data-lucide="check-circle-2" style="width:16px; height:16px; flex-shrink:0;"></i>
+                    <span>Troca realizada <strong>NO PRAZO</strong> (margem de +${diff.toLocaleString('pt-BR')} km).</span>
+                </div>
+            `;
+            if (reqStar) reqStar.style.display = 'none';
+            if (motivoInput) motivoInput.required = false;
+        }
+    }
+    if (window.lucide) lucide.createIcons();
+};
+
+window.confirmarConclusaoMaint = async function(e) {
+    e.preventDefault();
+    const idInput = document.getElementById('concluir_maint_id');
+    const kmInput = document.getElementById('concluir_km_real');
+    const motivoInput = document.getElementById('concluir_motivo');
+    const btnSubmit = document.getElementById('btnConfirmarConclusaoMaint');
+    if (!idInput || !kmInput) return;
+
+    const id = idInput.value;
+    const kmReal = parseFloat(kmInput.value);
+    const motivo = motivoInput ? motivoInput.value.trim() : '';
+
+    if (isNaN(kmReal) || kmReal <= 0) {
+        showToast('Informe uma quilometragem válida.', 'warning');
+        return;
+    }
+
+    const proxKm = window._concluirMaintTargetProxKm;
+    let kmTag = `[KM_CONCLUSAO: ${kmReal}]`;
+    let toastMsg = 'Manutenção concluída!';
+    let logDiffText = '';
+
+    if (proxKm !== null && !isNaN(proxKm)) {
+        const diff = Math.round(proxKm - kmReal);
+        if (diff < 0) {
+            kmTag = `[ATRASO_KM: ${diff} | KM_CONCLUSAO: ${kmReal}]`;
+            toastMsg = `Manutenção concluída com ATRASO de ${Math.abs(diff).toLocaleString('pt-BR')} km!`;
+            logDiffText = `com ATRASO de ${Math.abs(diff).toLocaleString('pt-BR')} km (${diff.toLocaleString('pt-BR')} km)`;
+        } else {
+            kmTag = `[PRAZO_KM: +${diff} | KM_CONCLUSAO: ${kmReal}]`;
+            toastMsg = `Manutenção concluída NO PRAZO (+${diff.toLocaleString('pt-BR')} km)!`;
+            logDiffText = `NO PRAZO (+${diff.toLocaleString('pt-BR')} km de margem)`;
+        }
+    }
+
+    const motivoFinal = motivo ? `${kmTag} Concluído manualmente: ${motivo}` : `${kmTag} Concluído manualmente`;
+
+    try {
+        if (btnSubmit) {
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = 'Concluindo...';
+        }
+        await applyStatusChange(id, 'CONCLUIDO', motivoFinal);
+        closeConcluirMaintModal();
+        showToast(toastMsg, 'success');
+
+        if (typeof window.registrarLog === 'function') {
+            const m = window._concluirMaintOriginalMaint;
+            const placa = m?.veiculos?.placa || '';
+            window.registrarLog('manutencao', 'ALTERAÇÃO', `Ordem de serviço [${placa}] concluída manualmente no KM ${kmReal.toLocaleString('pt-BR')}. Troca ${logDiffText}`);
+        }
+    } catch (err) {
+        console.error('Erro ao concluir manutenção:', err);
+        showToast('Erro ao concluir manutenção: ' + err.message, 'error');
+    } finally {
+        if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = 'CONFIRMAR CONCLUSÃO';
+        }
     }
 };
 
@@ -1741,6 +2053,14 @@ async function applyStatusChange(id, newStatus, motivo = null) {
         let statusText = 'Pendente';
         if (newStatus === 'AGENDADO') statusText = 'Agendado';
         else if (newStatus === 'CONCLUIDO') statusText = 'Concluído';
+
+        if (typeof window.registrarLog === 'function') {
+            const mObj = (state.manutencoes || []).find(x => x.id === id);
+            const vehObj = mObj ? ((state.vehicles || []).find(v => v.id === mObj.veiculo_id) || mObj.veiculos) : null;
+            const placaDoc = vehObj ? vehObj.placa : '';
+            const motivoTxt = motivo ? ` - Motivo: ${motivo}` : '';
+            window.registrarLog('manutencao', 'STATUS', `DETALHE: Alterou status da OS [ID: ${id}] [${placaDoc}] para ${statusText.toUpperCase()}${motivoTxt}`);
+        }
 
         showToast(`Status alterado para ${statusText}!`);
         if (document.getElementById('modalAuth')) document.getElementById('modalAuth').classList.remove('active');
@@ -1901,10 +2221,12 @@ window.openMaintModal = async (id = null) => {
         state.editingStatus = 'PENDENTE'; // Reset status
         const form = document.getElementById('maintForm');
         const title = document.getElementById('maintModalTitle');
+        const btnHistMaint = document.getElementById('btnHistFromMaintModal');
         form.reset();
 
         if (id) {
             title.innerText = 'Editar Manutenção';
+            if (btnHistMaint) btnHistMaint.style.display = 'inline-flex';
             const m = state.manutencoes.find(x => x.id === id);
             if (m) {
                 const veh = state.vehicles.find(v => v.id === m.veiculo_id);
@@ -1955,6 +2277,7 @@ window.openMaintModal = async (id = null) => {
             }
         } else {
             title.innerText = 'Registrar Manutenção';
+            if (btnHistMaint) btnHistMaint.style.display = 'none';
             document.getElementById('maint_veiculo_search').value = '';
             document.getElementById('maint_veiculo').value = '';
             document.getElementById('maint_oficina_search').value = '';
@@ -2352,10 +2675,14 @@ window.confirmarAjusteKm = async (e) => {
             });
 
             const currentVehId = document.getElementById('maint_veiculo')?.value;
-            const vehObj = state.vehicles.find(v => v.id === currentVehId);
-            const placaStr = vehObj ? `${vehObj.placa} - ${vehObj.modelo}` : 'Veículo';
+            const mHeader = (state.manutencoes || []).find(m => m.id === headerId || (m.manutencao_itens || []).some(it => it.id === itemId)) || {};
+            const realVehId = currentVehId || mHeader.veiculo_id;
+            const vehObj = (state.vehicles || []).find(v => v.id === realVehId) || mHeader.veiculos;
+            const placaStr = vehObj?.placa ? `${vehObj.placa}${vehObj.modelo ? ' - ' + vehObj.modelo : ''}` : (mHeader.placa || 'Veículo');
+            const targetMaintId = headerId || mHeader.id || '';
+
             if (typeof window.registrarLog === 'function') {
-                window.registrarLog('manutencao', 'ALTERAÇÃO', `DETALHE: Ajustou manualmente o Próximo KM da manutenção [${placaStr}] - Item: ${item.descricao} - Novo Próximo KM: ${novoKm.toLocaleString('pt-BR')} KM - Motivo: ${motivo}`);
+                window.registrarLog('manutencao', 'ALTERAÇÃO', `DETALHE: Ajustou manualmente o Próximo KM da manutenção [ID: ${targetMaintId}] [${placaStr}] - Item: ${item.descricao} - Novo Próximo KM: ${novoKm.toLocaleString('pt-BR')} KM - Motivo: ${motivo}`);
             }
 
             renderMaintTable();
@@ -2565,6 +2892,13 @@ function setupFormListeners() {
                             }
                         }
                     }
+
+                    if (typeof window.registrarLog === 'function') {
+                        const vehObj = state.vehicles.find(v => v.id === header.veiculo_id);
+                        const placaStr = vehObj ? `${vehObj.placa} - ${vehObj.modelo}` : 'Veículo';
+                        const itensStr = state.currentMaintItems.map(i => i.descricao).filter(Boolean).join(', ');
+                        window.registrarLog('manutencao', 'ALTERAÇÃO', `DETALHE: Editou OS [ID: ${state.editingId}] [${placaStr}] - KM: ${currentKm.toLocaleString('pt-BR')} - Data: ${currentDate} - Itens: ${itensStr || 'Nenhum'}`);
+                    }
                 } else {
                     for (const item of state.currentMaintItems) {
                         const hPayload = {
@@ -2655,6 +2989,15 @@ function setupFormListeners() {
                             }
                         }
                     }
+
+                    if (typeof window.registrarLog === 'function') {
+                        const vehObj = state.vehicles.find(v => v.id === header.veiculo_id);
+                        const placaStr = vehObj ? `${vehObj.placa} - ${vehObj.modelo}` : 'Veículo';
+                        const itensStr = state.currentMaintItems.map(i => i.descricao).filter(Boolean).join(', ');
+                        newlyCreatedHeaderIds.forEach(newId => {
+                            window.registrarLog('manutencao', 'INCLUSÃO', `DETALHE: Registrou OS [ID: ${newId}] [${placaStr}] - KM: ${currentKm.toLocaleString('pt-BR')} - Data: ${currentDate} - Itens: ${itensStr || 'Nenhum'}`);
+                        });
+                    }
                 }
 
                 // Baixa / Conclusao automatica de servicos anteriores compativeis para o mesmo veiculo
@@ -2715,6 +3058,11 @@ function setupFormListeners() {
     window.addEventListener('keydown', (e) => {
         // Esc -> Fecha todas as modais
         if (e.key === 'Escape') {
+            const concluirMaintModal = document.getElementById('modalConcluirMaint');
+            if (concluirMaintModal && concluirMaintModal.classList.contains('active')) {
+                closeConcluirMaintModal();
+                return;
+            }
             const ajusteKmModal = document.getElementById('modalAjusteKm');
             if (ajusteKmModal && ajusteKmModal.classList.contains('active')) {
                 closeAjusteKmModal();
@@ -2946,8 +3294,14 @@ window.deleteMaint = async (id) => {
         return;
     }
     if (!confirm('Excluir esta ordem de serviço?')) return;
+    const mToDelete = (state.manutencoes || []).find(x => x.id === id);
     const { error } = await supabaseClient.from('manutencoes').delete().eq('id', id);
     if (!error) {
+        if (typeof window.registrarLog === 'function') {
+            const vehObj = mToDelete ? ((state.vehicles || []).find(v => v.id === mToDelete.veiculo_id) || mToDelete.veiculos) : null;
+            const placaDoc = vehObj ? vehObj.placa : '';
+            window.registrarLog('manutencao', 'EXCLUSÃO', `DETALHE: Excluiu a OS [ID: ${id}] [${placaDoc}] - Data: ${mToDelete?.data || '—'}`);
+        }
         showToast('OS excluída!');
         await loadInitialData();
     }
@@ -3187,9 +3541,9 @@ window.autoCompletePreviousMaintenance = async function({ veiculoId, servicos, c
         const { data: maints, error: mErr } = await supabaseClient
             .from('manutencoes')
             .select(`
-                id, data, km_atual, status,
+                id, data, km_atual, status, proxima_troca_km, autorizacao_motivo,
                 manutencao_itens (
-                    id, servico_id, descricao
+                    id, servico_id, descricao, proxima_troca_km
                 )
             `)
             .eq('veiculo_id', veiculoId)
@@ -3243,24 +3597,71 @@ window.autoCompletePreviousMaintenance = async function({ veiculoId, servicos, c
 
         console.log(`[AutoConclusao] Concluindo ${idsToComplete.length} manutencao(oes) anterior(es):`, idsToComplete);
 
-        const motivo = refDoc 
-            ? `Concluído automaticamente pelo novo registro: ${refDoc}`
-            : 'Concluído automaticamente por novo serviço realizado';
+        const curKmNum = (currentKm !== null && currentKm !== undefined && !isNaN(parseFloat(currentKm))) 
+            ? parseFloat(currentKm) 
+            : null;
 
-        const updatePayload = {
-            status: 'CONCLUIDO',
-            autorizacao_motivo: motivo,
-            autorizado_em: new Date().toISOString()
-        };
+        for (const maintId of idsToComplete) {
+            const m = maints.find(x => x.id === maintId);
+            if (!m) continue;
 
-        const { error: updErr } = await supabaseClient
-            .from('manutencoes')
-            .update(updatePayload)
-            .in('id', idsToComplete);
+            // Determina a meta de próxima troca da OS anterior
+            let proxKm = null;
+            const items = m.manutencao_itens || [];
+            const matchedItem = items.find(it => {
+                if (it.servico_id && servicoIds.includes(it.servico_id)) return true;
+                if (it.descricao) {
+                    const cleanDesc = it.descricao.replace(/\[ID:[^\]]+\]\s*/i, '').trim().toUpperCase();
+                    if (cleanNames.some(cn => cn === cleanDesc || cleanDesc.includes(cn) || cn.includes(cleanDesc))) return true;
+                }
+                return false;
+            });
 
-        if (updErr) {
-            console.error('[AutoConclusao] Erro ao atualizar status para CONCLUIDO:', updErr);
-            return { updatedCount: 0, error: updErr };
+            if (matchedItem && matchedItem.proxima_troca_km) {
+                proxKm = parseFloat(matchedItem.proxima_troca_km);
+            } else if (m.proxima_troca_km) {
+                proxKm = parseFloat(m.proxima_troca_km);
+            }
+
+            let kmTag = '';
+            let logDiffText = '';
+            if (proxKm !== null && curKmNum !== null) {
+                const diffKm = Math.round(proxKm - curKmNum);
+                if (diffKm < 0) {
+                    kmTag = `[ATRASO_KM: ${diffKm} | KM_CONCLUSAO: ${curKmNum}]`;
+                    logDiffText = `com ATRASO de ${Math.abs(diffKm).toLocaleString('pt-BR')} km (${diffKm.toLocaleString('pt-BR')} km)`;
+                } else {
+                    kmTag = `[PRAZO_KM: +${diffKm} | KM_CONCLUSAO: ${curKmNum}]`;
+                    logDiffText = `NO PRAZO (+${diffKm.toLocaleString('pt-BR')} km de margem)`;
+                }
+            } else if (curKmNum !== null) {
+                kmTag = `[KM_CONCLUSAO: ${curKmNum}]`;
+            }
+
+            const baseMotivo = refDoc 
+                ? `Concluído automaticamente pelo novo registro: ${refDoc}`
+                : 'Concluído automaticamente por novo serviço realizado';
+
+            const finalMotivo = kmTag ? `${kmTag} ${baseMotivo}` : baseMotivo;
+
+            const updatePayload = {
+                status: 'CONCLUIDO',
+                autorizacao_motivo: finalMotivo,
+                autorizado_em: new Date().toISOString()
+            };
+
+            const { error: updErr } = await supabaseClient
+                .from('manutencoes')
+                .update(updatePayload)
+                .eq('id', maintId);
+
+            if (updErr) {
+                console.error(`[AutoConclusao] Erro ao atualizar OS #${maintId}:`, updErr);
+            } else {
+                if (typeof window.registrarLog === 'function') {
+                    window.registrarLog('manutencao', 'ALTERAÇÃO', `Ordem de serviço anterior concluída automaticamente por novo registro (${refDoc || 'Novo Serviço'}). Troca realizada ${logDiffText}`);
+                }
+            }
         }
 
         console.log(`[AutoConclusao] Sucesso! ${idsToComplete.length} manutencao(oes) anterior(es) marcada(s) como CONCLUIDO.`);
@@ -3745,6 +4146,464 @@ document.addEventListener('keydown', function(e) {
             e.preventDefault();
             e.stopPropagation();
             closeViewModal();
+        }
+    }
+}, true);
+
+// =============================================================================
+// 🕒 HISTÓRICO DE REGISTRO E AUDITORIA DA MANUTENÇÃO (Linha do Tempo Vertical)
+// =============================================================================
+
+/** Abre o modal de histórico de alterações da OS com linha do tempo vertical */
+async function openMaintHistoryModal(id) {
+    let m = (state.manutencoes || []).find(x => x.id === id);
+    if (window.supabaseClient) {
+        try {
+            const { data: fetchedM } = await supabaseClient
+                .from('manutencoes')
+                .select('*, veiculos(*), fornecedores(*), manutencao_itens(*, manutencao_acoes(*), manutencao_tipos(*))')
+                .eq('id', id)
+                .maybeSingle();
+            if (fetchedM) {
+                m = fetchedM;
+                const idx = (state.manutencoes || []).findIndex(x => x.id === id);
+                if (idx !== -1) state.manutencoes[idx] = fetchedM;
+            }
+        } catch (fetchErr) {
+            console.warn('[Histórico OS] Erro na busca direta:', fetchErr);
+        }
+    }
+
+    if (!m) {
+        showToast('Ordem de serviço não encontrada.', 'error');
+        return;
+    }
+
+    const modal = document.getElementById('maintHistoryModal');
+    if (!modal) return;
+
+    const veh = (state.vehicles || []).find(v => v.id === m.veiculo_id) || m.veiculos;
+    const forn = (state.oficinas || []).find(o => o.id === m.oficina_id) || m.fornecedores;
+    const items = m.manutencao_itens || [];
+    const isConcluido = m.status === 'CONCLUIDO';
+
+    // 1. Preencher Cabeçalho do Modal
+    const elPlaca = document.getElementById('maintHistPlaca');
+    const elDesc = document.getElementById('maintHistDesc');
+    const elOficina = document.getElementById('maintHistOficina');
+    const elKm = document.getElementById('maintHistKm');
+    const elBadge = document.getElementById('maintHistStatusBadge');
+    const elOrigemBadge = document.getElementById('maintHistOrigemBadge');
+
+    if (elPlaca) elPlaca.innerText = veh?.placa || 'Sem Placa';
+    if (elOrigemBadge) {
+        if (m.numero_nota || m.compra_id) {
+            elOrigemBadge.innerText = `COMPRAS / NF #${m.numero_nota || m.compra_id}`;
+            elOrigemBadge.style.background = 'rgba(245, 158, 11, 0.12)';
+            elOrigemBadge.style.color = '#d97706';
+        } else {
+            elOrigemBadge.innerText = 'ORDEM DE SERVIÇO';
+            elOrigemBadge.style.background = 'rgba(2, 132, 199, 0.12)';
+            elOrigemBadge.style.color = '#0284c7';
+        }
+    }
+
+    const itemsDescList = items.map(i => {
+        const acao = (i.manutencao_acoes?.descricao || '').toUpperCase();
+        const desc = i.descricao || '';
+        return acao ? `${acao}: ${desc}` : desc;
+    }).filter(Boolean);
+
+    if (elDesc) {
+        elDesc.innerText = itemsDescList.length > 0 
+            ? itemsDescList.join(' • ') 
+            : (m.descricao || 'Ordem de Serviço de Manutenção');
+    }
+
+    if (elOficina) {
+        elOficina.innerText = `${forn?.nome ? 'Oficina: ' + forn.nome : 'Oficina não informada'} • Veículo: ${veh?.modelo || '-'}`;
+    }
+
+    if (elKm) {
+        elKm.innerText = m.km_atual ? `${parseFloat(m.km_atual).toLocaleString('pt-BR')} KM` : 'KM não informado';
+    }
+
+    if (elBadge) {
+        const st = (m.status || 'PENDENTE').toUpperCase();
+        elBadge.innerText = st === 'CONCLUIDO' ? 'CONCLUÍDO' : st;
+        elBadge.className = 'status-badge';
+        if (st === 'CONCLUIDO') {
+            elBadge.style.background = 'rgba(16, 185, 129, 0.12)';
+            elBadge.style.color = '#059669';
+            elBadge.style.borderColor = 'rgba(16, 185, 129, 0.25)';
+        } else if (st === 'AGENDADO') {
+            elBadge.style.background = 'rgba(139, 92, 246, 0.12)';
+            elBadge.style.color = '#7c3aed';
+            elBadge.style.borderColor = 'rgba(139, 92, 246, 0.25)';
+        } else {
+            elBadge.style.background = 'rgba(245, 158, 11, 0.12)';
+            elBadge.style.color = '#d97706';
+            elBadge.style.borderColor = 'rgba(245, 158, 11, 0.25)';
+        }
+    }
+
+    const container = document.getElementById('maintHistTimelineContainer');
+    if (container) {
+        container.innerHTML = `<div style="text-align:center; padding:2.5rem 1rem; color:#64748b;"><i data-lucide="loader-2" class="spin-animation" style="width:26px; height:26px; vertical-align:middle; margin-bottom:8px; color:#10b981;"></i><br>Carregando histórico e montando a linha do tempo...</div>`;
+    }
+    if (window.lucide) lucide.createIcons();
+
+    modal.classList.add('active');
+
+    try {
+        // 2. Buscar logs de auditoria no Supabase e no localStorage
+        const orConditions = [
+            `descricao.ilike.%${m.id}%`
+        ];
+        if (veh?.placa) {
+            orConditions.push(`descricao.ilike.%${veh.placa}%`);
+        }
+        if (m.numero_nota) {
+            orConditions.push(`descricao.ilike.%${m.numero_nota}%`);
+        }
+
+        let rawDbLogs = [];
+        try {
+            const { data: fetchedLogs, error: logErr } = await supabaseClient
+                .from('logs_atividade')
+                .select('*')
+                .eq('modulo', 'manutencao')
+                .or(orConditions.join(','))
+                .order('data_hora', { ascending: false });
+            if (!logErr && fetchedLogs) {
+                rawDbLogs = fetchedLogs;
+            }
+        } catch (logEx) {
+            console.warn('[Histórico OS] Erro ao buscar logs do Supabase:', logEx);
+        }
+
+        // Mesclar com logs locais do localStorage exclusivamente do módulo manutenção
+        try {
+            const localLogs = JSON.parse(localStorage.getItem('frotalink_audit_logs') || '[]');
+            const relevantLocal = localLogs.filter(l => {
+                const mod = (l.modulo || '').toLowerCase();
+                if (mod !== 'manutencao') return false;
+                const d = l.descricao || '';
+                return d.includes(m.id) || 
+                       (m.numero_nota && d.includes(String(m.numero_nota))) || 
+                       (veh?.placa && d.includes(veh.placa));
+            });
+            relevantLocal.forEach(ll => {
+                const alreadyExists = rawDbLogs.some(dl => 
+                    dl.id === ll.id || 
+                    (dl.data_hora === ll.data_hora && dl.descricao === ll.descricao)
+                );
+                if (!alreadyExists) {
+                    rawDbLogs.push(ll);
+                }
+            });
+        } catch (locErr) {
+            console.warn('[Histórico OS] Erro ao buscar logs locais:', locErr);
+        }
+
+        // Validação estrita em memória: APENAS logs do módulo manutenção relacionados à OS
+        const dbLogs = (rawDbLogs || []).filter(log => {
+            const mod = (log.modulo || '').toLowerCase();
+            if (mod && mod !== 'manutencao') return false;
+
+            const d = log.descricao || '';
+            const dLower = d.toLowerCase();
+            // Ignora expressamente logs que pertençam a outros módulos (como saídas de estoque ou abastecimentos)
+            if (dLower.includes('saída de estoque') || dLower.includes('saida de estoque') || dLower.includes('abastecimento')) {
+                return false;
+            }
+
+            if (d.includes(m.id)) return true;
+            if (m.numero_nota && d.includes(String(m.numero_nota))) return true;
+            if (veh?.placa && d.includes(veh.placa)) return true;
+            return false;
+        });
+
+        const historyItems = [];
+
+        // 3. BLOCO INICIAL: Criação da OS
+        const inclusaoLog = (dbLogs || []).find(log => {
+            const act = (log.acao || '').toUpperCase();
+            const dUpper = (log.descricao || '').toUpperCase();
+            const mod = (log.modulo || '').toLowerCase();
+            if (mod && mod !== 'manutencao') return false;
+            return (act === 'INCLUSÃO' || act === 'INCLUSAO') && (dUpper.includes('OS') || dUpper.includes('MANUTENÇÃO') || dUpper.includes('MANUTENCAO'));
+        });
+
+        const dataCriacao = inclusaoLog 
+            ? new Date(inclusaoLog.data_hora || inclusaoLog.created_at) 
+            : new Date(m.created_at || m.data || Date.now());
+
+        let autorCriacao = 'Usuário não registrado no log';
+        if (inclusaoLog && inclusaoLog.usuario_email) {
+            autorCriacao = inclusaoLog.usuario_email;
+        } else if (m.created_by && String(m.created_by).includes('@')) {
+            autorCriacao = m.created_by;
+        } else if (m.compra_id || m.numero_nota) {
+            autorCriacao = 'Integrado via Módulo Compras';
+        } else {
+            autorCriacao = m.created_by || 'Cadastro de OS (Operador)';
+        }
+
+        const valorTotalOS = items.reduce((acc, curr) => acc + (parseFloat(curr.valor_pecas) || 0) + (parseFloat(curr.valor_servicos) || 0), 0);
+
+        historyItems.push({
+            id: 'init_event',
+            date: dataCriacao,
+            user: autorCriacao,
+            action: 'OS REGISTRADA',
+            icon: 'file-plus',
+            markerColor: '#10b981',
+            badgeBg: 'rgba(16, 185, 129, 0.12)',
+            badgeColor: '#059669',
+            title: 'Registro Inicial da Ordem de Serviço',
+            desc: inclusaoLog ? inclusaoLog.descricao : `Ordem de Serviço registrada para o veículo ${veh?.placa || 'Veículo'} (${veh?.modelo || ''}).`,
+            details: [
+                { label: 'Veículo', value: `${veh?.placa || '—'} (${veh?.modelo || '—'})` },
+                { label: 'Oficina / Fornecedor', value: forn?.nome || '—' },
+                { label: 'KM no Momento', value: m.km_atual ? `${parseFloat(m.km_atual).toLocaleString('pt-BR')} KM` : '—' },
+                { label: 'Data do Serviço', value: m.data ? new Date(m.data + 'T12:00:00').toLocaleDateString('pt-BR') : '—' },
+                { label: 'Qtd. Serviços / Itens', value: items.length > 0 ? `${items.length} item(ns)` : 'Nenhum' },
+                { label: 'Valor Estimado', value: valorTotalOS > 0 ? `R$ ${valorTotalOS.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—' }
+            ]
+        });
+
+        // 4. BLOCO: VÍNCULO COM COMPRAS / NF (se houver)
+        if (m.numero_nota || m.compra_id) {
+            historyItems.push({
+                id: 'nf_compra_event',
+                date: new Date(m.created_at || m.data || Date.now()),
+                user: 'Sistema / Módulo Compras',
+                action: 'VÍNCULO COM COMPRAS / NF',
+                icon: 'shopping-cart',
+                markerColor: '#f59e0b',
+                badgeBg: 'rgba(245, 158, 11, 0.12)',
+                badgeColor: '#d97706',
+                title: `Vinculado à Nota Fiscal #${m.numero_nota || m.compra_id}`,
+                desc: `Manutenção integrada e gerada a partir da Nota de Compra #${m.numero_nota || m.compra_id}.`,
+                details: [
+                    { label: 'Nota Fiscal', value: `#${m.numero_nota || m.compra_id}` },
+                    { label: 'Fornecedor', value: forn?.nome || '—' },
+                    { label: 'Origem', value: 'Módulo Compras & Estoque' }
+                ]
+            });
+        }
+
+        // 5. BLOCOS INTERMEDIÁRIOS: Logs gravados em logs_atividade
+        if (dbLogs && dbLogs.length > 0) {
+            dbLogs.forEach(log => {
+                const act = (log.acao || '').toUpperCase();
+                const dUpper = (log.descricao || '').toUpperCase();
+
+                if (inclusaoLog && log.id === inclusaoLog.id) return;
+                if (act === 'INCLUSÃO' || act === 'INCLUSAO') return;
+
+                let actionName = 'OS ALTERADA';
+                let iconName = 'edit-3';
+                let markerCol = '#0284c7';
+                let bBg = 'rgba(2, 132, 199, 0.12)';
+                let bCol = '#0284c7';
+                let eventTitle = 'Alteração Cadastral da OS';
+
+                if (dUpper.includes('AJUSTOU MANUALMENTE') || dUpper.includes('PRÓXIMO KM') || dUpper.includes('KM')) {
+                    actionName = 'AJUSTE MANUAL DE KM';
+                    iconName = 'gauge';
+                    markerCol = '#0284c7';
+                    bBg = 'rgba(2, 132, 199, 0.12)';
+                    bCol = '#0284c7';
+                    eventTitle = 'Reajuste da Quilometragem de Troca';
+                } else if (act === 'STATUS' || dUpper.includes('STATUS')) {
+                    actionName = 'STATUS ALTERADO';
+                    iconName = 'refresh-cw';
+                    markerCol = '#8b5cf6';
+                    bBg = 'rgba(139, 92, 246, 0.12)';
+                    bCol = '#7c3aed';
+                    eventTitle = 'Mudança no Status da Ordem de Serviço';
+                }
+
+                historyItems.push({
+                    id: 'log_' + log.id,
+                    date: new Date(log.data_hora || log.created_at || Date.now()),
+                    user: log.usuario_email || 'Operador',
+                    action: actionName,
+                    icon: iconName,
+                    markerColor: markerCol,
+                    badgeBg: bBg,
+                    badgeColor: bCol,
+                    title: eventTitle,
+                    desc: log.descricao || '',
+                    details: []
+                });
+            });
+        }
+
+        // 6. AJUSTES MANUAIS DE KM SALVOS DIRETAMENTE NOS ITENS (se não cobertos por log)
+        items.forEach((item, idx) => {
+            if (item.km_ajustado_manualmente || item.motivo_ajuste_km || item.data_ajuste_km) {
+                const itemDesc = item.descricao || 'Item de Manutenção';
+                const hasLoggedKm = historyItems.some(h => h.desc && (h.desc.includes(itemDesc) || (item.id && h.desc.includes(item.id))) && (h.action.includes('KM') || h.action.includes('AJUSTE')));
+                if (!hasLoggedKm) {
+                    const dtAjuste = item.data_ajuste_km ? new Date(item.data_ajuste_km) : new Date(m.updated_at || m.created_at || Date.now());
+                    historyItems.push({
+                        id: 'km_adj_' + (item.id || idx),
+                        date: dtAjuste,
+                        user: item.usuario_ajuste_km || 'Operador',
+                        action: 'AJUSTE MANUAL DE KM',
+                        icon: 'gauge',
+                        markerColor: '#0284c7',
+                        badgeBg: 'rgba(2, 132, 199, 0.12)',
+                        badgeColor: '#0284c7',
+                        title: `Ajuste de KM: ${itemDesc}`,
+                        desc: item.motivo_ajuste_km ? `Motivo informado: ${item.motivo_ajuste_km}` : 'Quilometragem limite de próxima troca ajustada manualmente.',
+                        details: [
+                            { label: 'Item / Serviço', value: itemDesc },
+                            { label: 'Próxima Troca (KM)', value: item.proxima_troca_km ? `${parseFloat(item.proxima_troca_km).toLocaleString('pt-BR')} KM` : '—' },
+                            { label: 'Responsável', value: item.usuario_ajuste_km || '—' }
+                        ]
+                    });
+                }
+            }
+        });
+
+        // 7. MARCO DE CONCLUSÃO (Reconstrução garantida para OS Concluída)
+        if (isConcluido) {
+            const hasConclusionEvent = historyItems.some(i => i.action.includes('CONCLUÍD') || i.desc.toUpperCase().includes('CONCLUIDO') || i.desc.toUpperCase().includes('CONCLUÍDO'));
+            if (!hasConclusionEvent) {
+                const dtConclusao = m.autorizado_em ? new Date(m.autorizado_em) : new Date(m.updated_at || m.data || Date.now());
+                let autorConclusao = 'Operador';
+                if (m.autorizacao_motivo && m.autorizacao_motivo.includes('por ')) {
+                    const mUser = m.autorizacao_motivo.match(/por (.*?)]/);
+                    if (mUser && mUser[1]) autorConclusao = mUser[1].trim();
+                } else if (m.updated_by) {
+                    autorConclusao = m.updated_by;
+                }
+
+                const concInfo = getMaintConclusionInfo(m);
+                const conclDetails = [
+                    { label: 'Situação', value: 'Concluído' },
+                    { label: 'Data Conclusão', value: dtConclusao.toLocaleDateString('pt-BR') }
+                ];
+                if (concInfo) {
+                    conclDetails.push({
+                        label: 'Cálculo de Troca',
+                        value: concInfo.isAtrasado 
+                            ? `Troca Realizada com Atraso (${concInfo.kmDiff.toLocaleString('pt-BR')} km)` 
+                            : `Troca Realizada no Prazo (${concInfo.kmDiff >= 0 ? '+' : ''}${concInfo.kmDiff.toLocaleString('pt-BR')} km)`
+                    });
+                    if (concInfo.kmConclusao) {
+                        conclDetails.push({
+                            label: 'KM Real na Baixa',
+                            value: `${concInfo.kmConclusao.toLocaleString('pt-BR')} km`
+                        });
+                    }
+                }
+                conclDetails.push({ label: 'Autorização / Motivo', value: m.autorizacao_motivo || 'Conclusão Padrão' });
+
+                historyItems.push({
+                    id: 'concluido_event',
+                    date: dtConclusao,
+                    user: autorConclusao,
+                    action: concInfo && concInfo.isAtrasado ? 'CONCLUÍDO (COM ATRASO)' : 'OS CONCLUÍDA',
+                    icon: concInfo && concInfo.isAtrasado ? 'alert-triangle' : 'check-circle-2',
+                    markerColor: concInfo && concInfo.isAtrasado ? '#ef4444' : '#059669',
+                    badgeBg: concInfo && concInfo.isAtrasado ? 'rgba(239, 68, 68, 0.12)' : 'rgba(5, 150, 105, 0.12)',
+                    badgeColor: concInfo && concInfo.isAtrasado ? '#ef4444' : '#059669',
+                    title: concInfo && concInfo.isAtrasado ? 'Conclusão da OS realizada com Atraso' : 'Conclusão e Baixa da Ordem de Serviço',
+                    desc: m.autorizacao_motivo 
+                        ? `Ordem de serviço concluída. Informações / Motivo: ${m.autorizacao_motivo}` 
+                        : 'Ordem de serviço concluída e baixada com sucesso no sistema.',
+                    details: conclDetails
+                });
+            }
+        }
+
+        // 8. ORDENAÇÃO CRONOLÓGICA (Top-down: Mais recente no topo)
+        historyItems.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+        // 9. RENDERIZAÇÃO DA TIMELINE
+        if (container) {
+            container.innerHTML = `
+                <div class="v-timeline">
+                    ${historyItems.map((item, index) => {
+                        const isLatest = index === 0;
+                        const dateStr = item.date.toLocaleDateString('pt-BR') + ' às ' + item.date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+                        const detailsHtml = (item.details && item.details.length > 0) ? `
+                            <div class="v-timeline-details-grid">
+                                ${item.details.map(f => `
+                                    <div class="v-timeline-field">
+                                        <span class="v-timeline-field-label">${f.label}</span>
+                                        <span class="v-timeline-field-value">${f.value}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : '';
+
+                        return `
+                            <div class="v-timeline-item">
+                                <div class="v-timeline-marker" style="border-color:${item.markerColor}; color:${item.markerColor};">
+                                    <i data-lucide="${item.icon}" style="width:18px; height:18px;"></i>
+                                </div>
+                                <div class="v-timeline-card ${isLatest ? 'is-latest' : ''}">
+                                    <div class="v-timeline-header">
+                                        <span class="v-timeline-badge" style="background:${item.badgeBg}; color:${item.badgeColor};">
+                                            <i data-lucide="${item.icon}" style="width:13px; height:13px;"></i>
+                                            ${item.action}
+                                        </span>
+                                        <div style="display:flex; align-items:center; gap:8px;">
+                                            <span class="v-timeline-date">
+                                                <i data-lucide="clock" style="width:12px; height:12px;"></i> ${dateStr}
+                                            </span>
+                                            ${isLatest ? `<span class="v-timeline-current-pill"><i data-lucide="check" style="width:11px; height:11px;"></i> Situação Atual</span>` : ''}
+                                        </div>
+                                    </div>
+                                    <div class="v-timeline-title">
+                                        ${item.title}
+                                    </div>
+                                    ${item.desc ? `<div class="v-timeline-desc">${item.desc}</div>` : ''}
+                                    ${detailsHtml}
+                                    <div class="v-timeline-user">
+                                        <i data-lucide="user" style="width:12px; height:12px; opacity:0.8;"></i>
+                                        <span>Registrado por: <strong>${item.user}</strong></span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+            if (window.lucide) lucide.createIcons();
+        }
+    } catch (err) {
+        console.error('Erro ao buscar histórico de manutenção:', err);
+        if (container) {
+            container.innerHTML = `<div style="color:#ef4444; font-size:0.85rem; padding:1.5rem; text-align:center;"><i data-lucide="alert-octagon" style="width:22px; height:22px; vertical-align:middle; margin-bottom:6px;"></i><br>Erro ao carregar histórico da OS: ${err.message}</div>`;
+            if (window.lucide) lucide.createIcons();
+        }
+    }
+}
+
+function closeMaintHistoryModal() {
+    const modal = document.getElementById('maintHistoryModal');
+    if (modal) modal.classList.remove('active');
+}
+
+window.openMaintHistoryModal = openMaintHistoryModal;
+window.closeMaintHistoryModal = closeMaintHistoryModal;
+
+// Fechar modal de histórico com a tecla ESC
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('maintHistoryModal');
+        if (modal && modal.classList.contains('active')) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeMaintHistoryModal();
         }
     }
 }, true);

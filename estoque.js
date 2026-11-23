@@ -3160,6 +3160,22 @@ function closeVendaModal(force = false) {
         vModal.style.visibility = 'hidden';
     }
     document.body.classList.remove('venda-modal-open');
+
+    // Limpar estados e resíduos ao fechar
+    vendaItems = [];
+    currentVendaId = null;
+    const container = document.getElementById('v_itens_container');
+    if (container) container.innerHTML = '';
+    const obsEl = document.getElementById('v_observacoes');
+    if (obsEl) obsEl.value = '';
+    const cliEl = document.getElementById('v_cliente');
+    if (cliEl) cliEl.value = '';
+    const cliNomeEl = document.getElementById('v_cliente_nome');
+    if (cliNomeEl) cliNomeEl.value = '';
+    const veicEl = document.getElementById('v_veiculo_id');
+    if (veicEl) veicEl.value = '';
+    const osEl = document.getElementById('v_os_id');
+    if (osEl) osEl.value = '';
 }
 
 // Garantir vínculo no escopo global window
@@ -4845,7 +4861,7 @@ async function saveVenda(event) {
         }
 
         alert(currentVendaId ? 'Venda atualizada com sucesso!' : `Saída registrada com sucesso! Código: ${newVenda.codigo}`);
-        closeVendaModal();
+        closeVendaModal(true);
         currentVendaId = null;
         await reloadEstoque();
         
@@ -5285,7 +5301,7 @@ function closeReceiptModal() {
 async function confirmDeleteFromEdit() {
     if (currentVendaId) {
         await deleteSale(currentVendaId);
-        closeVendaModal();
+        closeVendaModal(true);
     }
 }
 window.confirmDeleteFromEdit = confirmDeleteFromEdit;
