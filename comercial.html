@@ -19,6 +19,7 @@
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script defer
         src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         :root {
             --primary: #6366f1;
@@ -231,9 +232,9 @@
             flex-wrap: wrap;
             gap: 1.2rem;
             background: rgba(0, 0, 0, 0.2);
-            padding: 1.2rem;
+            padding: 0.85rem 1.4rem;
             border-radius: 18px;
-            margin-bottom: 2rem;
+            margin-bottom: 1rem;
             border: 1px solid var(--border-color);
             align-items: center;
         }
@@ -903,7 +904,133 @@
         }
 
         .history-text strong {
-            color: #fff;
+            color: var(--text-main);
+        }
+
+        /* ===== CARDS DE HISTÓRICO (TIMELINE & MODAL) ===== */
+        .historico-card {
+            display: flex;
+            gap: 1.1rem;
+            align-items: flex-start;
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 1.1rem 1.3rem;
+            transition: all 0.2s ease;
+        }
+
+        .historico-card:hover {
+            border-color: rgba(99, 102, 241, 0.35);
+            background: rgba(30, 41, 59, 0.6);
+        }
+
+        .historico-icon-box {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            margin-top: 2px;
+        }
+
+        .historico-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .historico-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.35rem;
+        }
+
+        .historico-title-text {
+            font-size: 0.86rem;
+            font-weight: 800;
+            color: #ffffff;
+            line-height: 1.4;
+        }
+
+        .historico-date-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #94a3b8;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-variant-numeric: tabular-nums;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            white-space: nowrap;
+        }
+
+        .historico-autor-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #38bdf8;
+            background: rgba(56, 189, 248, 0.1);
+            padding: 0.25rem 0.65rem;
+            border-radius: 6px;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            margin-top: 0.45rem;
+        }
+
+        .historico-autor-badge strong {
+            color: #ffffff;
+            font-weight: 700;
+        }
+
+        .historico-motivo-box {
+            margin-top: 0.6rem;
+            padding: 0.65rem 0.95rem;
+            background: rgba(99, 102, 241, 0.08);
+            border-left: 3px solid var(--primary);
+            border-radius: 6px;
+            font-size: 0.8rem;
+            color: #e2e8f0;
+            font-weight: 500;
+            line-height: 1.45;
+        }
+
+        .historico-motivo-box strong {
+            color: var(--primary);
+            font-weight: 800;
+            margin-right: 4px;
+        }
+
+        .historico-alteracoes-box {
+            margin-top: 0.7rem;
+            padding: 0.8rem 1rem;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            font-size: 0.78rem;
+            color: #cbd5e1;
+            max-height: 280px;
+            overflow-y: auto;
+        }
+
+        .historico-alteracoes-box strong {
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            margin-bottom: 6px;
+            font-size: 0.82rem;
+            font-weight: 800;
         }
 
         /* ===== PROPOSTA PANEL DIREITO ===== */
@@ -1119,13 +1246,15 @@
         }
 
         .doc-proposta-wrapper {
-            background: #fff;
-            width: 820px;
+            background: #334155;
+            width: fit-content;
+            max-width: 95vw;
             max-height: 95vh;
             border-radius: 8px;
             overflow-y: auto;
             position: relative;
             box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6);
+            padding-bottom: 25px;
         }
 
         .doc-toolbar {
@@ -1138,6 +1267,7 @@
             justify-content: space-between;
             align-items: center;
             z-index: 10;
+            margin-bottom: 20px;
         }
 
         .doc-toolbar-title {
@@ -1164,6 +1294,15 @@
             transition: all 0.15s;
         }
 
+        .doc-btn-download {
+            background: #107c41;
+            color: #fff;
+        }
+
+        .doc-btn-download:hover {
+            background: #0d6334;
+        }
+
         .doc-btn-print {
             background: #6366f1;
             color: #fff;
@@ -1187,11 +1326,16 @@
         .doc-paper {
             background: #fff;
             color: #000;
-            padding: 45px 55px;
+            width: 210mm;
+            min-height: 296.5mm;
+            box-sizing: border-box;
+            padding: 30mm 18mm 26mm 18mm;
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 11pt;
-            line-height: 1.55;
+            font-size: 9.5pt;
+            line-height: 1.5;
             position: relative;
+            margin: 0 auto;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.35);
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
         }
@@ -1349,21 +1493,71 @@
         }
 
         @media print {
+            /* Oculta rigorosamente tudo fora do overlay do documento */
+            body > *:not(#documentoPropostaOverlay) {
+                display: none !important;
+            }
+
+            html, body {
+                background: #ffffff !important;
+                color: #000000 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                height: auto !important;
+                min-height: auto !important;
+                overflow: visible !important;
+            }
+
+            #documentoPropostaOverlay {
+                display: block !important;
+                position: static !important;
+                width: 100% !important;
+                height: auto !important;
+                min-height: auto !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+                backdrop-filter: none !important;
+                overflow: visible !important;
+            }
+
             .doc-toolbar {
                 display: none !important;
             }
 
-            .doc-proposta-overlay {
-                background: none !important;
-            }
-
             .doc-proposta-wrapper {
+                position: static !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
                 box-shadow: none !important;
+                border: none !important;
+                background: transparent !important;
                 max-height: none !important;
+                overflow: visible !important;
             }
 
-            .doc-paper {
-                padding: 20mm 25mm;
+            .doc-paper,
+            #docPropostaPaper {
+                box-shadow: none !important;
+                border: none !important;
+                width: 210mm !important;
+                max-width: 210mm !important;
+                min-height: 296.5mm !important;
+                box-sizing: border-box !important;
+                padding: 30mm 18mm 26mm 18mm !important;
+                margin: 0 !important;
+                background-color: #ffffff !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                page-break-after: avoid;
+                page-break-inside: avoid;
+            }
+
+            @page {
+                size: A4 portrait;
+                margin: 0;
             }
         }
 
@@ -1408,9 +1602,216 @@
             background: rgba(240, 247, 244, 0.75) !important;
         }
 
+        /* --- Modal Clean Styling (green_pastel) --- */
+        html[data-theme="green_pastel"] .custom-modal-content {
+            background: #ffffff !important;
+            border: 1px solid rgba(45, 158, 107, 0.25) !important;
+            color: #1a2e25 !important;
+            box-shadow: 0 25px 50px -12px rgba(45, 158, 107, 0.2) !important;
+        }
+
+        html[data-theme="green_pastel"] .modal-header {
+            background: #eef7f2 !important;
+            border-bottom: 1px solid rgba(45, 158, 107, 0.18) !important;
+        }
+
+        html[data-theme="green_pastel"] .modal-header h2 {
+            color: #1a2e25 !important;
+            font-weight: 900 !important;
+        }
+
+        html[data-theme="green_pastel"] .modal-header p {
+            color: #4a6d5d !important;
+            font-weight: 500 !important;
+        }
+
+        html[data-theme="green_pastel"] .btn-modal-close {
+            background: #ffffff !important;
+            border: 1px solid rgba(45, 158, 107, 0.25) !important;
+            color: #1a2e25 !important;
+            transition: all 0.2s ease;
+        }
+
+        html[data-theme="green_pastel"] .btn-modal-close:hover {
+            background: #e2efe9 !important;
+            border-color: #2d9e6b !important;
+        }
+
+        html[data-theme="green_pastel"] .custom-modal-footer {
+            background: #f4f9f6 !important;
+            border-top: 1px solid rgba(45, 158, 107, 0.2) !important;
+        }
+
+        html[data-theme="green_pastel"] #btnGerarDocumentoProposta {
+            background: #ffffff !important;
+            border: 1px solid #2d9e6b !important;
+            color: #15803d !important;
+            font-weight: 800 !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+        }
+
+        html[data-theme="green_pastel"] #btnGerarDocumentoProposta:hover {
+            background: #eef7f2 !important;
+        }
+
+        html[data-theme="green_pastel"] #btnAvancarProposta:not(:disabled) {
+            background: #2d9e6b !important;
+            border: 1px solid #2d9e6b !important;
+            color: #ffffff !important;
+            font-weight: 800 !important;
+            box-shadow: 0 2px 6px rgba(45, 158, 107, 0.25) !important;
+        }
+
+        html[data-theme="green_pastel"] #btnAvancarProposta:disabled {
+            background: #e2efe9 !important;
+            border: 1px solid rgba(45, 158, 107, 0.25) !important;
+            color: #4a6d5d !important;
+            opacity: 0.9 !important;
+            cursor: not-allowed !important;
+            font-weight: 700 !important;
+        }
+
+        html[data-theme="green_pastel"] .btn-modal-cancel {
+            background: #ffffff !important;
+            border: 1px solid rgba(45, 158, 107, 0.25) !important;
+            color: #2d4a3e !important;
+            font-weight: 700 !important;
+        }
+
+        html[data-theme="green_pastel"] .btn-modal-cancel:hover {
+            background: #eef7f2 !important;
+            color: #1a2e25 !important;
+        }
+
+        html[data-theme="green_pastel"] .modal-section-title {
+            border-bottom: 1px solid rgba(45, 158, 107, 0.2) !important;
+        }
+
+        html[data-theme="green_pastel"] .modal-section-title span {
+            color: #1a2e25 !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.5px !important;
+        }
+
+        html[data-theme="green_pastel"] .com-group label {
+            color: #2d4a3e !important;
+            font-weight: 800 !important;
+            font-size: 0.74rem !important;
+        }
+
+        html[data-theme="green_pastel"] .com-input {
+            background: #ffffff !important;
+            border: 1px solid rgba(45, 158, 107, 0.3) !important;
+            color: #1a2e25 !important;
+            font-weight: 600 !important;
+        }
+
+        html[data-theme="green_pastel"] .com-input:focus {
+            background: #ffffff !important;
+            border-color: #2d9e6b !important;
+            box-shadow: 0 0 0 3px rgba(45, 158, 107, 0.2) !important;
+        }
+
+        html[data-theme="green_pastel"] .item-input {
+            background: #ffffff !important;
+            border: 1px solid rgba(45, 158, 107, 0.3) !important;
+            color: #1a2e25 !important;
+            font-weight: 600 !important;
+        }
+
         html[data-theme="green_pastel"] #propostaTimelineBar {
-            background: rgba(45, 158, 107, 0.05) !important;
-            border-color: rgba(45, 158, 107, 0.15) !important;
+            background: #f4f9f6 !important;
+            border: 1px solid rgba(45, 158, 107, 0.25) !important;
+        }
+
+        html[data-theme="green_pastel"] .timeline-history-title {
+            color: #2d4a3e !important;
+            font-weight: 800 !important;
+        }
+
+        html[data-theme="green_pastel"] .history-entry .history-text {
+            color: #1a2e25 !important;
+            font-weight: 600 !important;
+        }
+
+        /* Histórico Cards & Modal no Tema Clean */
+        html[data-theme="green_pastel"] #historicoModal .modal-header {
+            background: linear-gradient(135deg, rgba(45, 158, 107, 0.12), rgba(45, 158, 107, 0.04)) !important;
+            border-bottom: 1px solid rgba(45, 158, 107, 0.15) !important;
+        }
+
+        html[data-theme="green_pastel"] #historicoModal .modal-header h2 {
+            color: #143525 !important;
+            font-weight: 900 !important;
+        }
+
+        html[data-theme="green_pastel"] #historicoModalSubtitle {
+            color: #4a6b5d !important;
+            font-weight: 700 !important;
+        }
+
+        html[data-theme="green_pastel"] .historico-card {
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.05) !important;
+        }
+
+        html[data-theme="green_pastel"] .historico-card:hover {
+            border-color: #2d9e6b !important;
+            box-shadow: 0 4px 12px -2px rgba(45, 158, 107, 0.12) !important;
+        }
+
+        html[data-theme="green_pastel"] .historico-icon-box {
+            background: rgba(45, 158, 107, 0.12) !important;
+            color: #2d9e6b !important;
+            border-color: rgba(45, 158, 107, 0.25) !important;
+        }
+
+        html[data-theme="green_pastel"] .historico-title-text {
+            color: #0f172a !important;
+            font-weight: 800 !important;
+        }
+
+        html[data-theme="green_pastel"] .historico-date-badge {
+            color: #475569 !important;
+            background: #f1f5f9 !important;
+            border-color: #e2e8f0 !important;
+        }
+
+        html[data-theme="green_pastel"] .historico-motivo-box {
+            background: rgba(45, 158, 107, 0.08) !important;
+            border-left-color: #2d9e6b !important;
+            color: #1e293b !important;
+        }
+
+        html[data-theme="green_pastel"] .historico-motivo-box strong {
+            color: #1e704a !important;
+        }
+
+        html[data-theme="green_pastel"] .historico-alteracoes-box {
+            background: #f8fafc !important;
+            border: 1px dashed #cbd5e1 !important;
+            color: #334155 !important;
+        }
+
+        html[data-theme="green_pastel"] .historico-alteracoes-box strong {
+            color: #2d9e6b !important;
+        }
+
+        html[data-theme="green_pastel"] .historico-autor-badge {
+            background: rgba(45, 158, 107, 0.1) !important;
+            border-color: rgba(45, 158, 107, 0.25) !important;
+            color: #1e704a !important;
+        }
+
+        html[data-theme="green_pastel"] .historico-autor-badge strong {
+            color: #143525 !important;
+        }
+
+        html[data-theme="green_pastel"] #manual_historico_texto {
+            background: #ffffff !important;
+            border: 1px solid rgba(45, 158, 107, 0.3) !important;
+            color: #1a2e25 !important;
         }
 
         html[data-theme="green_pastel"] #creationTypeWrapper {
@@ -1645,6 +2046,11 @@
                 <span id="contratosTabBadge"
                     style="display:none;align-items:center;justify-content:center;background:#ef4444;color:#fff;font-size:0.6rem;font-weight:900;border-radius:50%;min-width:18px;height:18px;padding:0 4px;margin-left:6px;line-height:1;"></span>
             </button>
+            <button class="tab-item" onclick="switchTab('particulares')">
+                <i data-lucide="car"></i> Propostas Particulares
+                <span id="particularesTabBadge"
+                    style="display:none;align-items:center;justify-content:center;background:#10b981;color:#fff;font-size:0.6rem;font-weight:900;border-radius:50%;min-width:18px;height:18px;padding:0 4px;margin-left:6px;line-height:1;"></span>
+            </button>
             <button class="tab-item" onclick="switchTab('prestadores')">
                 <i data-lucide="users"></i> Prestadores
             </button>
@@ -1669,39 +2075,39 @@
                     </button>
                 </div>
 
-                <div class="quick-filters">
-                    <div
-                        style="display:flex; align-items:center; gap:0.5rem; color:var(--primary); font-weight:800; font-size:0.75rem; text-transform:uppercase; margin-right:1rem; border-right:1px solid rgba(255,255,255,0.1); padding-right:1.5rem;">
-                        <i data-lucide="filter" style="width:14px;"></i> Filtros Rápidos
+                <div class="quick-filters" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1rem; padding:0.85rem 1.4rem;">
+                    <div style="display:flex; align-items:center; gap:1.2rem; flex-wrap:wrap;">
+                        <div
+                            style="display:flex; align-items:center; gap:0.5rem; color:var(--primary); font-weight:800; font-size:0.75rem; text-transform:uppercase; border-right:1px solid rgba(255,255,255,0.1); padding-right:1.2rem;">
+                            <i data-lucide="filter" style="width:14px;"></i> Filtros Rápidos
+                        </div>
+                        <div class="filter-group">
+                            <label>Status</label>
+                            <select id="filterStatus" class="filter-select" onchange="renderContratos()"></select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Demanda</label>
+                            <select id="filterDemanda" class="filter-select" onchange="renderContratos()"></select>
+                        </div>
                     </div>
-                    <div class="filter-group">
-                        <label>Status</label>
-                        <select id="filterStatus" class="filter-select" onchange="renderContratos()"></select>
-                    </div>
-                    <div class="filter-group">
-                        <label>Demanda</label>
-                        <select id="filterDemanda" class="filter-select" onchange="renderContratos()"></select>
+
+                    <!-- Organizador de Colunas e Exportação na mesma linha -->
+                    <div class="col-organizer-bar" style="margin-bottom:0; display:flex; align-items:center; gap:0.6rem;">
+                        <button class="btn-col-toggle" id="btnToggleCols" onclick="toggleColOrganizer()">
+                            <i data-lucide="columns" style="width:15px;"></i> Colunas
+                        </button>
+                        <button class="btn-col-toggle" id="btnExportExcel" onclick="exportExcel()"
+                            style="background:rgba(16,185,129,0.12);border-color:rgba(16,185,129,0.4);color:#10b981;">
+                            <i data-lucide="file-spreadsheet" style="width:15px;"></i> Excel
+                        </button>
+                        <button class="btn-col-toggle" id="btnExportPdf" onclick="exportPdf()"
+                            style="background:rgba(239,68,68,0.12);border-color:rgba(239,68,68,0.4);color:#ef4444;">
+                            <i data-lucide="file-text" style="width:15px;"></i> PDF
+                        </button>
                     </div>
                 </div>
 
-                <!-- Banner de Alertas de Vencimento -->
-                <div id="alertBanner" style="display:none;margin-bottom:1.2rem;"></div>
-
-                <!-- Organizador de Colunas -->
-                <div class="col-organizer-bar">
-                    <button class="btn-col-toggle" id="btnToggleCols" onclick="toggleColOrganizer()">
-                        <i data-lucide="columns" style="width:15px;"></i> Colunas
-                    </button>
-                    <button class="btn-col-toggle" id="btnExportExcel" onclick="exportExcel()"
-                        style="background:rgba(16,185,129,0.12);border-color:rgba(16,185,129,0.4);color:#10b981;">
-                        <i data-lucide="file-spreadsheet" style="width:15px;"></i> Excel
-                    </button>
-                    <button class="btn-col-toggle" id="btnExportPdf" onclick="exportPdf()"
-                        style="background:rgba(239,68,68,0.12);border-color:rgba(239,68,68,0.4);color:#ef4444;">
-                        <i data-lucide="file-text" style="width:15px;"></i> PDF
-                    </button>
-                </div>
-
+                <!-- Organizador de Colunas Panel -->
                 <div class="col-organizer-panel" id="colOrganizerPanel">
                     <div class="col-organizer-hint">
                         <i data-lucide="grip-vertical" style="width:13px;"></i>
@@ -1713,12 +2119,95 @@
                     </div>
                 </div>
 
+                <!-- Banner de Alertas de Vencimento -->
+                <div id="alertBanner" style="display:none;margin-bottom:1rem;"></div>
+
                 <div class="table-container">
                     <table>
                         <thead>
                             <tr id="contractsHeader"></tr>
                         </thead>
                         <tbody id="contractsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW: PROPOSTAS PARTICULARES -->
+        <section id="view-particulares" class="view-section">
+            <div class="content-card">
+                <div class="header-actions">
+                    <div class="search-box" style="position: relative; width: 400px;">
+                        <input type="text" id="particularSearch" class="com-input"
+                            placeholder="Buscar por cliente, CNPJ/CPF, rota ou veículo..."
+                            style="width: 100%; padding-left: 3rem;" oninput="renderParticulares()">
+                        <i data-lucide="search"
+                            style="position: absolute; left: 1.2rem; top: 50%; transform: translateY(-50%); width: 18px; color: var(--text-muted);"></i>
+                    </div>
+                    <button class="btn-new" onclick="openContratoModal(null, false, 'proposta_particular')" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                        <i data-lucide="file-plus"></i> NOVA PROPOSTA PARTICULAR <kbd style="background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 4px; padding: 1px 5px; font-size: 0.7rem; font-family: monospace; margin-left: 4px; box-shadow: 0 1px 0 rgba(0,0,0,0.2); color: #fff;">F2</kbd>
+                    </button>
+                </div>
+
+                <div class="quick-filters" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1rem; padding:0.85rem 1.4rem;">
+                    <div style="display:flex; align-items:center; gap:1.2rem; flex-wrap:wrap;">
+                        <div
+                            style="display:flex; align-items:center; gap:0.5rem; color:var(--primary); font-weight:800; font-size:0.75rem; text-transform:uppercase; border-right:1px solid rgba(255,255,255,0.1); padding-right:1.2rem;">
+                            <i data-lucide="filter" style="width:14px;"></i> Filtros Rápidos
+                        </div>
+                        <div class="filter-group">
+                            <label>Status</label>
+                            <select id="filterStatusParticular" class="filter-select" onchange="renderParticulares()"></select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Tipo Veículo</label>
+                            <select id="filterVeiculoParticular" class="filter-select" onchange="renderParticulares()"></select>
+                        </div>
+                    </div>
+
+                    <!-- Organizador de Colunas e Exportação na mesma linha -->
+                    <div class="col-organizer-bar" style="margin-bottom:0; display:flex; align-items:center; gap:0.6rem;">
+                        <button class="btn-col-toggle" id="btnToggleColsParticular" onclick="toggleColOrganizerParticular()">
+                            <i data-lucide="columns" style="width:15px;"></i> Colunas
+                        </button>
+                        <button class="btn-col-toggle" id="btnExportExcelParticular" onclick="exportExcelParticulares()"
+                            style="background:rgba(16,185,129,0.12);border-color:rgba(16,185,129,0.4);color:#10b981;">
+                            <i data-lucide="file-spreadsheet" style="width:15px;"></i> Excel
+                        </button>
+                        <button class="btn-col-toggle" id="btnExportPdfParticular" onclick="exportPdfParticulares()"
+                            style="background:rgba(239,68,68,0.12);border-color:rgba(239,68,68,0.4);color:#ef4444;">
+                            <i data-lucide="file-text" style="width:15px;"></i> PDF
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Organizador de Colunas Panel (Particulares) -->
+                <div class="col-organizer-panel" id="colOrganizerPanelParticular">
+                    <div class="col-organizer-hint">
+                        <i data-lucide="grip-vertical" style="width:13px;"></i>
+                        Arraste para reordenar &bull; Clique no olho para mostrar/ocultar
+                    </div>
+                    <div class="col-organizer-chips" id="colChipsContainerParticular"></div>
+                    <div class="col-organizer-footer">
+                        <button class="btn-reset-cols" onclick="resetColConfigParticular()">Redefinir padrão</button>
+                    </div>
+                </div>
+
+                <!-- Banner de Alertas de Vencimento (Particulares) -->
+                <div id="alertBannerParticular" style="display:none;margin-bottom:1rem;"></div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr id="particularesHeader"></tr>
+                        </thead>
+                        <tbody id="particularesTableBody">
+                            <tr>
+                                <td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">
+                                    Carregando propostas particulares...
+                                </td>
+                            </tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -1737,6 +2226,9 @@
                     </button>
                     <button class="sub-tab-item" onclick="switchSubTab('status')">
                         <i data-lucide="tag" style="width:16px;"></i> Status de Contrato
+                    </button>
+                    <button class="sub-tab-item" onclick="switchSubTab('tipos_veiculo')">
+                        <i data-lucide="car" style="width:16px;"></i> Tipos de Veículo
                     </button>
                 </nav>
 
@@ -1781,6 +2273,20 @@
                         </button>
                     </div>
                     <div id="list_status"
+                        style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+                    </div>
+                </div>
+
+                <!-- SUB-VIEW: TIPOS DE VEÍCULO -->
+                <div id="subview-tipos_veiculo" class="sub-view">
+                    <div class="header-actions">
+                        <h4 style="text-transform: uppercase; font-size: 0.8rem; color: var(--text-muted);">Tipos de Veículo (Propostas Particulares)</h4>
+                        <button class="btn-new" onclick="openAdminModal('tipos_veiculo')"
+                            style="padding: 0.6rem 1.2rem; font-size: 0.75rem;">
+                            <i data-lucide="plus"></i> NOVO TIPO DE VEÍCULO
+                        </button>
+                    </div>
+                    <div id="list_tipos_veiculo"
                         style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
                     </div>
                 </div>
@@ -1861,17 +2367,17 @@
             style="max-width: 960px; display: flex; flex-direction: column; max-height: 92vh;">
             <!-- Header -->
             <div class="modal-header"
-                style="background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.05)); flex-shrink: 0;">
+                style="flex-shrink: 0;">
                 <div>
-                    <h2 id="modalTitle" style="font-size: 1.6rem; font-weight: 900; color: #fff;">Nova Proposta</h2>
-                    <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.3rem;">Configure os dados do
+                    <h2 id="modalTitle" style="font-size: 1.6rem; font-weight: 900;">Nova Proposta</h2>
+                    <p style="font-size: 0.8rem; margin-top: 0.3rem;">Configure os dados do
                         cliente e as condições contratuais.</p>
                 </div>
                 <div style="display: flex; align-items: center; gap: 1rem;">
                     <span id="contratoCodeBadge"
                         style="display: none; background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.4); color: var(--primary); padding: 0.4rem 0.9rem; border-radius: 8px; font-size: 0.75rem; font-weight: 800; font-family: 'JetBrains Mono', monospace;"></span>
-                    <button onclick="closeContratoModal()"
-                        style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-muted); cursor: pointer; border-radius: 10px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;"><i
+                    <button onclick="closeContratoModal()" class="btn-modal-close"
+                        style="cursor: pointer; border-radius: 10px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;"><i
                             data-lucide="x" style="width:16px;"></i></button>
                 </div>
             </div>
@@ -1885,6 +2391,7 @@
                 <div id="creationTypeWrapper" style="display: flex; flex-direction: column; gap: 0.5rem; background: rgba(99,102,241,0.05); border: 1px solid rgba(99,102,241,0.2); padding: 1.2rem; border-radius: 14px; margin-bottom: 0.5rem;">
                     <label style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px;">Tipo de Entrada do Cliente</label>
                     <select id="creation_type" class="com-input" onchange="handleCreationTypeChange(this.value)" style="width: 100%;">
+                        <option value="proposta_particular">Proposta Particular (Transporte Executivo)</option>
                         <option value="proposta">Nova Proposta Comercial (Funil / Etapas)</option>
                         <option value="contrato_direto">Cliente / Contrato Ativo Direto (Sem fluxo de Proposta)</option>
                     </select>
@@ -2093,8 +2600,8 @@
                 <!-- GRUPO DE DADOS DA PROPOSTA (OCULTO PARA CADASTROS ATIVOS DIRETOS) -->
                 <div id="propostaCamposExclusivosGroup" style="display: flex; flex-direction: column; gap: 2rem;">
                     <!-- Section 4: Dados da Proposta (endereço para documento) -->
-                    <div>
-                        <div
+                    <div id="secaoDadosPropostaEndereco">
+                        <div class="modal-section-title"
                             style="display:flex;align-items:center;gap:0.7rem;margin-bottom:1.5rem;padding-bottom:0.8rem;border-bottom:1px solid var(--border-color);">
                             <i data-lucide="map-pin" style="width:16px;color:var(--primary);"></i>
                             <span
@@ -2130,8 +2637,8 @@
                     </div>
 
                     <!-- Section 5: Validade e Condições de Pagamento -->
-                    <div>
-                        <div
+                    <div id="secaoValidadeCondicoes">
+                        <div class="modal-section-title"
                             style="display:flex;align-items:center;gap:0.7rem;margin-bottom:1.5rem;padding-bottom:0.8rem;border-bottom:1px solid var(--border-color);">
                             <i data-lucide="calendar-clock" style="width:16px;color:var(--primary);"></i>
                             <span
@@ -2173,7 +2680,7 @@
 
                     <!-- Section 6: Itens da Proposta -->
                     <div>
-                        <div
+                        <div class="modal-section-title"
                             style="display:flex;align-items:center;gap:0.7rem;margin-bottom:1.2rem;padding-bottom:0.8rem;border-bottom:1px solid var(--border-color);flex-wrap:wrap;">
                             <i data-lucide="list" style="width:16px;color:var(--primary);"></i>
                             <span
@@ -2184,6 +2691,7 @@
                             <div class="version-selector-group" style="display:inline-flex; background:rgba(255,255,255,0.05); padding:3px; border-radius:10px; margin-left:1.5rem; border:1px solid var(--border-color);">
                                 <button type="button" id="btnVersao1" onclick="setPropostaVersao(1)" class="version-tab active" style="background:var(--primary); color:#fff; border:none; padding:0.35rem 0.8rem; border-radius:8px; font-size:0.75rem; font-weight:700; cursor:pointer; transition:all 0.3s; outline:none;">Versão 1 (Itens)</button>
                                 <button type="button" id="btnVersao2" onclick="setPropostaVersao(2)" class="version-tab" style="background:none; color:var(--text-muted); border:none; padding:0.35rem 0.8rem; border-radius:8px; font-size:0.75rem; font-weight:700; cursor:pointer; transition:all 0.3s; outline:none;">Versão 2 (Logística)</button>
+                                <button type="button" id="btnVersao3" onclick="setPropostaVersao(3)" class="version-tab" style="background:none; color:var(--text-muted); border:none; padding:0.35rem 0.8rem; border-radius:8px; font-size:0.75rem; font-weight:700; cursor:pointer; transition:all 0.3s; outline:none;">Versão 3 (Completo / Particular)</button>
                             </div>
 
                             <button type="button" onclick="addItemProposta()"
@@ -2191,7 +2699,9 @@
                                 <i data-lucide="plus" style="width:13px;"></i> Adicionar Item
                             </button>
                         </div>
-                        <div style="overflow-x:auto;">
+
+                        <!-- Versões 1 e 2: Tabela -->
+                        <div id="propostaItensTableWrapper" style="overflow-x:auto;">
                             <table style="width:100%; border-collapse:separate; border-spacing:0 4px; font-size:0.74rem;">
                                 <thead id="propostaItensHeader">
                                     <tr style="background:rgba(255,255,255,0.04);">
@@ -2229,28 +2739,49 @@
                                 </tfoot>
                             </table>
                         </div>
+
+                        <!-- Versão 3: Cards Detalhados de Proposta Particular -->
+                        <div id="propostaItensCardsV3" style="display:none; flex-direction:column; gap:1.2rem;"></div>
+
+                        <!-- Resumo Destaque Versão 3 (por KM | Insumos | Total) -->
+                        <div id="propostaResumoBarV3" style="display:none; align-items:center; justify-content:space-between; background:rgba(45,158,107,0.08); border:1px solid rgba(45,158,107,0.25); border-radius:14px; padding:1.2rem 1.6rem; margin-top:1.2rem; flex-wrap:wrap; gap:1rem;">
+                            <div style="display:flex; align-items:center; gap:2rem; flex-wrap:wrap;">
+                                <div>
+                                    <span style="font-size:0.72rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block;">Valor Total por KM</span>
+                                    <span id="v3ResumoTotalKm" style="font-size:1.15rem; font-weight:900; color:#1a2e25; font-family:'JetBrains Mono',monospace;">R$ 0,00</span>
+                                </div>
+                                <div style="width:1px; height:36px; background:rgba(45,158,107,0.25);"></div>
+                                <div>
+                                    <span style="font-size:0.72rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block;">Valor Total Insumos</span>
+                                    <span id="v3ResumoTotalInsumos" style="font-size:1.15rem; font-weight:900; color:#1a2e25; font-family:'JetBrains Mono',monospace;">R$ 0,00</span>
+                                </div>
+                            </div>
+                            <div style="text-align:right;">
+                                <span style="font-size:0.75rem; font-weight:800; color:#2d9e6b; text-transform:uppercase; letter-spacing:0.5px; display:block;">Total Geral da Proposta</span>
+                                <span id="v3ResumoTotalGeral" style="font-size:1.55rem; font-weight:900; color:#2d9e6b; font-family:'JetBrains Mono',monospace;">R$ 0,00</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
             </form>
 
             <!-- Footer fixo -->
-            <div
-                style="flex-shrink:0;padding:1.2rem 2rem;border-top:1px solid var(--border-color);background:rgba(15,23,42,0.4);display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
+            <div class="custom-modal-footer"
+                style="flex-shrink:0;padding:1.2rem 2rem;border-top:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
                 <div style="display:flex;gap:0.75rem;">
                     <button type="button" id="btnGerarDocumentoProposta" onclick="gerarDocumentoProposta()"
-                        style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.35);color:#10b981;padding:0.75rem 1.2rem;border-radius:12px;font-weight:700;cursor:pointer;font-size:0.82rem;display:flex;align-items:center;gap:0.4rem;">
+                        style="padding:0.75rem 1.2rem;border-radius:12px;font-weight:700;cursor:pointer;font-size:0.82rem;display:flex;align-items:center;gap:0.4rem;">
                         <i data-lucide="file-text" style="width:14px;"></i> Gerar Proposta
                     </button>
                     <button type="button" id="btnAvancarProposta" onclick="avancarEtapaProposta()"
-                        style="background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.35);color:var(--primary);padding:0.75rem 1.2rem;border-radius:12px;font-weight:700;cursor:pointer;font-size:0.82rem;display:flex;align-items:center;gap:0.4rem;">
-                        <i data-lucide="arrow-right" style="width:14px;"></i> <span id="btnAvancarTexto">Enviar para
-                            Análise</span>
+                        style="padding:0.75rem 1.2rem;border-radius:12px;font-weight:700;cursor:pointer;font-size:0.82rem;display:flex;align-items:center;gap:0.4rem;">
+                        <i data-lucide="arrow-right" style="width:14px;"></i> <span id="btnAvancarTexto">Enviar para Análise</span>
                     </button>
                 </div>
                 <div style="display:flex;gap:0.75rem;">
-                    <button type="button" onclick="closeContratoModal()"
-                        style="background:none;border:1px solid var(--border-color);color:var(--text-muted);padding:0.75rem 1.4rem;border-radius:12px;font-weight:700;cursor:pointer;font-size:0.85rem;">Cancelar</button>
+                    <button type="button" onclick="closeContratoModal()" class="btn-modal-cancel"
+                        style="border-radius:12px;padding:0.75rem 1.4rem;cursor:pointer;font-weight:700;font-size:0.85rem;">Cancelar</button>
                     <button type="button" onclick="document.getElementById('contratoForm').requestSubmit()"
                         id="btnSaveContrato" class="btn-new" style="font-size:0.9rem;padding:0.8rem 1.8rem; display: inline-flex; align-items: center; gap: 0.5rem;">
                         <i data-lucide="save" style="width:16px;"></i> SALVAR <kbd style="background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 4px; padding: 1px 5px; font-size: 0.7rem; font-family: monospace; margin-left: 4px; box-shadow: 0 1px 0 rgba(0,0,0,0.2); color: #fff;">Ctrl+Enter</kbd>
@@ -2285,6 +2816,38 @@
         </div>
     </div>
 
+    <!-- MODAL: CADASTRO RÁPIDO DE TIPO DE VEÍCULO (Z-INDEX SUPERIOR AO CONTRATO MODAL) -->
+    <div id="quickTipoVeiculoModal" class="custom-modal-overlay" style="z-index: 1200;">
+        <div class="custom-modal-content" style="max-width: 480px; width: 90vw; border-radius: 16px; background: #ffffff; border: 1px solid #cbd5e1; box-shadow: 0 20px 40px rgba(0,0,0,0.25);">
+            <div class="modal-header" style="background: linear-gradient(135deg, rgba(45,158,107,0.1), rgba(45,158,107,0.02)); padding: 1.4rem 1.8rem; border-bottom: 1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:0.7rem;">
+                    <div style="width:36px; height:36px; border-radius:10px; background:rgba(45,158,107,0.15); display:flex; align-items:center; justify-content:center; color:#2d9e6b;">
+                        <i data-lucide="truck" style="width:20px; height:20px;"></i>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 1.15rem; font-weight: 900; color: #1e293b; margin: 0;">Novo Tipo de Veículo</h3>
+                        <p style="color: #64748b; font-size: 0.78rem; margin: 0.2rem 0 0 0;">Cadastre para selecionar imediatamente na proposta</p>
+                    </div>
+                </div>
+                <button type="button" onclick="fecharModalRapidoTipoVeiculo()" class="btn-modal-close" style="background:none; border:none; color:#64748b; cursor:pointer;">
+                    <i data-lucide="x" style="width:18px;"></i>
+                </button>
+            </div>
+            <form id="quickTipoVeiculoForm" onsubmit="salvarRapidoTipoVeiculo(event)" style="padding: 1.8rem;">
+                <div class="com-group" style="margin-bottom: 1.2rem;">
+                    <label style="font-size:0.75rem; font-weight:800; color:#475569; text-transform:uppercase; margin-bottom:0.4rem; display:block;">Nome do Tipo de Veículo *</label>
+                    <input type="text" id="quickTipoVeiculoNome" class="com-input" placeholder="Ex: Micro-ônibus, Sedan Executivo, Truck" required style="width: 100%; height: 42px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 0.85rem; font-size: 0.85rem; font-weight: 700; color: #1e293b; background: #fff;">
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 0.8rem; margin-top: 1.5rem;">
+                    <button type="button" onclick="fecharModalRapidoTipoVeiculo()" class="btn-modal-cancel" style="border-radius:10px; padding:0.65rem 1.3rem; font-weight:700; font-size:0.82rem; cursor:pointer; background:#f1f5f9; border:1px solid #cbd5e1; color:#475569;">Cancelar</button>
+                    <button type="submit" id="btnSalvarQuickTv" class="btn-new" style="border-radius:10px; padding:0.65rem 1.4rem; font-weight:800; font-size:0.82rem; cursor:pointer; background:#2d9e6b; color:#fff; display:inline-flex; align-items:center; gap:0.4rem; border:none;">
+                        <i data-lucide="check" style="width:14px;"></i> Salvar e Usar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 
     <!-- MODAL: HISTÓRICO DO CONTRATO -->
     <div id="historicoModal" class="custom-modal-overlay">
@@ -2293,7 +2856,9 @@
             <div class="modal-header"
                 style="background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.05)); flex-shrink: 0; padding: 1.5rem 2rem;">
                 <div>
-                    <h2 style="font-size: 1.5rem; font-weight: 900; color: #fff; margin: 0;">Histórico do Contrato</h2>
+                    <h2 style="font-size: 1.4rem; font-weight: 900; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 0.6rem;">
+                        <i data-lucide="history" style="width: 22px; color: var(--primary);"></i> Histórico do Contrato
+                    </h2>
                     <p id="historicoModalSubtitle"
                         style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.3rem; margin-bottom: 0; font-weight: 600;"></p>
                 </div>
@@ -2305,8 +2870,8 @@
                 id="historicoModalBody">
                 <div id="historicoModalList" style="display:flex; flex-direction:column; gap:1.2rem;"></div>
             </div>
-            <div
-                style="flex-shrink:0; padding:1.2rem 2rem; border-top:1px solid var(--border-color); background:rgba(15,23,42,0.4); display:flex; justify-content:flex-end;">
+            <div class="custom-modal-footer"
+                style="flex-shrink:0; padding:1.2rem 2rem; border-top:1px solid var(--border-color); display:flex; justify-content:flex-end;">
                 <button type="button" onclick="closeHistoricoModal()" class="btn-new"
                     style="font-size:0.85rem; padding:0.7rem 1.8rem; border-radius:10px; font-weight:800; background:var(--primary); color:#fff; cursor:pointer;">Fechar</button>
             </div>
@@ -2323,10 +2888,13 @@
                     Proposta de Prestação de Serviços
                 </div>
                 <div class="doc-toolbar-actions">
-                    <button class="doc-btn doc-btn-print" onclick="imprimirProposta()">
-                        <i data-lucide="printer" style="width:14px;"></i> Imprimir / PDF
+                    <button type="button" class="doc-btn doc-btn-download" onclick="baixarPdfProposta()">
+                        <i data-lucide="download" style="width:14px;"></i> Baixar PDF
                     </button>
-                    <button class="doc-btn doc-btn-close" onclick="fecharDocumentoProposta()">
+                    <button type="button" class="doc-btn doc-btn-print" onclick="imprimirProposta()">
+                        <i data-lucide="printer" style="width:14px;"></i> Imprimir
+                    </button>
+                    <button type="button" class="doc-btn doc-btn-close" onclick="fecharDocumentoProposta()">
                         <i data-lucide="x" style="width:14px;"></i> Fechar
                     </button>
                 </div>
@@ -2629,7 +3197,7 @@
     </div>
 
     <script src="orb_menu.js"></script>
-    <script src="comercial.js"></script>
+    <script src="comercial.js?v=20261124_historico_autor_usuario_fix"></script>
 </body>
 
 </html>
