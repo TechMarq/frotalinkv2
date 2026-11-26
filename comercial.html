@@ -2230,6 +2230,9 @@
                     <button class="sub-tab-item" onclick="switchSubTab('tipos_veiculo')">
                         <i data-lucide="car" style="width:16px;"></i> Tipos de Veículo
                     </button>
+                    <button class="sub-tab-item" onclick="switchSubTab('tipos_atendimento')">
+                        <i data-lucide="briefcase" style="width:16px;"></i> Tipos de Atendimento
+                    </button>
                 </nav>
 
                 <!-- SUB-VIEW: TABELAS -->
@@ -2287,6 +2290,20 @@
                         </button>
                     </div>
                     <div id="list_tipos_veiculo"
+                        style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+                    </div>
+                </div>
+
+                <!-- SUB-VIEW: TIPOS DE ATENDIMENTO -->
+                <div id="subview-tipos_atendimento" class="sub-view">
+                    <div class="header-actions">
+                        <h4 style="text-transform: uppercase; font-size: 0.8rem; color: var(--text-muted);">Tipos de Atendimento (Propostas)</h4>
+                        <button class="btn-new" onclick="openAdminModal('tipos_atendimento')"
+                            style="padding: 0.6rem 1.2rem; font-size: 0.75rem;">
+                            <i data-lucide="plus"></i> NOVO TIPO DE ATENDIMENTO
+                        </button>
+                    </div>
+                    <div id="list_tipos_atendimento"
                         style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
                     </div>
                 </div>
@@ -2700,6 +2717,28 @@
                             </button>
                         </div>
 
+                        <!-- Bloco: Tipo de Atendimento (Exclusivo da Versão 3 / Proposta Particular Executiva) -->
+                        <div id="secaoTipoAtendimentoV3" style="display:none; margin-bottom:1.5rem; background:rgba(45,158,107,0.06); border:1px solid rgba(45,158,107,0.25); border-radius:14px; padding:1rem 1.4rem;">
+                            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
+                                <div style="display:flex; align-items:center; gap:0.75rem;">
+                                    <div style="width:36px; height:36px; border-radius:10px; background:rgba(45,158,107,0.15); display:flex; align-items:center; justify-content:center; color:#2d9e6b;">
+                                        <i data-lucide="briefcase" style="width:18px; height:18px;"></i>
+                                    </div>
+                                    <div>
+                                        <span style="font-size:0.75rem; font-weight:800; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px; display:block;">Tipo de Atendimento</span>
+                                        <span style="font-size:0.8rem; font-weight:600; color:var(--text-main);">Define o modelo de atendimento no documento e PDF da proposta executiva</span>
+                                    </div>
+                                </div>
+                                <div style="width:260px; max-width:100%;">
+                                    <select id="prop_tipo_atendimento" class="com-input" style="width:100%; font-weight:700; height:42px; border-radius:10px;"
+                                        onchange="if(window.propostaAtual) window.propostaAtual.tipo_atendimento = this.value; if(window.editId) localStorage.setItem('com_proposta_tipo_atendimento_' + window.editId, this.value);">
+                                        <option value="À disposição">À disposição</option>
+                                        <option value="Eventual">Eventual</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Versões 1 e 2: Tabela -->
                         <div id="propostaItensTableWrapper" style="overflow-x:auto;">
                             <table style="width:100%; border-collapse:separate; border-spacing:0 4px; font-size:0.74rem;">
@@ -2755,6 +2794,15 @@
                                     <span style="font-size:0.72rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block;">Valor Total Insumos</span>
                                     <span id="v3ResumoTotalInsumos" style="font-size:1.15rem; font-weight:900; color:#1a2e25; font-family:'JetBrains Mono',monospace;">R$ 0,00</span>
                                 </div>
+                                <div id="v3ResumoDiasInfo" style="display:none;">
+                                    <div style="display:flex; align-items:center; gap:2rem;">
+                                        <div style="width:1px; height:36px; background:rgba(45,158,107,0.25);"></div>
+                                        <div>
+                                            <span style="font-size:0.72rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block;">Subtotal Diária</span>
+                                            <span id="v3ResumoSubtotalDiaria" style="font-size:1.15rem; font-weight:900; color:#0f172a; font-family:'JetBrains Mono',monospace;">R$ 0,00</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <div style="text-align:right;">
                                 <span style="font-size:0.75rem; font-weight:800; color:#2d9e6b; text-transform:uppercase; letter-spacing:0.5px; display:block;">Total Geral da Proposta</span>
@@ -2770,9 +2818,9 @@
             <div class="custom-modal-footer"
                 style="flex-shrink:0;padding:1.2rem 2rem;border-top:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
                 <div style="display:flex;gap:0.75rem;">
-                    <button type="button" id="btnGerarDocumentoProposta" onclick="gerarDocumentoProposta()"
+                    <button type="button" id="btnGerarDocumentoProposta" onclick="despacharGerarDocumentoModal()"
                         style="padding:0.75rem 1.2rem;border-radius:12px;font-weight:700;cursor:pointer;font-size:0.82rem;display:flex;align-items:center;gap:0.4rem;">
-                        <i data-lucide="file-text" style="width:14px;"></i> Gerar Proposta
+                        <i data-lucide="file-text" id="iconGerarDocumento" style="width:14px;"></i> <span id="btnGerarDocumentoTexto">Gerar Proposta</span>
                     </button>
                     <button type="button" id="btnAvancarProposta" onclick="avancarEtapaProposta()"
                         style="padding:0.75rem 1.2rem;border-radius:12px;font-weight:700;cursor:pointer;font-size:0.82rem;display:flex;align-items:center;gap:0.4rem;">
@@ -3197,7 +3245,7 @@
     </div>
 
     <script src="orb_menu.js"></script>
-    <script src="comercial.js?v=20261124_historico_autor_usuario_fix"></script>
+    <script src="comercial.js?v=20261125_proposta_dias_calc_fix"></script>
 </body>
 
 </html>

@@ -113,7 +113,7 @@ window.updateVehicleAlertsCount = updateVehicleAlertsCount;
 function toggleVehicleAlertsFilter() {
     isVehicleAlertsFilterActive = !isVehicleAlertsFilterActive;
     window.isVehicleAlertsFilterActive = isVehicleAlertsFilterActive;
-    
+
     const btn = document.getElementById('filter-veh-alertas');
     if (btn) {
         if (isVehicleAlertsFilterActive) {
@@ -134,15 +134,15 @@ function updateVehicleSelectionUI() {
     const count = selectedVehicleIds.size;
     const pdfLabel = document.getElementById('pdfBtnLabel');
     if (pdfLabel) {
-        pdfLabel.innerHTML = count > 0 
-            ? `<i data-lucide="file-text" style="width: 14px;"></i> PDF (${count})` 
+        pdfLabel.innerHTML = count > 0
+            ? `<i data-lucide="file-text" style="width: 14px;"></i> PDF (${count})`
             : `<i data-lucide="file-text" style="width: 14px;"></i> PDF`;
     }
 
     const excelLabel = document.getElementById('excelBtnLabel');
     if (excelLabel) {
-        excelLabel.innerHTML = count > 0 
-            ? `<i data-lucide="file-spreadsheet" style="width: 14px;"></i> Excel (${count})` 
+        excelLabel.innerHTML = count > 0
+            ? `<i data-lucide="file-spreadsheet" style="width: 14px;"></i> Excel (${count})`
             : `<i data-lucide="file-spreadsheet" style="width: 14px;"></i> Excel`;
     }
 
@@ -167,7 +167,7 @@ function updateVehicleSelectionUI() {
         } else {
             const allVisibleSelected = visibleVehicles.every(v => selectedVehicleIds.has(String(v.id)));
             const someVisibleSelected = visibleVehicles.some(v => selectedVehicleIds.has(String(v.id)));
-            
+
             selectAll.checked = allVisibleSelected;
             selectAll.indeterminate = !allVisibleSelected && someVisibleSelected;
         }
@@ -184,7 +184,7 @@ function toggleVehicleSelection(id, isChecked) {
     } else {
         selectedVehicleIds.delete(sId);
     }
-    
+
     const cb = document.querySelector(`.vehicle-checkbox[value="${id}"]`);
     if (cb) {
         const row = cb.closest('tr');
@@ -637,7 +637,7 @@ function switchView(viewName) {
     if (targetSection) targetSection.classList.add('active');
 }
 
-window.switchMobileNav = function(tab) {
+window.switchMobileNav = function (tab) {
     if (tab === 'setup') tab = 'dashboard';
     switchView(tab);
     if (window.innerWidth <= 768) {
@@ -666,6 +666,10 @@ function toggleNotiPanel(e) {
         if (typeof e.preventDefault === 'function') e.preventDefault();
     }
     const panel = document.getElementById('notiPanel');
+    const uPanel = document.getElementById('unlinkedPanel');
+    if (uPanel && uPanel.classList.contains('active')) {
+        uPanel.classList.remove('active');
+    }
     if (panel) {
         panel.classList.toggle('active');
     }
@@ -799,15 +803,25 @@ function focusNotiItem(type, id) {
 
 // --- Motoristas Sem Veículo ---
 
-function toggleUnlinkedPanel() {
+function toggleUnlinkedPanel(e) {
+    if (e) {
+        if (typeof e.stopPropagation === 'function') e.stopPropagation();
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+    }
     const panel = document.getElementById('unlinkedPanel');
+    const notiPanel = document.getElementById('notiPanel');
+    if (notiPanel && notiPanel.classList.contains('active')) {
+        notiPanel.classList.remove('active');
+    }
     if (panel) panel.classList.toggle('active');
 }
+window.toggleUnlinkedPanel = toggleUnlinkedPanel;
 
 function updateUnlinkedDrivers() {
     const badge = document.getElementById('unlinkedBadge');
+    const mobileBadge = document.getElementById('mobileUnlinkedBadge');
     const list = document.getElementById('unlinkedList');
-    if (!badge || !list) return;
+    if (!list) return;
 
     // Motoristas ativos que não estão em NENHUMA alocação operacional de veículo ativo (1º ou 2º condutor)
     const occupiedDriverIds = vehicles
@@ -823,18 +837,25 @@ function updateUnlinkedDrivers() {
     const unlinked = drivers.filter(d => d.status === 'ATIVO' && !occupiedDriverIds.includes(d.id));
 
     if (unlinked.length > 0) {
-        badge.innerText = unlinked.length;
-        badge.style.display = 'flex';
+        if (badge) {
+            badge.innerText = unlinked.length;
+            badge.style.display = 'flex';
+        }
+        if (mobileBadge) {
+            mobileBadge.innerText = unlinked.length;
+            mobileBadge.style.display = 'flex';
+        }
 
         list.innerHTML = unlinked.map(d => `
-            <div class="noti-item" onclick="focusUnlinkedDriver('${d.id}')" style="border-left: 4px solid #818cf8;">
+            <div class="noti-item" style="border-left: 4px solid #818cf8; cursor: default;">
                 <div class="noti-item-title" style="color: #818cf8;">Motorista Disponível</div>
                 <div class="noti-item-desc">${d.nome_completo}</div>
-                <div class="noti-date">CPF: ${d.cpf || '-'}</div>
+                <div class="noti-date">CPF: ${d.cpf || '-'} ${d.contato_whatsapp ? '• ' + d.contato_whatsapp : ''}</div>
             </div>
         `).join('');
     } else {
-        badge.style.display = 'none';
+        if (badge) badge.style.display = 'none';
+        if (mobileBadge) mobileBadge.style.display = 'none';
         list.innerHTML = '<div class="noti-empty">Todos os motoristas estão alocados ✨</div>';
     }
 }
@@ -985,7 +1006,7 @@ document.addEventListener('click', (e) => {
     const uPanel = document.getElementById('unlinkedPanel');
     if (uPanel && uPanel.classList.contains('active')) {
         const clickedInsideU = uPanel.contains(e.target);
-        const clickedUBtn = e.target.closest && e.target.closest('#unlinkedDriversBtn');
+        const clickedUBtn = e.target.closest && (e.target.closest('#unlinkedDriversBtn') || e.target.closest('#mobileUnlinkedBtn'));
         if (!clickedInsideU && !clickedUBtn) {
             uPanel.classList.remove('active');
         }
@@ -1088,7 +1109,7 @@ function getDriverOptions(v, activeDrivers, occupiedDriverIds) {
         const isCurrent1 = d.id === v.motorista_alocado_id;
         const isCurrent2 = d.id === v.motorista_alocado_2_id;
         const isOccupiedByAnother = occupiedDriverIds.includes(d.id) && !isCurrent1 && !isCurrent2;
-        
+
         if (!isOccupiedByAnother && !isCurrent2) {
             options += `<option value="${d.id}" ${isCurrent1 ? 'selected' : ''}>${d.nome_completo}</option>`;
         }
@@ -1100,7 +1121,7 @@ function getDriverOptions(v, activeDrivers, occupiedDriverIds) {
             const isCurrent1 = d.id === v.motorista_alocado_id;
             const isCurrent2 = d.id === v.motorista_alocado_2_id;
             const isOccupiedByAnother = occupiedDriverIds.includes(d.id) && !isCurrent1 && !isCurrent2;
-            
+
             if (!isOccupiedByAnother && !isCurrent1) {
                 options2 += `<option value="${d.id}" ${isCurrent2 ? 'selected' : ''}>${d.nome_completo}</option>`;
             }
@@ -1128,20 +1149,20 @@ function renderVehicles() {
         if (currentStatusFilters.length > 0) {
             let currentStatus = (v.status_alocacao || 'DISPONIVEL').toUpperCase();
             if (currentStatus === 'DISPONÍVEL') currentStatus = 'DISPONIVEL';
-            
+
             // Se possuir motorista alocado (1º ou 2º), não está disponível
             const hasDriver = !!v.motorista_alocado_id || !!v.motorista_alocado_2_id;
             if (currentStatus === 'DISPONIVEL' && hasDriver) {
                 currentStatus = 'ALOCADO';
             }
-            
+
             if (!currentStatusFilters.includes(currentStatus)) return false;
         }
 
         const isMainStatus = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase());
         const d1Name = v.motorista_alocado ? v.motorista_alocado.nome_completo : null;
         const d2Name = v.motorista_alocado_2 ? v.motorista_alocado_2.nome_completo : null;
-        
+
         let condutorAtual = '';
         if (d1Name && d2Name) {
             condutorAtual = `${d1Name} / ${d2Name}`;
@@ -1152,7 +1173,7 @@ function renderVehicles() {
         } else {
             condutorAtual = isMainStatus ? v.status_alocacao : 'DISPONÍVEL';
         }
-        
+
         // Texto consolidado para busca (Null-safe)
         const searchableText = [
             v.placa,
@@ -1210,7 +1231,7 @@ function renderVehicles() {
     list.innerHTML = filtered.map(v => {
         const specialStatus = JSON.parse(localStorage.getItem('vehicleStatus')) || {};
         const currentSpecial = specialStatus[v.id];
-        
+
         const { options, options2 } = getDriverOptions(v, activeDrivers, occupiedDriverIds);
 
         const cells = activeCols.map(col => {
@@ -1218,7 +1239,7 @@ function renderVehicles() {
                 case 'placa':
                     return `<td class="col-placa"><span class="plate" onclick="event.stopPropagation(); openVehicleDetail('${v.id}')" style="cursor: pointer; transition: transform 0.2s; display: inline-block;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">${v.placa}</span></td>`;
                 case 'modelo': return `<td class="col-modelo">${v.modelo}</td>`;
-                case 'km_atual': 
+                case 'km_atual':
                     const displayKm = (v.km_atual || 0).toLocaleString('pt-BR');
                     return `<td class="col-km_atual"><span style="font-weight: 700; color: var(--text-main);">${displayKm} <small style="color: var(--text-muted); font-weight: 400;">km</small></span></td>`;
                 case 'condutor':
@@ -1227,17 +1248,17 @@ function renderVehicles() {
                         const currentVal = v.motorista_alocado_id || statusAlocUpper;
                         const sClass = getStatusClass(currentVal);
                         const isMaint = currentVal === 'MANUTENCAO';
-                        
+
                         const logs = v.veiculo_situacoes_log || [];
                         const sortedLogs = [...logs].sort((a, b) => new Date(b.data) - new Date(a.data)).slice(0, 2);
-                        const situacaoHtml = sortedLogs.length > 0 
+                        const situacaoHtml = sortedLogs.length > 0
                             ? sortedLogs.map(l => `• ${formatDate(l.data)}: ${l.descricao}`).join('<br>')
                             : '-';
 
                         const hasLogs = logs.length > 0;
                         const showInfo = isAdmin || isMaint || hasLogs;
                         const infoColor = isMaint ? '#f87171' : '#60a5fa'; // Red for maint, Blue for history
-                        
+
                         const maintInfo = showInfo ? `
                             <div class="maint-tooltip-trigger" style="font-size: 0.7rem; color: ${infoColor}; margin-top: 4px; display: flex; align-items: center; gap: 4px; cursor: pointer; position: relative;" onclick="event.stopPropagation(); openMaintenanceModal('${v.id}')">
                                 <i data-lucide="info" style="width: 12px; height: 12px;"></i>
@@ -1252,7 +1273,7 @@ function renderVehicles() {
                         ` : '';
                         const hasEditPerm = canDo('frota_alocacoes', 'edit');
                         const disabledAttr = hasEditPerm ? '' : 'disabled';
-                        
+
                         const select2Html = v.motorista_alocado_id ? `
                             <select class="direct-select direct-select-secondary ${v.motorista_alocado_2_id ? 'status-alocado' : ''}" ${disabledAttr} onchange="updateVehicleDriver('${v.id}', this.value, true); renderAll();">${options2}</select>
                         ` : '';
@@ -1269,17 +1290,17 @@ function renderVehicles() {
                         const d1Name = v.motorista_alocado ? v.motorista_alocado.nome_completo : null;
                         const d2Name = v.motorista_alocado_2 ? v.motorista_alocado_2.nome_completo : null;
                         const sClass = getStatusClass(v.motorista_alocado_id || statusAloc);
-                        
+
                         const logs = v.veiculo_situacoes_log || [];
                         const sortedLogs = [...logs].sort((a, b) => new Date(b.data) - new Date(a.data)).slice(0, 2);
-                        const situacaoHtml = sortedLogs.length > 0 
+                        const situacaoHtml = sortedLogs.length > 0
                             ? sortedLogs.map(l => `• ${formatDate(l.data)}: ${l.descricao}`).join('<br>')
                             : '-';
 
                         const hasLogs = logs.length > 0;
                         const showInfo = isMaint || hasLogs;
                         const infoColor = isMaint ? '#f87171' : '#60a5fa';
-                        
+
                         const maintDetail = showInfo ? `
                             <div class="maint-tooltip-trigger" style="font-size: 0.7rem; color: ${infoColor}; margin-top: 4px; display: flex; align-items: center; gap: 4px; cursor: pointer; position: relative;" onclick="event.stopPropagation(); openMaintenanceModal('${v.id}')">
                                 <i data-lucide="info" style="width: 12px; height: 12px;"></i>
@@ -1347,13 +1368,48 @@ function renderVehicles() {
     // --- Renderização Mobile Cards (Alocações) ---
     const mobAllocList = document.getElementById('mobileAllocationList');
     if (mobAllocList) {
+        // Motoristas sem veículo (disponíveis para alocação)
+        const unlinkedDrivers = activeDrivers.filter(d => !occupiedDriverIds.includes(d.id));
+        let unlinkedAccordionHtml = '';
+        if (unlinkedDrivers.length > 0) {
+            unlinkedAccordionHtml = `
+                <div class="mob-unlinked-accordion" id="mobUnlinkedAccordion">
+                    <div class="mob-unlinked-header" onclick="toggleMobUnlinkedAccordion(event)">
+                        <div class="mob-unlinked-title-group">
+                            <span class="mob-unlinked-icon-wrap">
+                                <i data-lucide="users" style="width: 14px; height: 14px;"></i>
+                            </span>
+                            <span class="mob-unlinked-title">Condutores sem Veículo</span>
+                            <span class="mob-unlinked-badge">${unlinkedDrivers.length}</span>
+                        </div>
+                        <div class="mob-unlinked-arrow">
+                            <i data-lucide="chevron-down" id="mobUnlinkedChevron" style="width: 16px; height: 16px;"></i>
+                        </div>
+                    </div>
+                    <div class="mob-unlinked-content" id="mobUnlinkedContent" style="display: none;">
+                        <div class="mob-unlinked-list">
+                            ${unlinkedDrivers.map(d => `
+                                <div class="mob-unlinked-item">
+                                    <div class="mob-unlinked-item-info">
+                                        <span class="mob-unlinked-item-name">${d.nome_completo}</span>
+                                        <span class="mob-unlinked-item-sub">${d.cpf ? 'CPF: ' + d.cpf : (d.contato_whatsapp || 'Disponível')}</span>
+                                    </div>
+                                    <span class="mob-unlinked-item-tag">Disponível</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         if (filtered.length === 0) {
-            mobAllocList.innerHTML = '<div style="text-align:center; padding: 2.5rem 1rem; color: var(--text-muted); font-size: 0.85rem;">Nenhum veículo encontrado na alocação.</div>';
+            mobAllocList.innerHTML = unlinkedAccordionHtml + '<div style="text-align:center; padding: 2.5rem 1rem; color: var(--text-muted); font-size: 0.85rem;">Nenhum veículo encontrado na alocação.</div>';
         } else {
             const hasEditPerm = canDo('frota_alocacoes', 'edit');
             const disabledAttr = hasEditPerm ? '' : 'disabled';
 
-            mobAllocList.innerHTML = filtered.map(v => {
+            const vehicleCardsHtml = filtered.map(v => {
                 const { options, options2 } = getDriverOptions(v, activeDrivers, occupiedDriverIds);
                 const statusAlocUpper = (v.status_alocacao || '').toUpperCase();
                 const currentVal = v.motorista_alocado_id || statusAlocUpper;
@@ -1450,6 +1506,8 @@ function renderVehicles() {
                     </div>
                 `;
             }).join('');
+
+            mobAllocList.innerHTML = unlinkedAccordionHtml + vehicleCardsHtml;
         }
     }
 
@@ -1457,9 +1515,22 @@ function renderVehicles() {
     document.querySelectorAll('.direct-select').forEach(select => {
         applySelectColor(select);
     });
-    
+
     if (window.lucide) lucide.createIcons();
 }
+
+window.toggleMobUnlinkedAccordion = function (e) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const content = document.getElementById('mobUnlinkedContent');
+    const chevron = document.getElementById('mobUnlinkedChevron');
+    if (!content) return;
+    const isHidden = content.style.display === 'none';
+    content.style.display = isHidden ? 'block' : 'none';
+    if (chevron) {
+        chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+        chevron.style.transition = 'transform 0.2s ease';
+    }
+};
 
 function toggleStatusFilter(status) {
     const index = currentStatusFilters.indexOf(status);
@@ -1468,7 +1539,7 @@ function toggleStatusFilter(status) {
     } else {
         currentStatusFilters.push(status);
     }
-    
+
     // Atualiza visual dos botões
     ['MANUTENCAO', 'GARAGEM', 'DISPONIVEL'].forEach(s => {
         const btn = document.getElementById(`filter-${s}`);
@@ -1480,7 +1551,7 @@ function toggleStatusFilter(status) {
             }
         }
     });
-    
+
     renderVehicles();
 }
 
@@ -1500,7 +1571,7 @@ function toggleClassificationFilter(classif) {
         currentClassificationFilters.push(classif);
         document.getElementById(`filter-full-${classif}`).classList.add('active');
     }
-    
+
     renderFullVehicles();
 }
 
@@ -1656,7 +1727,7 @@ function updateStatusCounts() {
     activeVehicles.forEach(v => {
         let status = (v.status_alocacao || 'DISPONIVEL').toUpperCase();
         if (status === 'DISPONÍVEL') status = 'DISPONIVEL';
-        
+
         // Se possuir motorista alocado, não está disponível
         const hasDriver = !!v.motorista_alocado_id || !!v.motorista_alocado_2_id;
         if (status === 'DISPONIVEL' && hasDriver) {
@@ -1738,7 +1809,7 @@ async function updateVehicleDriver(vehicleId, driverId, isSecondDriver = false) 
             let descLog = '';
             if (isSecondDriver) {
                 const d = drivers.find(item => item.id === driverId);
-                descLog = driverId 
+                descLog = driverId
                     ? `Alocou 2º motorista (${d ? d.nome_completo : driverId}) no veículo ${placa}`
                     : `Removeu 2º motorista do veículo ${placa}`;
             } else {
@@ -1800,13 +1871,13 @@ function openMaintenanceModal(vehicleId, intendedStatus = null) {
     const hasEdit = window.canDo ? window.canDo('frota_alocacoes', 'edit') : true;
     const hasDelete = window.canDo ? window.canDo('frota_alocacoes', 'delete') : true;
     const isAdmin = window.currentUserRole === 'admin';
-    
+
     // Header can only be edited/saved if user can edit/add/delete (write access)
     const canSaveHeader = hasEdit || hasAdd || hasDelete || isAdmin;
 
     document.getElementById('maintVehicleId').value = vehicleId;
     document.getElementById('maintPendingStatus').value = intendedStatus || '';
-    
+
     const oficinaInput = document.getElementById('maintOficinaSelect');
     const motivoInput = document.getElementById('maintMotivo');
     const saveHeaderBtn = document.getElementById('btnSaveMaintHeader');
@@ -1835,7 +1906,7 @@ function openMaintenanceModal(vehicleId, intendedStatus = null) {
             newLogGrid.style.display = 'none';
         }
     }
-    
+
     // Reset novo log
     document.getElementById('newLogDate').value = new Date().toISOString().split('T')[0];
     document.getElementById('newLogDesc').value = '';
@@ -1847,7 +1918,7 @@ function openMaintenanceModal(vehicleId, intendedStatus = null) {
 function closeMaintenanceModal() {
     document.getElementById('maintPendingStatus').value = '';
     document.getElementById('maintenanceModal').style.display = 'none';
-    renderAll(); 
+    renderAll();
 }
 
 async function fetchMaintLogs(vehicleId) {
@@ -1894,7 +1965,7 @@ function renderMaintLogs() {
         const isOwner = log.usuario_email && log.usuario_email.toLowerCase() === currentUserEmail.toLowerCase();
         const canEditLog = hasEdit && (!log.usuario_email || isOwner || isAdmin);
         const canDeleteLog = hasDelete && (!log.usuario_email || isOwner || isAdmin);
-        
+
         const creatorText = log.usuario_email ? `<span style="display:block; font-size:0.75rem; color:var(--text-muted); margin-top:2px;">Por: ${log.usuario_email.split('@')[0]}</span>` : '';
 
         return `
@@ -1995,6 +2066,8 @@ async function addMaintLog() {
         }
 
         document.getElementById('newLogDesc').value = '';
+        const newLogDescEl = document.getElementById('newLogDesc');
+        if (newLogDescEl) newLogDescEl.style.height = 'auto';
         fetchMaintLogs(vehicleId);
         // Atualiza o log do veículo em memória para refletir no tooltip do dashboard
         const vMem = vehicles.find(item => item.id === vehicleId);
@@ -2018,7 +2091,7 @@ async function deleteMaintLog(logId) {
     const currentUserEmail = window.currentUser?.email || '';
 
     const isOwner = log.usuario_email && log.usuario_email.toLowerCase() === currentUserEmail.toLowerCase();
-    
+
     if (!hasDelete || (!isOwner && !isAdmin && log.usuario_email)) {
         alert('Você não tem permissão para excluir este histórico.');
         return;
@@ -2028,7 +2101,7 @@ async function deleteMaintLog(logId) {
     try {
         const { error } = await client.from('veiculo_situacoes_log').delete().eq('id', logId);
         if (error) throw error;
-        
+
         const vehicleId = document.getElementById('maintVehicleId').value;
         if (window.registrarLog && log) {
             const v = vehicles.find(item => item.id === vehicleId);
@@ -2057,28 +2130,75 @@ async function editMaintLog(logId) {
     const isAdmin = window.currentUserRole === 'admin';
     const currentUserEmail = window.currentUser?.email || '';
     const isOwner = log.usuario_email && log.usuario_email.toLowerCase() === currentUserEmail.toLowerCase();
-    
+
     if (!hasEdit || (!isOwner && !isAdmin && log.usuario_email)) {
         alert('Você não tem permissão para editar este histórico.');
         return;
     }
 
-    const novaDesc = prompt('Editar descrição:', log.descricao);
-    if (novaDesc === null || novaDesc === log.descricao) return;
+    const modal = document.getElementById('editMaintLogModal');
+    const idInput = document.getElementById('editMaintLogId');
+    const dateInput = document.getElementById('editMaintLogDate');
+    const descInput = document.getElementById('editMaintLogDesc');
 
+    if (!modal || !descInput) {
+        // Fallback caso o modal não esteja presente
+        const novaDesc = prompt('Editar descrição:', log.descricao);
+        if (!novaDesc || novaDesc === log.descricao) return;
+        return executeSaveMaintLog(logId, log.data, novaDesc, log.descricao);
+    }
+
+    idInput.value = logId;
+    dateInput.value = log.data || '';
+    descInput.value = log.descricao || '';
+    descInput.style.height = 'auto';
+
+    modal.style.display = 'flex';
+    setTimeout(() => {
+        descInput.style.height = (descInput.scrollHeight) + 'px';
+        descInput.focus();
+        if (window.lucide) lucide.createIcons();
+    }, 50);
+}
+
+function closeEditMaintLogModal() {
+    const modal = document.getElementById('editMaintLogModal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function saveEditMaintLog() {
+    const logId = document.getElementById('editMaintLogId').value;
+    const novaData = document.getElementById('editMaintLogDate').value;
+    const novaDesc = document.getElementById('editMaintLogDesc').value.trim();
+
+    if (!novaDesc) {
+        alert('A descrição não pode ficar vazia.');
+        return;
+    }
+
+    const log = maintLogs.find(l => l.id === logId);
+    const descAntiga = log ? log.descricao : '';
+    await executeSaveMaintLog(logId, novaData, novaDesc, descAntiga);
+    closeEditMaintLogModal();
+}
+
+async function executeSaveMaintLog(logId, data, novaDesc, descAntiga) {
     try {
+        const payload = { descricao: novaDesc };
+        if (data) payload.data = data;
+
         const { error } = await client
             .from('veiculo_situacoes_log')
-            .update({ descricao: novaDesc })
+            .update(payload)
             .eq('id', logId);
 
         if (error) throw error;
-        
+
         const vehicleId = document.getElementById('maintVehicleId').value;
         if (window.registrarLog) {
             const v = vehicles.find(item => item.id === vehicleId);
             const placa = v ? v.placa : vehicleId;
-            window.registrarLog('frota', 'ALTERAÇÃO', `Editou registro no histórico de manutenção do veículo ${placa}. Antigo: "${log.descricao}" -> Novo: "${novaDesc}"`);
+            window.registrarLog('frota', 'ALTERAÇÃO', `Editou registro no histórico de manutenção do veículo ${placa}. Antigo: "${descAntiga}" -> Novo: "${novaDesc}"`);
         }
 
         fetchMaintLogs(vehicleId);
@@ -2086,7 +2206,10 @@ async function editMaintLog(logId) {
         const vMem = vehicles.find(item => item.id === vehicleId);
         if (vMem && vMem.veiculo_situacoes_log) {
             const logIdx = vMem.veiculo_situacoes_log.findIndex(l => l.id === logId);
-            if (logIdx !== -1) vMem.veiculo_situacoes_log[logIdx].descricao = novaDesc;
+            if (logIdx !== -1) {
+                vMem.veiculo_situacoes_log[logIdx].descricao = novaDesc;
+                if (data) vMem.veiculo_situacoes_log[logIdx].data = data;
+            }
             renderAll();
         }
     } catch (err) {
@@ -2107,7 +2230,7 @@ async function handleMaintenanceSubmit(e) {
         const v = vehicles.find(item => item.id === vehicleId);
         const currentStatus = v ? v.status_alocacao : null;
         const pendingStatus = document.getElementById('maintPendingStatus').value;
-        
+
         let newStatus = pendingStatus || currentStatus;
 
         const { error } = await client
@@ -2148,9 +2271,9 @@ async function handleMaintenanceSubmit(e) {
 function updateMaintenanceDropdown() {
     const select = document.getElementById('maintOficinaSelect');
     if (!select || select.tagName !== 'SELECT') return;
-    
+
     const currentVal = select.value;
-    
+
     let options = '<option value="">Selecione uma oficina...</option>';
     oficinas.forEach(o => {
         options += `<option value="${o.id}">${o.nome} (${o.cidade || 'Sem cidade'})</option>`;
@@ -2168,7 +2291,7 @@ async function fetchOficinas() {
             .select('id, nome, cidade')  // apenas campos usados no dropdown e modal
             .eq('categoria', 'OFICINA')
             .order('nome');
-        
+
         if (error) throw error;
         oficinas = data || [];
         updateMaintenanceDropdown();
@@ -2256,7 +2379,7 @@ function renderFullVehicles() {
 
     const actionsHtml = (v) => {
         const driveUrl = v.drive_folder_url || '';
-        const driveBtn = driveUrl 
+        const driveBtn = driveUrl
             ? `<button class="btn-edit" onclick="window.open('${driveUrl}', '_blank')" title="Abrir Documentos (Google Drive)" style="color: #3b82f6; border-color: rgba(59, 130, 246, 0.3); background: rgba(59, 130, 246, 0.08);">
                 <i data-lucide="folder-git-2" style="width: 16px;"></i>
                </button>`
@@ -2333,10 +2456,10 @@ function renderFullVehicles() {
                 case 'classificacao': return `<td class="col-classificacao">${v.classificacao || '-'}</td>`;
                 case 'tipo_combustivel': return `<td class="col-tipo_combustivel"><span style="font-size: 0.75rem; font-weight: 600; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">${v.tipo_combustivel || '-'}</span></td>`;
                 case 'condutor_principal': return `<td class="col-condutor_principal"><span style="font-weight:600;">${v.motoristas ? v.motoristas.nome_completo : '-'}</span></td>`;
-                case 'motorista_alocado': 
+                case 'motorista_alocado':
                     const dName = getVehicleAllocationDisplay(v);
                     return `<td class="col-motorista_alocado"><span style="font-weight:600; color: var(--primary);">${dName}</span></td>`;
-                case 'status': 
+                case 'status':
                     let bClass = 'danger';
                     if (v.status === 'ATIVO' || !v.status) bClass = 'success';
                     else if (v.status === 'ATIVO - NÃO ALOCAR') bClass = 'warning';
@@ -2532,7 +2655,7 @@ function renderFullDrivers() {
                 case 'vinculos_seguro': return `<td class="col-vinculos_seguro" style="font-weight:700;">${vinculosCount} veícs.</td>`;
                 case 'contato_whatsapp': return `<td class="col-contato_whatsapp">${maskTelefoneDriver(d.contato_whatsapp) || '-'}</td>`;
                 case 'data_nascimento': return `<td class="col-data_nascimento">${formatDate(d.data_nascimento)}</td>`;
-                case 'status': 
+                case 'status':
                     let bdClass = 'danger';
                     if (d.status === 'ATIVO') bdClass = 'success';
                     else if (d.status === 'ATIVO - NÃO ALOCAR') bdClass = 'warning';
@@ -2565,7 +2688,7 @@ function renderFullDrivers() {
 
             // Veículo atualmente alocado
             const allocatedVeh = vehicles.find(v => v.motorista_alocado_id === d.id || v.motorista_alocado_2_id === d.id);
-            const vehInfo = allocatedVeh 
+            const vehInfo = allocatedVeh
                 ? `🚗 ${allocatedVeh.placa} • ${allocatedVeh.modelo}`
                 : 'Sem veículo alocado';
 
@@ -2719,7 +2842,7 @@ async function fetchVehicles() {
                 .from('veiculos')
                 .select(VEICULOS_FIELDS_FALLBACK)
                 .order('placa', { ascending: true });
-            
+
             if (fallbackQuery.error) throw fallbackQuery.error;
             data = fallbackQuery.data;
         } else {
@@ -2797,7 +2920,7 @@ async function fetchFuelTypes() {
 function updateFuelTypeDropdown() {
     const select = document.getElementById('addTipoCombustivel');
     if (!select) return;
-    
+
     if (fuelTypes.length === 0) {
         select.innerHTML = '<option value="">Nenhum cadastrado</option>';
         return;
@@ -2877,19 +3000,19 @@ function getFilteredAllocations() {
         if (currentStatusFilters.length > 0) {
             let currentStatus = (v.status_alocacao || 'DISPONIVEL').toUpperCase();
             if (currentStatus === 'DISPONÍVEL') currentStatus = 'DISPONIVEL';
-            
+
             const hasDriver = !!v.motorista_alocado_id || !!v.motorista_alocado_2_id;
             if (currentStatus === 'DISPONIVEL' && hasDriver) {
                 currentStatus = 'ALOCADO';
             }
-            
+
             if (!currentStatusFilters.includes(currentStatus)) return false;
         }
 
         const isMainStatus = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase());
         const d1Name = v.motorista_alocado ? v.motorista_alocado.nome_completo : null;
         const d2Name = v.motorista_alocado_2 ? v.motorista_alocado_2.nome_completo : null;
-        
+
         let condutorAtual = '';
         if (d1Name && d2Name) {
             condutorAtual = `${d1Name} / ${d2Name}`;
@@ -2900,7 +3023,7 @@ function getFilteredAllocations() {
         } else {
             condutorAtual = isMainStatus ? v.status_alocacao : 'DISPONÍVEL';
         }
-        
+
         const searchableText = [
             v.placa,
             v.modelo,
@@ -2945,7 +3068,7 @@ function exportAllocationsToExcel() {
         const isMainStatus = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase());
         const d1Name = v.motorista_alocado ? v.motorista_alocado.nome_completo : null;
         const d2Name = v.motorista_alocado_2 ? v.motorista_alocado_2.nome_completo : null;
-        
+
         let alocacaoAtual = '';
         if (d1Name && d2Name) {
             alocacaoAtual = `${d1Name} / 2º: ${d2Name}`;
@@ -2974,7 +3097,7 @@ function exportAllocationsToExcel() {
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Alocações_Frota");
-    XLSX.writeFile(wb, `FrotaLink_Alocacoes_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(wb, `FrotaLink_Alocacoes_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 function exportAllocationsToPDF() {
@@ -2990,7 +3113,7 @@ function exportAllocationsToPDF() {
     doc.text("Relatório de Alocações da Frota - FROTALINK", 14, 15);
     doc.setFontSize(9);
     doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 21);
-    
+
     let subTitle = `Total de veículos: ${filtered.length}`;
     if (currentStatusFilters.length > 0) subTitle += ` | Filtro Status: ${currentStatusFilters.join(', ')}`;
     if (searchTerm) subTitle += ` | Busca: "${searchTerm}"`;
@@ -3001,7 +3124,7 @@ function exportAllocationsToPDF() {
         const isMainStatus = ['GARAGEM', 'MANUTENCAO', 'DISPONIVEL'].includes((v.status_alocacao || '').toUpperCase());
         const d1Name = v.motorista_alocado ? v.motorista_alocado.nome_completo : null;
         const d2Name = v.motorista_alocado_2 ? v.motorista_alocado_2.nome_completo : null;
-        
+
         let alocacaoAtual = '';
         if (d1Name && d2Name) {
             alocacaoAtual = `${d1Name} (2º: ${d2Name})`;
@@ -3091,38 +3214,38 @@ function exportFleetToExcelFiltered() {
     // Helper para mapear cada chave ao valor correto do veículo
     function colValue(v, key) {
         switch (key) {
-            case 'placa':              return v.placa || '-';
-            case 'marca_modelo':       return `${v.marca || ''} ${v.modelo || ''}`.trim() || '-';
-            case 'proprietario':       return v.proprietario || '-';
-            case 'venc_seguro':        return formatDate(v.vencimento_seguro);
-            case 'seguradora':         return v.seguradora || '-';
-            case 'numero_apolice':     return v.numero_apolice || '-';
-            case 'valor_premio':       return v.valor_premio ? Number(v.valor_premio) : '-';
-            case 'valor_franquia':     return v.valor_franquia ? Number(v.valor_franquia) : '-';
-            case 'forma_pagamento':    return v.forma_pagamento || '-';
-            case 'corretor_seguro':    return v.corretor_seguro || '-';
-            case 'proponente_seguro':  return v.proponente_seguro || '-';
-            case 'endosso_proposta':   return v.endosso_proposta || '-';
-            case 'ci_seguro':          return v.ci_seguro || '-';
+            case 'placa': return v.placa || '-';
+            case 'marca_modelo': return `${v.marca || ''} ${v.modelo || ''}`.trim() || '-';
+            case 'proprietario': return v.proprietario || '-';
+            case 'venc_seguro': return formatDate(v.vencimento_seguro);
+            case 'seguradora': return v.seguradora || '-';
+            case 'numero_apolice': return v.numero_apolice || '-';
+            case 'valor_premio': return v.valor_premio ? Number(v.valor_premio) : '-';
+            case 'valor_franquia': return v.valor_franquia ? Number(v.valor_franquia) : '-';
+            case 'forma_pagamento': return v.forma_pagamento || '-';
+            case 'corretor_seguro': return v.corretor_seguro || '-';
+            case 'proponente_seguro': return v.proponente_seguro || '-';
+            case 'endosso_proposta': return v.endosso_proposta || '-';
+            case 'ci_seguro': return v.ci_seguro || '-';
             case 'parcelas_pagamento': return v.parcelas_pagamento || '-';
-            case 'classificacao':      return v.classificacao || '-';
-            case 'status':             return v.status || 'ATIVO';
-            case 'cor':                return v.cor || '-';
-            case 'ano_fabricacao':     return v.ano_fabricacao || '-';
-            case 'ano_modelo':         return v.ano_modelo || '-';
-            case 'renavam':            return v.renavam || '-';
-            case 'chassi':             return v.chassi || '-';
-            case 'numero_motor':       return v.numero_motor || '-';
-            case 'codigo_fipe':        return v.codigo_fipe || '-';
-            case 'valor_fipe_mes':     return v.valor_fipe_mes ? Number(v.valor_fipe_mes) : '-';
-            case 'nome_documento':     return v.nome_documento || '-';
-            case 'cpf_cnpj':           return v.cpf_cnpj || '-';
+            case 'classificacao': return v.classificacao || '-';
+            case 'status': return v.status || 'ATIVO';
+            case 'cor': return v.cor || '-';
+            case 'ano_fabricacao': return v.ano_fabricacao || '-';
+            case 'ano_modelo': return v.ano_modelo || '-';
+            case 'renavam': return v.renavam || '-';
+            case 'chassi': return v.chassi || '-';
+            case 'numero_motor': return v.numero_motor || '-';
+            case 'codigo_fipe': return v.codigo_fipe || '-';
+            case 'valor_fipe_mes': return v.valor_fipe_mes ? Number(v.valor_fipe_mes) : '-';
+            case 'nome_documento': return v.nome_documento || '-';
+            case 'cpf_cnpj': return v.cpf_cnpj || '-';
             case 'condutor_principal': return v.motoristas ? v.motoristas.nome_completo : '-';
-            case 'motorista_alocado':  return getVehicleAllocationDisplay(v);
-            case 'data_aquisicao_nf':  return formatDate(v.data_aquisicao_nf);
-            case 'data_saida_nf':      return formatDate(v.data_saida_nf);
+            case 'motorista_alocado': return getVehicleAllocationDisplay(v);
+            case 'data_aquisicao_nf': return formatDate(v.data_aquisicao_nf);
+            case 'data_saida_nf': return formatDate(v.data_saida_nf);
             case 'fornecedor_aquisicao': return v.fornecedor_aquisicao || '-';
-            case 'tipo_combustivel':   return v.tipo_combustivel || '-';
+            case 'tipo_combustivel': return v.tipo_combustivel || '-';
             default: return v[key] !== undefined && v[key] !== null ? v[key] : '-';
         }
     }
@@ -3234,10 +3357,10 @@ function exportFleetToPDF() {
     sortVehiclesList(filtered, sort);
 
     const { jsPDF } = window.jspdf;
-    
+
     // Obter colunas ativas na tela (removendo a coluna de ações)
     const activeCols = getActiveCols('vehicles').filter(c => c.key !== 'actions');
-    
+
     // Determinar orientação baseada no número de colunas
     const doc = new jsPDF(activeCols.length > 7 ? 'l' : 'p', 'mm', 'a4');
 
@@ -3247,7 +3370,7 @@ function exportFleetToPDF() {
     doc.text("Relatório da Frota", 14, 18);
     doc.setFontSize(9);
     doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 25);
-    
+
     let subTitle = `Total: ${filtered.length} ${filtered.length === 1 ? 'veículo' : 'veículos'}`;
     if (isManualSelection) {
         subTitle += ` (Seleção manual de ${filtered.length} ${filtered.length === 1 ? 'item' : 'itens'})`;
@@ -3298,7 +3421,7 @@ function exportFleetToPDF() {
                 case 'chassi': return v.chassi || '-';
                 case 'codigo_fipe': return v.codigo_fipe || '-';
                 case 'condutor_principal': return v.motoristas ? v.motoristas.nome_completo : '-';
-                case 'motorista_alocado': 
+                case 'motorista_alocado':
                     return getVehicleAllocationDisplay(v);
                 case 'data_aquisicao_nf': return formatDate(v.data_aquisicao_nf);
                 case 'data_saida_nf': return formatDate(v.data_saida_nf);
@@ -3375,7 +3498,7 @@ function exportDriversToPDF() {
     if (drivers.length === 0) return alert('Não há motoristas para exportar.');
 
     const { jsPDF } = window.jspdf;
-    
+
     // 1. Aplicar a mesma filtragem da visualização
     const searchTerm = searchInput.value.toLowerCase();
     const searchWords = searchTerm.split(/\s+/).filter(w => w);
@@ -3424,7 +3547,7 @@ function exportDriversToPDF() {
 
     // 3. Obter colunas ativas (removendo ações)
     const activeCols = getActiveCols('drivers').filter(c => c.key !== 'actions');
-    
+
     // Determinar orientação
     const doc = new jsPDF(activeCols.length > 7 ? 'l' : 'p', 'mm', 'a4');
 
@@ -4133,7 +4256,7 @@ window.addEventListener('keydown', (e) => {
 // --- Real-time ---
 function subscribeToChanges() {
     if (!client) return;
-    
+
     // Inscreve especificamente nas tabelas de veículos e motoristas para evitar sobrecarga no banco de dados
     client.channel('veiculos-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'veiculos' }, () => {
@@ -4271,7 +4394,7 @@ function openWhatsAppConfig() {
     document.getElementById('wa_api_url').value = whatsappConfig.api_url || '';
     document.getElementById('wa_instance').value = whatsappConfig.instance || '';
     document.getElementById('wa_apikey').value = whatsappConfig.apikey || '';
-    
+
     toggleApiFields();
     renderWhatsAppDestinatarios();
     document.getElementById('whatsappConfigModal').style.display = 'flex';
@@ -4318,7 +4441,7 @@ async function addWhatsAppNumber() {
             .select();
 
         if (error) throw error;
-        
+
         whatsappDestinatarios.push(data[0]);
         document.getElementById('wa_new_name').value = '';
         document.getElementById('wa_new_number').value = '';
@@ -4350,8 +4473,8 @@ async function saveWhatsAppConfig() {
     try {
         const { error } = await client
             .from('whatsapp_config')
-            .upsert({ 
-                id: whatsappConfig.id || undefined, 
+            .upsert({
+                id: whatsappConfig.id || undefined,
                 api_type: api_type,
                 api_url: api_url,
                 instance: instance,
@@ -4372,9 +4495,9 @@ async function saveWhatsAppConfig() {
 }
 
 async function sendWhatsAppNotification(message) {
-    console.log('Tentando disparar notificação WhatsApp...', { 
-        tipo: whatsappConfig.api_type, 
-        destinatarios: whatsappDestinatarios.length 
+    console.log('Tentando disparar notificação WhatsApp...', {
+        tipo: whatsappConfig.api_type,
+        destinatarios: whatsappDestinatarios.length
     });
 
     if (whatsappDestinatarios.length === 0) {
@@ -4383,22 +4506,22 @@ async function sendWhatsAppNotification(message) {
     }
 
     const destinatariosAtivos = whatsappDestinatarios.filter(d => d.ativo);
-    
+
     if (whatsappConfig.api_type === 'callmebot') {
         for (const destinatario of destinatariosAtivos) {
             const cleanNumber = destinatario.numero.replace(/\D/g, '');
             const targetKey = destinatario.apikey;
-            
+
             if (!targetKey || targetKey.trim() === '') {
                 console.warn(`Pulando ${destinatario.nome}: Sem API Key individual.`);
                 continue;
             }
 
             const url = `https://api.callmebot.com/whatsapp.php?phone=${cleanNumber}&text=${encodeURIComponent(message)}&apikey=${targetKey}`;
-            
+
             console.log(`Enviando via CallMeBot para: ${cleanNumber}`);
             // Removido Image().src para evitar envio duplo (o fetch já é suficiente)
-            fetch(url, { mode: 'no-cors' }).catch(() => {});
+            fetch(url, { mode: 'no-cors' }).catch(() => { });
         }
     } else {
         // Evolution API
@@ -4407,17 +4530,17 @@ async function sendWhatsAppNotification(message) {
             return;
         }
         const endpoint = `${whatsappConfig.api_url}/message/sendText/${whatsappConfig.instance}`;
-        
+
         for (const destinatario of destinatariosAtivos) {
             try {
                 const cleanNumber = destinatario.numero.replace(/\D/g, '');
                 console.log(`Enviando via Evolution para: ${cleanNumber}`);
-                
+
                 fetch(endpoint, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json', 
-                        'apikey': whatsappConfig.apikey 
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': whatsappConfig.apikey
                     },
                     body: JSON.stringify({ number: cleanNumber, text: message })
                 }).then(res => {
@@ -4502,11 +4625,11 @@ window.saveFuelType = async (e) => {
         closeFuelTypeModal();
 
         await fetchFuelTypes();
-        
+
         // Seleciona o recém-criado
         const select = document.getElementById('addTipoCombustivel');
         if (select) select.value = data.descricao;
-        
+
     } catch (err) {
         console.error('Erro ao salvar combustível:', err);
         alert('Falha ao salvar: ' + err.message);
@@ -4515,7 +4638,7 @@ window.saveFuelType = async (e) => {
 window.testWhatsAppMessage = () => {
     const type = document.getElementById('wa_api_type').value;
     const destinatario = whatsappDestinatarios[0]; // Testa com o primeiro da lista
-    
+
     if (!destinatario) return alert('Cadastre pelo menos um número para testar.');
 
     const cleanNumber = destinatario.numero.replace(/\D/g, '');
@@ -4530,7 +4653,7 @@ window.testWhatsAppMessage = () => {
         const apiUrl = document.getElementById('wa_api_url').value;
         const instance = document.getElementById('wa_instance').value;
         if (!apiUrl || !instance) return alert('Preencha os campos da Evolution API para testar.');
-        
+
         alert('O teste da Evolution API é feito em background. Verifique seu console (F12).');
         sendWhatsAppNotification(testMsg);
         return;
@@ -4586,9 +4709,9 @@ function updateInativoMotivosDropdown() {
     if (!select) return;
 
     const currentVal = select.value;
-    select.innerHTML = '<option value="">Selecione...</option>' + 
+    select.innerHTML = '<option value="">Selecione...</option>' +
         inativoMotivos.map(m => `<option value="${m.nome}">${m.nome}</option>`).join('');
-    
+
     if (currentVal && inativoMotivos.some(m => m.nome === currentVal)) {
         select.value = currentVal;
     }

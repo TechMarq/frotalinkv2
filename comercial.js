@@ -15,7 +15,8 @@ let config = {
     status: [],
     demandas: [],
     tabelas: [],
-    tipos_veiculo: []
+    tipos_veiculo: [],
+    tipos_atendimento: []
 };
 let currentTab = 'dashboard';
 let currentSort = { key: 'cliente', dir: 'asc' };
@@ -111,24 +112,29 @@ function fmtDataBR(dateStr) {
 // --- Definição de Colunas ---
 const COL_DEFS = [
     // Visíveis por padrão
-    { key: 'cliente',    label: 'Cliente',           sortKey: 'cliente',         pinned: false, defaultVisible: true  },
-    { key: 'cnpj',       label: 'CNPJ / CPF',        sortKey: null,              pinned: false, defaultVisible: true  },
-    { key: 'descricao',  label: 'Descrição',         sortKey: null,              pinned: false, defaultVisible: true  },
-    { key: 'versao',     label: 'Versão',            sortKey: null,              pinned: false, defaultVisible: false },
-    { key: 'referencia', label: 'Referência',        sortKey: null,              pinned: false, defaultVisible: false },
-    { key: 'vigencia',   label: 'Vigência',          sortKey: null,              pinned: false, defaultVisible: false },
-    { key: 'demanda',    label: 'Tipo de Demanda',   sortKey: null,              pinned: false, defaultVisible: false },
-    { key: 'tabela',     label: 'Tabela de Preço',   sortKey: null,              pinned: false, defaultVisible: false },
-    { key: 'assinatura', label: 'Assinatura',        sortKey: 'data_assinatura', pinned: false, defaultVisible: true  },
-    { key: 'prazo',      label: 'Prazo (Meses)',     sortKey: null,              pinned: false, defaultVisible: false },
-    { key: 'vencimento', label: 'Vencimento',        sortKey: 'data_vencimento', pinned: false, defaultVisible: true  },
-    { key: 'status',     label: 'Status',            sortKey: null,              pinned: false, defaultVisible: true  },
-    { key: 'email',      label: 'Email',             sortKey: null,              pinned: false, defaultVisible: false },
-    { key: 'telefone',   label: 'Telefone',          sortKey: null,              pinned: false, defaultVisible: false },
-    { key: 'responsavel',label: 'Responsável',       sortKey: null,              pinned: false, defaultVisible: false },
-    { key: 'contato',    label: 'Contato Resp.',     sortKey: null,              pinned: false, defaultVisible: false },
-    { key: 'observacao', label: 'Observações',       sortKey: null,              pinned: false, defaultVisible: false },
-    { key: 'acoes',      label: 'Ações',             sortKey: null,              pinned: true,  defaultVisible: true  },
+    { key: 'cliente',          label: 'Cliente',                 sortKey: 'cliente',         pinned: false, defaultVisible: true  },
+    { key: 'cnpj',             label: 'CNPJ / CPF',              sortKey: null,              pinned: false, defaultVisible: true  },
+    { key: 'descricao',        label: 'Descrição',               sortKey: null,              pinned: false, defaultVisible: true  },
+    { key: 'valor_total',      label: 'Valor Total',             sortKey: null,              pinned: false, defaultVisible: true  },
+    { key: 'tipo_atendimento', label: 'Tipo de Atendimento',     sortKey: null,              pinned: false, defaultVisible: false },
+    { key: 'versao',           label: 'Versão',                  sortKey: null,              pinned: false, defaultVisible: false },
+    { key: 'referencia',       label: 'Referência',              sortKey: null,              pinned: false, defaultVisible: false },
+    { key: 'vigencia',         label: 'Vigência',                sortKey: null,              pinned: false, defaultVisible: false },
+    { key: 'demanda',          label: 'Tipo de Demanda',         sortKey: null,              pinned: false, defaultVisible: false },
+    { key: 'tabela',           label: 'Tabela de Preço',         sortKey: null,              pinned: false, defaultVisible: false },
+    { key: 'assinatura',       label: 'Assinatura',              sortKey: 'data_assinatura', pinned: false, defaultVisible: true  },
+    { key: 'prazo',            label: 'Prazo (Meses)',           sortKey: null,              pinned: false, defaultVisible: false },
+    { key: 'vencimento',       label: 'Vencimento',              sortKey: 'data_vencimento', pinned: false, defaultVisible: true  },
+    { key: 'validade',         label: 'Validade da Proposta',    sortKey: null,              pinned: false, defaultVisible: false },
+    { key: 'forma_pagamento',  label: 'Condição de Pagamento',   sortKey: null,              pinned: false, defaultVisible: false },
+    { key: 'periodo_medicao',  label: 'Período de Medição',      sortKey: null,              pinned: false, defaultVisible: false },
+    { key: 'status',           label: 'Status',                  sortKey: null,              pinned: false, defaultVisible: true  },
+    { key: 'email',            label: 'Email',                   sortKey: null,              pinned: false, defaultVisible: false },
+    { key: 'telefone',         label: 'Telefone',                sortKey: null,              pinned: false, defaultVisible: false },
+    { key: 'responsavel',      label: 'Responsável',             sortKey: null,              pinned: false, defaultVisible: false },
+    { key: 'contato',          label: 'Contato Resp.',           sortKey: null,              pinned: false, defaultVisible: false },
+    { key: 'observacao',       label: 'Observações',             sortKey: null,              pinned: false, defaultVisible: false },
+    { key: 'acoes',            label: 'Ações',                   sortKey: null,              pinned: true,  defaultVisible: true  },
 ];
 
 const COL_STORAGE_KEY = 'frotalink_comercial_cols_v2';
@@ -139,9 +145,17 @@ function loadColConfig() {
         const saved = localStorage.getItem(COL_STORAGE_KEY);
         if (saved) {
             const parsed = JSON.parse(saved);
-            // valida integridade: todas as chaves devem existir
-            const validKeys = COL_DEFS.map(c => c.key);
-            if (parsed.order && parsed.order.every(k => validKeys.includes(k))) {
+            if (parsed.order && Array.isArray(parsed.order)) {
+                COL_DEFS.forEach(c => {
+                    if (!parsed.order.includes(c.key)) {
+                        const idxAcoes = parsed.order.indexOf('acoes');
+                        if (idxAcoes !== -1) parsed.order.splice(idxAcoes, 0, c.key);
+                        else parsed.order.push(c.key);
+                        if (parsed.visible[c.key] === undefined) {
+                            parsed.visible[c.key] = c.defaultVisible;
+                        }
+                    }
+                });
                 return parsed;
             }
         }
@@ -451,6 +465,34 @@ async function loadConfig() {
         }
         config.tipos_veiculo = tvList;
 
+        // Tipos de atendimento: busca do Supabase com fallback seguro para localStorage
+        let taList = null;
+        try {
+            const resTa = await supabaseClient.from('com_tipos_atendimento').select('*').order('nome');
+            if (resTa && resTa.data && resTa.data.length > 0) {
+                taList = resTa.data;
+            }
+        } catch (e) {
+            console.warn("Tabela com_tipos_atendimento não disponível no Supabase, usando fallback:", e);
+        }
+
+        if (!taList || taList.length === 0) {
+            try {
+                const local = localStorage.getItem('com_tipos_atendimento_fallback');
+                if (local) taList = JSON.parse(local);
+            } catch(e) {}
+            if (!taList || taList.length === 0) {
+                taList = [
+                    { id: 'a_disposicao', nome: 'À disposição' },
+                    { id: 'eventual', nome: 'Eventual' }
+                ];
+                try {
+                    localStorage.setItem('com_tipos_atendimento_fallback', JSON.stringify(taList));
+                } catch(e) {}
+            }
+        }
+        config.tipos_atendimento = taList;
+
         populateDropdowns();
         renderAdminLists();
     } catch (err) {
@@ -467,6 +509,53 @@ async function loadContratos() {
         
         if (error) throw error;
         contratos = data || [];
+
+        // Garante a integridade do tipo_atendimento via banco ou cache local caso a view ainda não tenha sido recompilada
+        contratos.forEach(c => {
+            const cached = localStorage.getItem(`com_proposta_tipo_atendimento_${c.id}`);
+            c.tipo_atendimento = c.tipo_atendimento || cached || 'À disposição';
+        });
+
+        // Carrega totais financeiros dos itens para a coluna Valor Total da tabela de contratos
+        try {
+            const { data: itensTotais } = await supabaseClient
+                .from('com_proposta_itens')
+                .select('contrato_id, quantidade, preco_unit, total_km, valor_km, qtd_veiculos, habilitar_volta, habilitar_dias, qtd_dias, descricao');
+            if (itensTotais) {
+                window.contratosTotaisMap = {};
+                itensTotais.forEach(it => {
+                    if (!window.contratosTotaisMap[it.contrato_id]) {
+                        window.contratosTotaisMap[it.contrato_id] = 0;
+                    }
+                    let itemVal = 0;
+                    if (it.descricao && it.descricao.startsWith('{') && it.descricao.endsWith('}')) {
+                        try {
+                            const parsed = JSON.parse(it.descricao);
+                            if (parsed.total_item !== undefined) itemVal = parseFloat(parsed.total_item) || 0;
+                            else if (parsed.total_diaria !== undefined) {
+                                const fatDias = parsed.habilitar_dias ? Math.max(1, parseFloat(parsed.qtd_dias) || 1) : 1;
+                                itemVal = (parseFloat(parsed.total_diaria) || 0) * fatDias;
+                            }
+                        } catch(e){}
+                    }
+                    if (!itemVal) {
+                        if (it.total_km && it.valor_km) {
+                            const vVeic = (parseFloat(it.total_km) || 0) * (parseFloat(it.valor_km) || 0);
+                            const qVeic = parseFloat(it.qtd_veiculos) || 1;
+                            const hVolta = it.habilitar_volta ? 2 : 1;
+                            const fDias = it.habilitar_dias ? Math.max(1, parseFloat(it.qtd_dias) || 1) : 1;
+                            itemVal = vVeic * qVeic * hVolta * fDias;
+                        } else if (it.quantidade && it.preco_unit) {
+                            itemVal = (parseFloat(it.quantidade) || 0) * (parseFloat(it.preco_unit) || 0);
+                        }
+                    }
+                    window.contratosTotaisMap[it.contrato_id] += itemVal;
+                });
+            }
+        } catch(e) {
+            console.warn('Erro ao carregar totais de contratos:', e);
+        }
+
         renderContratos();
         renderParticulares();
         updateDashboard();
@@ -492,6 +581,20 @@ function populateDropdowns() {
     fn('filterDemanda', config.demandas, 'Todas as Demandas');
     fn('filterStatusParticular', config.status, 'Todos os Status');
     fn('filterVeiculoParticular', config.tipos_veiculo, 'Todos os Veículos');
+
+    // Tipo de Atendimento (Propostas)
+    const selTa = document.getElementById('prop_tipo_atendimento');
+    if (selTa) {
+        const currentVal = selTa.value;
+        selTa.innerHTML = (config.tipos_atendimento || []).map(item => 
+            `<option value="${item.nome}">${item.nome}</option>`
+        ).join('');
+        if (currentVal && (config.tipos_atendimento || []).some(x => x.nome === currentVal)) {
+            selTa.value = currentVal;
+        } else if (selTa.options.length > 0) {
+            selTa.value = selTa.options[0].value;
+        }
+    }
 }
 
 
@@ -634,27 +737,33 @@ function renderContratos() {
         };
         const isVencido = c.data_vencimento && new Date(c.data_vencimento + 'T00:00:00') < today;
         const statusColor = isVencido ? '#ef4444' : getStatusColor(c.status_nome);
+        const valTotContrato = (window.contratosTotaisMap && window.contratosTotaisMap[c.id]) || 0;
 
         // Mapa de células por key
         const cellMap = {
-            cliente:     `<td data-label="Cliente" onclick="openContratoModal('${c.id}', true)" style="cursor:pointer;" title="Clique para visualizar os dados"><div style="font-weight:800;color:var(--primary);font-size:0.75rem;">${c.cliente_nome || 'N/A'}</div><div style="font-size:0.67rem;color:var(--text-muted);">${c.vigencia || '-'}</div></td>`,
-            cnpj:        `<td data-label="CNPJ" style="font-size:0.72rem;font-family:'JetBrains Mono',monospace;">${c.cliente_cnpj_cpf || '-'}</td>`,
-            descricao:   `<td data-label="Descrição"><div style="font-size:0.73rem;">${c.descricao_contrato || '-'}</div><div style="font-size:0.67rem;color:var(--primary);font-weight:700;">VERSÃO: ${c.versao_contrato || '-'}</div></td>`,
-            versao:      `<td data-label="Versão" style="text-align:center;"><span style="font-size:0.72rem;font-weight:700;color:var(--primary);">${c.versao_contrato || '-'}</span></td>`,
-            referencia:  `<td data-label="Referência"><span style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;">${c.referencia || '-'}</span></td>`,
-            vigencia:    `<td data-label="Vigência" style="font-size:0.72rem;">${c.vigencia || '-'}</td>`,
-            demanda:     `<td data-label="Demanda" style="font-size:0.72rem;">${c.tipo_demanda_nome || '-'}</td>`,
-            tabela:      `<td data-label="Tabela" style="font-size:0.72rem;">${c.tabela_preco_nome || '-'}</td>`,
-            assinatura:  `<td data-label="Assinatura" style="font-size:0.72rem;text-align:center;">${c.data_assinatura ? new Date(c.data_assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}</td>`,
-            prazo:       `<td data-label="Prazo" style="font-size:0.72rem;text-align:center;">${c.prazo_meses ? c.prazo_meses + ' meses' : '-'}</td>`,
-            vencimento:  `<td data-label="Vencimento"><div style="font-size:0.74rem;font-weight:700;color:${vencColor};display:flex;align-items:center;flex-wrap:wrap;gap:4px;">${c.data_vencimento ? new Date(c.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}${alertIcon}</div><div style="font-size:0.65rem;color:var(--text-muted);">${c.prazo_meses || 0} meses</div></td>`,
-            status:      `<td data-label="Status" style="text-align:center;"><span style="background:${statusColor}22;color:${statusColor};padding:0.15rem 0.45rem;border-radius:6px;font-size:0.62rem;font-weight:800;border:1px solid ${statusColor}44;display:inline-block;white-space:nowrap;">${isVencido ? 'VENCIDO' : (c.status_nome || 'N/A')}</span></td>`,
-            email:       `<td data-label="Email"><span style="font-size:0.72rem;">${c.cliente_email || '-'}</span></td>`,
-            telefone:    `<td data-label="Telefone" style="font-size:0.72rem;">${c.cliente_telefone || '-'}</td>`,
-            responsavel: `<td data-label="Responsável" style="font-size:0.72rem;">${c.nome_responsavel || '-'}</td>`,
-            contato:     `<td data-label="Contato Resp." style="font-size:0.72rem;">${c.contato_responsavel || '-'}</td>`,
-            observacao:  `<td data-label="Observações"><span style="font-size:0.72rem;color:var(--text-muted);max-width:180px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(c.observacao || '').replace(/"/g,"'")}">${c.observacao || '-'}</span></td>`,
-            acoes:       `<td style="text-align:right;white-space:nowrap;"><div style="display:flex;gap:4px;justify-content:flex-end;"><button class="action-btn-mini" onclick="openHistoricoModal('${c.id}')" title="Histórico"><i data-lucide="history"></i></button><button class="action-btn-mini" onclick="openContratoModal('${c.id}')" title="Editar"><i data-lucide="edit-2"></i></button><button class="action-btn-mini" onclick="deleteContrato('${c.id}')" style="color:#ef4444;" title="Excluir"><i data-lucide="trash-2"></i></button></div></td>`
+            cliente:          `<td data-label="Cliente" onclick="openContratoModal('${c.id}', true)" style="cursor:pointer;" title="Clique para visualizar os dados"><div style="font-weight:800;color:var(--primary);font-size:0.75rem;">${c.cliente_nome || 'N/A'}</div><div style="font-size:0.67rem;color:var(--text-muted);">${c.vigencia || '-'}</div></td>`,
+            cnpj:             `<td data-label="CNPJ" style="font-size:0.72rem;font-family:'JetBrains Mono',monospace;">${c.cliente_cnpj_cpf || '-'}</td>`,
+            descricao:        `<td data-label="Descrição"><div style="font-size:0.73rem;">${c.descricao_contrato || '-'}</div><div style="font-size:0.67rem;color:var(--primary);font-weight:700;">VERSÃO: ${c.versao_contrato || '-'}</div></td>`,
+            valor_total:      `<td data-label="Valor Total" style="text-align:right;font-size:0.75rem;font-weight:800;color:var(--primary);font-family:'JetBrains Mono',monospace;">${valTotContrato > 0 ? fmtMoeda(valTotContrato) : '-'}</td>`,
+            tipo_atendimento: `<td data-label="Tipo Atendimento" style="font-size:0.72rem;text-align:center;"><span style="display:inline-block;padding:2px 7px;border-radius:6px;background:rgba(45,158,107,0.12);color:var(--primary);font-weight:700;font-size:0.68rem;">${c.tipo_atendimento || localStorage.getItem('com_proposta_tipo_atendimento_' + c.id) || 'À disposição'}</span></td>`,
+            versao:           `<td data-label="Versão" style="text-align:center;"><span style="font-size:0.72rem;font-weight:700;color:var(--primary);">${c.versao_contrato || '-'}</span></td>`,
+            referencia:       `<td data-label="Referência"><span style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;">${c.referencia || '-'}</span></td>`,
+            vigencia:         `<td data-label="Vigência" style="font-size:0.72rem;">${c.vigencia || '-'}</td>`,
+            demanda:          `<td data-label="Demanda" style="font-size:0.72rem;">${c.tipo_demanda_nome || '-'}</td>`,
+            tabela:           `<td data-label="Tabela" style="font-size:0.72rem;">${c.tabela_preco_nome || '-'}</td>`,
+            assinatura:       `<td data-label="Assinatura" style="font-size:0.72rem;text-align:center;">${c.data_assinatura ? new Date(c.data_assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}</td>`,
+            prazo:            `<td data-label="Prazo" style="font-size:0.72rem;text-align:center;">${c.prazo_meses ? c.prazo_meses + ' meses' : '-'}</td>`,
+            vencimento:       `<td data-label="Vencimento"><div style="font-size:0.74rem;font-weight:700;color:${vencColor};display:flex;align-items:center;flex-wrap:wrap;gap:4px;">${c.data_vencimento ? new Date(c.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}${alertIcon}</div><div style="font-size:0.65rem;color:var(--text-muted);">${c.prazo_meses || 0} meses</div></td>`,
+            validade:         `<td data-label="Validade" style="font-size:0.72rem;text-align:center;">${c.data_validade ? fmtDataBR(c.data_validade) : '-'}</td>`,
+            forma_pagamento:  `<td data-label="Condição Pgto" style="font-size:0.72rem;">${c.forma_pagamento || '-'}</td>`,
+            periodo_medicao:  `<td data-label="Período Medição" style="font-size:0.72rem;">${c.periodo_medicao || '-'}</td>`,
+            status:           `<td data-label="Status" style="text-align:center;"><span style="background:${statusColor}22;color:${statusColor};padding:0.15rem 0.45rem;border-radius:6px;font-size:0.62rem;font-weight:800;border:1px solid ${statusColor}44;display:inline-block;white-space:nowrap;">${isVencido ? 'VENCIDO' : (c.status_nome || 'N/A')}</span></td>`,
+            email:            `<td data-label="Email"><span style="font-size:0.72rem;">${c.cliente_email || '-'}</span></td>`,
+            telefone:         `<td data-label="Telefone" style="font-size:0.72rem;">${c.cliente_telefone || '-'}</td>`,
+            responsavel:      `<td data-label="Responsável" style="font-size:0.72rem;">${c.nome_responsavel || '-'}</td>`,
+            contato:          `<td data-label="Contato Resp." style="font-size:0.72rem;">${c.contato_responsavel || '-'}</td>`,
+            observacao:       `<td data-label="Observações"><span style="font-size:0.72rem;color:var(--text-muted);max-width:180px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(c.observacao || '').replace(/"/g,"'")}">${c.observacao || '-'}</span></td>`,
+            acoes:            `<td style="text-align:right;white-space:nowrap;"><div style="display:flex;gap:4px;justify-content:flex-end;"><button class="action-btn-mini" onclick="openHistoricoModal('${c.id}')" title="Histórico"><i data-lucide="history"></i></button><button class="action-btn-mini" onclick="abrirDocumentoContratoTab('${c.id}')" title="Gerar / Imprimir"><i data-lucide="printer"></i></button><button class="action-btn-mini" onclick="openContratoModal('${c.id}')" title="Editar"><i data-lucide="edit-2"></i></button><button class="action-btn-mini" onclick="deleteContrato('${c.id}')" style="color:#ef4444;" title="Excluir"><i data-lucide="trash-2"></i></button></div></td>`
         };
 
         const visibleCells = colConfig.order
@@ -674,13 +783,19 @@ function renderContratos() {
 
 // ===== COLUNAS PROPOSTAS PARTICULARES =====
 const COL_DEFS_PARTICULARES = [
-    { key: 'cliente', label: 'Cliente', pinned: false, defaultVisible: true },
-    { key: 'cnpj', label: 'CNPJ / CPF', pinned: false, defaultVisible: true },
-    { key: 'roteiro', label: 'Roteiro & Veículo', pinned: false, defaultVisible: true },
-    { key: 'data', label: 'Data', pinned: false, defaultVisible: true },
-    { key: 'valor', label: 'Valor Total', pinned: false, defaultVisible: true },
-    { key: 'status', label: 'Status', pinned: false, defaultVisible: true },
-    { key: 'acoes', label: 'Ações', pinned: true, defaultVisible: true }
+    { key: 'cliente',          label: 'Cliente',                 pinned: false, defaultVisible: true  },
+    { key: 'cnpj',             label: 'CNPJ / CPF',              pinned: false, defaultVisible: true  },
+    { key: 'roteiro',          label: 'Roteiro & Veículo',       pinned: false, defaultVisible: true  },
+    { key: 'data',             label: 'Data',                    pinned: false, defaultVisible: true  },
+    { key: 'valor',            label: 'Valor Total',             pinned: false, defaultVisible: true  },
+    { key: 'tipo_atendimento', label: 'Tipo de Atendimento',     pinned: false, defaultVisible: false },
+    { key: 'tipo_veiculo',     label: 'Tipo de Veículo',         pinned: false, defaultVisible: false },
+    { key: 'total_km',         label: 'KM Total',                pinned: false, defaultVisible: false },
+    { key: 'total_insumos',    label: 'Insumos (R$)',            pinned: false, defaultVisible: false },
+    { key: 'telefone',         label: 'Telefone',                pinned: false, defaultVisible: false },
+    { key: 'email',            label: 'Email',                   pinned: false, defaultVisible: false },
+    { key: 'status',           label: 'Status',                  pinned: false, defaultVisible: true  },
+    { key: 'acoes',            label: 'Ações',                   pinned: true,  defaultVisible: true  }
 ];
 
 const COL_STORAGE_KEY_PARTICULARES = 'frotalink_comercial_cols_particulares_v1';
@@ -691,8 +806,17 @@ function loadColConfigParticular() {
         const saved = localStorage.getItem(COL_STORAGE_KEY_PARTICULARES);
         if (saved) {
             const parsed = JSON.parse(saved);
-            const validKeys = COL_DEFS_PARTICULARES.map(c => c.key);
-            if (parsed.order && parsed.order.every(k => validKeys.includes(k))) {
+            if (parsed.order && Array.isArray(parsed.order)) {
+                COL_DEFS_PARTICULARES.forEach(c => {
+                    if (!parsed.order.includes(c.key)) {
+                        const idxAcoes = parsed.order.indexOf('acoes');
+                        if (idxAcoes !== -1) parsed.order.splice(idxAcoes, 0, c.key);
+                        else parsed.order.push(c.key);
+                        if (parsed.visible[c.key] === undefined) {
+                            parsed.visible[c.key] = c.defaultVisible;
+                        }
+                    }
+                });
                 return parsed;
             }
         }
@@ -1073,6 +1197,12 @@ window.renderParticulares = async () => {
             roteiro: '',
             data: 'width: 110px; text-align: center;',
             valor: 'width: 130px; text-align: right;',
+            tipo_atendimento: 'width: 130px; text-align: center;',
+            tipo_veiculo: 'width: 120px;',
+            total_km: 'width: 100px; text-align: center;',
+            total_insumos: 'width: 110px; text-align: right;',
+            telefone: 'width: 120px;',
+            email: 'width: 150px;',
             status: 'width: 140px; text-align: center;',
             acoes: 'width: 150px; text-align: right;'
         };
@@ -1127,6 +1257,12 @@ window.renderParticulares = async () => {
             roteiro: `<td style="font-size:0.73rem;">${roteiroHtml}</td>`,
             data: `<td style="text-align:center;font-size:0.74rem;">${dataStr}</td>`,
             valor: `<td style="text-align:right;font-size:0.80rem;font-weight:800;color:var(--primary);font-family:'JetBrains Mono',monospace;">${fmtMoeda(totalCalculado)}</td>`,
+            tipo_atendimento: `<td style="font-size:0.72rem;text-align:center;"><span style="display:inline-block;padding:2px 7px;border-radius:6px;background:rgba(45,158,107,0.12);color:var(--primary);font-weight:700;font-size:0.68rem;">${c.tipo_atendimento || localStorage.getItem('com_proposta_tipo_atendimento_' + c.id) || 'À disposição'}</span></td>`,
+            tipo_veiculo: `<td style="font-size:0.72rem;">${Array.from(new Set(itens.map(i => i.v3?.tipo_veiculo || 'Veículo'))).join(', ') || '-'}</td>`,
+            total_km: `<td style="font-size:0.74rem;text-align:center;font-family:'JetBrains Mono',monospace;">${itens.reduce((acc, i) => acc + (parseFloat(i.v3?.km_calculado || i.total_km || 0) || 0), 0)} KM</td>`,
+            total_insumos: `<td style="text-align:right;font-size:0.74rem;font-family:'JetBrains Mono',monospace;">${fmtMoeda(itens.reduce((acc, i) => acc + (parseFloat(i.v3?.total_insumos || 0) || 0), 0))}</td>`,
+            telefone: `<td style="font-size:0.72rem;">${c.cliente_telefone || '-'}</td>`,
+            email: `<td style="font-size:0.72rem;">${c.cliente_email || '-'}</td>`,
             status: `<td style="text-align:center;">
                 <span style="background:${statusColor}22;color:${statusColor};padding:0.2rem 0.5rem;border-radius:6px;font-size:0.65rem;font-weight:800;border:1px solid ${statusColor}44;display:inline-block;white-space:nowrap;">
                     ${c.status_nome || 'PROPOSTA ABERTA'}
@@ -1153,6 +1289,27 @@ window.abrirPdfParticular = async (id) => {
     gerarDocumentoProposta();
 };
 
+window.abrirDocumentoContratoTab = async (id) => {
+    await openContratoModal(id, true);
+    const c = contratos.find(x => x.id === id);
+    const statusNorm = c?.status_nome ? c.status_nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() : '';
+    const isAprovado = (c && (c.proposta_step === 2 || statusNorm.includes('APROVAD') || statusNorm.includes('ATIVO') || statusNorm.includes('CONTRATO')));
+
+    if (isAprovado) {
+        gerarDocumentoContrato();
+    } else {
+        gerarDocumentoProposta();
+    }
+};
+
+window.despacharGerarDocumentoModal = () => {
+    if (propostaAtual.step === 2) {
+        gerarDocumentoContrato();
+    } else {
+        gerarDocumentoProposta();
+    }
+};
+
 function renderTableHeader() {
     const tr = document.getElementById('contractsHeader');
     if (!tr) return;
@@ -1161,6 +1318,8 @@ function renderTableHeader() {
         cliente: 'min-width: 160px;',
         cnpj: 'width: 120px;',
         descricao: 'min-width: 140px;',
+        valor_total: 'width: 125px; text-align: right;',
+        tipo_atendimento: 'width: 130px; text-align: center;',
         versao: 'width: 75px; text-align: center;',
         referencia: 'width: 90px;',
         vigencia: 'width: 90px;',
@@ -1169,13 +1328,16 @@ function renderTableHeader() {
         assinatura: 'width: 80px; text-align: center;',
         prazo: 'width: 80px; text-align: center;',
         vencimento: 'width: 95px;',
+        validade: 'width: 95px; text-align: center;',
+        forma_pagamento: 'min-width: 130px;',
+        periodo_medicao: 'min-width: 120px;',
         status: 'width: 90px; text-align: center;',
         email: 'width: 120px;',
         telefone: 'width: 100px;',
         responsavel: 'width: 110px;',
         contato: 'width: 100px;',
         observacao: 'width: 130px;',
-        acoes: 'width: 85px; text-align: right;'
+        acoes: 'width: 110px; text-align: right;'
     };
 
     tr.innerHTML = colConfig.order
@@ -1579,6 +1741,20 @@ window.openContratoModal = async (id = null, readOnly = false, forceCreationType
             document.getElementById('prop_observacoes').value      = c.observacoes_proposta
                 || 'Permanecemos à disposição para quaisquer esclarecimentos que se façam necessários.';
 
+            const selTa = document.getElementById('prop_tipo_atendimento');
+            const taVal = c.tipo_atendimento || localStorage.getItem(`com_proposta_tipo_atendimento_${c.id}`) || 'À disposição';
+            propostaAtual.tipo_atendimento = taVal;
+            if (selTa) {
+                let hasOpt = Array.from(selTa.options).some(o => o.value === taVal);
+                if (!hasOpt && taVal) {
+                    const opt = document.createElement('option');
+                    opt.value = taVal;
+                    opt.text = taVal;
+                    selTa.appendChild(opt);
+                }
+                selTa.value = taVal;
+            }
+
             // Sincroniza o step com base no status real do contrato
             const currentStatusObj = config.status.find(s => s.id === c.status_id);
             const statusNorm = currentStatusObj ? currentStatusObj.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() : '';
@@ -1645,6 +1821,11 @@ window.openContratoModal = async (id = null, readOnly = false, forceCreationType
         document.getElementById('assinatura_proposta').value = 'New Cargo Transporte e Logística Ltda';
         document.getElementById('prop_observacoes').value    = 'Permanecemos à disposição para quaisquer esclarecimentos que se façam necessários.';
 
+        const selTa = document.getElementById('prop_tipo_atendimento');
+        if (selTa) {
+            selTa.value = 'À disposição';
+        }
+
         propostaAtual.itens_v1 = [{ id: null, descricao: '', unidade: '', quantidade: 0, preco_unit: 0 }];
         propostaAtual.itens_v2 = [{
             id: null,
@@ -1654,7 +1835,9 @@ window.openContratoModal = async (id = null, readOnly = false, forceCreationType
             total_km: 0,
             valor_km: 0,
             valor_veiculo: 0,
-            habilitar_volta: false
+            habilitar_volta: false,
+            habilitar_dias: false,
+            qtd_dias: 1
         }];
         propostaAtual.itens_v3 = [{
             id: null,
@@ -1672,7 +1855,10 @@ window.openContratoModal = async (id = null, readOnly = false, forceCreationType
             estacionamento: 0,
             total_km_valor: 0,
             total_insumos: 0,
-            total_item: 0
+            total_diaria: 0,
+            total_item: 0,
+            habilitar_dias: false,
+            qtd_dias: 1
         }];
 
         if (initialType === 'proposta_particular') {
@@ -1894,6 +2080,7 @@ function getPropostaFormPayload() {
         periodo_medicao:      document.getElementById('prop_periodo_medicao')?.value || '',
         forma_pagamento:      document.getElementById('prop_forma_pagamento')?.value || '',
         observacoes_proposta: document.getElementById('prop_observacoes')?.value || '',
+        tipo_atendimento:     document.getElementById('prop_tipo_atendimento')?.value || 'À disposição',
         proposta_versao:      propostaAtual.proposta_versao || 1
     };
 }
@@ -1997,7 +2184,18 @@ async function handleSaveContrato(e) {
                 labelHistorico += `\n\nAlterações:\n${todasAlteracoes.join('\n')}`;
             }
 
+            const taVal = payload.tipo_atendimento || 'À disposição';
+            localStorage.setItem(`com_proposta_tipo_atendimento_${editId}`, taVal);
+            propostaAtual.tipo_atendimento = taVal;
+
             res = await supabaseClient.from('com_contratos').update(payload).eq('id', editId);
+            if (res.error) {
+                const errMsg = (res.error.message || '') + (res.error.details || '') + (res.error.hint || '');
+                if (errMsg.toLowerCase().includes('tipo_atendimento') || res.error.code === 'PGRST204' || res.error.code === '42703') {
+                    delete payload.tipo_atendimento;
+                    res = await supabaseClient.from('com_contratos').update(payload).eq('id', editId);
+                }
+            }
             if (res.error) throw res.error;
             savedId = editId;
 
@@ -2029,10 +2227,22 @@ async function handleSaveContrato(e) {
                     if (selectStatus) selectStatus.value = statusAtivo.id;
                 }
 
-                const { data: inserted, error: errIns } = await supabaseClient
+                const taVal = payload.tipo_atendimento || 'À disposição';
+                let { data: inserted, error: errIns } = await supabaseClient
                     .from('com_contratos').insert([payload]).select().single();
+                if (errIns) {
+                    const errMsg = (errIns.message || '') + (errIns.details || '') + (errIns.hint || '');
+                    if (errMsg.toLowerCase().includes('tipo_atendimento') || errIns.code === 'PGRST204' || errIns.code === '42703') {
+                        delete payload.tipo_atendimento;
+                        const resRetry = await supabaseClient.from('com_contratos').insert([payload]).select().single();
+                        inserted = resRetry.data;
+                        errIns = resRetry.error;
+                    }
+                }
                 if (errIns) throw errIns;
                 savedId = inserted.id;
+                localStorage.setItem(`com_proposta_tipo_atendimento_${savedId}`, taVal);
+                propostaAtual.tipo_atendimento = taVal;
                 res = { error: null };
 
                 // Histórico inicial de contrato ativo direto
@@ -2058,10 +2268,22 @@ async function handleSaveContrato(e) {
                     const selectStatus = document.getElementById('status_id');
                     if (selectStatus) selectStatus.value = statusAberta.id;
                 }
-                const { data: inserted, error: errIns } = await supabaseClient
+                const taVal = payload.tipo_atendimento || 'À disposição';
+                let { data: inserted, error: errIns } = await supabaseClient
                     .from('com_contratos').insert([payload]).select().single();
+                if (errIns) {
+                    const errMsg = (errIns.message || '') + (errIns.details || '') + (errIns.hint || '');
+                    if (errMsg.toLowerCase().includes('tipo_atendimento') || errIns.code === 'PGRST204' || errIns.code === '42703') {
+                        delete payload.tipo_atendimento;
+                        const resRetry = await supabaseClient.from('com_contratos').insert([payload]).select().single();
+                        inserted = resRetry.data;
+                        errIns = resRetry.error;
+                    }
+                }
                 if (errIns) throw errIns;
                 savedId = inserted.id;
+                localStorage.setItem(`com_proposta_tipo_atendimento_${savedId}`, taVal);
+                propostaAtual.tipo_atendimento = taVal;
                 res = { error: null };
 
                 // Histórico inicial
@@ -2106,7 +2328,9 @@ async function handleSaveContrato(e) {
                     const per = parseFloat(it.pernoite) || 0;
                     const est = parseFloat(it.estacionamento) || 0;
                     const totIns = Math.round((ped + esp + alm + per + est) * 100) / 100;
-                    const totItem = Math.round((totKmVal + totIns) * 100) / 100;
+                    const totDiaria = Math.round((totKmVal + totIns) * 100) / 100;
+                    const fatorDias = it.habilitar_dias ? Math.max(1, parseFloat(it.qtd_dias) || 1) : 1;
+                    const totItem = Math.round((totDiaria * fatorDias) * 100) / 100;
 
                     const v3Data = {
                         tipo_veiculo: it.tipo_veiculo || '',
@@ -2121,9 +2345,12 @@ async function handleSaveContrato(e) {
                         estacionamento: est,
                         total_km_valor: totKmVal,
                         total_insumos: totIns,
+                        total_diaria: totDiaria,
                         total_item: totItem,
                         origem: it.origem || '',
-                        destino: it.destino || ''
+                        destino: it.destino || '',
+                        habilitar_dias: !!it.habilitar_dias,
+                        qtd_dias: it.habilitar_dias ? (parseFloat(it.qtd_dias) || 1) : 1
                     };
 
                     return {
@@ -2139,14 +2366,20 @@ async function handleSaveContrato(e) {
                         total_km:    kmCalc || qtdKm || 0,
                         valor_km:    vKm || 0,
                         valor_veiculo: totKmVal || 0,
-                        habilitar_volta: false
+                        habilitar_volta: false,
+                        habilitar_dias: !!it.habilitar_dias,
+                        qtd_dias: it.habilitar_dias ? (parseFloat(it.qtd_dias) || 1) : 1
                     };
                 } else if (propostaAtual.proposta_versao === 2) {
                     const descRota = (it.origem && it.destino) ? `${it.origem} ➔ ${it.destino}` : (it.origem || it.destino || 'Rota Comercial');
+                    let baseDesc = (it.descricao || descRota).replace(/\s*\[DIAS:\d+\]/gi, '').trim();
+                    if (it.habilitar_dias) {
+                        baseDesc = `${baseDesc} [DIAS:${Math.max(1, parseInt(it.qtd_dias) || 1)}]`;
+                    }
                     return {
                         contrato_id: savedId,
                         ordem:       idx + 1,
-                        descricao:   it.descricao || descRota,
+                        descricao:   baseDesc,
                         unidade:     it.unidade || 'KM',
                         quantidade:  (it.quantidade !== null && it.quantidade !== undefined && it.quantidade > 0) ? it.quantidade : (it.total_km || 1),
                         preco_unit:  (it.preco_unit !== null && it.preco_unit !== undefined && it.preco_unit > 0) ? it.preco_unit : (it.valor_km || 0),
@@ -2156,7 +2389,9 @@ async function handleSaveContrato(e) {
                         total_km:    it.total_km    || 0,
                         valor_km:    it.valor_km    || 0,
                         valor_veiculo: it.valor_veiculo || 0,
-                        habilitar_volta: !!it.habilitar_volta
+                        habilitar_volta: !!it.habilitar_volta,
+                        habilitar_dias: !!it.habilitar_dias,
+                        qtd_dias: it.habilitar_dias ? (parseFloat(it.qtd_dias) || 1) : 1
                     };
                 } else {
                     return {
@@ -2172,11 +2407,23 @@ async function handleSaveContrato(e) {
                         total_km:    null,
                         valor_km:    null,
                         valor_veiculo: null,
-                        habilitar_volta: null
+                        habilitar_volta: null,
+                        habilitar_dias: false,
+                        qtd_dias: 1
                     };
                 }
             });
-            const { error: errItens } = await supabaseClient.from('com_proposta_itens').insert(itensPayload);
+            let { error: errItens } = await supabaseClient.from('com_proposta_itens').insert(itensPayload);
+            if (errItens && errItens.message && errItens.message.includes('habilitar_dias')) {
+                const fallbackPayload = itensPayload.map(p => {
+                    const clone = { ...p };
+                    delete clone.habilitar_dias;
+                    delete clone.qtd_dias;
+                    return clone;
+                });
+                const resFallback = await supabaseClient.from('com_proposta_itens').insert(fallbackPayload);
+                errItens = resFallback.error;
+            }
             if (errItens) console.warn('Erro ao salvar itens:', errItens.message);
         }
 
@@ -2184,7 +2431,14 @@ async function handleSaveContrato(e) {
         propostaAtual.propostaId = savedId;
         editId = savedId;
 
+        const savedTa = document.getElementById('prop_tipo_atendimento')?.value || propostaAtual.tipo_atendimento || 'À disposição';
+        localStorage.setItem(`com_proposta_tipo_atendimento_${savedId}`, savedTa);
+        propostaAtual.tipo_atendimento = savedTa;
+
         await loadContratos();
+        const memObj = contratos.find(x => x.id === savedId);
+        if (memObj) memObj.tipo_atendimento = savedTa;
+
         closeContratoModal(true);
     } catch (err) {
         console.error("Erro ao salvar:", err);
@@ -2336,6 +2590,7 @@ function renderAdminLists() {
     const listDemandas = document.getElementById('list_tipos_demanda');
     const listStatus = document.getElementById('list_status');
     const listTiposVeiculo = document.getElementById('list_tipos_veiculo');
+    const listTiposAtendimento = document.getElementById('list_tipos_atendimento');
 
     const renderItem = (item, table) => `
         <div class="admin-item-card" style="display: flex; justify-content: space-between; align-items: center; background: #ffffff; border: 1px solid #e2e8f0; padding: 0.85rem 1.2rem; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); transition: all 0.2s ease;">
@@ -2348,6 +2603,7 @@ function renderAdminLists() {
     if (listDemandas) listDemandas.innerHTML = (config.demandas || []).map(i => renderItem(i, 'com_tipos_demanda')).join('');
     if (listStatus) listStatus.innerHTML = (config.status || []).map(i => renderItem(i, 'com_status')).join('');
     if (listTiposVeiculo) listTiposVeiculo.innerHTML = (config.tipos_veiculo || []).map(i => renderItem(i, 'com_tipos_veiculo')).join('');
+    if (listTiposAtendimento) listTiposAtendimento.innerHTML = (config.tipos_atendimento || []).map(i => renderItem(i, 'com_tipos_atendimento')).join('');
 
     if (window.lucide) lucide.createIcons();
 }
@@ -2382,6 +2638,11 @@ async function handleSaveAdmin(e) {
                 local.push({ id: 'tv_' + Date.now(), nome });
                 localStorage.setItem('com_tipos_veiculo_fallback', JSON.stringify(local));
                 config.tipos_veiculo = local;
+            } else if (table === 'com_tipos_atendimento') {
+                const local = config.tipos_atendimento || [];
+                local.push({ id: 'ta_' + Date.now(), nome });
+                localStorage.setItem('com_tipos_atendimento_fallback', JSON.stringify(local));
+                config.tipos_atendimento = local;
             } else {
                 throw error;
             }
@@ -2408,6 +2669,9 @@ async function deleteAdminItem(table, id) {
             if (table === 'com_tipos_veiculo') {
                 config.tipos_veiculo = (config.tipos_veiculo || []).filter(x => x.id !== id);
                 localStorage.setItem('com_tipos_veiculo_fallback', JSON.stringify(config.tipos_veiculo));
+            } else if (table === 'com_tipos_atendimento') {
+                config.tipos_atendimento = (config.tipos_atendimento || []).filter(x => x.id !== id);
+                localStorage.setItem('com_tipos_atendimento_fallback', JSON.stringify(config.tipos_atendimento));
             } else {
                 throw error;
             }
@@ -2631,8 +2895,10 @@ window.setPropostaVersao = (version, render = true) => {
     const cardsV3 = document.getElementById('propostaItensCardsV3');
     const resumoV3 = document.getElementById('propostaResumoBarV3');
     const totalGroup = document.getElementById('propostaTotalGroup');
+    const secTipoAtendimento = document.getElementById('secaoTipoAtendimentoV3');
 
     if (version === 3) {
+        if (secTipoAtendimento) secTipoAtendimento.style.display = 'block';
         if (tableWrapper) tableWrapper.style.display = 'none';
         if (cardsV3) {
             cardsV3.style.display = 'flex';
@@ -2641,6 +2907,7 @@ window.setPropostaVersao = (version, render = true) => {
         if (resumoV3) resumoV3.style.display = 'flex';
         if (totalGroup) totalGroup.style.display = 'none';
     } else {
+        if (secTipoAtendimento) secTipoAtendimento.style.display = 'none';
         if (tableWrapper) tableWrapper.style.display = 'block';
         if (cardsV3) cardsV3.style.display = 'none';
         if (resumoV3) resumoV3.style.display = 'none';
@@ -2672,6 +2939,7 @@ window.setPropostaVersao = (version, render = true) => {
                         <th style="padding:0.50rem 0.45rem;text-align:right;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:80px;">Valor KM</th>
                         <th style="padding:0.50rem 0.45rem;text-align:right;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:85px;">Valor Veíc.</th>
                         <th style="padding:0.50rem 0.45rem;text-align:center;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:55px;">Volta?</th>
+                        <th style="padding:0.50rem 0.45rem;text-align:center;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:95px;">Dias?</th>
                         <th style="padding:0.50rem 0.45rem;text-align:right;color:var(--text-muted);font-size:0.68rem;font-weight:800;width:95px;">Total</th>
                         <th style="width:36px;"></th>
                     </tr>
@@ -2711,7 +2979,10 @@ window.addItemProposta = () => {
             estacionamento: 0,
             total_km_valor: 0,
             total_insumos: 0,
-            total_item: 0
+            total_diaria: 0,
+            total_item: 0,
+            habilitar_dias: false,
+            qtd_dias: 1
         });
         propostaAtual.itens = propostaAtual.itens_v3;
     } else if (propostaAtual.proposta_versao === 2) {
@@ -2724,7 +2995,9 @@ window.addItemProposta = () => {
             total_km: 0,
             valor_km: 0,
             valor_veiculo: 0,
-            habilitar_volta: false
+            habilitar_volta: false,
+            habilitar_dias: false,
+            qtd_dias: 1
         });
         propostaAtual.itens = propostaAtual.itens_v2;
     } else {
@@ -2750,7 +3023,7 @@ window.updateItemProposta = (idx, field, value) => {
     if (!propostaAtual.itens[idx]) return;
 
     if (propostaAtual.proposta_versao === 2) {
-        if (field === 'habilitar_volta') {
+        if (field === 'habilitar_volta' || field === 'habilitar_dias') {
             propostaAtual.itens[idx][field] = !!value;
         } else if (field === 'origem' || field === 'destino') {
             propostaAtual.itens[idx][field] = value;
@@ -2762,13 +3035,18 @@ window.updateItemProposta = (idx, field, value) => {
         const item = propostaAtual.itens[idx];
         item.valor_veiculo = (item.total_km || 0) * (item.valor_km || 0);
 
+        const fatorDias = item.habilitar_dias ? Math.max(1, parseFloat(item.qtd_dias) || 1) : 1;
+        const rowTotal = item.valor_veiculo * (item.qtd_veiculos || 1) * (item.habilitar_volta ? 2 : 1) * fatorDias;
+
         // Atualiza a linha no DOM
         const tr = document.querySelector(`#propostaItensBody tr[data-idx="${idx}"]`);
         if (tr) {
             const veiculoCell = tr.querySelector('.row-veiculo-val');
             if (veiculoCell) veiculoCell.innerText = fmtMoeda(item.valor_veiculo);
 
-            const rowTotal = item.valor_veiculo * (item.qtd_veiculos || 1) * (item.habilitar_volta ? 2 : 1);
+            const diasInput = tr.querySelector('.v2-qtd-dias-input');
+            if (diasInput) diasInput.style.display = item.habilitar_dias ? 'inline-block' : 'none';
+
             const totalCell = tr.querySelector('.row-total-val');
             if (totalCell) totalCell.innerText = fmtMoeda(rowTotal);
         }
@@ -2794,7 +3072,9 @@ window.updateItemPropostaV3 = (idx, field, value) => {
     if (!propostaAtual.itens[idx]) return;
     const it = propostaAtual.itens[idx];
 
-    if (field === 'origem' || field === 'destino' || field === 'tipo_veiculo') {
+    if (field === 'habilitar_dias') {
+        it.habilitar_dias = !!value;
+    } else if (field === 'origem' || field === 'destino' || field === 'tipo_veiculo') {
         it[field] = value;
     } else {
         it[field] = parseFloat(value) || 0;
@@ -2815,7 +3095,9 @@ window.updateItemPropostaV3 = (idx, field, value) => {
     const est = parseFloat(it.estacionamento) || 0;
     it.total_insumos = Math.round((ped + esp + alm + per + est) * 100) / 100;
 
-    it.total_item = Math.round((it.total_km_valor + it.total_insumos) * 100) / 100;
+    it.total_diaria = Math.round((it.total_km_valor + it.total_insumos) * 100) / 100;
+    const fatorDias = it.habilitar_dias ? Math.max(1, parseFloat(it.qtd_dias) || 1) : 1;
+    it.total_item = Math.round((it.total_diaria * fatorDias) * 100) / 100;
 
     // Atualiza elementos no card
     const card = document.querySelector(`.v3-card[data-idx="${idx}"]`);
@@ -2829,6 +3111,16 @@ window.updateItemPropostaV3 = (idx, field, value) => {
         const subInsEl = card.querySelector('.v3-subtotal-insumos-display');
         if (subInsEl) subInsEl.innerText = fmtMoeda(it.total_insumos);
 
+        const diasWrapper = card.querySelector('.v3-dias-input-wrapper');
+        if (diasWrapper) diasWrapper.style.display = it.habilitar_dias ? 'flex' : 'none';
+
+        const totDiariaWrapper = card.querySelector('.v3-total-diaria-wrapper');
+        if (totDiariaWrapper) {
+            totDiariaWrapper.style.display = it.habilitar_dias ? 'inline-block' : 'none';
+            const totDiariaVal = card.querySelector('.v3-total-diaria-val');
+            if (totDiariaVal) totDiariaVal.innerText = fmtMoeda(it.total_diaria);
+        }
+
         const totItemEl = card.querySelector('.v3-total-item-display');
         if (totItemEl) totItemEl.innerText = fmtMoeda(it.total_item);
     }
@@ -2839,9 +3131,30 @@ window.updateItemPropostaV3 = (idx, field, value) => {
 function calcularTotalProposta() {
     let total = 0;
     if (propostaAtual.proposta_versao === 3) {
-        const totalKmValor = (propostaAtual.itens || []).reduce((acc, it) => acc + (it.total_km_valor || 0), 0);
-        const totalInsumos = (propostaAtual.itens || []).reduce((acc, it) => acc + (it.total_insumos || 0), 0);
-        const totalGeral = totalKmValor + totalInsumos;
+        let totalKmValor = 0;
+        let totalInsumos = 0;
+        let totalGeral = 0;
+        let totalDiasMultiplicados = 0;
+        let temDiasHabilitados = false;
+
+        (propostaAtual.itens || []).forEach(it => {
+            const kmVal = it.total_km_valor || 0;
+            const insVal = it.total_insumos || 0;
+            const subDiaria = kmVal + insVal;
+            const fatorDias = it.habilitar_dias ? Math.max(1, parseFloat(it.qtd_dias) || 1) : 1;
+
+            totalKmValor += kmVal;
+            totalInsumos += insVal;
+
+            if (it.habilitar_dias && (parseFloat(it.qtd_dias) || 1) > 1) {
+                temDiasHabilitados = true;
+                totalDiasMultiplicados += (subDiaria * fatorDias);
+            } else {
+                totalDiasMultiplicados += subDiaria;
+            }
+
+            totalGeral += (it.total_item || (subDiaria * fatorDias));
+        });
 
         const elKm = document.getElementById('v3ResumoTotalKm');
         if (elKm) elKm.innerText = fmtMoeda(totalKmValor);
@@ -2852,13 +3165,22 @@ function calcularTotalProposta() {
         const elTot = document.getElementById('v3ResumoTotalGeral');
         if (elTot) elTot.innerText = fmtMoeda(totalGeral);
 
+        // Exibição destacada de diária vs período com dias
+        const containerDiasInfo = document.getElementById('v3ResumoDiasInfo');
+        if (containerDiasInfo) {
+            containerDiasInfo.style.display = temDiasHabilitados ? 'block' : 'none';
+        }
+        const elSubDiaria = document.getElementById('v3ResumoSubtotalDiaria');
+        if (elSubDiaria) elSubDiaria.innerText = fmtMoeda(totalKmValor + totalInsumos);
+
         const elMainTot = document.getElementById('propostaTotal');
         if (elMainTot) elMainTot.innerText = fmtMoeda(totalGeral);
         return;
     } else if (propostaAtual.proposta_versao === 2) {
         total = (propostaAtual.itens || []).reduce((acc, it) => {
             const valorVeic = (it.total_km || 0) * (it.valor_km || 0);
-            return acc + (valorVeic * (it.qtd_veiculos || 1) * (it.habilitar_volta ? 2 : 1));
+            const fatorDias = it.habilitar_dias ? Math.max(1, parseFloat(it.qtd_dias) || 1) : 1;
+            return acc + (valorVeic * (it.qtd_veiculos || 1) * (it.habilitar_volta ? 2 : 1) * fatorDias);
         }, 0);
     } else {
         total = (propostaAtual.itens || []).reduce((acc, it) => acc + ((it.quantidade || 0) * (it.preco_unit || 0)), 0);
@@ -2873,7 +3195,7 @@ function renderItensProposta() {
         if (!containerV3) return;
 
         containerV3.innerHTML = (propostaAtual.itens || []).map((it, idx) => {
-            // Garante cálculos corretos ao renderizar
+            // Cálculos
             const qtdKm = parseFloat(it.qtd_km) || 0;
             const margemPct = parseFloat(it.margem_km_pct) || 0;
             it.km_calculado = Math.round((qtdKm * (1 + (margemPct / 100))) * 100) / 100;
@@ -2885,7 +3207,9 @@ function renderItensProposta() {
             const per = parseFloat(it.pernoite) || 0;
             const est = parseFloat(it.estacionamento) || 0;
             it.total_insumos = Math.round((ped + esp + alm + per + est) * 100) / 100;
-            it.total_item = Math.round((it.total_km_valor + it.total_insumos) * 100) / 100;
+            it.total_diaria = Math.round((it.total_km_valor + it.total_insumos) * 100) / 100;
+            const fatorDias = it.habilitar_dias ? Math.max(1, parseFloat(it.qtd_dias) || 1) : 1;
+            it.total_item = Math.round((it.total_diaria * fatorDias) * 100) / 100;
 
             const veiculoSelect = `
                 <div style="display:flex; gap:0.4rem; align-items:center;">
@@ -2980,21 +3304,38 @@ function renderItensProposta() {
                         </div>
                     </div>
 
-                    <!-- Rodapé do Card com os 3 Totais em Destaque -->
+                    <!-- Linha 4: Habilitar Dias e Quantidade de Dias (Opcional) -->
+                    <div style="margin-bottom:0.9rem; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:0.65rem 1rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.8rem;">
+                        <label style="display:inline-flex; align-items:center; gap:0.5rem; cursor:pointer; margin:0; font-size:0.78rem; font-weight:800; color:#166534;">
+                            <input type="checkbox" ${it.habilitar_dias ? 'checked' : ''} onchange="updateItemPropostaV3(${idx}, 'habilitar_dias', this.checked)" style="cursor:pointer; width:16px; height:16px; accent-color:var(--primary);">
+                            <span>Habilitar Dias de Viagem / Atendimento?</span>
+                        </label>
+                        <div class="v3-dias-input-wrapper" style="display:${it.habilitar_dias ? 'flex' : 'none'}; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.72rem; font-weight:800; color:#166534; text-transform:uppercase;">Qtd. Dias:</span>
+                            <input class="item-input" type="number" min="1" step="1" placeholder="1" value="${it.qtd_dias || 1}" oninput="updateItemPropostaV3(${idx}, 'qtd_dias', this.value)" style="width:75px; height:32px; border-radius:6px; border:1px solid #86efac; text-align:center; font-weight:800; background:#ffffff; color:#14532d;">
+                        </div>
+                    </div>
+
+                    <!-- Rodapé do Card com os Totais em Destaque -->
                     <div style="display:flex; justify-content:space-between; align-items:center; background:#f1f5f9; padding:0.7rem 1.1rem; border-radius:8px; border:1px solid #e2e8f0; flex-wrap:wrap; gap:0.6rem;">
-                        <div style="display:flex; align-items:center; gap:1.5rem; font-size:0.75rem;">
+                        <div style="display:flex; align-items:center; gap:1.2rem; font-size:0.75rem; flex-wrap:wrap;">
                             <div>
-                                <span style="color:#64748b; font-weight:700;">Valor total por KM: </span>
+                                <span style="color:#64748b; font-weight:700;">Valor por KM: </span>
                                 <strong class="v3-subtotal-km-display" style="color:#1e293b; font-family:'JetBrains Mono',monospace;">${fmtMoeda(it.total_km_valor)}</strong>
                             </div>
                             <span style="color:#cbd5e1;">|</span>
                             <div>
-                                <span style="color:#64748b; font-weight:700;">Valor total Insumos: </span>
+                                <span style="color:#64748b; font-weight:700;">Valor Insumos: </span>
                                 <strong class="v3-subtotal-insumos-display" style="color:#1e293b; font-family:'JetBrains Mono',monospace;">${fmtMoeda(it.total_insumos)}</strong>
                             </div>
+                            <span class="v3-total-diaria-wrapper" style="display:${it.habilitar_dias ? 'inline-block' : 'none'};">
+                                <span style="color:#cbd5e1; margin-right:1.2rem;">|</span>
+                                <span style="color:#64748b; font-weight:700;">Subtotal/Dia: </span>
+                                <strong class="v3-total-diaria-val" style="color:#0f172a; font-family:'JetBrains Mono',monospace;">${fmtMoeda(it.total_diaria)}</strong>
+                            </span>
                         </div>
                         <div style="font-size:0.82rem;">
-                            <span style="color:#065f46; font-weight:800;">Total do Item: </span>
+                            <span style="color:#065f46; font-weight:800;">Total do Item${it.habilitar_dias ? ` (${it.qtd_dias || 1} dias)` : ''}: </span>
                             <strong class="v3-total-item-display" style="color:#2d9e6b; font-size:1.05rem; font-weight:900; font-family:'JetBrains Mono',monospace;">${fmtMoeda(it.total_item)}</strong>
                         </div>
                     </div>
@@ -3013,7 +3354,8 @@ function renderItensProposta() {
     if (propostaAtual.proposta_versao === 2) {
         tbody.innerHTML = (propostaAtual.itens || []).map((item, idx) => {
             const valorVeiculo = (item.total_km || 0) * (item.valor_km || 0);
-            const total = valorVeiculo * (item.qtd_veiculos || 1) * (item.habilitar_volta ? 2 : 1);
+            const fatorDias = item.habilitar_dias ? Math.max(1, parseFloat(item.qtd_dias) || 1) : 1;
+            const total = valorVeiculo * (item.qtd_veiculos || 1) * (item.habilitar_volta ? 2 : 1) * fatorDias;
             return `
                 <tr data-idx="${idx}">
                     <td style="text-align:center;font-weight:800;color:var(--primary);font-size:0.75rem;">${idx + 1}</td>
@@ -3039,6 +3381,18 @@ function renderItensProposta() {
                         <input type="checkbox" ${item.habilitar_volta ? 'checked' : ''} 
                             onchange="updateItemProposta(${idx},'habilitar_volta',this.checked)"
                             style="cursor:pointer; width:15px; height:15px; accent-color:var(--primary);">
+                    </td>
+                    <td style="text-align:center; white-space:nowrap;">
+                        <div style="display:inline-flex; align-items:center; justify-content:center; gap:4px;">
+                            <input type="checkbox" ${item.habilitar_dias ? 'checked' : ''} 
+                                onchange="updateItemProposta(${idx},'habilitar_dias',this.checked)"
+                                title="Habilitar dias"
+                                style="cursor:pointer; width:15px; height:15px; accent-color:var(--primary);">
+                            <input class="item-input v2-qtd-dias-input" type="number" min="1" step="1" placeholder="Dias" 
+                                style="width:48px; text-align:center; padding:0 2px; font-weight:700; display:${item.habilitar_dias ? 'inline-block' : 'none'};" 
+                                value="${item.qtd_dias || 1}" 
+                                oninput="updateItemProposta(${idx},'qtd_dias',this.value)">
+                        </div>
                     </td>
                     <td class="row-total-val" style="font-weight:700;font-size:0.74rem;color:#fff;white-space:nowrap;text-align:right;padding-right:0.4rem;">
                         ${fmtMoeda(total)}
@@ -3093,6 +3447,32 @@ async function loadItensProposta(contratoId) {
         if (item.descricao && item.descricao.startsWith('{') && item.descricao.endsWith('}')) {
             try { v3Parsed = JSON.parse(item.descricao); } catch(e){}
         }
+
+        let diasMatch = item.descricao ? item.descricao.match(/\[DIAS:(\d+)\]/i) : null;
+        let habDias = false;
+        let qDias = 1;
+        if (v3Parsed && v3Parsed.habilitar_dias !== undefined) {
+            habDias = !!v3Parsed.habilitar_dias;
+            qDias = Math.max(1, parseFloat(v3Parsed.qtd_dias) || 1);
+        } else if (diasMatch) {
+            habDias = true;
+            qDias = Math.max(1, parseFloat(diasMatch[1]) || 1);
+        } else if (item.habilitar_dias !== undefined && item.habilitar_dias !== null) {
+            habDias = !!item.habilitar_dias;
+            qDias = Math.max(1, parseFloat(item.qtd_dias) || 1);
+        }
+
+        const ped = parseFloat(v3Parsed?.pedagio) || 0;
+        const esp = parseFloat(v3Parsed?.espera) || 0;
+        const alm = parseFloat(v3Parsed?.alimentacao) || 0;
+        const per = parseFloat(v3Parsed?.pernoite) || 0;
+        const est = parseFloat(v3Parsed?.estacionamento) || 0;
+        const totalInsumos = Math.round((ped + esp + alm + per + est) * 100) / 100;
+        const totalKmVal = v3Parsed?.total_km_valor ?? ((item.total_km || 0) * (item.valor_km || 0));
+        const totalDiaria = Math.round((totalKmVal + totalInsumos) * 100) / 100;
+        const fatorDias = habDias ? qDias : 1;
+        const totalItem = Math.round((totalDiaria * fatorDias) * 100) / 100;
+
         return {
             id: item.id,
             descricao: item.descricao || '',
@@ -3106,19 +3486,22 @@ async function loadItensProposta(contratoId) {
             valor_km: item.valor_km || v3Parsed?.valor_km || 0,
             valor_veiculo: item.valor_veiculo || v3Parsed?.total_km_valor || 0,
             habilitar_volta: !!item.habilitar_volta,
+            habilitar_dias: habDias,
+            qtd_dias: qDias,
             // Campos V3
             tipo_veiculo: v3Parsed?.tipo_veiculo || (config.tipos_veiculo && config.tipos_veiculo[0]?.nome) || 'Van',
             qtd_km: v3Parsed?.qtd_km ?? (item.total_km || 0),
             margem_km_pct: v3Parsed?.margem_km_pct ?? 0,
             km_calculado: v3Parsed?.km_calculado ?? (item.total_km || 0),
-            pedagio: v3Parsed?.pedagio ?? 0,
-            espera: v3Parsed?.espera ?? 0,
-            alimentacao: v3Parsed?.alimentacao ?? 0,
-            pernoite: v3Parsed?.pernoite ?? 0,
-            estacionamento: v3Parsed?.estacionamento ?? 0,
-            total_km_valor: v3Parsed?.total_km_valor ?? 0,
-            total_insumos: v3Parsed?.total_insumos ?? 0,
-            total_item: v3Parsed?.total_item ?? 0
+            pedagio: ped,
+            espera: esp,
+            alimentacao: alm,
+            pernoite: per,
+            estacionamento: est,
+            total_km_valor: totalKmVal,
+            total_insumos: totalInsumos,
+            total_diaria: totalDiaria,
+            total_item: v3Parsed?.total_item ?? totalItem
         };
     }) : [];
 
@@ -3131,7 +3514,9 @@ async function loadItensProposta(contratoId) {
         total_km: 0,
         valor_km: 0,
         valor_veiculo: 0,
-        habilitar_volta: false
+        habilitar_volta: false,
+        habilitar_dias: false,
+        qtd_dias: 1
     }];
     const defaultV3 = [{
         id: null,
@@ -3149,7 +3534,10 @@ async function loadItensProposta(contratoId) {
         estacionamento: 0,
         total_km_valor: 0,
         total_insumos: 0,
-        total_item: 0
+        total_diaria: 0,
+        total_item: 0,
+        habilitar_dias: false,
+        qtd_dias: 1
     }];
 
     if (propostaAtual.proposta_versao === 3) {
@@ -3260,6 +3648,15 @@ function updateTimelineUI(step) {
     }
 
     if (btnGerar) {
+        const btnGerarTxt = document.getElementById('btnGerarDocumentoTexto');
+        const iconGerar = document.getElementById('iconGerarDocumento');
+        if (btnGerarTxt) {
+            btnGerarTxt.innerText = step >= 2 ? 'Gerar Contrato' : 'Gerar Proposta';
+        }
+        if (iconGerar) {
+            iconGerar.setAttribute('data-lucide', step >= 2 ? 'file-check-2' : 'file-text');
+            if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+        }
         if (!propostaAtual.propostaId) {
             btnGerar.disabled      = true;
             btnGerar.style.opacity = '0.5';
@@ -3438,7 +3835,8 @@ function detectarAlteracoesHeader(oldH, newH) {
         data_validade: 'Data de Validade',
         periodo_medicao: 'Período de Medição',
         forma_pagamento: 'Forma de Pagamento',
-        observacoes_proposta: 'Observações da Proposta'
+        observacoes_proposta: 'Observações da Proposta',
+        tipo_atendimento: 'Tipo de Atendimento'
     };
 
     const phoneOrCnpjKeys = ['cliente_cnpj_cpf', 'cliente_telefone', 'contato_responsavel'];
@@ -3501,6 +3899,8 @@ function detectarAlteracoesItens(oldItens, newItens, versao) {
                 if (Number(oldIt.qtd_km) !== Number(newIt.qtd_km)) itemDiffs.push(`KM de "${oldIt.qtd_km || 0}" para "${newIt.qtd_km || 0}"`);
                 if (Number(oldIt.margem_km_pct) !== Number(newIt.margem_km_pct)) itemDiffs.push(`margem de "${oldIt.margem_km_pct || 0}%" para "${newIt.margem_km_pct || 0}%"`);
                 if (Number(oldIt.valor_km) !== Number(newIt.valor_km)) itemDiffs.push(`valor KM de "R$ ${oldIt.valor_km || 0}" para "R$ ${newIt.valor_km || 0}"`);
+                if (!!oldIt.habilitar_dias !== !!newIt.habilitar_dias) itemDiffs.push(`habilitar dias de "${oldIt.habilitar_dias ? 'sim' : 'não'}" para "${newIt.habilitar_dias ? 'sim' : 'não'}"`);
+                if (newIt.habilitar_dias && Number(oldIt.qtd_dias || 1) !== Number(newIt.qtd_dias || 1)) itemDiffs.push(`qtd. dias de "${oldIt.qtd_dias || 1}" para "${newIt.qtd_dias || 1}"`);
             } else if (versao === 2) {
                 if (oldIt.origem !== newIt.origem) itemDiffs.push(`origem de "${oldIt.origem || 'vazio'}" para "${newIt.origem || 'vazio'}"`);
                 if (oldIt.destino !== newIt.destino) itemDiffs.push(`destino de "${oldIt.destino || 'vazio'}" para "${newIt.destino || 'vazio'}"`);
@@ -3508,6 +3908,8 @@ function detectarAlteracoesItens(oldItens, newItens, versao) {
                 if (Number(oldIt.total_km) !== Number(newIt.total_km)) itemDiffs.push(`total KM de "${oldIt.total_km || 0}" para "${newIt.total_km || 0}"`);
                 if (Number(oldIt.valor_km) !== Number(newIt.valor_km)) itemDiffs.push(`valor por KM de "R$ ${oldIt.valor_km || 0}" para "R$ ${newIt.valor_km || 0}"`);
                 if (!!oldIt.habilitar_volta !== !!newIt.habilitar_volta) itemDiffs.push(`ida e volta de "${oldIt.habilitar_volta ? 'sim' : 'não'}" para "${newIt.habilitar_volta ? 'sim' : 'não'}"`);
+                if (!!oldIt.habilitar_dias !== !!newIt.habilitar_dias) itemDiffs.push(`habilitar dias de "${oldIt.habilitar_dias ? 'sim' : 'não'}" para "${newIt.habilitar_dias ? 'sim' : 'não'}"`);
+                if (newIt.habilitar_dias && Number(oldIt.qtd_dias || 1) !== Number(newIt.qtd_dias || 1)) itemDiffs.push(`qtd. dias de "${oldIt.qtd_dias || 1}" para "${newIt.qtd_dias || 1}"`);
             } else {
                 if (oldIt.descricao !== newIt.descricao) itemDiffs.push(`descrição de "${oldIt.descricao || 'vazio'}" para "${newIt.descricao || 'vazio'}"`);
                 if (oldIt.unidade !== newIt.unidade) itemDiffs.push(`unidade de "${oldIt.unidade || 'vazio'}" para "${newIt.unidade || 'vazio'}"`);
@@ -3680,7 +4082,9 @@ async function _persistirProposta() {
                 const per = parseFloat(it.pernoite) || 0;
                 const est = parseFloat(it.estacionamento) || 0;
                 const totIns = Math.round((ped + esp + alm + per + est) * 100) / 100;
-                const totItem = Math.round((totKmVal + totIns) * 100) / 100;
+                const totDiaria = Math.round((totKmVal + totIns) * 100) / 100;
+                const fatorDias = it.habilitar_dias ? Math.max(1, parseFloat(it.qtd_dias) || 1) : 1;
+                const totItem = Math.round((totDiaria * fatorDias) * 100) / 100;
 
                 const v3Data = {
                     tipo_veiculo: it.tipo_veiculo || '',
@@ -3695,9 +4099,12 @@ async function _persistirProposta() {
                     estacionamento: est,
                     total_km_valor: totKmVal,
                     total_insumos: totIns,
+                    total_diaria: totDiaria,
                     total_item: totItem,
                     origem: it.origem || '',
-                    destino: it.destino || ''
+                    destino: it.destino || '',
+                    habilitar_dias: !!it.habilitar_dias,
+                    qtd_dias: it.habilitar_dias ? (parseFloat(it.qtd_dias) || 1) : 1
                 };
 
                 return {
@@ -3713,14 +4120,20 @@ async function _persistirProposta() {
                     total_km:    kmCalc || qtdKm || 0,
                     valor_km:    vKm || 0,
                     valor_veiculo: totKmVal || 0,
-                    habilitar_volta: false
+                    habilitar_volta: false,
+                    habilitar_dias: !!it.habilitar_dias,
+                    qtd_dias: it.habilitar_dias ? (parseFloat(it.qtd_dias) || 1) : 1
                 };
             } else if (propostaAtual.proposta_versao === 2) {
                 const descRota = (it.origem && it.destino) ? `${it.origem} ➔ ${it.destino}` : (it.origem || it.destino || 'Rota Comercial');
+                let baseDesc = (it.descricao || descRota).replace(/\s*\[DIAS:\d+\]/gi, '').trim();
+                if (it.habilitar_dias) {
+                    baseDesc = `${baseDesc} [DIAS:${Math.max(1, parseInt(it.qtd_dias) || 1)}]`;
+                }
                 return {
                     contrato_id: contratoId,
                     ordem:       idx + 1,
-                    descricao:   it.descricao || descRota,
+                    descricao:   baseDesc,
                     unidade:     it.unidade || 'KM',
                     quantidade:  (it.quantidade !== null && it.quantidade !== undefined && it.quantidade > 0) ? it.quantidade : (it.total_km || 1),
                     preco_unit:  (it.preco_unit !== null && it.preco_unit !== undefined && it.preco_unit > 0) ? it.preco_unit : (it.valor_km || 0),
@@ -3730,7 +4143,9 @@ async function _persistirProposta() {
                     total_km:    it.total_km    || 0,
                     valor_km:    it.valor_km    || 0,
                     valor_veiculo: it.valor_veiculo || 0,
-                    habilitar_volta: !!it.habilitar_volta
+                    habilitar_volta: !!it.habilitar_volta,
+                    habilitar_dias: !!it.habilitar_dias,
+                    qtd_dias: it.habilitar_dias ? (parseFloat(it.qtd_dias) || 1) : 1
                 };
             } else {
                 return {
@@ -3746,14 +4161,27 @@ async function _persistirProposta() {
                     total_km:    null,
                     valor_km:    null,
                     valor_veiculo: null,
-                    habilitar_volta: null
+                    habilitar_volta: null,
+                    habilitar_dias: false,
+                    qtd_dias: 1
                 };
             }
         });
 
-        const { error: errItens } = await supabaseClient
+        let { error: errItens } = await supabaseClient
             .from('com_proposta_itens')
             .insert(itensPayload);
+
+        if (errItens && errItens.message && errItens.message.includes('habilitar_dias')) {
+            const fallbackPayload = itensPayload.map(p => {
+                const clone = { ...p };
+                delete clone.habilitar_dias;
+                delete clone.qtd_dias;
+                return clone;
+            });
+            const resFallback = await supabaseClient.from('com_proposta_itens').insert(fallbackPayload);
+            errItens = resFallback.error;
+        }
 
         if (errItens) throw errItens;
     }
@@ -3846,6 +4274,11 @@ window.avancarEtapaProposta = async () => {
 // -------------------------------------------------------------------
 
 window.gerarDocumentoProposta = () => {
+    window.documentoAtivoTipo = 'proposta';
+    const toolbarTitle = document.querySelector('.doc-toolbar-title');
+    if (toolbarTitle) {
+        toolbarTitle.innerHTML = `<i data-lucide="file-text" style="width:15px; display:inline; margin-right:6px;"></i> Proposta de Prestação de Serviços`;
+    }
     const clienteNome    = document.getElementById('cliente_nome')?.value         || '';
     const clienteCnpj    = document.getElementById('cliente_cnpj_cpf')?.value     || '';
     const endereco       = document.getElementById('endereco_proposta')?.value    || '';
@@ -3859,6 +4292,10 @@ window.gerarDocumentoProposta = () => {
     const formaPagamento = document.getElementById('prop_forma_pagamento')?.value || '';
     const observacoes    = document.getElementById('prop_observacoes')?.value     || '';
     const assinatura     = document.getElementById('prop_assinatura')?.value      || 'New Cargo Transporte e Logística Ltda';
+    const tipoAtendimento = document.getElementById('prop_tipo_atendimento')?.value 
+        || propostaAtual?.tipo_atendimento 
+        || (editId && localStorage.getItem(`com_proposta_tipo_atendimento_${editId}`)) 
+        || 'À disposição';
 
     let totalGlobal = 0;
     let itensRows = '';
@@ -3878,10 +4315,28 @@ window.gerarDocumentoProposta = () => {
     // VERSÃO 3: PROPOSTA PARTICULAR (LAYOUT EXECUTIVO - PRINT 2)
     // ================================================================
     if (propostaAtual.proposta_versao === 3) {
-        totalGlobal = (propostaAtual.itens || []).reduce((acc, it) => {
-            const totItem = it.total_item ?? (((it.total_km_valor || 0) + (it.total_insumos || 0)));
-            return acc + (totItem || 0);
-        }, 0);
+        let totalDiariaSoma = 0;
+        totalGlobal = 0;
+        let temDiasHabilitados = false;
+
+        (propostaAtual.itens || []).forEach(it => {
+            const totKmVal = it.total_km_valor ?? (((it.km_calculado || it.qtd_km || 0) * (it.valor_km || 0)));
+            const ped = parseFloat(it.pedagio) || 0;
+            const esp = parseFloat(it.espera) || 0;
+            const alm = parseFloat(it.alimentacao) || 0;
+            const per = parseFloat(it.pernoite) || 0;
+            const est = parseFloat(it.estacionamento) || 0;
+            const totIns = it.total_insumos ?? (ped + esp + alm + per + est);
+            const diaria = it.total_diaria ?? (totKmVal + totIns);
+            const fatorDias = it.habilitar_dias ? Math.max(1, parseFloat(it.qtd_dias) || 1) : 1;
+            const totItem = it.total_item ?? (diaria * fatorDias);
+
+            totalDiariaSoma += diaria;
+            totalGlobal += totItem;
+            if (it.habilitar_dias && (parseFloat(it.qtd_dias) || 1) > 1) {
+                temDiasHabilitados = true;
+            }
+        });
 
         const veiculosContagem = {};
         (propostaAtual.itens || []).forEach(it => {
@@ -3895,8 +4350,46 @@ window.gerarDocumentoProposta = () => {
         const roteiroListaHtml = (propostaAtual.itens || []).map(it => {
             const orig = it.origem || 'Origem';
             const dest = it.destino || 'Destino';
-            return `<li style="margin-bottom: 4px;">${orig} =&gt; ${dest} (ida e retorno)</li>`;
+            const diasTxt = (it.habilitar_dias && (parseFloat(it.qtd_dias) || 1) > 1) ? ` - ${it.qtd_dias} dias` : '';
+            return `<li style="margin-bottom: 4px;">${orig} =&gt; ${dest} (ida e retorno)${diasTxt}</li>`;
         }).join('') || '<li>Origem =&gt; Destino (ida e retorno)</li>';
+
+        let valoresBlockHtml = '';
+        if (temDiasHabilitados) {
+            if ((propostaAtual.itens || []).length === 1) {
+                const unicoItem = (propostaAtual.itens || [])[0];
+                const qtdDias = unicoItem.habilitar_dias ? Math.max(1, parseFloat(unicoItem.qtd_dias) || 1) : 1;
+                valoresBlockHtml = `
+                    <li>Valor da diária: R$ ${totalDiariaSoma.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</li>
+                    <li>Período previsto: ${qtdDias} dia(s)</li>
+                    <li><strong>Valor total da proposta: R$ ${totalGlobal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></li>
+                `;
+            } else {
+                valoresBlockHtml = (propostaAtual.itens || []).map((it, idx) => {
+                    const totKmVal = it.total_km_valor ?? (((it.km_calculado || it.qtd_km || 0) * (it.valor_km || 0)));
+                    const ped = parseFloat(it.pedagio) || 0;
+                    const esp = parseFloat(it.espera) || 0;
+                    const alm = parseFloat(it.alimentacao) || 0;
+                    const per = parseFloat(it.pernoite) || 0;
+                    const est = parseFloat(it.estacionamento) || 0;
+                    const totIns = it.total_insumos ?? (ped + esp + alm + per + est);
+                    const diaria = it.total_diaria ?? (totKmVal + totIns);
+                    const fatorDias = it.habilitar_dias ? Math.max(1, parseFloat(it.qtd_dias) || 1) : 1;
+                    const tot = it.total_item ?? (diaria * fatorDias);
+                    const orig = it.origem || 'Origem';
+                    const dest = it.destino || 'Destino';
+                    if (it.habilitar_dias && fatorDias > 1) {
+                        return `<li>Item ${idx + 1} (${orig} =&gt; ${dest}): Diária: R$ ${diaria.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Período (${fatorDias} dias): R$ ${tot.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</li>`;
+                    } else {
+                        return `<li>Item ${idx + 1} (${orig} =&gt; ${dest}): R$ ${tot.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</li>`;
+                    }
+                }).join('') + `
+                    <li style="margin-top: 4px;"><strong>Valor total da proposta: R$ ${totalGlobal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></li>
+                `;
+            }
+        } else {
+            valoresBlockHtml = `<li>Valor da viagem: R$ ${totalGlobal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</li>`;
+        }
 
         html = `
             <div class="doc-header-top" style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1rem;">
@@ -3923,7 +4416,7 @@ window.gerarDocumentoProposta = () => {
             </p>
 
             <div style="font-family:Arial, sans-serif; font-size:9.5pt; line-height:1.55; margin-bottom:1.2rem; color:#000;">
-                <p style="margin:0 0 0.5rem 0;"><strong>Escopo do Atendimento:</strong><br>Tipo de Atendimento: À disposição</p>
+                <p style="margin:0 0 0.5rem 0;"><strong>Escopo do Atendimento:</strong><br>Tipo de Atendimento: ${tipoAtendimento}</p>
                 
                 <p style="margin:0.6rem 0 0.4rem 0;"><strong>Veículos:</strong><br>${veiculosTexto}</p>
                 
@@ -3934,7 +4427,7 @@ window.gerarDocumentoProposta = () => {
                 
                 <p style="margin:0.6rem 0 0.2rem 0;"><strong>Valores:</strong></p>
                 <ul style="margin:0 0 0.6rem 1.4rem; padding:0;">
-                    <li>Valor da viagem: R$ ${totalGlobal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</li>
+                    ${valoresBlockHtml}
                 </ul>
                 
                 <p style="margin:0.6rem 0 0.2rem 0;"><strong>Observação:</strong></p>
@@ -3970,12 +4463,15 @@ window.gerarDocumentoProposta = () => {
         if (propostaAtual.proposta_versao === 2) {
             totalGlobal = (propostaAtual.itens || []).reduce((acc, it) => {
                 const valorVeic = (it.total_km || 0) * (it.valor_km || 0);
-                return acc + (valorVeic * (it.qtd_veiculos || 1) * (it.habilitar_volta ? 2 : 1));
+                const fatorDias = it.habilitar_dias ? Math.max(1, parseFloat(it.qtd_dias) || 1) : 1;
+                return acc + (valorVeic * (it.qtd_veiculos || 1) * (it.habilitar_volta ? 2 : 1) * fatorDias);
             }, 0);
 
             itensRows = (propostaAtual.itens || []).map((it, idx) => {
                 const valorVeiculo = (it.total_km || 0) * (it.valor_km || 0);
-                const total = valorVeiculo * (it.qtd_veiculos || 1) * (it.habilitar_volta ? 2 : 1);
+                const subDiaria = valorVeiculo * (it.qtd_veiculos || 1) * (it.habilitar_volta ? 2 : 1);
+                const fatorDias = it.habilitar_dias ? Math.max(1, parseFloat(it.qtd_dias) || 1) : 1;
+                const total = subDiaria * fatorDias;
                 return `<tr>
                     <td style="text-align:center;">${idx + 1}</td>
                     <td>
@@ -3986,8 +4482,16 @@ window.gerarDocumentoProposta = () => {
                             Valor/KM: R$ ${(it.valor_km || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} 
                             ${it.habilitar_volta ? ' (Ida e Volta)' : ''}
                         </span>
+                        ${it.habilitar_dias ? `
+                            <div style="margin-top: 3px; font-size: 8pt; color: #166534; font-weight: bold;">
+                                Subtotal Diária: R$ ${subDiaria.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} &nbsp;|&nbsp; Período: ${it.qtd_dias || 1} dia(s)
+                            </div>
+                        ` : ''}
                     </td>
-                    <td style="text-align:center;">${(it.qtd_veiculos || 1).toLocaleString('pt-BR')} Veículo(s)</td>
+                    <td style="text-align:center;">
+                        ${(it.qtd_veiculos || 1).toLocaleString('pt-BR')} Veículo(s)
+                        ${it.habilitar_dias ? `<br><span style="font-size:7.5pt; color:#666;">(${it.qtd_dias || 1} dia${(it.qtd_dias || 1) > 1 ? 's' : ''})</span>` : ''}
+                    </td>
                     <td>
                         <div style="display:flex; justify-content:space-between; width:100%; font-family:monospace; font-size:10pt;">
                             <span>R$</span>
@@ -4115,6 +4619,273 @@ window.gerarDocumentoProposta = () => {
     if (window.lucide) lucide.createIcons();
 };
 
+window.gerarDocumentoContrato = () => {
+    window.documentoAtivoTipo = 'contrato';
+    const toolbarTitle = document.querySelector('.doc-toolbar-title');
+    if (toolbarTitle) {
+        toolbarTitle.innerHTML = `<i data-lucide="file-check" style="width:15px; display:inline; margin-right:6px;"></i> Contrato de Prestação de Serviços`;
+    }
+
+    const clienteNome    = document.getElementById('cliente_nome')?.value         || 'CONTRATANTE';
+    const clienteCnpj    = document.getElementById('cliente_cnpj_cpf')?.value     || 'NÃO INFORMADO';
+    const endereco       = document.getElementById('endereco_proposta')?.value    || '';
+    const cep            = document.getElementById('cep_proposta')?.value         || '';
+    const contatoNome    = document.getElementById('contato_proposta')?.value     || document.getElementById('nome_responsavel')?.value || '';
+    const dataContrato   = document.getElementById('data_assinatura')?.value     || document.getElementById('prop_data_proposta')?.value || dataAtualISO();
+    const dataVenc       = document.getElementById('data_vencimento')?.value      || '';
+    const prazoMeses     = parseInt(document.getElementById('prazo_meses')?.value) || 12;
+    const vigencia       = document.getElementById('vigencia')?.value             || `${prazoMeses} meses`;
+    const formaPagamento = document.getElementById('prop_forma_pagamento')?.value || 'Até 30 dias após emissão da fatura mensal';
+    const periodoMedicao = document.getElementById('prop_periodo_medicao')?.value || 'Mensal';
+    const tipoAtendimento = document.getElementById('prop_tipo_atendimento')?.value 
+        || propostaAtual?.tipo_atendimento 
+        || (editId && localStorage.getItem(`com_proposta_tipo_atendimento_${editId}`)) 
+        || 'À disposição';
+    const assinatura     = document.getElementById('assinatura_proposta')?.value  || 'New Cargo Transporte e Logística Ltda';
+
+    const logoHtml = empresaLogoUrl
+        ? `<img src="${empresaLogoUrl}" style="max-height: 52px; max-width: 210px; object-fit: contain;">`
+        : `
+            <div class="doc-logo-text" style="font-size:22pt; font-weight:bold; color:#107c41; font-style:italic; font-family:'Times New Roman',Times,serif;">New Cargo</div>
+            <div class="doc-logo-sub" style="font-size:8.5pt; color:#666; font-style:italic; font-family:Arial,sans-serif;">Transporte &amp; Logística</div>
+        `;
+
+    const enderecoCompleto = endereco ? `${endereco}${cep ? ' - CEP: ' + cep : ''}` : 'endereço não informado';
+
+    // Calcula valor e linhas dos itens
+    let totalGlobal = 0;
+    let itensTabelaHtml = '';
+
+    if (propostaAtual.proposta_versao === 3) {
+        totalGlobal = (propostaAtual.itens || []).reduce((acc, it) => {
+            const totItem = it.total_item !== undefined ? parseFloat(it.total_item) || 0 : ((parseFloat(it.total_km) || 0) * (parseFloat(it.valor_km) || 0));
+            return acc + totItem;
+        }, 0);
+
+        itensTabelaHtml = (propostaAtual.itens || []).map((it, idx) => {
+            const orig = it.origem || 'Não informada';
+            const dest = it.destino || 'Não informada';
+            const tipoV = it.tipo_veiculo || 'Van';
+            const km = it.km_calculado || it.qtd_km || 0;
+            const totItem = it.total_item !== undefined ? parseFloat(it.total_item) || 0 : ((parseFloat(it.total_km) || 0) * (parseFloat(it.valor_km) || 0));
+            return `
+                <tr>
+                    <td style="text-align:center; padding:5px 6px; border:1px solid #cbd5e1; font-size:8.5pt;">${idx + 1}</td>
+                    <td style="padding:5px 8px; border:1px solid #cbd5e1; font-size:8.5pt;">
+                        <strong>${orig} ➔ ${dest}</strong>
+                        <div style="font-size:7.5pt; color:#555;">Modalidade: ${tipoAtendimento} | Veículo: ${tipoV} | Percurso: ${km} KM</div>
+                    </td>
+                    <td style="text-align:center; padding:5px 6px; border:1px solid #cbd5e1; font-size:8.5pt;">${tipoV}</td>
+                    <td style="text-align:right; padding:5px 8px; border:1px solid #cbd5e1; font-size:8.5pt; font-family:monospace;">
+                        R$ ${totItem.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } else if (propostaAtual.proposta_versao === 2) {
+        totalGlobal = (propostaAtual.itens || []).reduce((acc, it) => {
+            const valorVeic = (it.total_km || 0) * (it.valor_km || 0);
+            const fatorDias = it.habilitar_dias ? Math.max(1, parseFloat(it.qtd_dias) || 1) : 1;
+            return acc + (valorVeic * (it.qtd_veiculos || 1) * (it.habilitar_volta ? 2 : 1) * fatorDias);
+        }, 0);
+
+        itensTabelaHtml = (propostaAtual.itens || []).map((it, idx) => {
+            const valorVeiculo = (it.total_km || 0) * (it.valor_km || 0);
+            const subDiaria = valorVeiculo * (it.qtd_veiculos || 1) * (it.habilitar_volta ? 2 : 1);
+            const fatorDias = it.habilitar_dias ? Math.max(1, parseFloat(it.qtd_dias) || 1) : 1;
+            const total = subDiaria * fatorDias;
+            return `
+                <tr>
+                    <td style="text-align:center; padding:5px 6px; border:1px solid #cbd5e1; font-size:8.5pt;">${idx + 1}</td>
+                    <td style="padding:5px 8px; border:1px solid #cbd5e1; font-size:8.5pt;">
+                        <strong>${it.origem || '-'} ➔ ${it.destino || '-'}</strong>
+                        <div style="font-size:7.5pt; color:#555;">${(it.total_km || 0).toLocaleString('pt-BR')} KM ${it.habilitar_volta ? '(Ida e Volta)' : ''} ${it.habilitar_dias ? `| ${it.qtd_dias || 1} dia(s)` : ''}</div>
+                    </td>
+                    <td style="text-align:center; padding:5px 6px; border:1px solid #cbd5e1; font-size:8.5pt;">${(it.qtd_veiculos || 1)} veículo(s)</td>
+                    <td style="text-align:right; padding:5px 8px; border:1px solid #cbd5e1; font-size:8.5pt; font-family:monospace;">
+                        R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } else {
+        totalGlobal = (propostaAtual.itens || []).reduce((a, it) => a + ((it.quantidade || 0) * (it.preco_unit || 0)), 0);
+        itensTabelaHtml = (propostaAtual.itens || []).map((it, idx) => {
+            const tot = (it.quantidade || 0) * (it.preco_unit || 0);
+            return `
+                <tr>
+                    <td style="text-align:center; padding:5px 6px; border:1px solid #cbd5e1; font-size:8.5pt;">${idx + 1}</td>
+                    <td style="padding:5px 8px; border:1px solid #cbd5e1; font-size:8.5pt;">${it.descricao || '-'}</td>
+                    <td style="text-align:center; padding:5px 6px; border:1px solid #cbd5e1; font-size:8.5pt;">${(it.quantidade || 0)} ${it.unidade || 'UN'}</td>
+                    <td style="text-align:right; padding:5px 8px; border:1px solid #cbd5e1; font-size:8.5pt; font-family:monospace;">
+                        R$ ${tot.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    const htmlContrato = `
+        <div class="doc-header-top" style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.8rem; border-bottom:2px solid #107c41; padding-bottom:0.6rem;">
+            <div class="doc-logo-area" style="min-height:50px; display:flex; flex-direction:column;">
+                ${logoHtml}
+            </div>
+            <div style="text-align:right; font-family:Arial,sans-serif; font-size:8pt; color:#444; line-height:1.35;">
+                <strong style="color:#107c41; font-size:9pt;">CONTRATO DE PRESTAÇÃO DE SERVIÇOS</strong><br>
+                Ref: ${document.getElementById('referencia')?.value || 'REF-' + new Date().getFullYear()}<br>
+                Data: ${formatarDataExtenso(dataContrato)}
+            </div>
+        </div>
+
+        <div style="text-align:center; margin-bottom:1.2rem;">
+            <h2 style="font-size:12pt; font-weight:bold; letter-spacing:0.5px; text-transform:uppercase; margin:0; color:#1a2e25; font-family:Arial,sans-serif;">CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE TRANSPORTE E LOGÍSTICA</h2>
+            <h3 style="font-size:9.5pt; font-weight:normal; margin:3px 0 0 0; color:#475569; font-family:Arial,sans-serif;">MODALIDADE: ${tipoAtendimento.toUpperCase()}</h3>
+        </div>
+
+        <div style="font-family:Arial,sans-serif; font-size:9pt; line-height:1.55; color:#111; text-align:justify;">
+            <p style="margin:0 0 0.8rem 0;">
+                Por este instrumento particular de Contrato de Prestação de Serviços, de um lado:
+            </p>
+            <p style="margin:0 0 0.8rem 0; padding-left:1rem; border-left:2px solid #cbd5e1;">
+                <strong>CONTRATADA:</strong> <strong>NEW CARGO TRANSPORTE E LOGÍSTICA LTDA</strong>, pessoa jurídica de direito privado, inscrita no CNPJ/MF sob o nº <strong>19.737.004/0001-85</strong>, com sede na Rua Álvaro Pego de Farias, nº 137, Paraíso, Resende – RJ, CEP 27535-060, doravante denominada simplesmente <strong>CONTRATADA</strong>; e, de outro lado:
+            </p>
+            <p style="margin:0 0 1rem 0; padding-left:1rem; border-left:2px solid #cbd5e1;">
+                <strong>CONTRATANTE:</strong> <strong>${clienteNome}</strong>, inscrita no CNPJ/CPF sob o nº <strong>${clienteCnpj}</strong>, estabelecida/residente em ${enderecoCompleto}, neste ato representada por ${contatoNome || 'seu representante legal'}, doravante denominada simplesmente <strong>CONTRATANTE</strong>;
+            </p>
+            <p style="margin:0 0 0.8rem 0;">
+                Têm entre si, justo e acordado, o presente Contrato mediante as cláusulas e condições seguintes:
+            </p>
+
+            <p style="margin:0.8rem 0 0.3rem 0; font-weight:bold; color:#107c41;">
+                CLÁUSULA PRIMEIRA – DO OBJETO
+            </p>
+            <p style="margin:0 0 0.6rem 0;">
+                O presente instrumento tem por objeto a prestação continuada de serviços de transporte executivo de passageiros, fretamento e/ou logística automotiva, a ser executado na modalidade <strong>${tipoAtendimento}</strong>, de acordo com as especificações e roteiros detalhados no quadro abaixo:
+            </p>
+
+            <table style="width:100%; border-collapse:collapse; margin:0.6rem 0 0.9rem 0; font-size:8.5pt;">
+                <thead>
+                    <tr style="background:#f1f5f9; color:#1e293b; font-weight:bold;">
+                        <th style="width:36px; padding:6px; border:1px solid #cbd5e1; text-align:center;">#</th>
+                        <th style="padding:6px 8px; border:1px solid #cbd5e1; text-align:left;">ESPECIFICAÇÃO DO TRAJETO / SERVIÇO</th>
+                        <th style="width:120px; padding:6px; border:1px solid #cbd5e1; text-align:center;">VEÍCULO</th>
+                        <th style="width:130px; padding:6px 8px; border:1px solid #cbd5e1; text-align:right;">SUBTOTAL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itensTabelaHtml || `<tr><td colspan="4" style="text-align:center; padding:8px; border:1px solid #cbd5e1; font-style:italic;">Conforme demandas operacionais aprovadas em proposta.</td></tr>`}
+                </tbody>
+                <tfoot>
+                    <tr style="background:#f8fafc; font-weight:bold;">
+                        <td colspan="3" style="text-align:right; padding:6px 8px; border:1px solid #cbd5e1; text-transform:uppercase;">VALOR ESTIMADO GLOBAL:</td>
+                        <td style="text-align:right; padding:6px 8px; border:1px solid #cbd5e1; font-family:monospace; color:#107c41; font-size:9pt;">
+                            R$ ${totalGlobal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <p style="margin:0.8rem 0 0.3rem 0; font-weight:bold; color:#107c41;">
+                CLÁUSULA SEGUNDA – DOS VALORES E DAS CONDIÇÕES DE PAGAMENTO
+            </p>
+            <p style="margin:0 0 0.4rem 0;">
+                Pelos serviços efetivamente prestados, a CONTRATANTE pagará à CONTRATADA o valor global acordado, faturado com periodicidade <strong>${periodoMedicao}</strong>.
+            </p>
+            <p style="margin:0 0 0.6rem 0;">
+                <strong>Parágrafo Primeiro:</strong> Os pagamentos deverão ser realizados em até <strong>${formaPagamento}</strong>, mediante compensação de boleto bancário ou transferência em conta corrente da CONTRATADA.
+            </p>
+
+            <p style="margin:0.8rem 0 0.3rem 0; font-weight:bold; color:#107c41;">
+                CLÁUSULA TERCEIRA – DO PRAZO E DA VIGÊNCIA
+            </p>
+            <p style="margin:0 0 0.6rem 0;">
+                O presente Contrato vigorará pelo prazo de <strong>${vigencia}</strong>, iniciando-se em <strong>${formatarDataExtenso(dataContrato)}</strong>${dataVenc ? ` e encerrando-se em <strong>${formatarDataExtenso(dataVenc)}</strong>` : ''}, podendo ser prorrogado mediante termo aditivo formal firmado entre as partes.
+            </p>
+
+            <p style="margin:0.8rem 0 0.3rem 0; font-weight:bold; color:#107c41;">
+                CLÁUSULA QUARTA – DAS OBRIGAÇÕES DAS PARTES
+            </p>
+            <p style="margin:0 0 0.4rem 0;">
+                <strong>I – Obrigações da CONTRATADA:</strong> Disponibilizar veículos em excelente estado de conservação, segurança e documentação regularizada; disponibilizar condutores devidamente habilitados e capacitados; e substituir o veículo prontamente em caso de intercorrência mecânica.
+            </p>
+            <p style="margin:0 0 0.6rem 0;">
+                <strong>II – Obrigações da CONTRATANTE:</strong> Fornecer as instruções das rotas e itinerários; efetuar os pagamentos estipulados tempestivamente; e orientar seus usuários a zelarem pelo asseio e boa utilização dos veículos disponibilizados.
+            </p>
+
+            <p style="margin:0.8rem 0 0.3rem 0; font-weight:bold; color:#107c41;">
+                CLÁUSULA QUINTA – DO FORO
+            </p>
+            <p style="margin:0 0 1.2rem 0;">
+                Para dirimir eventuais controvérsias decorrentes da execução deste Contrato, as partes elegem o foro da Comarca de <strong>Resende – RJ</strong>, com expressa renúncia a qualquer outro, por mais privilegiado que seja.
+            </p>
+
+            <p style="margin:0 0 1.6rem 0;">
+                E, por estarem assim justas e contratadas, as partes firmam o presente instrumento em 02 (duas) vias de igual teor e forma, na presença das testemunhas abaixo.
+            </p>
+
+            <p style="margin:0 0 2rem 0; text-align:right;">
+                Resende/RJ, ${formatarDataExtenso(dataAtualISO())}.
+            </p>
+
+            <!-- Bloco de Assinaturas das Partes -->
+            <div style="display:flex; justify-content:space-between; margin-bottom:2.2rem; gap:2rem;">
+                <div style="width:48%; text-align:center;">
+                    <div style="border-top:1px solid #000; padding-top:6px;">
+                        <strong style="font-size:9pt; display:block;">${assinatura || 'NEW CARGO TRANSPORTE E LOGÍSTICA LTDA'}</strong>
+                        <span style="font-size:8pt; color:#444;">CNPJ: 19.737.004/0001-85</span><br>
+                        <span style="font-size:7.5pt; font-weight:bold; color:#107c41;">CONTRATADA</span>
+                    </div>
+                </div>
+                <div style="width:48%; text-align:center;">
+                    <div style="border-top:1px solid #000; padding-top:6px;">
+                        <strong style="font-size:9pt; display:block;">${clienteNome}</strong>
+                        <span style="font-size:8pt; color:#444;">CNPJ/CPF: ${clienteCnpj}</span><br>
+                        <span style="font-size:7.5pt; font-weight:bold; color:#107c41;">CONTRATANTE</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bloco de Testemunhas -->
+            <div style="display:flex; justify-content:space-between; gap:2rem; font-size:8pt; color:#444;">
+                <div style="width:48%;">
+                    <div style="border-top:1px dashed #94a3b8; padding-top:4px;">
+                        Testemunha 1: _______________________<br>
+                        Nome:<br>
+                        CPF:
+                    </div>
+                </div>
+                <div style="width:48%;">
+                    <div style="border-top:1px dashed #94a3b8; padding-top:4px;">
+                        Testemunha 2: _______________________<br>
+                        Nome:<br>
+                        CPF:
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="doc-footer-bar" style="position:absolute; bottom:14mm; left:16mm; right:16mm; font-size:7.5pt; text-align:center; color:#fff; background:#107c41; border-radius:20px; padding:5px 12px; font-family:Arial,sans-serif;">
+            Rua Álvaro Pego de Farias, 137 - Paraíso, Resende - RJ, 27535-060 | (24) 3381-8000 | https://www.veritaslocacao.com.br | CNPJ: 19.737.004/0001-85
+        </div>
+        <div class="doc-page-num" style="position:absolute; bottom:7mm; right:16mm; font-size:8pt; color:#666; font-family:Arial,sans-serif;">Contrato Jurídico • Página 01 de 01</div>
+    `;
+
+    const paperEl = document.getElementById('docPropostaPaper');
+    if (paperEl) {
+        paperEl.innerHTML = htmlContrato;
+        if (empresaPdfBgUrl) {
+            paperEl.style.backgroundImage = `url('${empresaPdfBgUrl}')`;
+            paperEl.style.backgroundSize = '100% 100%';
+            paperEl.style.backgroundPosition = 'center';
+            paperEl.style.backgroundRepeat = 'no-repeat';
+        } else {
+            paperEl.style.backgroundImage = 'none';
+        }
+    }
+    document.getElementById('documentoPropostaOverlay').classList.add('active');
+    if (window.lucide) lucide.createIcons();
+};
+
 window.fecharDocumentoProposta = () => {
     document.getElementById('documentoPropostaOverlay').classList.remove('active');
 };
@@ -4126,7 +4897,8 @@ window.baixarPdfProposta = async () => {
     const cliente = (document.getElementById('cliente_nome')?.value || propostaAtual.cliente_nome || 'Cliente')
         .trim().replace(/[^a-zA-Z0-9_\-]/g, '_');
     const dataRef = new Date().toISOString().slice(0, 10);
-    const filename = `Proposta_${cliente || 'Comercial'}_${dataRef}.pdf`;
+    const prefix = window.documentoAtivoTipo === 'contrato' ? 'Contrato' : 'Proposta';
+    const filename = `${prefix}_${cliente || 'Comercial'}_${dataRef}.pdf`;
 
     const btn = document.querySelector('.doc-btn-download');
     const origHtml = btn ? btn.innerHTML : '';

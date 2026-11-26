@@ -97,6 +97,7 @@
                 z-index: 9998 !important;
                 display: flex !important;
                 align-items: center !important;
+                gap: 6px !important;
             }
 
             .mobile-noti-btn {
@@ -123,6 +124,15 @@
                 color: #f59e0b !important;
             }
 
+            .mobile-unlinked-btn {
+                border-color: rgba(129, 140, 248, 0.35) !important;
+            }
+
+            .mobile-unlinked-btn i,
+            .mobile-unlinked-btn svg {
+                color: #818cf8 !important;
+            }
+
             .mobile-noti-btn .noti-badge {
                 position: absolute !important;
                 top: -4px !important;
@@ -142,7 +152,12 @@
                 box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25) !important;
             }
 
-            #notiPanel {
+            .mobile-unlinked-btn .noti-badge {
+                background: #818cf8 !important;
+            }
+
+            #notiPanel,
+            #unlinkedPanel {
                 position: fixed !important;
                 top: 3.2rem !important;
                 left: 0.65rem !important;
@@ -159,11 +174,13 @@
                 display: none;
             }
 
-            #notiPanel.active {
+            #notiPanel.active,
+            #unlinkedPanel.active {
                 display: block !important;
             }
 
-            [data-theme="green_pastel"] #notiPanel {
+            [data-theme="green_pastel"] #notiPanel,
+            [data-theme="green_pastel"] #unlinkedPanel {
                 background: #ffffff !important;
                 border: 1px solid rgba(45, 158, 107, 0.25) !important;
                 box-shadow: 0 10px 30px rgba(45, 158, 107, 0.2) !important;
@@ -322,6 +339,129 @@
             .filter-chip .filter-count {
                 font-size: 0.6rem !important;
                 padding: 0.05rem 0.35rem !important;
+                border-radius: 6px !important;
+            }
+
+            /* --- Acordeão de Condutores Disponíveis no Mobile --- */
+            .mob-unlinked-accordion {
+                width: 100% !important;
+                box-sizing: border-box !important;
+                background: rgba(99, 102, 241, 0.08) !important;
+                border: 1px solid rgba(129, 140, 248, 0.25) !important;
+                border-radius: 14px !important;
+                overflow: hidden !important;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15) !important;
+                margin-bottom: 0.15rem !important;
+            }
+
+            [data-theme="green_pastel"] .mob-unlinked-accordion {
+                background: #f5f3ff !important;
+                border-color: rgba(129, 140, 248, 0.3) !important;
+                box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08) !important;
+            }
+
+            .mob-unlinked-header {
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                padding: 0.75rem 0.9rem !important;
+                cursor: pointer !important;
+                user-select: none !important;
+            }
+
+            .mob-unlinked-title-group {
+                display: flex !important;
+                align-items: center !important;
+                gap: 0.5rem !important;
+            }
+
+            .mob-unlinked-icon-wrap {
+                width: 24px !important;
+                height: 24px !important;
+                border-radius: 6px !important;
+                background: rgba(129, 140, 248, 0.18) !important;
+                color: #818cf8 !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+
+            .mob-unlinked-title {
+                font-size: 0.82rem !important;
+                font-weight: 700 !important;
+                color: var(--text-main, #0f172a) !important;
+            }
+
+            .mob-unlinked-badge {
+                background: #818cf8 !important;
+                color: #ffffff !important;
+                font-size: 0.65rem !important;
+                font-weight: 800 !important;
+                padding: 2px 7px !important;
+                border-radius: 10px !important;
+            }
+
+            .mob-unlinked-arrow {
+                color: #818cf8 !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+
+            .mob-unlinked-content {
+                border-top: 1px solid rgba(129, 140, 248, 0.18) !important;
+                padding: 0.45rem 0.75rem 0.75rem 0.75rem !important;
+            }
+
+            [data-theme="green_pastel"] .mob-unlinked-content {
+                border-top-color: rgba(129, 140, 248, 0.2) !important;
+            }
+
+            .mob-unlinked-list {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.4rem !important;
+            }
+
+            .mob-unlinked-item {
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                padding: 0.45rem 0.6rem !important;
+                background: rgba(255, 255, 255, 0.04) !important;
+                border: 1px solid rgba(255, 255, 255, 0.06) !important;
+                border-radius: 8px !important;
+            }
+
+            [data-theme="green_pastel"] .mob-unlinked-item {
+                background: #ffffff !important;
+                border-color: rgba(129, 140, 248, 0.15) !important;
+            }
+
+            .mob-unlinked-item-info {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 1px !important;
+            }
+
+            .mob-unlinked-item-name {
+                font-size: 0.8rem !important;
+                font-weight: 700 !important;
+                color: var(--text-main, #0f172a) !important;
+            }
+
+            .mob-unlinked-item-sub {
+                font-size: 0.68rem !important;
+                color: var(--text-muted, #64748b) !important;
+            }
+
+            .mob-unlinked-item-tag {
+                font-size: 0.65rem !important;
+                font-weight: 700 !important;
+                color: #818cf8 !important;
+                background: rgba(129, 140, 248, 0.12) !important;
+                border: 1px solid rgba(129, 140, 248, 0.25) !important;
+                padding: 2px 6px !important;
                 border-radius: 6px !important;
             }
 
@@ -893,28 +1033,62 @@
             }
 
             .maint-grid-new {
-                display: grid !important;
-                grid-template-columns: 105px 1fr !important;
-                gap: 0.4rem !important;
-                margin-bottom: 0.35rem !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.5rem !important;
+                margin-bottom: 0.45rem !important;
+            }
+
+            .maint-new-log-top-row {
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: flex-end !important;
+                gap: 0.6rem !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            #newLogDesc,
+            #editMaintLogDesc {
+                width: 100% !important;
+                min-height: 68px !important;
+                max-height: 320px !important;
+                padding: 0.55rem 0.75rem !important;
+                font-size: 0.82rem !important;
+                line-height: 1.45 !important;
+                border-radius: 8px !important;
+                box-sizing: border-box !important;
+                resize: vertical !important;
+                word-break: break-word !important;
+                white-space: pre-wrap !important;
+                font-family: inherit !important;
+                background: rgba(0, 0, 0, 0.25) !important;
+                border: 1px solid rgba(255, 255, 255, 0.12) !important;
+                color: var(--text-main) !important;
+            }
+
+            [data-theme="green_pastel"] #newLogDesc,
+            [data-theme="green_pastel"] #editMaintLogDesc {
+                background: #ffffff !important;
+                border: 1px solid rgba(45, 158, 107, 0.25) !important;
+                color: #1a2e25 !important;
             }
 
             .maint-add-btn-wrapper {
-                grid-column: 1 / -1 !important;
-                margin-top: 0.2rem !important;
+                margin: 0 !important;
             }
 
             .maint-add-btn-wrapper button {
-                width: 100% !important;
-                height: 34px !important;
-                padding: 0.35rem 0.6rem !important;
-                font-size: 0.78rem !important;
+                height: 36px !important;
+                padding: 0 1.2rem !important;
+                font-size: 0.8rem !important;
                 font-weight: 700 !important;
                 border-radius: 8px !important;
-                display: flex !important;
+                display: inline-flex !important;
                 align-items: center !important;
                 justify-content: center !important;
-                gap: 0.3rem !important;
+                gap: 0.35rem !important;
+                white-space: nowrap !important;
             }
 
             #maintLogHistory {
@@ -1257,6 +1431,10 @@
                     <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Voltar ao Dashboard
                 </a>
                 <div class="mobile-alerts-wrapper" id="mobileAlertsWrapper">
+                    <button type="button" id="mobileUnlinkedBtn" class="mobile-noti-btn mobile-unlinked-btn" onclick="toggleUnlinkedPanel(event)" title="Condutores Disponíveis">
+                        <i data-lucide="users"></i>
+                        <span id="mobileUnlinkedBadge" class="noti-badge" style="display: none;">0</span>
+                    </button>
                     <button type="button" id="mobileNotiBtn" class="mobile-noti-btn" onclick="toggleNotiPanel(event)" title="Notificações e Alertas">
                         <i data-lucide="bell"></i>
                         <span id="mobileNotiBadge" class="noti-badge" style="display: none;">0</span>
@@ -2119,19 +2297,22 @@
                 </div>
 
                 <div class="form-section-header" id="maintNewLogHeader">Novo Registro de Situação</div>
-                <div class="form-grid maint-grid-new" id="maintNewLogGrid">
-                    <div class="form-group">
-                        <label>Data</label>
-                        <input type="date" id="newLogDate">
+                <div class="maint-grid-new" id="maintNewLogGrid">
+                    <div class="maint-new-log-top-row">
+                        <div class="form-group" style="width: 160px; margin: 0;">
+                            <label>Data</label>
+                            <input type="date" id="newLogDate">
+                        </div>
+                        <div class="maint-add-btn-wrapper">
+                            <button type="button" class="btn btn-primary" onclick="addMaintLog()">
+                                <i data-lucide="plus"></i> Adicionar Situação
+                            </button>
+                        </div>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" style="margin: 0; width: 100%;">
                         <label>Descrição da Atualização</label>
-                        <input type="text" id="newLogDesc" placeholder="Ex: Autorizado reparo...">
-                    </div>
-                    <div class="form-group maint-add-btn-wrapper">
-                        <button type="button" class="btn btn-primary" onclick="addMaintLog()">
-                            <i data-lucide="plus"></i> Adicionar
-                        </button>
+                        <textarea id="newLogDesc" rows="3" placeholder="Escreva a descrição detalhada da situação (o campo se ajusta conforme você digita ou você pode arrastar para esticar)..."
+                            oninput="this.style.height='auto'; this.style.height=(this.scrollHeight)+'px';"></textarea>
                     </div>
                 </div>
 
@@ -2145,6 +2326,32 @@
                     <button type="submit" class="btn btn-primary" id="btnSaveMaintHeader">Salvar Cabeçalho</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal: Editar Registro de Situação -->
+    <div class="modal-overlay" id="editMaintLogModal" style="display:none; z-index:10005;">
+        <div class="modal" style="max-width:560px; width:92vw; border-radius:14px; padding:1.5rem; background:var(--bg-card); border:1px solid var(--border-color); box-shadow:0 10px 30px rgba(0,0,0,0.4);">
+            <div class="detail-modal-header" style="margin-bottom:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.6rem; display:flex; justify-content:space-between; align-items:center;">
+                <h3 style="font-size:1.05rem; font-weight:800; color:var(--text-main); margin:0; display:flex; align-items:center; gap:0.5rem;">
+                    <i data-lucide="edit-3" style="width:18px; color:var(--primary);"></i> Editar Situação do Veículo
+                </h3>
+                <button type="button" class="detail-close-btn" onclick="closeEditMaintLogModal()" style="background:none; border:none; font-size:1.4rem; color:var(--text-muted); cursor:pointer;">&times;</button>
+            </div>
+            <input type="hidden" id="editMaintLogId">
+            <div class="form-group" style="margin-bottom:0.75rem;">
+                <label style="font-size:0.68rem; font-weight:800; text-transform:uppercase; color:var(--text-muted); margin-bottom:0.25rem; display:block;">Data da Situação</label>
+                <input type="date" id="editMaintLogDate" style="height:36px; border-radius:8px; width:160px; font-size:0.82rem; padding:0 0.6rem;">
+            </div>
+            <div class="form-group" style="margin-bottom:1.2rem;">
+                <label style="font-size:0.68rem; font-weight:800; text-transform:uppercase; color:var(--text-muted); margin-bottom:0.25rem; display:block;">Descrição da Atualização</label>
+                <textarea id="editMaintLogDesc" placeholder="Escreva a descrição atualizada..." 
+                    oninput="this.style.height='auto'; this.style.height=(this.scrollHeight)+'px';"></textarea>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:0.6rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeEditMaintLogModal()" style="padding:0.55rem 1.2rem; border-radius:8px; font-weight:700;">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveEditMaintLog()" style="padding:0.55rem 1.4rem; border-radius:8px; font-weight:800;">Salvar Alteração</button>
+            </div>
         </div>
     </div>
 
