@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-br" data-theme="green_pastel">
 
 <head>
     <meta charset="UTF-8">
@@ -12,7 +12,7 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap"
         rel="stylesheet">
     <!-- CSS -->
-    <link rel="stylesheet" href="style.css?v=20261109_mobile_noti_fix">
+    <link rel="stylesheet" href="style.css?v=20261126_split_screen_v5">
     <link rel="stylesheet" href="orb_menu.css">
     <!-- Lucide Icons -->
     <script defer src="https://unpkg.com/lucide@latest"></script>
@@ -463,6 +463,98 @@
                 border: 1px solid rgba(129, 140, 248, 0.25) !important;
                 padding: 2px 6px !important;
                 border-radius: 6px !important;
+            }
+
+            /* --- Anexos no Histórico de Veículos (Fotos e PDFs) --- */
+            .maint-log-attachments {
+                display: flex !important;
+                flex-wrap: wrap !important;
+                gap: 0.5rem !important;
+                margin-top: 0.55rem !important;
+                padding-top: 0.45rem !important;
+                border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+            }
+
+            [data-theme="green_pastel"] .maint-log-attachments {
+                border-top-color: rgba(45, 158, 107, 0.15) !important;
+            }
+
+            .maint-attach-thumb {
+                position: relative !important;
+                width: 64px !important;
+                height: 64px !important;
+                border-radius: 8px !important;
+                overflow: hidden !important;
+                border: 1px solid rgba(255, 255, 255, 0.15) !important;
+                cursor: pointer !important;
+                background: #000 !important;
+                transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+
+            .maint-attach-thumb:hover {
+                transform: scale(1.05) !important;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+            }
+
+            .maint-attach-thumb img {
+                width: 100% !important;
+                height: 100% !important;
+                object-fit: cover !important;
+                display: block !important;
+            }
+
+            [data-theme="green_pastel"] .maint-attach-thumb {
+                border-color: rgba(45, 158, 107, 0.25) !important;
+            }
+
+            .maint-attach-pdf {
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 0.45rem !important;
+                padding: 0.4rem 0.75rem !important;
+                border-radius: 8px !important;
+                background: rgba(239, 68, 68, 0.1) !important;
+                border: 1px solid rgba(239, 68, 68, 0.3) !important;
+                color: var(--text-main, #0f172a) !important;
+                text-decoration: none !important;
+                font-size: 0.78rem !important;
+                font-weight: 700 !important;
+                transition: all 0.2s ease !important;
+            }
+
+            .maint-attach-pdf:hover {
+                background: rgba(239, 68, 68, 0.2) !important;
+                border-color: rgba(239, 68, 68, 0.5) !important;
+                transform: translateY(-1px) !important;
+            }
+
+            .maint-file-chip-preview {
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 0.4rem !important;
+                padding: 0.3rem 0.55rem !important;
+                border-radius: 6px !important;
+                font-size: 0.74rem !important;
+                font-weight: 600 !important;
+                background: var(--bg-card, #ffffff) !important;
+                border: 1px solid var(--border-card, #cbd5e1) !important;
+                color: var(--text-main, #0f172a) !important;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
+            }
+
+            .maint-file-chip-preview .chip-remove {
+                background: none !important;
+                border: none !important;
+                color: #ef4444 !important;
+                cursor: pointer !important;
+                font-size: 1rem !important;
+                line-height: 1 !important;
+                padding: 0 2px !important;
+                display: flex !important;
+                align-items: center !important;
             }
 
             /* --- Container dos Cards Mobile (100% Largura Útil) --- */
@@ -1092,43 +1184,38 @@
             }
 
             #maintLogHistory {
-                max-height: 210px !important;
-                padding: 0.45rem !important;
+                max-height: 240px !important;
+                padding: 0.5rem 0.4rem !important;
                 border-radius: 10px !important;
-                background: rgba(0, 0, 0, 0.28) !important;
-                border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                background: #fbfdfc !important;
+                border: 1px solid rgba(45, 158, 107, 0.2) !important;
                 margin-bottom: 0.4rem !important;
                 display: flex !important;
                 flex-direction: column !important;
-                gap: 0.4rem !important;
+                gap: 0.65rem !important;
                 width: 100% !important;
                 box-sizing: border-box !important;
                 overflow-y: auto !important;
                 -webkit-overflow-scrolling: touch !important;
             }
 
-            [data-theme="green_pastel"] #maintLogHistory {
-                background: #f8faf8 !important;
-                border-color: rgba(45, 158, 107, 0.18) !important;
+            .maint-timeline-card {
+                padding: 0.6rem 0.75rem !important;
             }
 
-            .maint-log-item {
-                display: flex !important;
-                flex-direction: column !important;
-                align-items: stretch !important;
-                width: 100% !important;
-                box-sizing: border-box !important;
-                padding: 0.5rem 0.6rem !important;
-                gap: 0.3rem !important;
-                border-radius: 8px !important;
-                background: rgba(255, 255, 255, 0.035) !important;
-                border: 1px solid rgba(255, 255, 255, 0.07) !important;
+            .maint-timeline-marker {
+                width: 22px !important;
             }
 
-            [data-theme="green_pastel"] .maint-log-item {
-                background: #ffffff !important;
-                border-color: rgba(45, 158, 107, 0.18) !important;
-                box-shadow: 0 1px 3px rgba(45, 158, 107, 0.06) !important;
+            .maint-timeline-node {
+                width: 20px !important;
+                height: 20px !important;
+            }
+
+            .maint-timeline-node svg,
+            .maint-timeline-node i {
+                width: 10px !important;
+                height: 10px !important;
             }
 
             .maint-log-header-row {
@@ -1404,6 +1491,196 @@
         [data-theme="green_pastel"] .filter-chip.filter-alertas.active .filter-count {
             background: rgba(255, 255, 255, 0.3) !important;
             color: #ffffff !important;
+        }
+
+        /* =======================================================
+           🌿 HISTÓRICO DE MOVIMENTAÇÕES (MODAL) - 100% CLEAN VERDE
+           ======================================================= */
+        #maintenanceModal #maintLogHistory,
+        #maintLogHistory,
+        [data-theme="green_pastel"] #maintLogHistory {
+            background: #fbfdfc !important;
+            border: 1px solid rgba(45, 158, 107, 0.22) !important;
+            box-shadow: inset 0 1px 3px rgba(45, 158, 107, 0.05) !important;
+        }
+
+        #maintenanceModal .maint-count-badge,
+        .maint-count-badge,
+        [data-theme="green_pastel"] .maint-count-badge {
+            background: rgba(45, 158, 107, 0.12) !important;
+            color: #15803d !important;
+            border: 1px solid rgba(45, 158, 107, 0.25) !important;
+            font-weight: 700 !important;
+        }
+
+        #maintenanceModal .maint-timeline-card,
+        .maint-timeline-card,
+        [data-theme="green_pastel"] .maint-timeline-card {
+            background: #ffffff !important;
+            border: 1px solid rgba(45, 158, 107, 0.22) !important;
+            box-shadow: 0 2px 8px rgba(45, 158, 107, 0.08) !important;
+            color: #1a2e25 !important;
+        }
+
+        #maintenanceModal .maint-timeline-card:hover,
+        .maint-timeline-card:hover,
+        [data-theme="green_pastel"] .maint-timeline-card:hover {
+            border-color: #2d9e6b !important;
+            box-shadow: 0 4px 14px rgba(45, 158, 107, 0.16) !important;
+        }
+
+        #maintenanceModal .maint-timeline-card-header,
+        .maint-timeline-card-header,
+        [data-theme="green_pastel"] .maint-timeline-card-header {
+            border-bottom: 1px solid rgba(45, 158, 107, 0.12) !important;
+        }
+
+        #maintenanceModal .maint-timeline-node,
+        .maint-timeline-node,
+        [data-theme="green_pastel"] .maint-timeline-node {
+            background: #ffffff !important;
+            border: 2px solid #2d9e6b !important;
+            box-shadow: 0 2px 6px rgba(45, 158, 107, 0.2) !important;
+        }
+
+        #maintenanceModal .maint-timeline-node svg,
+        #maintenanceModal .maint-timeline-node i,
+        .maint-timeline-node svg,
+        .maint-timeline-node i,
+        [data-theme="green_pastel"] .maint-timeline-node svg,
+        [data-theme="green_pastel"] .maint-timeline-node i {
+            color: #2d9e6b !important;
+        }
+
+        #maintenanceModal .maint-timeline-line,
+        .maint-timeline-line,
+        [data-theme="green_pastel"] .maint-timeline-line {
+            background: rgba(45, 158, 107, 0.22) !important;
+        }
+
+        #maintenanceModal .maint-timeline-date,
+        .maint-timeline-date,
+        [data-theme="green_pastel"] .maint-timeline-date {
+            color: #15803d !important;
+            font-weight: 800 !important;
+        }
+
+        #maintenanceModal .maint-timeline-date svg,
+        #maintenanceModal .maint-timeline-date i,
+        .maint-timeline-date svg,
+        .maint-timeline-date i,
+        [data-theme="green_pastel"] .maint-timeline-date svg,
+        [data-theme="green_pastel"] .maint-timeline-date i {
+            color: #2d9e6b !important;
+        }
+
+        #maintenanceModal .maint-timeline-relative,
+        .maint-timeline-relative,
+        [data-theme="green_pastel"] .maint-timeline-relative {
+            color: #15803d !important;
+            background: rgba(45, 158, 107, 0.12) !important;
+            border: 1px solid rgba(45, 158, 107, 0.22) !important;
+        }
+
+        #maintenanceModal .maint-timeline-att-badge,
+        .maint-timeline-att-badge,
+        [data-theme="green_pastel"] .maint-timeline-att-badge {
+            color: #b45309 !important;
+            background: rgba(245, 158, 11, 0.12) !important;
+            border: 1px solid rgba(245, 158, 11, 0.3) !important;
+        }
+
+        #maintenanceModal .maint-timeline-text,
+        .maint-timeline-text,
+        [data-theme="green_pastel"] .maint-timeline-text {
+            color: #1a2e25 !important;
+            font-size: 0.86rem !important;
+        }
+
+        #maintenanceModal .maint-timeline-footer,
+        .maint-timeline-footer,
+        [data-theme="green_pastel"] .maint-timeline-footer {
+            border-top: 1px solid rgba(45, 158, 107, 0.08) !important;
+        }
+
+        #maintenanceModal .maint-timeline-author,
+        .maint-timeline-author,
+        [data-theme="green_pastel"] .maint-timeline-author {
+            color: #5a7a6a !important;
+        }
+
+        #maintenanceModal #maintLogSearchInput,
+        #maintLogSearchInput,
+        [data-theme="green_pastel"] #maintLogSearchInput {
+            background: #ffffff !important;
+            border: 1px solid rgba(45, 158, 107, 0.25) !important;
+            color: #1a2e25 !important;
+        }
+
+        #maintenanceModal #maintLogSearchInput:focus,
+        #maintLogSearchInput:focus,
+        [data-theme="green_pastel"] #maintLogSearchInput:focus {
+            border-color: #2d9e6b !important;
+            box-shadow: 0 0 0 3px rgba(45, 158, 107, 0.15) !important;
+        }
+
+        /* ══════════════════════════════════════════════════════════
+           📐 SPLIT-SCREEN LAYOUT: SITUAÇÃO & HISTÓRICO EXPANDIDO
+           ══════════════════════════════════════════════════════════ */
+        .maint-split-modal {
+            max-width: 1080px !important;
+            width: 94vw !important;
+            max-height: 92vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+
+        .maint-split-body {
+            display: grid !important;
+            grid-template-columns: 370px 1fr !important;
+            gap: 1.25rem !important;
+            align-items: stretch !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+        }
+
+        .maint-split-left {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 0.85rem !important;
+        }
+
+        .maint-section-card {
+            background: #fbfdfc !important;
+            border: 1px solid rgba(45, 158, 107, 0.2) !important;
+            border-radius: 12px !important;
+            padding: 0.85rem 1rem !important;
+            box-shadow: 0 1px 4px rgba(45, 158, 107, 0.05) !important;
+        }
+
+        .maint-split-right {
+            display: flex !important;
+            flex-direction: column !important;
+            min-width: 0 !important;
+            height: 100% !important;
+        }
+
+        .maint-split-timeline {
+            height: 485px !important;
+            max-height: 485px !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+        }
+
+        @media (max-width: 860px) {
+            .maint-split-body {
+                grid-template-columns: 1fr !important;
+                gap: 0.9rem !important;
+            }
+            .maint-split-timeline {
+                height: 320px !important;
+                max-height: 320px !important;
+            }
         }
     </style>
 </head>
@@ -2274,54 +2551,99 @@
 
     <!-- Maintenance Status Modal -->
     <div class="modal-overlay" id="maintenanceModal">
-        <div class="modal detail-modal" style="max-width: 800px;">
+        <div class="modal detail-modal maint-split-modal" style="max-width: 1080px; width: 94vw;">
             <div class="detail-modal-header">
-                <h2>Situação Atual e Histórico</h2>
+                <h2 id="maintModalTitle" style="display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin: 0;">
+                    Situação Atual e Histórico
+                </h2>
                 <button class="detail-close-btn" onclick="closeMaintenanceModal()">&times;</button>
             </div>
 
-            <form id="maintenanceForm">
+            <form id="maintenanceForm" style="display: flex; flex-direction: column; gap: 0.85rem;">
                 <input type="hidden" id="maintVehicleId">
                 <input type="hidden" id="maintPendingStatus">
-                <div class="form-grid maint-grid-top">
-                    <div class="form-group">
-                        <label>Oficina / Localização</label>
-                        <input type="text" id="maintOficinaSelect" placeholder="Opcional: Oficina ou Local..."
-                            style="flex: 1;">
 
-                    </div>
-                    <div class="form-group">
-                        <label>Motivo da Entrada</label>
-                        <input type="text" id="maintMotivo" placeholder="Opcional: Motivo...">
-                    </div>
-                </div>
-
-                <div class="form-section-header" id="maintNewLogHeader">Novo Registro de Situação</div>
-                <div class="maint-grid-new" id="maintNewLogGrid">
-                    <div class="maint-new-log-top-row">
-                        <div class="form-group" style="width: 160px; margin: 0;">
-                            <label>Data</label>
-                            <input type="date" id="newLogDate">
+                <!-- Split Container (2 Colunas no Desktop) -->
+                <div class="maint-split-body">
+                    <!-- Coluna Esquerda: Dados de Entrada & Novo Registro -->
+                    <div class="maint-split-left">
+                        <div class="maint-section-card">
+                            <div class="form-section-header" style="margin-top: 0; margin-bottom: 0.55rem; font-size: 0.85rem; font-weight: 800; display: flex; align-items: center; gap: 0.35rem;">
+                                <i data-lucide="map-pin" style="width: 14px; height: 14px; color: var(--primary);"></i> Dados da Entrada
+                            </div>
+                            <div class="form-grid maint-grid-top" style="display: flex; flex-direction: column; gap: 0.6rem;">
+                                <div class="form-group" style="margin: 0;">
+                                    <label>Oficina / Localização</label>
+                                    <input type="text" id="maintOficinaSelect" placeholder="Opcional: Oficina ou Local...">
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label>Motivo da Entrada</label>
+                                    <input type="text" id="maintMotivo" placeholder="Opcional: Motivo...">
+                                </div>
+                            </div>
                         </div>
-                        <div class="maint-add-btn-wrapper">
-                            <button type="button" class="btn btn-primary" onclick="addMaintLog()">
-                                <i data-lucide="plus"></i> Adicionar Situação
-                            </button>
+
+                        <!-- Novo Registro de Situação -->
+                        <div class="maint-section-card" id="maintNewLogCard">
+                            <div class="form-section-header" id="maintNewLogHeader" style="margin-top: 0; margin-bottom: 0.55rem; font-size: 0.85rem; font-weight: 800; display: flex; align-items: center; gap: 0.35rem;">
+                                <i data-lucide="plus-circle" style="width: 14px; height: 14px; color: var(--primary);"></i> Novo Registro de Situação
+                            </div>
+                            <div class="maint-grid-new" id="maintNewLogGrid" style="display: flex; flex-direction: column; gap: 0.6rem;">
+                                <div class="maint-new-log-top-row" style="display: flex; gap: 0.45rem; align-items: flex-end; justify-content: space-between;">
+                                    <div class="form-group" style="flex: 1; margin: 0;">
+                                        <label>Data</label>
+                                        <input type="date" id="newLogDate" style="width: 100%;">
+                                    </div>
+                                    <div class="maint-add-btn-wrapper" style="margin: 0;">
+                                        <input type="file" id="maintLogFileInput" multiple accept="image/*,application/pdf" style="display: none;" onchange="handleMaintLogFilesSelected(event)">
+                                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('maintLogFileInput').click()" title="Anexar Fotos e PDFs" style="display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700; height: 38px; padding: 0 0.8rem; font-size: 0.78rem;">
+                                            <i data-lucide="paperclip" style="width: 13px; height: 13px;"></i> Anexar
+                                        </button>
+                                    </div>
+                                </div>
+                                <!-- Container de Pré-visualização de Arquivos Selecionados -->
+                                <div id="maintSelectedFilesContainer" style="display: none; width: 100%; padding: 0.4rem 0.5rem; border-radius: 8px; background: rgba(45,158,107,0.06); border: 1px dashed rgba(45,158,107,0.3); gap: 0.4rem; flex-wrap: wrap; align-items: center;"></div>
+                                <div class="form-group" style="margin: 0; width: 100%;">
+                                    <label>Descrição da Atualização</label>
+                                    <textarea id="newLogDesc" rows="3" placeholder="Escreva a descrição detalhada da situação..."
+                                        style="min-height: 80px; resize: vertical;"
+                                        oninput="this.style.height='auto'; this.style.height=(this.scrollHeight)+'px';"></textarea>
+                                </div>
+                                <button type="button" class="btn btn-primary" onclick="addMaintLog()" id="btnAddMaintLog" style="display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; height: 38px; width: 100%; font-weight: 700; border-radius: 8px; font-size: 0.82rem;">
+                                    <i data-lucide="plus"></i> Adicionar Situação
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <div class="form-group" style="margin: 0; width: 100%;">
-                        <label>Descrição da Atualização</label>
-                        <textarea id="newLogDesc" rows="3" placeholder="Escreva a descrição detalhada da situação (o campo se ajusta conforme você digita ou você pode arrastar para esticar)..."
-                            oninput="this.style.height='auto'; this.style.height=(this.scrollHeight)+'px';"></textarea>
+
+                    <!-- Coluna Direita: Histórico de Movimentações Ocupando Toda Altura -->
+                    <div class="maint-split-right">
+                        <!-- Cabeçalho Dinâmico da Seção de Histórico de Movimentações -->
+                        <div class="maint-history-header-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.55rem; flex-wrap: wrap; gap: 0.6rem;">
+                            <div style="display: flex; align-items: center; gap: 0.55rem;">
+                                <div class="form-section-header" style="margin: 0; font-size: 0.95rem; font-weight: 800; display: flex; align-items: center; gap: 0.4rem;">
+                                    <i data-lucide="history" style="width: 17px; height: 17px; color: var(--primary);"></i> Histórico de Movimentações
+                                </div>
+                                <span id="maintLogCountBadge" class="maint-count-badge">0 registros</span>
+                            </div>
+                            <div class="maint-search-box" style="position: relative; display: flex; align-items: center;">
+                                <i data-lucide="search" style="position: absolute; left: 10px; width: 14px; height: 14px; color: var(--text-muted); pointer-events: none;"></i>
+                                <input type="text" id="maintLogSearchInput" placeholder="Buscar no histórico..." oninput="filterMaintLogs(this.value)"
+                                    style="padding: 0.35rem 1.8rem 0.35rem 2rem; border-radius: 8px; font-size: 0.8rem; height: 32px; border: 1px solid rgba(45, 158, 107, 0.25); background: #ffffff; color: var(--text-main); width: 180px; transition: width 0.2s, border-color 0.2s;"
+                                    onfocus="this.style.width='220px'" onblur="if(!this.value) this.style.width='180px'">
+                                <button type="button" id="maintLogClearSearch" onclick="clearMaintLogSearch()" style="display: none; position: absolute; right: 6px; background: none; border: none; font-size: 1rem; color: var(--text-muted); cursor: pointer; padding: 0 4px; line-height: 1;">&times;</button>
+                            </div>
+                        </div>
+
+                        <!-- Timeline Container com Grande Altura e Scroll Suave -->
+                        <div id="maintLogHistory" class="maint-timeline-container maint-split-timeline">
+                            <p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 0.8rem 0;">Carregando histórico...</p>
+                        </div>
                     </div>
                 </div>
 
-                <div class="form-section-header">Histórico de Movimentações</div>
-                <div id="maintLogHistory">
-                    <p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 0.5rem 0;">Carregando histórico...</p>
-                </div>
-
-                <div class="modal-actions">
+                <!-- Rodapé Unificado -->
+                <div class="modal-actions" style="margin-top: 0.3rem; padding-top: 0.65rem; border-top: 1px solid rgba(45, 158, 107, 0.15);">
                     <button type="button" class="btn btn-secondary" onclick="closeMaintenanceModal()">Fechar</button>
                     <button type="submit" class="btn btn-primary" id="btnSaveMaintHeader">Salvar Cabeçalho</button>
                 </div>
@@ -2556,6 +2878,12 @@
             <span>Equipe</span>
         </button>
     </nav>
+
+    <!-- Modal Lightbox para Visualização em Tela Cheia de Fotos do Histórico -->
+    <div id="maintImageLightbox" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.88); z-index: 10020; align-items: center; justify-content: center; backdrop-filter: blur(5px);" onclick="closeMaintLightbox()">
+        <button type="button" onclick="closeMaintLightbox()" style="position: absolute; top: 1.2rem; right: 1.2rem; background: rgba(255,255,255,0.2); border: none; color: #fff; width: 38px; height: 38px; border-radius: 50%; cursor: pointer; font-size: 1.5rem; display: flex; align-items: center; justify-content: center; transition: background 0.2s;">&times;</button>
+        <img id="maintLightboxImg" src="" alt="Visualização do Anexo" style="max-width: 90vw; max-height: 85vh; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,0.7); object-fit: contain;" onclick="event.stopPropagation();">
+    </div>
 
     <script src="app.js?v=20261116_col_acoes_fixa"></script>
     <script src="orb_menu.js"></script>

@@ -1878,6 +1878,14 @@ function openMaintenanceModal(vehicleId, intendedStatus = null) {
     document.getElementById('maintVehicleId').value = vehicleId;
     document.getElementById('maintPendingStatus').value = intendedStatus || '';
 
+    // Atualiza título do modal com Placa e Modelo
+    const modalTitle = document.getElementById('maintModalTitle');
+    if (modalTitle) {
+        const placa = v.placa || 'Veículo';
+        const modelo = v.modelo ? ` · ${v.modelo}` : '';
+        modalTitle.innerHTML = `Situação Atual e Histórico <span style="font-size: 0.84rem; font-weight: 700; color: #15803d; background: rgba(45, 158, 107, 0.12); padding: 3px 10px; border-radius: 8px; border: 1px solid rgba(45, 158, 107, 0.25); margin-left: 0.5rem; display: inline-flex; align-items: center; gap: 0.3rem;"><i data-lucide="truck" style="width: 14px; height: 14px; color: #2d9e6b;"></i> ${placa}${modelo}</span>`;
+    }
+
     const oficinaInput = document.getElementById('maintOficinaSelect');
     const motivoInput = document.getElementById('maintMotivo');
     const saveHeaderBtn = document.getElementById('btnSaveMaintHeader');
@@ -1907,17 +1915,153 @@ function openMaintenanceModal(vehicleId, intendedStatus = null) {
         }
     }
 
-    // Reset novo log
+    // Reset novo log e anexos
     document.getElementById('newLogDate').value = new Date().toISOString().split('T')[0];
     document.getElementById('newLogDesc').value = '';
+    selectedMaintFiles = [];
+    renderSelectedMaintFiles();
+
+    // Reset busca no histórico
+    currentMaintLogSearchQuery = '';
+    const searchInp = document.getElementById('maintLogSearchInput');
+    if (searchInp) searchInp.value = '';
+    const clearBtn = document.getElementById('maintLogClearSearch');
+    if (clearBtn) clearBtn.style.display = 'none';
 
     document.getElementById('maintenanceModal').style.display = 'flex';
     fetchMaintLogs(vehicleId);
 }
 
+// ============================================================
+//  ANEXOS E TIMELINE DE HISTÓRICO DE VEÍCULOS
+// ============================================================
+let selectedMaintFiles = [];
+let currentMaintLogSearchQuery = '';
+
+window.filterMaintLogs = function(query) {
+    currentMaintLogSearchQuery = (query || '').trim().toLowerCase();
+    const clearBtn = document.getElementById('maintLogClearSearch');
+    if (clearBtn) {
+        clearBtn.style.display = currentMaintLogSearchQuery ? 'block' : 'none';
+    }
+    renderMaintLogs();
+};
+
+window.clearMaintLogSearch = function() {
+    const input = document.getElementById('maintLogSearchInput');
+    if (input) input.value = '';
+    currentMaintLogSearchQuery = '';
+    const clearBtn = document.getElementById('maintLogClearSearch');
+    if (clearBtn) clearBtn.style.display = 'none';
+    renderMaintLogs();
+};
+
+function getRelativeTimeString(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const parts = dateStr.split('-');
+        let targetDate;
+        if (parts.length === 3) {
+            targetDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        } else {
+            targetDate = new Date(dateStr);
+            targetDate.setHours(0, 0, 0, 0);
+        }
+
+        const diffTime = today - targetDate;
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 0) return 'Hoje';
+        if (diffDays === 1) return 'Ontem';
+        if (diffDays > 1 && diffDays < 30) return `Há ${diffDays} dias`;
+        if (diffDays >= 30 && diffDays < 365) {
+            const months = Math.floor(diffDays / 30);
+            return `Há ${months} ${months === 1 ? 'mês' : 'meses'}`;
+        }
+        if (diffDays >= 365) {
+            const years = Math.floor(diffDays / 365);
+            return `Há ${years} ${years === 1 ? 'ano' : 'anos'}`;
+        }
+        return '';
+    } catch {
+        return '';
+    }
+}
+
+window.handleMaintLogFilesSelected = function(event) {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    files.forEach(f => {
+        const exists = selectedMaintFiles.some(cur => cur.name === f.name && cur.size === f.size);
+        if (!exists) {
+            selectedMaintFiles.push(f);
+        }
+    });
+
+    renderSelectedMaintFiles();
+    event.target.value = '';
+};
+
+window.removeSelectedMaintFile = function(index) {
+    selectedMaintFiles.splice(index, 1);
+    renderSelectedMaintFiles();
+};
+
+function renderSelectedMaintFiles() {
+    const container = document.getElementById('maintSelectedFilesContainer');
+    if (!container) return;
+
+    if (selectedMaintFiles.length === 0) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+        return;
+    }
+
+    container.style.display = 'flex';
+    container.innerHTML = selectedMaintFiles.map((file, idx) => {
+        const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+        const icon = isPdf 
+            ? '<i data-lucide="file-text" style="width: 14px; height: 14px; color: #ef4444;"></i>' 
+            : '<i data-lucide="image" style="width: 14px; height: 14px; color: #3b82f6;"></i>';
+        const sizeKb = (file.size / 1024).toFixed(0);
+        const sizeStr = sizeKb > 1024 ? (sizeKb / 1024).toFixed(1) + ' MB' : sizeKb + ' KB';
+
+        return `
+            <div class="maint-file-chip-preview" title="${file.name}">
+                ${icon}
+                <span style="max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.name}</span>
+                <small style="color: var(--text-muted); font-size: 0.65rem;">(${sizeStr})</small>
+                <button type="button" class="chip-remove" onclick="removeSelectedMaintFile(${idx})" title="Remover anexo">&times;</button>
+            </div>
+        `;
+    }).join('');
+
+    if (window.lucide) lucide.createIcons();
+}
+
+window.openMaintLightbox = function(url) {
+    const modal = document.getElementById('maintImageLightbox');
+    const img = document.getElementById('maintLightboxImg');
+    if (!modal || !img) return;
+    img.src = url;
+    modal.style.display = 'flex';
+};
+
+window.closeMaintLightbox = function() {
+    const modal = document.getElementById('maintImageLightbox');
+    const img = document.getElementById('maintLightboxImg');
+    if (modal) modal.style.display = 'none';
+    if (img) img.src = '';
+};
+
 function closeMaintenanceModal() {
     document.getElementById('maintPendingStatus').value = '';
     document.getElementById('maintenanceModal').style.display = 'none';
+    selectedMaintFiles = [];
+    renderSelectedMaintFiles();
     renderAll();
 }
 
@@ -1928,7 +2072,7 @@ async function fetchMaintLogs(vehicleId) {
     try {
         const { data, error } = await client
             .from('veiculo_situacoes_log')
-            .select('id, data, descricao, usuario_email')  // apenas campos usados em renderMaintLogs()
+            .select('id, data, descricao, usuario_email, anexos')
             .eq('veiculo_id', vehicleId)
             .order('data', { ascending: false })
             .limit(50);  // histórico recente é suficiente para exibir em tela
@@ -1945,10 +2089,48 @@ async function fetchMaintLogs(vehicleId) {
 
 function renderMaintLogs() {
     const container = document.getElementById('maintLogHistory');
+    const countBadge = document.getElementById('maintLogCountBadge');
     if (!container) return;
 
+    // Atualiza contagem total no cabeçalho
+    if (countBadge) {
+        countBadge.innerText = `${maintLogs.length} ${maintLogs.length === 1 ? 'registro' : 'registros'}`;
+    }
+
     if (maintLogs.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 0.9rem;">Nenhum registro encontrado.</p>';
+        container.innerHTML = `
+            <div style="text-align: center; color: var(--text-muted); padding: 2.2rem 1rem; font-size: 0.88rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                <i data-lucide="clock" style="width: 28px; height: 28px; opacity: 0.4;"></i>
+                <span>Nenhuma ocorrência registrada para este veículo.</span>
+            </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+
+    // Filtro dinâmico por texto em tempo real
+    let filteredLogs = [...maintLogs];
+    if (currentMaintLogSearchQuery) {
+        filteredLogs = filteredLogs.filter(l => {
+            const desc = (l.descricao || '').toLowerCase();
+            const date = (formatDate(l.data) || '').toLowerCase();
+            const author = (l.usuario_email || '').toLowerCase();
+            const atts = l.anexos && Array.isArray(l.anexos) ? l.anexos.map(a => (a.nome || '').toLowerCase()).join(' ') : '';
+            return desc.includes(currentMaintLogSearchQuery) || 
+                   date.includes(currentMaintLogSearchQuery) || 
+                   author.includes(currentMaintLogSearchQuery) ||
+                   atts.includes(currentMaintLogSearchQuery);
+        });
+    }
+
+    if (filteredLogs.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; color: var(--text-muted); padding: 2rem 1rem; font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 0.4rem;">
+                <i data-lucide="search-x" style="width: 26px; height: 26px; opacity: 0.5;"></i>
+                <span>Nenhum registro encontrado para "<strong>${currentMaintLogSearchQuery}</strong>"</span>
+            </div>
+        `;
+        if (window.lucide) lucide.createIcons();
         return;
     }
 
@@ -1959,40 +2141,103 @@ function renderMaintLogs() {
     const currentUserEmail = window.currentUser?.email || '';
 
     // Garante ordem: mais recente primeiro
-    const sortedLogs = [...maintLogs].sort((a, b) => new Date(b.data) - new Date(a.data));
+    const sortedLogs = [...filteredLogs].sort((a, b) => new Date(b.data) - new Date(a.data));
 
     container.innerHTML = sortedLogs.map(log => {
         const isOwner = log.usuario_email && log.usuario_email.toLowerCase() === currentUserEmail.toLowerCase();
         const canEditLog = hasEdit && (!log.usuario_email || isOwner || isAdmin);
         const canDeleteLog = hasDelete && (!log.usuario_email || isOwner || isAdmin);
 
-        const creatorText = log.usuario_email ? `<span style="display:block; font-size:0.75rem; color:var(--text-muted); margin-top:2px;">Por: ${log.usuario_email.split('@')[0]}</span>` : '';
+        const hasAttachments = log.anexos && Array.isArray(log.anexos) && log.anexos.length > 0;
+        const relativeTime = getRelativeTimeString(log.data);
+
+        // Badge indicativo de anexos no topo do card
+        let attCountBadge = '';
+        if (hasAttachments) {
+            attCountBadge = `
+                <span class="maint-timeline-att-badge" title="${log.anexos.length} anexo(s) neste registro">
+                    <i data-lucide="paperclip" style="width: 11px; height: 11px;"></i> ${log.anexos.length} ${log.anexos.length === 1 ? 'anexo' : 'anexos'}
+                </span>
+            `;
+        }
+
+        // Miniaturas de fotos e links de PDFs
+        let attachmentsHtml = '';
+        if (hasAttachments) {
+            attachmentsHtml = `
+                <div class="maint-log-attachments">
+                    ${log.anexos.map(att => {
+                        const isImg = (att.tipo && att.tipo.startsWith('image/')) || /\.(jpg|jpeg|png|webp|gif)$/i.test(att.nome || att.url);
+                        if (isImg) {
+                            return `
+                                <div class="maint-attach-thumb" onclick="openMaintLightbox('${att.url}')" title="${att.nome || 'Visualizar Imagem'} (clique para ampliar)">
+                                    <img src="${att.url}" alt="${att.nome || 'Anexo'}" loading="lazy">
+                                </div>
+                            `;
+                        } else {
+                            return `
+                                <a href="${att.url}" target="_blank" download="${att.nome || 'documento.pdf'}" class="maint-attach-pdf" title="${att.nome || 'Documento PDF'} (abrir/baixar)">
+                                    <i data-lucide="file-text" style="width: 14px; height: 14px; color: #ef4444;"></i>
+                                    <span style="max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${att.nome || 'Documento PDF'}</span>
+                                    <i data-lucide="download" style="width: 12px; height: 12px; opacity: 0.7;"></i>
+                                </a>
+                            `;
+                        }
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        const authorName = log.usuario_email ? log.usuario_email.split('@')[0] : 'Sistema';
 
         return `
-        <div class="maint-log-item">
-            <div class="maint-log-header-row">
-                <span class="maint-log-date">${formatDate(log.data)}</span>
-                <div class="maint-log-actions">
-                    <button type="button" class="btn-edit" onclick="sendMaintLogNotification('${log.id}', event)" title="Enviar notificação WhatsApp" style="color: #25D366; border-color: rgba(37,211,102,0.3); background: rgba(37,211,102,0.08);">
-                        <i data-lucide="send" style="width: 12px; height: 12px;"></i>
-                    </button>
-                    ${canEditLog ? `
-                    <button type="button" class="btn-edit" onclick="editMaintLog('${log.id}')" title="Editar">
-                        <i data-lucide="edit-2" style="width: 12px; height: 12px;"></i>
-                    </button>` : ''}
-                    ${canDeleteLog ? `
-                    <button type="button" class="btn-edit btn-delete" onclick="deleteMaintLog('${log.id}')" title="Excluir">
-                        <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
-                    </button>` : ''}
+        <div class="maint-timeline-item">
+            <!-- Marcador lateral da Linha do Tempo -->
+            <div class="maint-timeline-marker">
+                <div class="maint-timeline-node" title="Registro em ${formatDate(log.data)}">
+                    <i data-lucide="${hasAttachments ? 'paperclip' : 'wrench'}" style="width: 12px; height: 12px;"></i>
                 </div>
+                <div class="maint-timeline-line"></div>
             </div>
-            <div class="maint-log-desc">
-                ${log.descricao}
-                ${creatorText}
+
+            <!-- Card de Conteúdo Clean -->
+            <div class="maint-timeline-card">
+                <div class="maint-timeline-card-header">
+                    <div class="maint-timeline-date-wrap">
+                        <span class="maint-timeline-date">
+                            <i data-lucide="calendar" style="width: 13px; height: 13px;"></i> ${formatDate(log.data)}
+                        </span>
+                        ${relativeTime ? `<span class="maint-timeline-relative">${relativeTime}</span>` : ''}
+                        ${attCountBadge}
+                    </div>
+                    <div class="maint-timeline-actions">
+                        <button type="button" class="btn-edit" onclick="sendMaintLogNotification('${log.id}', event)" title="Compartilhar no WhatsApp" style="color: #25D366; border-color: rgba(37,211,102,0.3); background: rgba(37,211,102,0.08); width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px;">
+                            <i data-lucide="send" style="width: 13px; height: 13px;"></i>
+                        </button>
+                        ${canEditLog ? `
+                        <button type="button" class="btn-edit" onclick="editMaintLog('${log.id}')" title="Editar Situação" style="width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px;">
+                            <i data-lucide="edit-2" style="width: 13px; height: 13px;"></i>
+                        </button>` : ''}
+                        ${canDeleteLog ? `
+                        <button type="button" class="btn-edit btn-delete" onclick="deleteMaintLog('${log.id}')" title="Excluir Situação" style="width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px;">
+                            <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
+                        </button>` : ''}
+                    </div>
+                </div>
+                <div class="maint-timeline-body">
+                    <p class="maint-timeline-text">${log.descricao}</p>
+                    ${attachmentsHtml}
+                </div>
+                <div class="maint-timeline-footer">
+                    <span class="maint-timeline-author">
+                        <i data-lucide="user" style="width: 11px; height: 11px; opacity: 0.7;"></i> Registrado por: <strong>${authorName}</strong>
+                    </span>
+                </div>
             </div>
         </div>
         `;
     }).join('');
+
     if (window.lucide) lucide.createIcons();
 }
 
@@ -2019,7 +2264,12 @@ async function sendMaintLogNotification(logId, event) {
         }
     }
 
-    const msg = `🚗 *FROTALINK - ATUALIZAÇÃO DO VEÍCULO* 🚗\n\n*${placa}*\n\n📅 *Data:* ${formatDate(log.data)}\n📝 *Histórico:* ${log.descricao}\n\n🔧 *Status Atual:* ${statusMsgText.toUpperCase()}\n📍 *Local:* ${oficinaNome}\n⚠️ *Motivo:* ${motivo}\n\n----------------------------------------------`;
+    let anexosMsg = '';
+    if (log.anexos && Array.isArray(log.anexos) && log.anexos.length > 0) {
+        anexosMsg = `\n📎 *Anexos:* ${log.anexos.map(a => `${a.nome || 'Arquivo'} (${a.url})`).join('\n')}`;
+    }
+
+    const msg = `🚗 *FROTALINK - ATUALIZAÇÃO DO VEÍCULO* 🚗\n\n*${placa}*\n\n📅 *Data:* ${formatDate(log.data)}\n📝 *Histórico:* ${log.descricao}${anexosMsg}\n\n🔧 *Status Atual:* ${statusMsgText.toUpperCase()}\n📍 *Local:* ${oficinaNome}\n⚠️ *Motivo:* ${motivo}\n\n----------------------------------------------`;
 
     const btn = event?.currentTarget;
     if (btn && btn.disabled) return;
@@ -2051,33 +2301,95 @@ async function addMaintLog() {
         return;
     }
 
+    const btnAdd = document.getElementById('btnAddMaintLog');
+    const origBtnHtml = btnAdd ? btnAdd.innerHTML : '';
+    if (btnAdd) {
+        btnAdd.disabled = true;
+        btnAdd.style.opacity = '0.6';
+    }
+
     try {
+        const uploadedAnexos = [];
+
+        // Upload de arquivos para o Supabase Storage se houver
+        if (selectedMaintFiles && selectedMaintFiles.length > 0) {
+            for (let i = 0; i < selectedMaintFiles.length; i++) {
+                const file = selectedMaintFiles[i];
+                if (btnAdd) {
+                    btnAdd.innerHTML = `<i data-lucide="loader" class="spin"></i> Enviando ${i + 1}/${selectedMaintFiles.length}...`;
+                    if (window.lucide) lucide.createIcons();
+                }
+
+                const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+                const storagePath = `${vehicleId}/${Date.now()}_${Math.random().toString(36).substring(2, 7)}_${cleanName}`;
+
+                const { data: upData, error: upError } = await client.storage
+                    .from('veiculo-historico')
+                    .upload(storagePath, file, { cacheControl: '3600', upsert: false });
+
+                if (upError) {
+                    console.error('Erro no upload do anexo:', upError);
+                    throw new Error(`Falha ao enviar arquivo "${file.name}": ` + upError.message);
+                }
+
+                const { data: pubData } = client.storage
+                    .from('veiculo-historico')
+                    .getPublicUrl(storagePath);
+
+                uploadedAnexos.push({
+                    url: pubData.publicUrl,
+                    path: storagePath,
+                    nome: file.name,
+                    tipo: file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+                    tamanho: file.size
+                });
+            }
+        }
+
         const userEmail = window.currentUser?.email || '';
         const { error } = await client
             .from('veiculo_situacoes_log')
-            .insert([{ veiculo_id: vehicleId, data, descricao: desc, usuario_email: userEmail }]);
+            .insert([{ 
+                veiculo_id: vehicleId, 
+                data, 
+                descricao: desc, 
+                usuario_email: userEmail,
+                anexos: uploadedAnexos
+            }]);
 
         if (error) throw error;
 
         if (window.registrarLog) {
             const v = vehicles.find(item => item.id === vehicleId);
             const placa = v ? v.placa : vehicleId;
-            window.registrarLog('frota', 'INCLUSÃO', `Adicionou registro no histórico de manutenção do veículo ${placa}: "${desc}"`);
+            const qtdAnexos = uploadedAnexos.length ? ` com ${uploadedAnexos.length} anexo(s)` : '';
+            window.registrarLog('frota', 'INCLUSÃO', `Adicionou registro no histórico de manutenção do veículo ${placa}${qtdAnexos}: "${desc}"`);
         }
 
         document.getElementById('newLogDesc').value = '';
         const newLogDescEl = document.getElementById('newLogDesc');
         if (newLogDescEl) newLogDescEl.style.height = 'auto';
+
+        selectedMaintFiles = [];
+        renderSelectedMaintFiles();
+
         fetchMaintLogs(vehicleId);
         // Atualiza o log do veículo em memória para refletir no tooltip do dashboard
         const vMem = vehicles.find(item => item.id === vehicleId);
         if (vMem) {
             if (!vMem.veiculo_situacoes_log) vMem.veiculo_situacoes_log = [];
-            vMem.veiculo_situacoes_log.unshift({ id: Date.now().toString(), data, descricao: desc });
+            vMem.veiculo_situacoes_log.unshift({ id: Date.now().toString(), data, descricao: desc, anexos: uploadedAnexos });
             renderAll();
         }
     } catch (err) {
         alert('Erro ao salvar log: ' + err.message);
+    } finally {
+        if (btnAdd) {
+            btnAdd.disabled = false;
+            btnAdd.style.opacity = '1';
+            btnAdd.innerHTML = origBtnHtml || '<i data-lucide="plus"></i> Adicionar Situação';
+            if (window.lucide) lucide.createIcons();
+        }
     }
 }
 
@@ -2099,6 +2411,18 @@ async function deleteMaintLog(logId) {
 
     if (!confirm('Excluir este registro do histórico?')) return;
     try {
+        // Se houver anexos no Storage, remove
+        if (log.anexos && Array.isArray(log.anexos) && log.anexos.length > 0) {
+            const paths = log.anexos.map(a => a.path).filter(p => p);
+            if (paths.length > 0) {
+                try {
+                    await client.storage.from('veiculo-historico').remove(paths);
+                } catch (stErr) {
+                    console.warn('Erro ao remover arquivos do storage:', stErr);
+                }
+            }
+        }
+
         const { error } = await client.from('veiculo_situacoes_log').delete().eq('id', logId);
         if (error) throw error;
 

@@ -1206,8 +1206,45 @@ tr:last-child .maint-tooltip,
 }
 
 .maint-grid-new {
-    grid-template-columns: 150px 1fr auto;
-    gap: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.maint-new-log-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 0.6rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#newLogDesc,
+#editMaintLogDesc {
+    width: 100%;
+    min-height: 68px;
+    max-height: 320px;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    border-radius: 8px;
+    box-sizing: border-box;
+    resize: vertical;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+    font-family: inherit;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--text-main);
+}
+
+[data-theme="green_pastel"] #newLogDesc,
+[data-theme="green_pastel"] #editMaintLogDesc {
+    background: #ffffff;
+    border: 1px solid rgba(45, 158, 107, 0.25);
+    color: #1a2e25;
 }
 
 .maint-add-btn-wrapper {
@@ -1215,67 +1252,354 @@ tr:last-child .maint-tooltip,
     align-items: flex-end;
 }
 
-/* Base Maintenance Modal History */
+/* =======================================================
+   🌿 TIMELINE VERTICAL CLEAN VERDE - HISTÓRICO VEÍCULOS
+   ======================================================= */
+.maint-count-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: rgba(45, 158, 107, 0.12) !important;
+    color: #15803d !important;
+    border: 1px solid rgba(45, 158, 107, 0.25) !important;
+    display: inline-flex;
+    align-items: center;
+}
+
 #maintLogHistory {
     width: 100%;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
-    max-height: 260px;
+    gap: 0.75rem;
+    max-height: 290px;
     overflow-y: auto;
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    padding: 0.6rem;
+    background: #fbfdfc !important;
+    border: 1px solid rgba(45, 158, 107, 0.18) !important;
+    border-radius: 12px;
+    padding: 0.85rem 0.9rem;
+    position: relative;
 }
 
-.maint-log-item {
+/* Item da Timeline */
+.maint-timeline-item {
     display: flex;
-    flex-direction: column;
+    gap: 0.75rem;
+    position: relative;
     width: 100%;
     box-sizing: border-box;
-    padding: 0.65rem 0.85rem;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    gap: 0.35rem;
 }
 
-.maint-log-header-row {
+/* Marcador lateral (nó + linha) */
+.maint-timeline-marker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 26px;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.maint-timeline-node {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #ffffff !important;
+    border: 2px solid #2d9e6b !important;
+    color: #2d9e6b !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(45, 158, 107, 0.2) !important;
+    z-index: 2;
+    margin-top: 4px;
+    flex-shrink: 0;
+}
+
+.maint-timeline-node svg,
+.maint-timeline-node i {
+    color: #2d9e6b !important;
+}
+
+.maint-timeline-line {
+    flex: 1;
+    width: 2px;
+    background: rgba(45, 158, 107, 0.22) !important;
+    margin-top: 4px;
+    margin-bottom: -12px;
+    border-radius: 1px;
+}
+
+.maint-timeline-item:last-child .maint-timeline-line {
+    display: none;
+}
+
+/* Card do Conteúdo Clean Verde */
+.maint-timeline-card {
+    flex: 1;
+    background: #ffffff !important;
+    border: 1px solid rgba(45, 158, 107, 0.22) !important;
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
+    box-shadow: 0 2px 8px rgba(45, 158, 107, 0.08) !important;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+.maint-timeline-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(45, 158, 107, 0.16) !important;
+    border-color: #2d9e6b !important;
+}
+
+.maint-timeline-card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    width: 100%;
-    box-sizing: border-box;
     gap: 0.5rem;
+    flex-wrap: wrap;
+    border-bottom: 1px solid rgba(45, 158, 107, 0.12) !important;
+    padding-bottom: 0.4rem;
 }
 
-.maint-log-date {
-    font-size: 0.76rem;
-    font-weight: 700;
-    color: #60a5fa;
+.maint-timeline-date-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+
+.maint-timeline-date {
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: #15803d !important;
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.3rem;
 }
 
-.maint-log-desc {
-    font-size: 0.84rem;
-    color: var(--text-main);
-    line-height: 1.4;
-    width: 100%;
-    box-sizing: border-box;
-    word-break: normal;
-    overflow-wrap: break-word;
-    white-space: normal;
+.maint-timeline-date svg,
+.maint-timeline-date i {
+    color: #2d9e6b !important;
 }
 
-.maint-log-actions {
+.maint-timeline-relative {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #15803d !important;
+    background: rgba(45, 158, 107, 0.12) !important;
+    border: 1px solid rgba(45, 158, 107, 0.22) !important;
+    padding: 1px 7px;
+    border-radius: 6px;
+}
+
+.maint-timeline-att-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #b45309 !important;
+    background: rgba(245, 158, 11, 0.12) !important;
+    border: 1px solid rgba(245, 158, 11, 0.3) !important;
+    padding: 1px 6px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.maint-timeline-actions {
     display: flex;
     gap: 0.35rem;
     align-items: center;
     flex-shrink: 0;
+}
+
+.maint-timeline-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.maint-timeline-text {
+    margin: 0;
+    font-size: 0.86rem;
+    color: #1a2e25 !important;
+    line-height: 1.45;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.maint-timeline-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 0.35rem;
+    border-top: 1px solid rgba(45, 158, 107, 0.08) !important;
+}
+
+.maint-timeline-author {
+    font-size: 0.72rem;
+    color: #5a7a6a !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-weight: 500;
+}
+
+/* =======================================================
+   🌿 HISTÓRICO DE MOVIMENTAÇÕES - REFORÇO CLEAN VERDE
+   ======================================================= */
+[data-theme="green_pastel"] #maintLogHistory,
+#maintenanceModal #maintLogHistory {
+    background: #fbfdfc !important;
+    border: 1px solid rgba(45, 158, 107, 0.22) !important;
+}
+
+[data-theme="green_pastel"] .maint-count-badge,
+#maintenanceModal .maint-count-badge {
+    background: rgba(45, 158, 107, 0.12) !important;
+    color: #15803d !important;
+    border: 1px solid rgba(45, 158, 107, 0.25) !important;
+}
+
+[data-theme="green_pastel"] .maint-timeline-node,
+#maintenanceModal .maint-timeline-node {
+    background: #ffffff !important;
+    border: 2px solid #2d9e6b !important;
+    box-shadow: 0 2px 6px rgba(45, 158, 107, 0.2) !important;
+}
+
+[data-theme="green_pastel"] .maint-timeline-node svg,
+[data-theme="green_pastel"] .maint-timeline-node i,
+#maintenanceModal .maint-timeline-node svg,
+#maintenanceModal .maint-timeline-node i {
+    color: #2d9e6b !important;
+}
+
+[data-theme="green_pastel"] .maint-timeline-line,
+#maintenanceModal .maint-timeline-line {
+    background: rgba(45, 158, 107, 0.22) !important;
+}
+
+[data-theme="green_pastel"] .maint-timeline-card,
+#maintenanceModal .maint-timeline-card {
+    background: #ffffff !important;
+    border: 1px solid rgba(45, 158, 107, 0.22) !important;
+    box-shadow: 0 2px 8px rgba(45, 158, 107, 0.08) !important;
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .maint-timeline-card:hover,
+#maintenanceModal .maint-timeline-card:hover {
+    border-color: #2d9e6b !important;
+    box-shadow: 0 4px 14px rgba(45, 158, 107, 0.16) !important;
+}
+
+[data-theme="green_pastel"] .maint-timeline-card-header,
+#maintenanceModal .maint-timeline-card-header {
+    border-bottom: 1px solid rgba(45, 158, 107, 0.12) !important;
+}
+
+[data-theme="green_pastel"] .maint-timeline-date,
+#maintenanceModal .maint-timeline-date {
+    color: #15803d !important;
+}
+
+[data-theme="green_pastel"] .maint-timeline-date svg,
+[data-theme="green_pastel"] .maint-timeline-date i,
+#maintenanceModal .maint-timeline-date svg,
+#maintenanceModal .maint-timeline-date i {
+    color: #2d9e6b !important;
+}
+
+[data-theme="green_pastel"] .maint-timeline-relative,
+#maintenanceModal .maint-timeline-relative {
+    color: #15803d !important;
+    background: rgba(45, 158, 107, 0.12) !important;
+    border: 1px solid rgba(45, 158, 107, 0.22) !important;
+}
+
+[data-theme="green_pastel"] .maint-timeline-att-badge,
+#maintenanceModal .maint-timeline-att-badge {
+    color: #b45309 !important;
+    background: rgba(245, 158, 11, 0.12) !important;
+    border: 1px solid rgba(245, 158, 11, 0.3) !important;
+}
+
+[data-theme="green_pastel"] .maint-timeline-text,
+#maintenanceModal .maint-timeline-text {
+    color: #1a2e25 !important;
+}
+
+[data-theme="green_pastel"] .maint-timeline-footer,
+#maintenanceModal .maint-timeline-footer {
+    border-top: 1px solid rgba(45, 158, 107, 0.08) !important;
+}
+
+[data-theme="green_pastel"] .maint-timeline-author,
+#maintenanceModal .maint-timeline-author {
+    color: #5a7a6a !important;
+}
+
+/* Split-Screen Modal de Situação & Histórico */
+.maint-split-modal {
+    max-width: 1080px !important;
+    width: 94vw !important;
+    max-height: 92vh !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.maint-split-body {
+    display: grid !important;
+    grid-template-columns: 370px 1fr !important;
+    gap: 1.25rem !important;
+    align-items: stretch !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+.maint-split-left {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.85rem !important;
+}
+
+.maint-section-card {
+    background: #fbfdfc !important;
+    border: 1px solid rgba(45, 158, 107, 0.2) !important;
+    border-radius: 12px !important;
+    padding: 0.85rem 1rem !important;
+    box-shadow: 0 1px 4px rgba(45, 158, 107, 0.05) !important;
+}
+
+.maint-split-right {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+    height: 100% !important;
+}
+
+.maint-split-timeline {
+    height: 485px !important;
+    max-height: 485px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+@media (max-width: 860px) {
+    .maint-split-body {
+        grid-template-columns: 1fr !important;
+        gap: 0.9rem !important;
+    }
+    .maint-split-timeline {
+        height: 320px !important;
+        max-height: 320px !important;
+    }
 }
 
 .noti-panel.active {
